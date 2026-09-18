@@ -34,9 +34,17 @@ const MIME = {
   '.webmanifest': 'application/manifest+json',
 };
 
-function safeJoin(base, target) {
+/**
+ * Resolve a request path inside `base`, or null if it would escape.
+ * `..` is neutralised before the join, and the result is re-checked with
+ * path.relative rather than a string prefix (which would also accept a sibling
+ * directory whose name merely starts with the base name).
+ */
+export function safeJoin(base, target) {
   const resolved = path.resolve(base, '.' + path.posix.normalize('/' + target));
-  return resolved.startsWith(base) ? resolved : null;
+  const rel = path.relative(base, resolved);
+  if (rel === '') return resolved;
+  return !rel.startsWith('..') && !path.isAbsolute(rel) ? resolved : null;
 }
 
 function serveFile(res, filePath, req) {

@@ -12,6 +12,7 @@ import { stepMove, doorSegments } from '../shared/movement.js';
 import { TASK_DEFS, WIRE_PANELS, DATA_SOURCES, POWER_NODES, assignTasks, taskProgress } from '../shared/tasks.js';
 import { DEFAULT_SETTINGS, sanitizeSettings, PHASE } from '../shared/constants.js';
 import { GameRoom } from '../server/game.js';
+import path from 'node:path';
 
 let passed = 0, failed = 0;
 const tests = [];
@@ -169,6 +170,40 @@ test('walls: a closed door blocks line of sight through its doorway', () => {
   const b = { x: door.x1 + 60, y: (door.y1 + door.y2) / 2 };
   assert.ok(lineOfSight(a.x, a.y, b.x, b.y, WALLS), 'doorway should be open');
   assert.ok(!lineOfSight(a.x, a.y, b.x, b.y, [...WALLS, door]), 'closed door should block');
+});
+
+test('http: request paths cannot escape the public directory', () => {
+  // Mirrors server/index.js safeJoin, exercised under both path flavours because
+  // the game now ships to Windows where a backslash is also a separator.
+  const safeJoin = (impl, base, target) => {
+    const resolved = impl.resolve(base, '.' + path.posix.normalize('/' + target));
+    const rel = impl.relative(base, resolved);
+    if (rel === '') return resolved;
+    return !rel.startsWith('..') && !impl.isAbsolute(rel) ? resolved : null;
+  };
+  const attacks = [
+    '/../server/game.js', '/../../etc/passwd', '/..%2f..%2fetc/passwd',
+    '/....//server/ws.js', '/./../../package.json', '//../server/rooms.js',
+    '/..\\..\\server\\game.js', '\\..\\..\\server\\game.js',
+    '/%2e%2e/%2e%2e/server/ws.js', '/public/../../secrets.txt',
+  ];
+  for (const [impl, base, sibling] of [[path.posix, '/game/public', '/game/public-secret'],
+                                       [path.win32, 'C:\\game\\public', 'C:\\game\\public-secret']]) {
+    for (const attack of attacks) {
+      const resolved = safeJoin(impl, base, decodeURIComponent(attack));
+      if (resolved === null) continue;
+      const rel = impl.relative(base, resolved);
+      assert.ok(!rel.startsWith('..') && !impl.isAbsolute(rel), `${attack} escaped to ${resolved}`);
+    }
+    // A sibling directory sharing the base's prefix must never be reachable.
+    assert.ok(!sibling.startsWith(base) || impl.relative(base, sibling).startsWith('..'),
+      'sibling directory check is not meaningful');
+    // Normal assets still resolve.
+    for (const ok of ['/index.html', '/js/main.js', '/css/style.css', '/js/minigames/wires.js']) {
+      const resolved = safeJoin(impl, base, ok);
+      assert.ok(resolved && resolved.startsWith(base), `${ok} should be servable`);
+    }
+  }
 });
 
 test('settings: sanitiser clamps hostile input', () => {
