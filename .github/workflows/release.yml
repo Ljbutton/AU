@@ -1,0 +1,69 @@
+name: Release
+
+# Builds the self-contained Windows package and attaches it to a GitHub
+# Release. Push a tag (v1.0.0) or run this workflow by hand.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish, e.g. v1.0.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  windows-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run the test suite
+        run: npm test
+
+      - name: Build the Windows package
+        run: node scripts/build-windows.mjs
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -eu
+          NOTES=$(cat <<'NOTE'
+          ## Play on Windows — no install needed
+
+          1. Download **AmongUs-TheHull-win-x64.zip** below.
+          2. Extract the whole folder (right click → Extract All).
+          3. Double-click **Play Among Us.bat** — your browser opens the game.
+
+          Keep the console window open while you play; close it to stop the game.
+
+          **Playing with friends:** the console prints an address like
+          `http://192.168.1.42:3000`. Anyone on the same network opens that and
+          types in your lobby code. Allow the Windows firewall prompt for
+          node.exe on private networks, or they will not be able to connect.
+          Playing alone? Add bots in the lobby.
+
+          The download bundles the official, unmodified Node.js runtime
+          (checksum-verified at build time); the launcher is a plain text .bat
+          you can read in Notepad. It is not code-signed, so SmartScreen may
+          warn about an unrecognised app.
+
+          `AmongUs-TheHull-win-x64.zip.sha256` holds the checksum of the ZIP.
+          NOTE
+          )
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.zip dist/*.sha256 --clobber
+          else
+            gh release create "$TAG" dist/*.zip dist/*.sha256 \
+              --title "Among Us — The Hull $TAG" \
+              --notes "$NOTES"
+          fi

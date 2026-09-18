@@ -12,15 +12,29 @@ plain JavaScript and drawn with the Canvas 2D API.
 
 ---
 
-## Quick start
+## Download and play (Windows)
+
+Grab **AmongUs-TheHull-win-x64.zip** from the
+[latest release](https://github.com/Ljbutton/AU/releases/latest), extract the whole
+folder, and double-click **Play Among Us.bat**. Your browser opens the game; keep the
+console window open while you play.
+
+Nothing to install — the ZIP carries the official Node.js runtime with it. Friends on the
+same network join using the `http://192.168.x.x:3000` address the console prints (allow
+the Windows firewall prompt for node.exe on private networks), or add bots and play alone.
+
+Rebuild that package yourself with `npm run build:win`.
+
+## Quick start (any OS)
 
 ```bash
 git clone https://github.com/Ljbutton/AU.git
 cd AU
-npm start            # or: node server/index.js
+npm start            # or: node server/index.js --open
 ```
 
-Then open <http://localhost:3000>.
+Then open <http://localhost:3000>. `--open` launches your browser for you, and the server
+steps to the next free port if 3000 is taken.
 
 * Pick a name, one of twelve colours and one of ten hats — all drawn in code.
 * **Host a Game** gives you a six-letter lobby code. Anyone on the same network can join
@@ -137,6 +151,10 @@ server/
   rooms.js        lobby registry and the 20 Hz simulation loop
   game.js         the authoritative game: roles, tasks, kills, sabotage, meetings, wins
   bots.js         AI players that act only through the same actions a human client sends
+
+scripts/
+  build-windows.mjs  packages the game + an official Node runtime into a ZIP
+  zip.js             a small zip reader/writer, so packaging needs no npm either
 
 public/
   index.html      every screen: menu, lobby, game, meeting, results

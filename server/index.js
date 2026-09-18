@@ -3,7 +3,9 @@
 
 import http from 'node:http';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from './ws.js';
 import { RoomManager } from './rooms.js';
@@ -12,8 +14,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const PUBLIC = path.join(ROOT, 'public');
 const SHARED = path.join(ROOT, 'shared');
+const args = process.argv.slice(2);
+const flag = (name) => args.includes(`--${name}`);
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
+const OPEN_BROWSER = flag('open') || process.env.AU_OPEN === '1';
+const MAX_PORT_TRIES = 12;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -91,10 +97,64 @@ wss.on('connection', (conn) => {
   conn.on('error', () => manager.detach(conn));
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`\n  Among Us recreation running`);
-  console.log(`  -> http://localhost:${PORT}\n`);
-});
+/** Every IPv4 address friends on the same network could use. */
+function lanAddresses() {
+  const out = [];
+  for (const entries of Object.values(os.networkInterfaces())) {
+    for (const net of entries || []) {
+      if (net.family === 'IPv4' && !net.internal) out.push(net.address);
+    }
+  }
+  return out;
+}
+
+function openBrowser(url) {
+  const cmd = process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]]
+    : process.platform === 'darwin' ? ['open', [url]]
+      : ['xdg-open', [url]];
+  try {
+    const child = spawn(cmd[0], cmd[1], { detached: true, stdio: 'ignore' });
+    child.on('error', () => {});
+    child.unref();
+  } catch { /* opening a browser is a convenience, never a failure */ }
+}
+
+/**
+ * Listen on `port`, stepping to the next one when it is already taken - a
+ * second copy of the game (or anything else on 3000) should not be a dead end
+ * for someone who just double-clicked a launcher.
+ */
+function listen(port, attempt = 0) {
+  // Both listeners are removed as soon as one fires: a stale 'listening'
+  // handler from a failed attempt would otherwise announce the wrong port.
+  const onError = (err) => {
+    server.removeListener('listening', onListening);
+    if (err.code === 'EADDRINUSE' && attempt < MAX_PORT_TRIES) {
+      console.log(`  port ${port} is busy, trying ${port + 1}...`);
+      listen(port + 1, attempt + 1);
+      return;
+    }
+    console.error(`\n  Could not start the server: ${err.message}\n`);
+    process.exit(1);
+  };
+  const onListening = () => {
+    server.removeListener('error', onError);
+    const local = `http://localhost:${port}`;
+    console.log('\n  Among Us - The Hull is running.');
+    console.log(`\n    Play here:        ${local}`);
+    const lan = lanAddresses();
+    if (lan.length) {
+      console.log('    Friends can join: ' + lan.map((ip) => `http://${ip}:${port}`).join('\n                      '));
+    }
+    console.log('\n  Keep this window open while you play. Press Ctrl+C to stop.\n');
+    if (OPEN_BROWSER) openBrowser(local);
+  };
+  server.once('error', onError);
+  server.once('listening', onListening);
+  server.listen(port, HOST);
+}
+
+listen(PORT);
 
 function shutdown() {
   console.log('\nshutting down...');
