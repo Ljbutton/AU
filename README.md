@@ -200,7 +200,7 @@ couple of seconds.
 npm test
 ```
 
-23 checks with no test framework: map reachability, doorway placement, console clearance,
+24 checks with no test framework: map reachability, doorway placement, console clearance,
 every room-to-room path and every task console walked by a real collision-resolved walker
 (including one that re-plans its route every tick, which is how doorway oscillation bugs
 show up), random walkers that must never escape the ship, line of sight through open and
@@ -208,8 +208,9 @@ closed doors, settings sanitising, task assignment, and the game rules themselve
 (crewmates cannot kill, impostors cannot kill through walls, task steps only count near
 the console and only for crew, majority ejection and tie-skipping, ghosts cannot vote or
 be seen, both reactor pads are required, an unfixed reactor loses the game, only impostors
-sabotage and vent, cameras only work at the console and die with comms), finishing with
-ten complete simulated rounds that must all reach a legal end state.
+sabotage and vent, cameras only work at the console and die with comms, and request
+paths cannot escape the public directory under either POSIX or Windows path rules),
+finishing with ten complete simulated rounds that must all reach a legal end state.
 
 ---
 

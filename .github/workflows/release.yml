@@ -35,6 +35,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          BUILT_FROM: ${{ github.sha }}
         run: |
           set -eu
           NOTES=$(cat <<'NOTE'
@@ -58,10 +59,11 @@ jobs:
           warn about an unrecognised app.
 
           `AmongUs-TheHull-win-x64.zip.sha256` holds the checksum of the ZIP.
-          The build is reproducible: `npm run build:win` on this tag produces a
-          byte-identical archive.
+          The build is reproducible: checking out `__SHA__` and running
+          `npm run build:win` produces a byte-identical archive.
           NOTE
           )
+          NOTES=${NOTES//__SHA__/$BUILT_FROM}
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/*.zip dist/*.sha256 --clobber
             gh release edit "$TAG" --title "Among Us — The Hull $TAG" --notes "$NOTES"
