@@ -3,11 +3,14 @@
 import { state, actions } from './net.js';
 import { currentStep, pendingConsoles } from '../../shared/tasks.js';
 import { INTERACT_RANGE, BODY_REPORT_RANGE, VENT_RANGE, KILL_DISTANCES, PLAYER_RADIUS } from '../../shared/constants.js';
-import { VENTS, VENT_BY_ID, EMERGENCY_BUTTON, FIX_POINTS, DOOR_ROOMS, ROOM_BY_ID, WALLS, DOOR_BY_ID } from '../../shared/map.js';
+import {
+  VENTS, VENT_BY_ID, EMERGENCY_BUTTON, FIX_POINTS, DOOR_ROOMS, ROOM_BY_ID,
+  WALLS, DOOR_BY_ID, SECURITY_CONSOLE, CAMERAS,
+} from '../../shared/map.js';
 import { dist, lineOfSight, segmentsNear } from '../../shared/geom.js';
 import { openMinigame, closeMinigame, minigameOpen } from './minigames/index.js';
-import { drawMiniMap, miniMapRoomAt, addEffect } from './render.js';
-import { sfx } from './sound.js';
+import { drawMiniMap, miniMapRoomAt, addEffect, renderCameraView } from './render.js';
+import { sfx, setMuted, isMuted } from './sound.js';
 import { input } from './input.js';
 
 const $ = (id) => document.getElementById(id);
@@ -42,9 +45,22 @@ export function initHud() {
   ui.btnVent.addEventListener('click', doVent);
   ui.btnSabotage.addEventListener('click', () => toggleMap('sabotage'));
   $('btn-map').addEventListener('click', () => toggleMap('map'));
+  const muteBtn = $('btn-mute');
+  const paintMute = () => { muteBtn.textContent = isMuted() ? 'MUTE' : 'SND'; muteBtn.title = isMuted() ? 'Unmute' : 'Mute'; };
+  if (localStorage.getItem('au.muted') === '1') setMuted(true);
+  paintMute();
+  muteBtn.addEventListener('click', () => {
+    const next = !isMuted();
+    setMuted(next);
+    localStorage.setItem('au.muted', next ? '1' : '0');
+    paintMute();
+  });
   $('btn-vent-exit').addEventListener('click', () => actions.vent('exit'));
   for (const b of document.querySelectorAll('.close-map')) b.addEventListener('click', () => closeMap());
   ui.mapCanvas.addEventListener('click', onMapClick);
+  ui.camOverlay = document.getElementById('cam-overlay');
+  ui.camFeeds = [...document.querySelectorAll('.cam-feed')];
+  document.getElementById('cam-close').addEventListener('click', closeCameras);
   $('minigame-close').addEventListener('click', () => closeMinigame());
 }
 
@@ -80,7 +96,12 @@ function findUseTarget(local) {
   if (alive && dist(local.x, local.y, EMERGENCY_BUTTON.x, EMERGENCY_BUTTON.y) <= EMERGENCY_BUTTON.r) {
     return { kind: 'emergency', label: 'MEET' };
   }
-  // 3. one of your own task consoles
+  // 3. the camera bank in Security (dead while comms are down)
+  if (alive && dist(local.x, local.y, SECURITY_CONSOLE.x, SECURITY_CONSOLE.y) <= SECURITY_CONSOLE.r
+      && !(state.sabotage && state.sabotage.kind === 'comms')) {
+    return { kind: 'cameras', label: 'CAMS' };
+  }
+  // 4. one of your own task consoles
   for (const task of state.tasks || []) {
     const step = currentStep(task);
     if (!step) continue;
@@ -135,6 +156,7 @@ export function doUse() {
   const target = context.use;
   if (!target) return;
   if (target.kind === 'emergency') { actions.emergency(); sfx.report(); return; }
+  if (target.kind === 'cameras') { openCameras(); return; }
 
   if (target.kind === 'sabotage') {
     const system = target.system;
@@ -261,11 +283,32 @@ export function updateHud(local, dt) {
   }
 
   if (mapOpen) drawMap(local);
+  if (camsOpen) {
+    const tooFar = !local || dist(local.x, local.y, SECURITY_CONSOLE.x, SECURITY_CONSOLE.y) > SECURITY_CONSOLE.r + 40;
+    const commsDown = state.sabotage && state.sabotage.kind === 'comms';
+    if (tooFar || commsDown || !alive) closeCameras();
+    else drawCameraFeeds();
+  }
 }
 
 let lastTaskSignature = '';
 export function renderTaskList() {
   const impostor = state.role === 'impostor';
+  // Comms sabotage hides your task list, as in the original.
+  if (state.sabotage && state.sabotage.kind === 'comms') {
+    if (lastTaskSignature !== 'comms') {
+      lastTaskSignature = 'comms';
+      ui.taskList.replaceChildren();
+      const head = document.createElement('div');
+      head.className = 't-head';
+      head.textContent = 'Tasks';
+      const line = document.createElement('div');
+      line.className = 't';
+      line.textContent = 'Communications disabled — task list unavailable.';
+      ui.taskList.append(head, line);
+    }
+    return;
+  }
   const lines = [];
   for (const task of state.tasks || []) {
     const step = currentStep(task);
@@ -398,6 +441,37 @@ function onMapClick(ev) {
   actions.sabotage('doors', room.id);
   sfx.doors();
   closeMap();
+}
+
+// ---------------------------------------------------------------------------
+// Security cameras
+// ---------------------------------------------------------------------------
+
+let camsOpen = false;
+
+export function openCameras() {
+  if (camsOpen) return;
+  camsOpen = true;
+  ui.camOverlay.classList.remove('hidden');
+  input.enabled = false;
+  actions.cameras(true);
+  sfx.click();
+}
+
+export function closeCameras() {
+  if (!camsOpen) return;
+  camsOpen = false;
+  ui.camOverlay.classList.add('hidden');
+  input.enabled = true;
+  actions.cameras(false);
+}
+
+export function isCamsOpen() { return camsOpen; }
+
+function drawCameraFeeds() {
+  for (let i = 0; i < ui.camFeeds.length && i < CAMERAS.length; i++) {
+    renderCameraView(ui.camFeeds[i], CAMERAS[i], state.cameraFeed);
+  }
 }
 
 export function hudContext() { return context; }

@@ -25,6 +25,8 @@ export const state = {
   ventLinks: [],
   meeting: null,
   chat: [],
+  cameraFeed: [],
+  camerasWatched: false,
   ping: 0,
   serverMe: null,
   lastSnapshot: 0,
@@ -91,6 +93,7 @@ function upsertPlayers(list) {
       state.players.set(info.id, p);
     }
     p.name = info.name ?? p.name;
+    p.hat = info.hat ?? p.hat ?? 'none';
     p.bot = info.bot ?? p.bot;
     p.colorId = info.color ?? p.colorId;
     p.color = colorOf(p.colorId);
@@ -153,6 +156,8 @@ function handle(msg) {
       state.sabotageCooldown = msg.sc ?? 0;
       state.taskbar = msg.bar;
       state.adminCounts = msg.adm || null;
+      state.camerasWatched = !!msg.camOn;
+      state.cameraFeed = (msg.cam || []).map((p) => ({ ...p, color: colorOf(p.c) }));
       state.closedDoors = new Set(msg.dr || []);
       state.bodies = (msg.b || []).map((b) => ({ id: b.i, color: colorOf(b.c), name: b.n, x: b.x, y: b.y }));
       if (msg.sab) {
@@ -292,9 +297,10 @@ function handle(msg) {
 }
 
 export const actions = {
-  create: (name, color) => send({ t: 'create', name, color }),
-  join: (code, name, color) => send({ t: 'join', code, name, color }),
+  create: (name, color, hat) => send({ t: 'create', name, color, hat }),
+  join: (code, name, color, hat) => send({ t: 'join', code, name, color, hat }),
   setColor: (color) => send({ t: 'color', color }),
+  setHat: (hat) => send({ t: 'hat', hat }),
   setSettings: (settings) => send({ t: 'settings', settings }),
   startGame: () => send({ t: 'start' }),
   addBot: () => send({ t: 'addBot' }),
@@ -307,6 +313,7 @@ export const actions = {
   vent: (action, ventId) => send({ t: 'vent', action, ventId }),
   sabotage: (kind, room) => send({ t: 'sabotage', kind, room }),
   fix: (kind, data) => send({ t: 'fix', kind, data }),
+  cameras: (on) => send({ t: 'cams', on }),
   vote: (targetId) => send({ t: 'vote', targetId }),
   chat: (text) => send({ t: 'chat', text }),
   backToLobby: () => send({ t: 'lobby' }),

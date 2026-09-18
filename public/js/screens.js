@@ -1,7 +1,7 @@
 // public/js/screens.js - menu, lobby, meeting and game-over screens.
 
 import { state, actions, on } from './net.js';
-import { COLORS, COLOR_BY_ID, MIN_PLAYERS, MAX_PLAYERS } from '../../shared/constants.js';
+import { COLORS, COLOR_BY_ID, HATS, MIN_PLAYERS, MAX_PLAYERS } from '../../shared/constants.js';
 import { drawCrewmate, renderBeanTo } from './sprites.js';
 import { sfx } from './sound.js';
 
@@ -19,6 +19,7 @@ export function showScreen(name) {
 export const prefs = {
   name: localStorage.getItem('au.name') || '',
   color: localStorage.getItem('au.color') || COLORS[Math.floor(Math.random() * COLORS.length)].id,
+  hat: localStorage.getItem('au.hat') || 'none',
 };
 
 export function initMenu({ onCreate, onJoin }) {
@@ -32,8 +33,9 @@ export function initMenu({ onCreate, onJoin }) {
     const ctx = c.getContext('2d');
     ctx.clearRect(0, 0, c.width, c.height);
     drawCrewmate(ctx, {
-      x: c.width / 2, y: c.height / 2 + 10, r: 42,
-      color: COLOR_BY_ID.get(prefs.color), dir: 1, walk: performance.now() / 600,
+      x: c.width / 2, y: c.height / 2 + 22, r: 40,
+      color: COLOR_BY_ID.get(prefs.color), hat: prefs.hat,
+      dir: 1, walk: performance.now() / 600,
     });
   };
 
@@ -54,6 +56,22 @@ export function initMenu({ onCreate, onJoin }) {
     }
   };
 
+  // hat picker
+  const hatRow = document.getElementById('hat-row');
+  const hatLabel = document.getElementById('hat-name');
+  const cycleHat = (dir) => {
+    const i = HATS.findIndex((h) => h.id === prefs.hat);
+    const next = HATS[(i + dir + HATS.length) % HATS.length];
+    prefs.hat = next.id;
+    localStorage.setItem('au.hat', next.id);
+    hatLabel.textContent = next.name;
+    sfx.click();
+    actions.setHat(next.id);
+  };
+  hatLabel.textContent = (HATS.find((h) => h.id === prefs.hat) || HATS[0]).name;
+  hatRow.querySelector('[data-dir="-1"]').addEventListener('click', () => cycleHat(-1));
+  hatRow.querySelector('[data-dir="1"]').addEventListener('click', () => cycleHat(1));
+
   paintSwatches();
   const spin = () => { paintPreview(); requestAnimationFrame(spin); };
   requestAnimationFrame(spin);
@@ -65,12 +83,12 @@ export function initMenu({ onCreate, onJoin }) {
     return n;
   };
 
-  $('btn-create').addEventListener('click', () => { sfx.confirm(); onCreate(readName(), prefs.color); });
+  $('btn-create').addEventListener('click', () => { sfx.confirm(); onCreate(readName(), prefs.color, prefs.hat); });
   $('btn-join').addEventListener('click', () => {
     const code = (codeInput.value || '').trim().toUpperCase();
     if (code.length < 4) { menuError('Enter the 6 letter lobby code.'); return; }
     sfx.confirm();
-    onJoin(code, readName(), prefs.color);
+    onJoin(code, readName(), prefs.color, prefs.hat);
   });
   codeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-join').click(); });
   nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-create').click(); });
@@ -128,7 +146,7 @@ export function renderLobby() {
     card.className = 'lobby-player' + (p.id === state.hostId ? ' host' : '');
     const canvas = document.createElement('canvas');
     canvas.width = 90; canvas.height = 96;
-    renderBeanTo(canvas, p.color);
+    renderBeanTo(canvas, p.color, { hat: p.hat });
     const name = document.createElement('div');
     name.className = 'pname';
     name.textContent = p.name + (p.id === state.you ? ' (you)' : '');
@@ -261,7 +279,7 @@ export function renderMeeting() {
     row.className = 'mp' + (p.alive === false ? ' dead' : '') + (selectedVote === p.id ? ' selected' : '');
     const canvas = document.createElement('canvas');
     canvas.width = 54; canvas.height = 56;
-    renderBeanTo(canvas, p.color, { ghost: p.alive === false });
+    renderBeanTo(canvas, p.color, { ghost: p.alive === false, hat: p.hat });
     const name = document.createElement('div');
     name.className = 'mp-name';
     name.textContent = p.name + (p.id === state.you ? ' (you)' : '');
@@ -394,7 +412,7 @@ export function playEjection(result) {
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(k * Math.PI * 3);
-        drawCrewmate(ctx, { x: 0, y: 0, r: 34 - k * 16, color, dir: 1, walk: 0 });
+        drawCrewmate(ctx, { x: 0, y: 0, r: 34 - k * 16, color, hat: ejected?.hat, dir: 1, walk: 0 });
         ctx.restore();
       }
       if (k < 1) requestAnimationFrame(frame);
@@ -434,7 +452,7 @@ export function renderEnd(msg) {
     card.className = 'end-player' + (p.role === 'impostor' ? ' impostor' : '');
     const canvas = document.createElement('canvas');
     canvas.width = 76; canvas.height = 80;
-    renderBeanTo(canvas, COLOR_BY_ID.get(p.color), { ghost: !p.alive });
+    renderBeanTo(canvas, COLOR_BY_ID.get(p.color), { ghost: !p.alive, hat: p.hat });
     const name = document.createElement('div');
     name.className = 'ep-name';
     name.textContent = p.name;

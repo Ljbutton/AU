@@ -23,9 +23,120 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 /**
+ * Cosmetic hats, drawn sitting on the dome of the bean (origin is the body
+ * centre, facing +x, so the crown of the head is at roughly (-0.02w, -0.5h)).
+ */
+function drawHat(ctx, hat, w, h) {
+  if (!hat || hat === 'none') return;
+  const top = -h * 0.5;
+  ctx.save();
+  ctx.lineWidth = Math.max(2, w * 0.05);
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  switch (hat) {
+    case 'band':
+      ctx.fillStyle = '#e8484f';
+      roundRect(ctx, -w * 0.46, top - w * 0.02, w * 0.84, w * 0.16, w * 0.07);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ffd65a';
+      ctx.beginPath(); ctx.arc(w * 0.28, top + w * 0.06, w * 0.09, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      break;
+    case 'cap':
+      ctx.fillStyle = '#2f7de0';
+      ctx.beginPath();
+      ctx.ellipse(-w * 0.02, top + w * 0.02, w * 0.44, w * 0.3, 0, Math.PI, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#255fa8';
+      roundRect(ctx, w * 0.32, top - w * 0.02, w * 0.38, w * 0.12, w * 0.05);
+      ctx.fill(); ctx.stroke();
+      break;
+    case 'tophat':
+      ctx.fillStyle = '#1b2029';
+      roundRect(ctx, -w * 0.44, top - w * 0.06, w * 0.86, w * 0.12, w * 0.05);
+      ctx.fill(); ctx.stroke();
+      roundRect(ctx, -w * 0.28, top - w * 0.62, w * 0.56, w * 0.58, w * 0.06);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#c0392b';
+      ctx.fillRect(-w * 0.28, top - w * 0.2, w * 0.56, w * 0.12);
+      break;
+    case 'crown': {
+      ctx.fillStyle = '#ffd65a';
+      ctx.beginPath();
+      const bx = -w * 0.36, by = top + w * 0.04, cw = w * 0.72, ch = w * 0.34;
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx, by - ch * 0.5);
+      for (let i = 0; i < 3; i++) {
+        ctx.lineTo(bx + cw * (i + 0.5) / 3, by - ch);
+        ctx.lineTo(bx + cw * (i + 1) / 3, by - ch * 0.5);
+      }
+      ctx.lineTo(bx + cw, by);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      break;
+    }
+    case 'horns':
+      ctx.fillStyle = '#b8352f';
+      for (const sx of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(sx * w * 0.16, top + w * 0.06);
+        ctx.quadraticCurveTo(sx * w * 0.42, top - w * 0.1, sx * w * 0.3, top - w * 0.4);
+        ctx.quadraticCurveTo(sx * w * 0.2, top - w * 0.12, sx * w * 0.06, top + w * 0.06);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+      }
+      break;
+    case 'antenna':
+      ctx.strokeStyle = '#9fb3cc';
+      ctx.lineWidth = Math.max(2, w * 0.06);
+      ctx.beginPath();
+      ctx.moveTo(0, top + w * 0.04);
+      ctx.quadraticCurveTo(w * 0.1, top - w * 0.36, w * 0.26, top - w * 0.46);
+      ctx.stroke();
+      ctx.fillStyle = '#ff5a5a';
+      ctx.beginPath(); ctx.arc(w * 0.28, top - w * 0.48, w * 0.1, 0, Math.PI * 2); ctx.fill();
+      break;
+    case 'flower':
+      ctx.strokeStyle = '#2f7a35';
+      ctx.lineWidth = Math.max(2, w * 0.05);
+      ctx.beginPath();
+      ctx.moveTo(-w * 0.04, top + w * 0.08);
+      ctx.quadraticCurveTo(-w * 0.16, top - w * 0.18, -w * 0.1, top - w * 0.34);
+      ctx.stroke();
+      ctx.fillStyle = '#ff77c8';
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.ellipse(-w * 0.1 + Math.cos(a) * w * 0.12, top - w * 0.34 + Math.sin(a) * w * 0.12, w * 0.09, w * 0.09, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#ffd65a';
+      ctx.beginPath(); ctx.arc(-w * 0.1, top - w * 0.34, w * 0.07, 0, Math.PI * 2); ctx.fill();
+      break;
+    case 'cone':
+      ctx.fillStyle = '#ef7d0d';
+      ctx.beginPath();
+      ctx.moveTo(-w * 0.3, top + w * 0.06);
+      ctx.lineTo(0, top - w * 0.54);
+      ctx.lineTo(w * 0.3, top + w * 0.06);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(-w * 0.19, top - w * 0.24, w * 0.38, w * 0.1);
+      break;
+    case 'egg':
+      ctx.fillStyle = '#f3f0e6';
+      ctx.beginPath();
+      ctx.ellipse(0, top - w * 0.12, w * 0.24, w * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      break;
+    default: break;
+  }
+  ctx.restore();
+}
+
+/**
  * @param {CanvasRenderingContext2D} ctx
  * @param {object} o  x, y, r (body half-width), color {hex, shadow}, dir,
- *                    walk (0..1 phase), ghost, dead, alpha, outline
+ *                    walk (0..1 phase), ghost, dead, alpha, outline, hat
  */
 export function drawCrewmate(ctx, o) {
   const r = o.r ?? 22;
@@ -134,6 +245,8 @@ export function drawCrewmate(ctx, o) {
   ctx.fill();
   ctx.restore();
 
+  drawHat(ctx, o.hat, w, h);
+
   ctx.restore();
 }
 
@@ -198,9 +311,10 @@ export function renderBeanTo(canvas, color, opts = {}) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
   drawCrewmate(ctx, {
-    x: w / 2, y: h / 2, r: Math.min(w, h) * 0.26,
-    color, dir: 1, walk: 0, ghost: !!opts.ghost, alpha: opts.alpha,
+    x: w / 2, y: h * (opts.hat && opts.hat !== 'none' ? 0.58 : 0.5),
+    r: Math.min(w, h) * (opts.hat && opts.hat !== 'none' ? 0.23 : 0.26),
+    color, dir: 1, walk: 0, ghost: !!opts.ghost, alpha: opts.alpha, hat: opts.hat,
   });
 }
 
-export { roundRect };
+export { roundRect, drawHat };

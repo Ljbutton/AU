@@ -29,8 +29,17 @@
           <div id="color-grid" class="color-grid"></div>
         </div>
 
+        <div class="field">
+          <span>Hat</span>
+          <div id="hat-row" class="hat-row">
+            <button class="btn btn-small" data-dir="-1" type="button">‹</button>
+            <span id="hat-name">No Hat</span>
+            <button class="btn btn-small" data-dir="1" type="button">›</button>
+          </div>
+        </div>
+
         <div class="preview-row">
-          <canvas id="preview" width="180" height="200"></canvas>
+          <canvas id="preview" width="180" height="210"></canvas>
         </div>
 
         <button id="btn-create" class="btn btn-primary">Host a Game</button>
@@ -97,6 +106,7 @@
         </div>
         <div class="hud-top-right">
           <button id="btn-map" class="icon-btn" title="Map (Tab)">MAP</button>
+          <button id="btn-mute" class="icon-btn" title="Mute">SND</button>
           <button id="btn-quit" class="icon-btn" title="Leave">EXIT</button>
         </div>
       </div>
@@ -133,6 +143,23 @@
         </header>
         <canvas id="map-canvas" width="1120" height="560"></canvas>
         <p id="map-hint" class="hint"></p>
+      </div>
+    </div>
+
+    <!-- security cameras -->
+    <div id="cam-overlay" class="overlay hidden">
+      <div class="map-card">
+        <header>
+          <h2>Security Cameras</h2>
+          <button class="btn btn-tiny" id="cam-close">close</button>
+        </header>
+        <div class="cam-grid">
+          <canvas class="cam-feed" data-cam="0" width="520" height="340"></canvas>
+          <canvas class="cam-feed" data-cam="1" width="520" height="340"></canvas>
+          <canvas class="cam-feed" data-cam="2" width="520" height="340"></canvas>
+          <canvas class="cam-feed" data-cam="3" width="520" height="340"></canvas>
+        </div>
+        <p class="hint">While you watch, the camera lights blink red for everyone on the ship.</p>
       </div>
     </div>
 

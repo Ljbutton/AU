@@ -4,12 +4,13 @@
 
 import {
   TICK_RATE, PLAYER_RADIUS, INTERACT_RANGE, BODY_REPORT_RANGE, VENT_RANGE,
-  COLORS, MAX_PLAYERS, MIN_PLAYERS, DEFAULT_SETTINGS, sanitizeSettings,
+  COLORS, HAT_IDS, MAX_PLAYERS, MIN_PLAYERS, DEFAULT_SETTINGS, sanitizeSettings,
   KILL_DISTANCES, VISION, SABOTAGE, MEETING, ROLE, PHASE, MEETING_PHASE, WIN,
 } from '../shared/constants.js';
 import {
   RECTS, WALLS, ROOMS, VENTS, VENT_BY_ID, DOORS, DOOR_ROOMS, FIX_POINTS,
-  EMERGENCY_BUTTON, ADMIN_TABLE, SPAWN, roomAt, WORLD,
+  EMERGENCY_BUTTON, ADMIN_TABLE, SPAWN, SECURITY_CONSOLE, CAMERAS, inCameraView,
+  roomAt, WORLD,
 } from '../shared/map.js';
 import { assignTasks, taskProgress, currentStep } from '../shared/tasks.js';
 import { stepMove, doorSegments, speedFor, settle } from '../shared/movement.js';
@@ -26,10 +27,11 @@ let nextPlayerId = 1;
 const newId = () => 'p' + (nextPlayerId++).toString(36) + Math.random().toString(36).slice(2, 5);
 
 export class Player {
-  constructor({ id, name, color, conn = null, bot = false }) {
+  constructor({ id, name, color, hat = 'none', conn = null, bot = false }) {
     this.id = id;
     this.name = name;
     this.color = color;
+    this.hat = hat;
     this.conn = conn;
     this.bot = bot;
     this.x = SPAWN.x;
@@ -53,7 +55,10 @@ export class Player {
   get ghost() { return !this.alive; }
 
   publicInfo() {
-    return { id: this.id, name: this.name, color: this.color, bot: this.bot, connected: this.connected };
+    return {
+      id: this.id, name: this.name, color: this.color, hat: this.hat,
+      bot: this.bot, connected: this.connected,
+    };
   }
 }
 
@@ -79,6 +84,7 @@ export class GameRoom {
     this.createdAt = Date.now();
     this.chatLog = [];
     this.impostorIds = [];
+    this.camWatchers = new Set();       // players currently on the security cameras
     this.pendingEvents = [];               // one-off events flushed with the next snapshot
   }
 
@@ -95,13 +101,14 @@ export class GameRoom {
     return free ? free.id : COLORS[0].id;
   }
 
-  addPlayer({ name, color, conn, bot = false }) {
+  addPlayer({ name, color, hat, conn, bot = false }) {
     if (this.players.size >= MAX_PLAYERS) return { error: 'This lobby is full.' };
     if (this.phase !== PHASE.LOBBY) return { error: 'That game has already started.' };
     const player = new Player({
       id: newId(),
       name: sanitizeName(name) || (bot ? randomBotName(this) : 'Player'),
       color: this.freeColor(color),
+      hat: HAT_IDS.has(hat) ? hat : (bot ? randomHat() : 'none'),
       conn,
       bot,
     });
@@ -146,6 +153,13 @@ export class GameRoom {
     if (this.playerList.some((p) => p !== player && p.color === color)) return;
     player.color = color;
     this.broadcastLobby();
+  }
+
+  setHat(player, hat) {
+    if (!HAT_IDS.has(hat)) return;
+    player.hat = hat;
+    if (this.phase === PHASE.LOBBY) this.broadcastLobby();
+    else this.broadcastLobbyRoster();
   }
 
   setName(player, name) {
@@ -215,6 +229,7 @@ export class GameRoom {
     this.chatLog = [];
     this.tickCount = 0;
     this.taskBarShown = 0;
+    this.camWatchers.clear();
 
     for (const p of roster) {
       this.sendTo(p, {
@@ -280,6 +295,7 @@ export class GameRoom {
       }
       case 'settings': this.setHostSetting(player.id, msg.settings); break;
       case 'color': this.setColor(player, msg.color); break;
+      case 'hat': this.setHat(player, msg.hat); break;
       case 'name': this.setName(player, msg.name); break;
       case 'start': this.startGame(player.id); break;
       case 'addBot': this.addBot(player.id); break;
@@ -291,6 +307,7 @@ export class GameRoom {
       case 'vent': this.tryVent(player, msg.action, msg.ventId); break;
       case 'sabotage': this.trySabotage(player, msg.kind, msg.room); break;
       case 'fix': this.tryFix(player, msg.kind, msg.data); break;
+      case 'cams': this.setCameraWatch(player, !!msg.on); break;
       case 'vote': this.castVote(player, msg.targetId); break;
       case 'chat': this.handleChat(player, msg.text); break;
       case 'ping': this.sendTo(player, { t: 'pong', ts: msg.ts }); break;
@@ -444,6 +461,35 @@ export class GameRoom {
     }
   }
 
+  /**
+   * Watching the cameras is public information: everyone sees the red light,
+   * which is half the point of them.
+   */
+  setCameraWatch(player, on) {
+    if (on) {
+      if (this.phase !== PHASE.PLAYING) return;
+      if (this.sabotage && this.sabotage.kind === 'comms') return;
+      if (dist(player.x, player.y, SECURITY_CONSOLE.x, SECURITY_CONSOLE.y) > SECURITY_CONSOLE.r + 40) return;
+      this.camWatchers.add(player.id);
+    } else {
+      this.camWatchers.delete(player.id);
+    }
+  }
+
+  /** Players visible on the camera feeds, for someone at the console. */
+  cameraFeed() {
+    const out = [];
+    for (const p of this.players.values()) {
+      if (!p.alive || p.inVent) continue;
+      for (const cam of CAMERAS) {
+        if (!inCameraView(cam, p.x, p.y)) continue;
+        out.push({ i: p.id, c: p.color, x: Math.round(p.x), y: Math.round(p.y), d: p.dir, m: p.moving ? 1 : 0, cam: cam.id });
+        break;
+      }
+    }
+    return out;
+  }
+
   // -- sabotage ------------------------------------------------------------
 
   criticalSabotageActive() {
@@ -533,6 +579,7 @@ export class GameRoom {
     this.phase = PHASE.MEETING;
     this.bodies = [];
     this.closedDoors.clear();
+    this.camWatchers.clear();
     if (this.sabotage && this.sabotage.critical) this.clearSabotage();
 
     for (const p of this.playerList) {
@@ -706,6 +753,16 @@ export class GameRoom {
 
       if (this.sabotageCooldown > 0) this.sabotageCooldown = Math.max(0, this.sabotageCooldown - dt);
 
+      // Step away from the console (or die) and the feed cuts out.
+      for (const id of [...this.camWatchers]) {
+        const p = this.players.get(id);
+        const commsDown = this.sabotage && this.sabotage.kind === 'comms';
+        if (!p || !p.alive || commsDown ||
+            dist(p.x, p.y, SECURITY_CONSOLE.x, SECURITY_CONSOLE.y) > SECURITY_CONSOLE.r + 60) {
+          this.camWatchers.delete(id);
+        }
+      }
+
       if (this.sabotage && this.sabotage.critical) {
         this.sabotage.timeLeft -= dt;
         if (this.sabotage.timeLeft <= 0) {
@@ -823,6 +880,8 @@ export class GameRoom {
       if (!commsDown && dist(viewer.x, viewer.y, ADMIN_TABLE.x, ADMIN_TABLE.y) < ADMIN_TABLE.r + 40) {
         payload.adm = this.adminCounts();
       }
+      if (this.camWatchers.size) payload.camOn = 1;
+      if (this.camWatchers.has(viewer.id)) payload.cam = this.cameraFeed();
       if (this.pendingEvents.length) {
         const evs = this.pendingEvents.filter((ev) => this.eventVisibleTo(viewer, ev));
         if (evs.length) payload.ev = evs;
@@ -903,6 +962,11 @@ export function sanitizeName(name) {
     .replace(/[\u0000-\u001f<>]/g, '')
     .trim()
     .slice(0, 12);
+}
+
+function randomHat() {
+  const ids = [...HAT_IDS];
+  return ids[Math.floor(Math.random() * ids.length)];
 }
 
 function randomBotName(room) {

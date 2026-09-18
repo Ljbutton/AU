@@ -52,7 +52,7 @@ export class RoomManager {
       if (!room) return { error: 'No lobby with that code.' };
     }
 
-    const res = room.addPlayer({ name: sanitizeName(msg.name), color: msg.color, conn });
+    const res = room.addPlayer({ name: sanitizeName(msg.name), color: msg.color, hat: msg.hat, conn });
     if (res.error) {
       if (msg.t === 'create') this.destroyRoom(room.code);
       return res;

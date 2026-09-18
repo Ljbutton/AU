@@ -27,6 +27,21 @@ export const COLORS = [
 ];
 export const COLOR_BY_ID = new Map(COLORS.map((c) => [c.id, c]));
 
+/** Cosmetic hats. Drawn procedurally in public/js/sprites.js. */
+export const HATS = [
+  { id: 'none', name: 'No Hat' },
+  { id: 'band', name: 'Head Band' },
+  { id: 'cap', name: 'Cap' },
+  { id: 'tophat', name: 'Top Hat' },
+  { id: 'crown', name: 'Crown' },
+  { id: 'horns', name: 'Horns' },
+  { id: 'antenna', name: 'Antenna' },
+  { id: 'flower', name: 'Flower' },
+  { id: 'cone', name: 'Traffic Cone' },
+  { id: 'egg', name: 'Egg' },
+];
+export const HAT_IDS = new Set(HATS.map((h) => h.id));
+
 export const MAX_PLAYERS = 12;
 export const MIN_PLAYERS = 4;
 

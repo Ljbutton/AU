@@ -3,7 +3,10 @@
 import { state, on, connect, actions } from './net.js';
 import { initInput, input, readMovement, onAction } from './input.js';
 import { render, addEffect, resize } from './render.js';
-import { initHud, updateHud, renderTaskList, showNotice, toggleMap, closeMap, isMapOpen, doUse, doKill, doReport, doVent } from './hud.js';
+import {
+  initHud, updateHud, renderTaskList, showNotice, toggleMap, closeMap, isMapOpen,
+  closeCameras, isCamsOpen, doUse, doKill, doReport, doVent,
+} from './hud.js';
 import {
   showScreen, initMenu, initLobby, initMeeting, renderLobby, renderMeeting,
   tickMeeting, renderChat, menuError, playEjection, renderEnd, resetMeetingSelection,
@@ -31,15 +34,15 @@ initHud();
 initLobby();
 initMeeting();
 initMenu({
-  onCreate: async (name, color) => {
+  onCreate: async (name, color, hat) => {
     unlockAudio();
     await ensureConnection();
-    actions.create(name, color);
+    actions.create(name, color, hat);
   },
-  onJoin: async (code, name, color) => {
+  onJoin: async (code, name, color, hat) => {
     unlockAudio();
     await ensureConnection();
-    actions.join(code, name, color);
+    actions.join(code, name, color, hat);
   },
 });
 
@@ -66,11 +69,12 @@ onAction('map', () => { if (state.phase === 'playing' && !minigameOpen()) toggle
 onAction('chat', () => { if (state.phase === 'meeting') document.getElementById('chat-input').focus(); });
 onAction('escape', () => {
   if (minigameOpen()) closeMinigame();
+  else if (isCamsOpen()) closeCameras();
   else if (isMapOpen()) closeMap();
 });
 
 function blocked() {
-  return state.phase !== 'playing' || minigameOpen() || isMapOpen();
+  return state.phase !== 'playing' || minigameOpen() || isMapOpen() || isCamsOpen();
 }
 
 // ---------------------------------------------------------------------------
@@ -121,17 +125,17 @@ on('worldEvent', (ev) => {
 
 on('sabotageStart', (msg) => {
   const kind = msg.kind || msg.k;
+  renderTaskList();
   sfx.sabotage();
   const names = { reactor: 'Reactor meltdown!', o2: 'Oxygen depleting!', lights: 'Lights are out!', comms: 'Comms disabled!' };
   showNotice(names[kind] || 'Sabotage!', 3);
 });
-on('sabotageFixed', () => { sfx.confirm(); showNotice('Systems restored.', 2); });
-
-on('vent', () => { input.enabled = !state.inVent ? true : true; });
+on('sabotageFixed', () => { renderTaskList(); sfx.confirm(); showNotice('Systems restored.', 2); });
 
 on('meeting', () => {
   closeMinigame();
   closeMap();
+  closeCameras();
   resetMeetingSelection();
   showScreen('meeting');
   renderMeeting();
@@ -216,7 +220,7 @@ function stepLocal(dt) {
   if (!me) return;
 
   // In a vent (or with an overlay open) the player is parked.
-  const frozen = state.inVent || minigameOpen() || isMapOpen();
+  const frozen = state.inVent || minigameOpen() || isMapOpen() || isCamsOpen();
   const move = frozen ? { dx: 0, dy: 0 } : readMovement();
 
   if (!frozen) {

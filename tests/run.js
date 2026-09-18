@@ -3,7 +3,10 @@
 
 import assert from 'node:assert/strict';
 import { simulate } from './sim.js';
-import { RECTS, ROOMS, WALLS, VENTS, DOORS, FIX_POINTS, EMERGENCY_BUTTON, ADMIN_TABLE, findPath, roomAt } from '../shared/map.js';
+import {
+  RECTS, ROOMS, WALLS, VENTS, DOORS, FIX_POINTS, EMERGENCY_BUTTON, ADMIN_TABLE,
+  SECURITY_CONSOLE, CAMERAS, inCameraView, findPath, roomAt,
+} from '../shared/map.js';
 import { pointInAnyRect, distToSegment, lineOfSight } from '../shared/geom.js';
 import { stepMove, doorSegments } from '../shared/movement.js';
 import { TASK_DEFS, WIRE_PANELS, DATA_SOURCES, POWER_NODES, assignTasks, taskProgress } from '../shared/tasks.js';
@@ -98,6 +101,53 @@ test('pathing: every room pair is walkable end to end', () => {
     ok++;
   }
   assert.equal(ok, total);
+});
+
+test('pathing: a walker can reach every task console from anywhere', () => {
+  const consoles = [];
+  for (const def of TASK_DEFS) {
+    const steps = typeof def.steps === 'function' ? def.steps(Math.random) : def.steps;
+    for (const st of steps) consoles.push({ id: `${def.id}/${st.minigame}`, x: st.x, y: st.y });
+  }
+  for (const c of consoles) {
+    for (const start of [ROOMS[0], ROOMS[6], ROOMS[12]]) {
+      const ent = { x: (start.x1 + start.x2) / 2, y: (start.y1 + start.y2) / 2 };
+      const path = findPath(ent.x, ent.y, c.x, c.y);
+      assert.ok(path, `no path ${start.id} -> ${c.id}`);
+      let ticks = 0;
+      while (path.length && ticks++ < 4000) {
+        const wp = path[0];
+        const dx = wp.x - ent.x, dy = wp.y - ent.y;
+        const d = Math.hypot(dx, dy);
+        if (d < 18) { path.shift(); continue; }
+        stepMove(ent, { dx: dx / d, dy: dy / d }, 1 / 20, { speed: 230 });
+      }
+      assert.equal(path.length, 0,
+        `walker stuck heading to ${c.id} from ${start.id} at ${Math.round(ent.x)},${Math.round(ent.y)}`);
+    }
+  }
+});
+
+test('pathing: re-planning every step never oscillates on a threshold', () => {
+  // A walker that recomputes its route each tick (as bots do after a bump)
+  // must still make progress through doorways.
+  const pairs = [['o2', 'shields'], ['upperEngine', 'security'], ['navigation', 'electrical'], ['reactor', 'comms']];
+  for (const [fromId, toId] of pairs) {
+    const a = ROOMS.find((r) => r.id === fromId), b = ROOMS.find((r) => r.id === toId);
+    const ent = { x: (a.x1 + a.x2) / 2, y: (a.y1 + a.y2) / 2 };
+    const goal = { x: (b.x1 + b.x2) / 2, y: (b.y1 + b.y2) / 2 };
+    let ticks = 0;
+    while (Math.hypot(goal.x - ent.x, goal.y - ent.y) > 30 && ticks++ < 4000) {
+      const path = findPath(ent.x, ent.y, goal.x, goal.y);
+      assert.ok(path, `lost the path ${fromId} -> ${toId}`);
+      let wp = path[0];
+      for (let i = 0; i < path.length - 1 && Math.hypot(wp.x - ent.x, wp.y - ent.y) < 20; i++) wp = path[i + 1];
+      const dx = wp.x - ent.x, dy = wp.y - ent.y;
+      const d = Math.hypot(dx, dy) || 1;
+      stepMove(ent, { dx: dx / d, dy: dy / d }, 1 / 20, { speed: 230 });
+    }
+    assert.ok(ticks < 4000, `re-planning walker stalled ${fromId} -> ${toId} at ${Math.round(ent.x)},${Math.round(ent.y)}`);
+  }
 });
 
 test('movement: random walkers never escape the ship, even through closed doors', () => {
@@ -314,6 +364,46 @@ test('sabotage: only impostors may sabotage or vent', () => {
   crew.x = vent.x; crew.y = vent.y;
   room.tryVent(crew, 'enter');
   assert.equal(crew.inVent, null, 'crewmate vented');
+});
+
+test('cameras: only usable at the console, and comms cuts the feed', () => {
+  const room = new GameRoom('IIIIII', null);
+  const conn = { open: true, sendJSON() {} };
+  for (const n of ['a', 'b', 'c', 'd', 'e']) room.addPlayer({ name: n, color: null, conn });
+  for (const p of room.playerList) p.brain = null;
+  room.settings.impostors = 1;
+  room.startGame(room.hostId);
+  const [watcher, walker] = room.playerList;
+
+  // Too far away: refused.
+  watcher.x = 1580; watcher.y = 360;
+  room.setCameraWatch(watcher, true);
+  assert.equal(room.camWatchers.size, 0, 'watched the cameras from across the ship');
+
+  // At the console: allowed, and everyone can tell.
+  watcher.x = SECURITY_CONSOLE.x; watcher.y = SECURITY_CONSOLE.y;
+  room.setCameraWatch(watcher, true);
+  assert.equal(room.camWatchers.size, 1);
+
+  // A player inside a camera's view shows up on the feed; one outside does not.
+  walker.x = CAMERAS[1].x; walker.y = CAMERAS[1].y;
+  assert.ok(inCameraView(CAMERAS[1], walker.x, walker.y));
+  assert.ok(room.cameraFeed().some((p) => p.i === walker.id), 'walker missing from the feed');
+  walker.x = 270; walker.y = 620;   // reactor, no camera
+  assert.ok(!room.cameraFeed().some((p) => p.i === walker.id), 'reactor is not on camera');
+
+  // Vented impostors never appear on camera.
+  const imp = room.playerList.find((p) => p.role === 'impostor');
+  imp.x = CAMERAS[1].x; imp.y = CAMERAS[1].y;
+  imp.inVent = 'v_cafeteria';
+  assert.ok(!room.cameraFeed().some((p) => p.i === imp.id), 'vented player showed on camera');
+  imp.inVent = null;
+
+  // Comms sabotage kills the feed on the next tick.
+  room.sabotageCooldown = 0;
+  room.trySabotage(imp, 'comms');
+  room.tick(1 / 20);
+  assert.equal(room.camWatchers.size, 0, 'cameras survived a comms sabotage');
 });
 
 test('simulation: a full bot round finishes with a winner', () => {

@@ -114,9 +114,23 @@ export const VENTS = [
 /** Where the emergency button lives (middle of the cafeteria table). */
 export const EMERGENCY_BUTTON = { x: 1580, y: 360, r: 90 };
 
-/** Admin map table + security cameras + spawn ring. */
+/** Admin map table + spawn ring. */
 export const ADMIN_TABLE = { x: 1945, y: 765, r: 80 };
 export const SPAWN = { x: 1580, y: 360, r: 150 };
+
+/** The camera bank in Security, and what each camera can see. */
+export const SECURITY_CONSOLE = { x: 620, y: 700, r: 90 };
+export const CAMERAS = [
+  { id: 'cam_upper', name: 'Upper Engine', x: 745, y: 430, w: 620, h: 420 },
+  { id: 'cam_spine', name: 'Central Hall', x: 1080, y: 515, w: 620, h: 420 },
+  { id: 'cam_mid', name: 'Storage Hall', x: 1645, y: 760, w: 620, h: 420 },
+  { id: 'cam_east', name: 'East Hall', x: 2345, y: 620, w: 620, h: 420 },
+];
+
+/** Is a point inside a camera's field of view? */
+export function inCameraView(cam, x, y) {
+  return Math.abs(x - cam.x) <= cam.w / 2 && Math.abs(y - cam.y) <= cam.h / 2;
+}
 
 /** Console positions used by sabotage fixes. */
 export const FIX_POINTS = {
@@ -250,32 +264,58 @@ export function navNodeAt(x, y) {
   return hall;
 }
 
+/** Every walkable rect containing a point - doorways belong to two of them. */
+export function navNodesAt(x, y) {
+  const out = [];
+  for (const n of NAV) {
+    const r = n.rect;
+    if (x >= r.x1 && x <= r.x2 && y >= r.y1 && y <= r.y2) out.push(n);
+  }
+  return out;
+}
+
 export const ROOM_IDS = new Set(ROOMS.map((r) => r.id));
 export const ROOM_BY_ID = new Map(ROOMS.map((r) => [r.id, r]));
 export const VENT_BY_ID = new Map(VENTS.map((v) => [v.id, v]));
 export const DOOR_BY_ID = new Map(DOORS.map((d) => [d.id, d]));
 
+/** Pull a point far enough inside a rect that a player-sized disc fits. */
+function insetInto(p, r, inset) {
+  const x = (r.x2 - r.x1) <= inset * 2 ? (r.x1 + r.x2) / 2 : Math.min(Math.max(p.x, r.x1 + inset), r.x2 - inset);
+  const y = (r.y2 - r.y1) <= inset * 2 ? (r.y1 + r.y2) / 2 : Math.min(Math.max(p.y, r.y1 + inset), r.y2 - inset);
+  return { x, y };
+}
+
 /**
  * Breadth-first waypoint path between two world points.
  *
- * Waypoints alternate gate -> rect centre -> gate -> ... -> target. Because
- * every rect is convex and each consecutive pair of waypoints lies inside the
- * same rect, a walker that steers straight at the next waypoint can never cut
- * a corner into a wall.
+ * Each rect-to-rect transit emits *two* waypoints: the doorway centre pulled
+ * safely inside the rect being left, then the same point pulled safely inside
+ * the rect being entered. Consecutive waypoints therefore always share a
+ * convex rect and sit clear of its walls, so a walker with a body radius can
+ * steer straight at them without wedging itself on a corner. (Doorways here
+ * are only ~15px of overlap, so aiming at the raw overlap centre would leave a
+ * player permanently pressed against the door frame.)
+ *
+ * The search starts from *every* rect containing the origin: a walker standing
+ * in a doorway belongs to both the room and the corridor, and committing to one
+ * of them makes a re-planning walker oscillate on the threshold.
  */
-export function findPath(sx, sy, tx, ty) {
-  const start = navNodeAt(sx, sy);
-  const goal = navNodeAt(tx, ty);
-  if (!start || !goal) return null;
-  if (start === goal) return [{ x: tx, y: ty }];
+export function findPath(sx, sy, tx, ty, inset = 26) {
+  const starts = navNodesAt(sx, sy);
+  const goals = new Set(navNodesAt(tx, ty).map((n) => n.i));
+  if (!starts.length || !goals.size) return null;
+  if (starts.some((n) => goals.has(n.i))) return [{ x: tx, y: ty }];
 
   const prev = new Map();
-  const queue = [start.i];
-  const seen = new Set([start.i]);
-  let found = false;
+  const queue = [];
+  const seen = new Set();
+  for (const n of starts) { seen.add(n.i); queue.push(n.i); }
+
+  let found = null;
   while (queue.length) {
     const cur = queue.shift();
-    if (cur === goal.i) { found = true; break; }
+    if (goals.has(cur)) { found = cur; break; }
     for (const e of NAV[cur].edges) {
       if (seen.has(e.to)) continue;
       seen.add(e.to);
@@ -283,26 +323,27 @@ export function findPath(sx, sy, tx, ty) {
       queue.push(e.to);
     }
   }
-  if (!found && !seen.has(goal.i)) return null;
+  if (found === null) return null;
 
-  // Walk the chain back to the start, then emit gate/centre pairs forward.
   const chain = [];
-  let cur = goal.i;
-  while (cur !== start.i) {
+  let cur = found;
+  while (prev.has(cur)) {
     const stepInfo = prev.get(cur);
-    if (!stepInfo) return null;
-    chain.unshift({ node: cur, gate: stepInfo.gate });
+    chain.unshift({ from: stepInfo.from, to: cur, gate: stepInfo.gate });
     cur = stepInfo.from;
   }
+
   const waypoints = [];
-  for (let i = 0; i < chain.length; i++) {
-    waypoints.push({ x: chain[i].gate.x, y: chain[i].gate.y });
-    if (i < chain.length - 1) {
-      const c = NAV[chain[i].node].center;
-      waypoints.push({ x: c.x, y: c.y });
-    }
+  const push = (p) => {
+    const last = waypoints[waypoints.length - 1];
+    if (last && Math.hypot(last.x - p.x, last.y - p.y) < 6) return;
+    waypoints.push(p);
+  };
+  for (const link of chain) {
+    push(insetInto(link.gate, NAV[link.from].rect, inset));
+    push(insetInto(link.gate, NAV[link.to].rect, inset));
   }
-  waypoints.push({ x: tx, y: ty });
+  push({ x: tx, y: ty });
   return waypoints;
 }
 

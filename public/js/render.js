@@ -1,6 +1,9 @@
 // public/js/render.js - all world drawing: the ship, its crew, and the dark.
 
-import { ROOMS, HALLS, RECTS, WALLS, DOORS, DOOR_BY_ID, VENTS, EMERGENCY_BUTTON, ADMIN_TABLE, WORLD, FIX_POINTS } from '../../shared/map.js';
+import {
+  ROOMS, HALLS, RECTS, WALLS, DOORS, DOOR_BY_ID, VENTS, EMERGENCY_BUTTON,
+  ADMIN_TABLE, WORLD, FIX_POINTS, CAMERAS, SECURITY_CONSOLE,
+} from '../../shared/map.js';
 import { allConsolePositions, currentStep } from '../../shared/tasks.js';
 import { visibilityPolygon, segmentsNear, clamp } from '../../shared/geom.js';
 import { VISION, PLAYER_RADIUS } from '../../shared/constants.js';
@@ -359,6 +362,39 @@ function drawVents(ctx) {
   }
 }
 
+function drawCameras(ctx) {
+  const watched = !!state.camerasWatched;
+  for (const cam of CAMERAS) {
+    ctx.save();
+    ctx.translate(cam.x, cam.y - cam.h / 2 + 16);
+    ctx.fillStyle = '#39445c';
+    roundRect(ctx, -16, -10, 32, 20, 5); ctx.fill();
+    ctx.strokeStyle = '#1b2233'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = '#27324a';
+    roundRect(ctx, -22, -6, 8, 12, 3); ctx.fill();
+    // the tell: a blinking red light whenever somebody is on the cameras
+    const on = watched && Math.sin(time * 9) > -0.2;
+    ctx.fillStyle = on ? '#ff3b47' : 'rgba(120,40,50,0.6)';
+    ctx.beginPath(); ctx.arc(10, -4, 4, 0, Math.PI * 2); ctx.fill();
+    if (on) {
+      ctx.fillStyle = 'rgba(255,60,70,0.25)';
+      ctx.beginPath(); ctx.arc(10, -4, 13, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+  // the console itself
+  ctx.save();
+  ctx.translate(SECURITY_CONSOLE.x, SECURITY_CONSOLE.y);
+  ctx.fillStyle = '#222c3f';
+  roundRect(ctx, -34, -24, 68, 48, 6); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 3; ctx.stroke();
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = `rgba(110,200,220,${0.25 + 0.15 * Math.sin(time * 4 + i)})`;
+    ctx.fillRect(-28 + (i % 2) * 30, -18 + Math.floor(i / 2) * 20, 26, 16);
+  }
+  ctx.restore();
+}
+
 function drawConsoles(ctx) {
   const pending = new Set();
   for (const task of state.tasks || []) {
@@ -390,6 +426,18 @@ function drawConsoles(ctx) {
     ctx.fillStyle = `rgba(255,70,70,${pulse})`;
     ctx.beginPath(); ctx.arc(f.x, f.y, 46, 0, Math.PI * 2); ctx.fill();
   }
+}
+
+/** The whole ship, minus its occupants. Shared by the main view and cameras. */
+export function drawShip(ctx, opts = {}) {
+  drawFloors(ctx);
+  for (const r of ROOMS) drawRoomDecor(ctx, r);
+  if (opts.labels !== false) drawRoomLabels(ctx);
+  if (opts.consoles !== false) drawConsoles(ctx);
+  drawVents(ctx);
+  drawCameras(ctx);
+  drawWalls(ctx);
+  drawDoors(ctx);
 }
 
 // ---------------------------------------------------------------------------
@@ -490,13 +538,7 @@ export function render(canvas, ctx, dt, local) {
   ctx.scale(camera.scale, camera.scale);
   ctx.translate(-camera.x, -camera.y);
 
-  drawFloors(ctx);
-  for (const r of ROOMS) drawRoomDecor(ctx, r);
-  drawRoomLabels(ctx);
-  drawConsoles(ctx);
-  drawVents(ctx);
-  drawWalls(ctx);
-  drawDoors(ctx);
+  drawShip(ctx);
 
   // bodies
   for (const b of state.bodies) drawCorpse(ctx, { x: b.x, y: b.y, r: 20, color: b.color });
@@ -520,7 +562,7 @@ export function render(canvas, ctx, dt, local) {
   drawable.sort((a, b) => a.ry - b.ry);
   for (const p of drawable) {
     drawCrewmate(ctx, {
-      x: p.rx, y: p.ry, r: PLAYER_RADIUS, color: p.color,
+      x: p.rx, y: p.ry, r: PLAYER_RADIUS, color: p.color, hat: p.hat,
       dir: p.dir, walk: p.walk, ghost: p.ghost,
       alpha: p.ghost ? (p.id === state.you ? 0.7 : 0.45) : 1,
     });
@@ -696,3 +738,60 @@ export function miniMapRoomAt(canvas, clientX, clientY) {
   for (const r of ROOMS) if (wx >= r.x1 && wx <= r.x2 && wy >= r.y1 && wy <= r.y2) return r;
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Security camera feeds
+// ---------------------------------------------------------------------------
+
+/** Render one camera's field of view, CRT artefacts and all. */
+export function renderCameraView(canvas, cam, feed) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.save();
+  ctx.fillStyle = '#04060c';
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.save();
+  const scale = Math.min(w / cam.w, h / cam.h);
+  ctx.translate(w / 2, h / 2);
+  ctx.scale(scale, scale);
+  ctx.translate(-cam.x, -cam.y);
+  drawShip(ctx, { labels: false, consoles: false });
+  for (const p of feed || []) {
+    if (p.cam !== cam.id) continue;
+    const known = state.players.get(p.i);
+    drawCrewmate(ctx, {
+      x: p.x, y: p.y, r: PLAYER_RADIUS, color: p.color, hat: known?.hat,
+      dir: p.d ?? 1, walk: p.m ? time * 2.4 : 0,
+    });
+  }
+  ctx.restore();
+
+  // scanlines + vignette + grain, so it reads as a monitor and not a minimap
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = '#000';
+  for (let y = 0; y < h; y += 4) ctx.fillRect(0, y, w, 2);
+  ctx.globalAlpha = 1;
+  const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.25, w / 2, h / 2, Math.max(w, h) * 0.7);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,0.75)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalAlpha = 0.05;
+  for (let i = 0; i < 40; i++) {
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(Math.random() * w, Math.random() * h, 2, 2);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.fillStyle = 'rgba(120,255,180,0.8)';
+  ctx.font = '700 13px Trebuchet MS, sans-serif';
+  ctx.fillText(cam.name.toUpperCase(), 10, 20);
+  ctx.beginPath();
+  ctx.arc(w - 18, 16, 5, 0, Math.PI * 2);
+  ctx.fillStyle = Math.sin(time * 6) > 0 ? '#ff3b47' : 'rgba(120,40,50,0.7)';
+  ctx.fill();
+  ctx.restore();
+}
+
+export { CAMERAS };

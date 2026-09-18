@@ -22,6 +22,7 @@ npm start            # or: node server/index.js
 
 Then open <http://localhost:3000>.
 
+* Pick a name, one of twelve colours and one of ten hats — all drawn in code.
 * **Host a Game** gives you a six-letter lobby code. Anyone on the same network can join
   from the main menu with that code.
 * Short on humans? Press **+ Bot** — bots do tasks, report bodies, vote, and will happily
@@ -42,7 +43,8 @@ Then open <http://localhost:3000>.
 | Kill (Impostor) | `Q` | **KILL** |
 | Vent (Impostor) | `F` | **VENT** |
 | Sabotage (Impostor) | — | **SAB** |
-| Map | `Tab` or `M` | **MAP** |
+| Map / admin table | `Tab` or `M` | **MAP** |
+| Security cameras | `E` at the console | **CAMS** |
 | Focus meeting chat | `C` | tap the chat box |
 | Close an overlay | `Esc` | **close** |
 
@@ -86,8 +88,17 @@ airlock. Ties skip. Ghosts watch but cannot vote.
 Reactor · Upper Engine · Lower Engine · Security · MedBay · Electrical · Cafeteria ·
 Storage · Admin · Weapons · O2 · Navigation · Shields · Communications.
 
-It carries 11 vents in 5 networks, 25 sabotage-closable doors, an admin table that shows
-live room occupancy, and consoles for 17 task types spread over 24 different minigames.
+It carries 11 vents in 5 networks, 25 sabotage-closable doors, and consoles for 17 task
+types spread over 24 different minigames. Two information systems are worth knowing:
+
+* **Admin table** — stand on it and open the map to see how many players are in each room.
+* **Security cameras** — the console in Security shows four live feeds of the corridors.
+  While anyone is watching, the camera lights blink red for the whole ship, so sitting on
+  cameras is not free.
+
+Cutting **Communications** disables both, and hides your task list and the task bar.
+
+![Security cameras](docs/cameras.png)
 
 **Tasks** — Swipe Card, Fix Wiring, Calibrate Distributor, Chart Course, Clean O2 Filter,
 Clear Asteroids, Prime Shields, Stabilize Steering, Unlock Manifolds, Align Engine Output,
@@ -170,14 +181,16 @@ couple of seconds.
 npm test
 ```
 
-19 checks with no test framework: map reachability, doorway placement, console clearance,
-every room-to-room path walked by a real collision-resolved walker, random walkers that
-must never escape the ship, line of sight through open and closed doors, settings
-sanitising, task assignment, and the game rules themselves (crewmates cannot kill,
-impostors cannot kill through walls, task steps only count near the console and only for
-crew, majority ejection and tie-skipping, ghosts cannot vote or be seen, both reactor pads
-are required, an unfixed reactor loses the game, only impostors sabotage and vent),
-finishing with ten complete simulated rounds that must all reach a legal end state.
+22 checks with no test framework: map reachability, doorway placement, console clearance,
+every room-to-room path and every task console walked by a real collision-resolved walker
+(including one that re-plans its route every tick, which is how doorway oscillation bugs
+show up), random walkers that must never escape the ship, line of sight through open and
+closed doors, settings sanitising, task assignment, and the game rules themselves
+(crewmates cannot kill, impostors cannot kill through walls, task steps only count near
+the console and only for crew, majority ejection and tie-skipping, ghosts cannot vote or
+be seen, both reactor pads are required, an unfixed reactor loses the game, only impostors
+sabotage and vent, cameras only work at the console and die with comms), finishing with
+ten complete simulated rounds that must all reach a legal end state.
 
 ---
 
