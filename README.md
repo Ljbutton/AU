@@ -23,7 +23,8 @@ Nothing to install — the ZIP carries the official Node.js runtime with it. Fri
 same network join using the `http://192.168.x.x:3000` address the console prints (allow
 the Windows firewall prompt for node.exe on private networks), or add bots and play alone.
 
-Rebuild that package yourself with `npm run build:win`.
+Rebuild that package yourself with `npm run build:win` — the build is reproducible, so
+it reproduces the checksum published beside the download.
 
 ## Quick start (any OS)
 

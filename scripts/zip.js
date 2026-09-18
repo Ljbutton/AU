@@ -91,11 +91,15 @@ export function extractFile(buf, name) {
 // Writing
 // ---------------------------------------------------------------------------
 
+/**
+ * DOS timestamps are conventionally local time, but using UTC keeps archives
+ * byte-identical no matter which timezone the build machine is in.
+ */
 function dosDateTime(date) {
-  const year = Math.max(1980, date.getFullYear());
+  const year = Math.max(1980, date.getUTCFullYear());
   return {
-    time: (date.getHours() << 11) | (date.getMinutes() << 5) | (date.getSeconds() >> 1),
-    date: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate(),
+    time: (date.getUTCHours() << 11) | (date.getUTCMinutes() << 5) | (date.getUTCSeconds() >> 1),
+    date: ((year - 1980) << 9) | ((date.getUTCMonth() + 1) << 5) | date.getUTCDate(),
   };
 }
 

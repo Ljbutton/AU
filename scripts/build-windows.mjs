@@ -12,6 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createZip, listEntries, readEntry, extractFile } from './zip.js';
 
@@ -29,6 +30,21 @@ const NODE_BASE = `https://nodejs.org/dist/${NODE_VERSION}`;
 const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const APP_NAME = 'AmongUs-TheHull';
 const OUT_NAME = `${APP_NAME}-win-x64.zip`;
+
+/**
+ * A fixed timestamp for every archive entry, so two builds of the same commit
+ * produce byte-identical zips and the published sha256 can be reproduced.
+ * SOURCE_DATE_EPOCH wins, then the commit date, then a constant.
+ */
+function buildDate() {
+  const epoch = process.env.SOURCE_DATE_EPOCH;
+  if (epoch && /^\d+$/.test(epoch)) return new Date(Number(epoch) * 1000);
+  try {
+    const iso = execFileSync('git', ['log', '-1', '--format=%cI'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    if (iso) return new Date(iso);
+  } catch { /* not a git checkout - fall through */ }
+  return new Date('2026-01-01T00:00:00Z');
+}
 
 const log = (...a) => console.log(' ', ...a);
 const mb = (n) => (n / 1048576).toFixed(1) + ' MB';
@@ -253,7 +269,9 @@ async function main() {
 
   log(`node.exe ${mb(node.exe.length)}, ${files.length - 4} game files`);
 
-  const zip = createZip(files);
+  const date = buildDate();
+  log(`archive timestamp ${date.toISOString()} (reproducible)`);
+  const zip = createZip(files, { date });
   fs.mkdirSync(DIST, { recursive: true });
   const out = path.join(DIST, OUT_NAME);
   fs.writeFileSync(out, zip);
