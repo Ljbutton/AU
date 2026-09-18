@@ -60,7 +60,6 @@ export function initInput(canvas, joystickEl, knobEl) {
   const place = (x, y) => {
     joystickEl.style.left = `${x - RADIUS}px`;
     joystickEl.style.top = `${y - RADIUS}px`;
-    joystickEl.style.position = 'absolute';
     joystickEl.style.bottom = 'auto';
   };
 

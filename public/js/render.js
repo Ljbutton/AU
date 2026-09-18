@@ -477,7 +477,9 @@ export function render(canvas, ctx, dt, local) {
   ctx.fillStyle = '#04060c';
   ctx.fillRect(0, 0, w, h);
 
-  camera.scale = clamp(Math.min(w / 1240, h / 760), 0.42, 1.25);
+  // Frame roughly one vision circle: zoom by the *larger* ratio so portrait
+  // phones do not end up staring at a postage stamp.
+  camera.scale = clamp(Math.max(w / 1300, h / 900), 0.5, 1.15);
   const cx = local ? local.x : camera.x;
   const cy = local ? local.y : camera.y;
   camera.x += (cx - camera.x) * Math.min(1, dt * 14);

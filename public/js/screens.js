@@ -247,6 +247,12 @@ export function renderMeeting() {
   $('meeting-title').textContent = meeting.reason === 'body'
     ? `Dead Body Reported${meeting.bodyName ? `: ${meeting.bodyName}` : ''}`
     : 'Emergency Meeting';
+  const caller = meeting.by ? state.players.get(meeting.by) : null;
+  $('meeting-sub').textContent = caller
+    ? `${meeting.reason === 'body' ? 'Reported' : 'Called'} by ${caller.name}${caller.id === state.you ? ' (you)' : ''}`
+    : '';
+  $('meeting-phase').textContent = meeting.phase === 'discuss' ? 'Discussion'
+    : meeting.phase === 'vote' ? 'Voting' : 'Results';
 
   const wrap = $('meeting-players');
   wrap.replaceChildren();
@@ -276,9 +282,9 @@ export function renderMeeting() {
       votes.append(tick);
     }
     row.append(canvas, name, votes);
-    if (canVote && p.alive !== false && p.id !== state.you) {
-      row.addEventListener('click', () => castVote(p.id));
-    } else if (canVote && p.id === state.you) {
+    if (canVote && p.alive !== false) {
+      row.classList.add('votable');
+      row.title = `Vote for ${p.name}`;
       row.addEventListener('click', () => castVote(p.id));
     }
     wrap.append(row);
@@ -287,9 +293,12 @@ export function renderMeeting() {
   $('btn-skip').disabled = !canVote;
   const voted = meeting.voted.size;
   const alive = [...state.players.values()].filter((p) => p.alive !== false).length;
+  const spectating = me && me.alive === false;
   $('vote-status').textContent = meeting.phase === 'discuss'
     ? 'Discussion — voting opens shortly.'
-    : meeting.phase === 'results' ? 'Votes are in.' : `${voted} / ${alive} votes cast`;
+    : meeting.phase === 'results' ? 'Votes are in.'
+      : spectating ? `Ghosts cannot vote — ${voted} / ${alive} votes cast`
+        : `${voted} / ${alive} votes cast`;
 
   renderChat();
 }
@@ -304,11 +313,22 @@ export function tickMeeting(dt) {
   $('meeting-timer').textContent = state.meeting.phase === 'results'
     ? '—'
     : `${Math.ceil(state.meeting.secs || 0)}s`;
+  $('meeting-phase').textContent = state.meeting.phase === 'discuss' ? 'Discussion'
+    : state.meeting.phase === 'vote' ? 'Voting' : 'Results';
 }
 
 export function renderChat() {
   const log = $('chat-log');
   log.replaceChildren();
+  if (!state.chat.length) {
+    const hint = document.createElement('div');
+    hint.className = 'chat-empty';
+    const me = state.players.get(state.you);
+    hint.textContent = me && me.alive === false
+      ? 'Ghost chat — only other ghosts can read this.'
+      : 'Nobody has said anything yet. Where was everyone?';
+    log.append(hint);
+  }
   for (const m of state.chat) {
     const line = document.createElement('div');
     line.className = 'cl' + (m.dead ? ' dead' : '');
