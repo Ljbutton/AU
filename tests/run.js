@@ -10,7 +10,7 @@ import {
 import { pointInAnyRect, distToSegment, lineOfSight } from '../shared/geom.js';
 import { stepMove, doorSegments } from '../shared/movement.js';
 import { TASK_DEFS, WIRE_PANELS, DATA_SOURCES, POWER_NODES, assignTasks, taskProgress } from '../shared/tasks.js';
-import { DEFAULT_SETTINGS, sanitizeSettings, COLORS, PHASE } from '../shared/constants.js';
+import { DEFAULT_SETTINGS, sanitizeSettings, PHASE } from '../shared/constants.js';
 import { GameRoom } from '../server/game.js';
 
 let passed = 0, failed = 0;
@@ -238,6 +238,33 @@ test('rules: crew cannot kill, impostors cannot kill through walls', () => {
   assert.ok(!crew.alive, 'point blank kill failed');
   assert.equal(room.bodies.length, 1);
   assert.ok(imp.killCooldown > 0, 'kill cooldown not applied');
+});
+
+test('rules: a valid target elsewhere does not authorise a kill through a wall', () => {
+  const room = new GameRoom('JJJJJJ', null);
+  const conn = { open: true, sendJSON() {} };
+  for (const n of ['a', 'b', 'c', 'd', 'e']) room.addPlayer({ name: n, color: null, conn });
+  for (const p of room.playerList) p.brain = null;
+  room.settings.impostors = 1;
+  room.startGame(room.hostId);
+  const imp = room.playerList.find((p) => p.role === 'impostor');
+  const crew = room.playerList.filter((p) => p.role === 'crew');
+
+  // Decoy stands right next to the impostor inside Security...
+  imp.killCooldown = 0;
+  imp.x = 600; imp.y = 700;
+  crew[0].x = 625; crew[0].y = 700;
+  // ...while the real target is in the corridor on the other side of the wall,
+  // well inside kill range but below the doorway.
+  crew[1].x = 490; crew[1].y = 700;
+  assert.ok(pointInAnyRect(crew[1].x, crew[1].y, RECTS), 'test setup: target must be on the ship');
+  assert.ok(Math.hypot(crew[1].x - imp.x, crew[1].y - imp.y) < 150, 'test setup: target must be in range');
+  const wallBetween = !room.hasLineOfSight(imp, crew[1]);
+  assert.ok(wallBetween, 'test setup: expected a wall between the impostor and the target');
+  room.tryKill(imp, crew[1].id);
+  assert.ok(crew[1].alive, 'kill landed through a wall');
+  room.tryKill(imp, crew[0].id);
+  assert.ok(!crew[0].alive, 'the adjacent target should still be killable');
 });
 
 test('rules: task steps only count near the console and only for crew', () => {

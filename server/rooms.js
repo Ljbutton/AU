@@ -6,12 +6,27 @@ import { TICK_MS } from '../shared/constants.js';
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';   // no I/O, they read badly
 const EMPTY_ROOM_TTL = 60_000;
 
+/** A generous ceiling: a busy client sends ~20 inputs a second. */
+const MAX_MESSAGES_PER_SECOND = 250;
+
 export class RoomManager {
   constructor() {
     this.rooms = new Map();
     this.connections = new Map();     // conn -> { room, player }
+    this.rate = new WeakMap();        // conn -> { count, resetAt }
     this.last = Date.now();
     this.timer = setInterval(() => this.tick(), TICK_MS);
+  }
+
+  /** Cheap per-connection flood guard. Returns false when the message is dropped. */
+  allow(conn) {
+    const now = Date.now();
+    let meta = this.rate.get(conn);
+    if (!meta || now > meta.resetAt) {
+      meta = { count: 0, resetAt: now + 1000 };
+      this.rate.set(conn, meta);
+    }
+    return ++meta.count <= MAX_MESSAGES_PER_SECOND;
   }
 
   newCode() {
@@ -70,6 +85,7 @@ export class RoomManager {
   }
 
   handle(conn, raw) {
+    if (!this.allow(conn)) return;
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
     if (!msg || typeof msg !== 'object') return;

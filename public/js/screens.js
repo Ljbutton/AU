@@ -1,6 +1,6 @@
 // public/js/screens.js - menu, lobby, meeting and game-over screens.
 
-import { state, actions, on } from './net.js';
+import { state, actions } from './net.js';
 import { COLORS, COLOR_BY_ID, HATS, MIN_PLAYERS, MAX_PLAYERS } from '../../shared/constants.js';
 import { drawCrewmate, renderBeanTo } from './sprites.js';
 import { sfx } from './sound.js';

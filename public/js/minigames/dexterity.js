@@ -1,7 +1,7 @@
 // public/js/minigames/dexterity.js
 // Aim, drag and timing consoles.
 
-import { el, canvasEl, localPoint, bar } from './index.js';
+import { el, canvasEl, localPoint } from './index.js';
 import { sfx } from '../sound.js';
 
 /** Align Engine Output: drag the slider onto the centre line. */

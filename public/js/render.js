@@ -2,7 +2,7 @@
 
 import {
   ROOMS, HALLS, RECTS, WALLS, DOORS, DOOR_BY_ID, VENTS, EMERGENCY_BUTTON,
-  ADMIN_TABLE, WORLD, FIX_POINTS, CAMERAS, SECURITY_CONSOLE,
+  ADMIN_TABLE, FIX_POINTS, CAMERAS, SECURITY_CONSOLE,
 } from '../../shared/map.js';
 import { allConsolePositions, currentStep } from '../../shared/tasks.js';
 import { visibilityPolygon, segmentsNear, clamp } from '../../shared/geom.js';

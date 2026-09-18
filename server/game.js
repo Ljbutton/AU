@@ -3,18 +3,18 @@
 // kills, sabotage, meetings and win conditions.
 
 import {
-  TICK_RATE, PLAYER_RADIUS, INTERACT_RANGE, BODY_REPORT_RANGE, VENT_RANGE,
+  PLAYER_RADIUS, INTERACT_RANGE, BODY_REPORT_RANGE, VENT_RANGE,
   COLORS, HAT_IDS, MAX_PLAYERS, MIN_PLAYERS, DEFAULT_SETTINGS, sanitizeSettings,
   KILL_DISTANCES, VISION, SABOTAGE, MEETING, ROLE, PHASE, MEETING_PHASE, WIN,
 } from '../shared/constants.js';
 import {
-  RECTS, WALLS, ROOMS, VENTS, VENT_BY_ID, DOORS, DOOR_ROOMS, FIX_POINTS,
+  WALLS, VENTS, VENT_BY_ID, DOORS, DOOR_ROOMS, FIX_POINTS,
   EMERGENCY_BUTTON, ADMIN_TABLE, SPAWN, SECURITY_CONSOLE, CAMERAS, inCameraView,
-  roomAt, WORLD,
+  roomAt,
 } from '../shared/map.js';
 import { assignTasks, taskProgress, currentStep } from '../shared/tasks.js';
 import { stepMove, doorSegments, speedFor, settle } from '../shared/movement.js';
-import { lineOfSight, dist, segmentsNear, clamp } from '../shared/geom.js';
+import { lineOfSight, dist, segmentsNear } from '../shared/geom.js';
 import { BotBrain } from './bots.js';
 
 const BOT_NAMES = [
@@ -125,7 +125,13 @@ export class GameRoom {
     this.players.delete(id);
     // A body of a player who left is meaningless - drop it.
     this.bodies = this.bodies.filter((b) => b.playerId !== id);
-    if (this.meeting) this.meeting.votes.delete(id);
+    if (this.meeting) {
+      this.meeting.votes.delete(id);
+      if (this.meeting.phase === MEETING_PHASE.VOTE && this.alivePlayers.length &&
+          this.alivePlayers.every((p) => p.vote !== undefined)) {
+        this.finishVoting();
+      }
+    }
 
     if (this.hostId === id) {
       const next = this.playerList.find((p) => !p.bot) || this.playerList[0];
@@ -369,10 +375,11 @@ export class GameRoom {
 
   tryKill(player, targetId) {
     const target = this.players.get(targetId);
-    const best = this.killTarget(player);
-    if (!target || !best) return;
+    // killTarget() re-checks the killer's own eligibility (role, cooldown, vent).
+    if (!target || !this.killTarget(player)) return;
+    if (target === player || !target.alive || target.inVent) return;
     if (dist(player.x, player.y, target.x, target.y) > this.killRange() + 10) return;
-    if (!target.alive || target.inVent) return;
+    if (!this.hasLineOfSight(player, target)) return;
 
     target.alive = false;
     target.inVent = null;
@@ -874,7 +881,7 @@ export class GameRoom {
         dr: closed,
         sab,
         bar: commsDown ? null : barValue,
-        sc: this.sabotageCooldown > 0 ? Math.ceil(this.sabotageCooldown) : 0,
+        sc: viewer.role === ROLE.IMPOSTOR && this.sabotageCooldown > 0 ? Math.ceil(this.sabotageCooldown) : 0,
       };
       if (this.meeting) payload.mt = Math.max(0, this.meeting.ends - this.time);
       if (!commsDown && dist(viewer.x, viewer.y, ADMIN_TABLE.x, ADMIN_TABLE.y) < ADMIN_TABLE.r + 40) {

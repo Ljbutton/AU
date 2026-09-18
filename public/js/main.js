@@ -13,7 +13,6 @@ import {
 } from './screens.js';
 import { minigameOpen, closeMinigame } from './minigames/index.js';
 import { stepMove, doorSegments, speedFor } from '../../shared/movement.js';
-import { PLAYER_RADIUS } from '../../shared/constants.js';
 import { sfx, unlockAudio } from './sound.js';
 
 const canvas = document.getElementById('game');

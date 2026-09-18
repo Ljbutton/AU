@@ -76,7 +76,10 @@ export class WebSocketConnection extends EventEmitter {
       case OP.CONT:
       case OP.TEXT:
       case OP.BINARY: {
-        if (opcode !== OP.CONT) {
+        if (opcode === OP.CONT) {
+          if (this.fragmentOp === null) throw new Error('continuation frame with no start');
+        } else {
+          if (this.fragmentOp !== null) throw new Error('new data frame inside a fragmented message');
           this.fragmentOp = opcode;
           this.fragments = [];
         }

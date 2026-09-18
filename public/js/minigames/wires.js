@@ -1,7 +1,7 @@
 // public/js/minigames/wires.js
 // Wire-dragging consoles: Fix Wiring, the lights breaker and comms tuning.
 
-import { el, canvasEl, localPoint, bar } from './index.js';
+import { el, canvasEl, localPoint } from './index.js';
 import { sfx } from '../sound.js';
 
 const WIRE_COLORS = ['#e23b3b', '#3f7de0', '#ffd23f', '#e0459f', '#3fd07a'];

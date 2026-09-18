@@ -221,6 +221,10 @@ function handle(msg) {
 
     case 'meeting':
       state.phase = 'meeting';
+      // The server yanks everyone out of vents for a meeting; mirror that here
+      // or the vent panel would linger and freeze movement afterwards.
+      state.inVent = null;
+      state.ventLinks = [];
       upsertPlayers(msg.players);
       state.meeting = {
         reason: msg.reason, by: msg.by, bodyOf: msg.bodyOf, bodyName: msg.bodyName,
@@ -253,6 +257,8 @@ function handle(msg) {
     case 'resume':
       state.phase = 'playing';
       state.meeting = null;
+      state.inVent = null;
+      state.ventLinks = [];
       for (const info of msg.players || []) {
         const p = state.players.get(info.id);
         if (p) { p.alive = info.alive; p.ghost = !info.alive; }

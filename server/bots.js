@@ -3,7 +3,7 @@
 // solo. Bots use the same movement code and the same public room actions a
 // human client would send - they have no special powers.
 
-import { findPath, VENTS, VENT_BY_ID, ROOMS, DOOR_ROOMS, EMERGENCY_BUTTON } from '../shared/map.js';
+import { findPath, VENTS, VENT_BY_ID, ROOMS, DOOR_ROOMS } from '../shared/map.js';
 import { currentStep } from '../shared/tasks.js';
 import { dist } from '../shared/geom.js';
 import { ROLE, BODY_REPORT_RANGE, INTERACT_RANGE } from '../shared/constants.js';

@@ -2,13 +2,13 @@
 
 import { state, actions } from './net.js';
 import { currentStep, pendingConsoles } from '../../shared/tasks.js';
-import { INTERACT_RANGE, BODY_REPORT_RANGE, VENT_RANGE, KILL_DISTANCES, PLAYER_RADIUS } from '../../shared/constants.js';
+import { INTERACT_RANGE, BODY_REPORT_RANGE, VENT_RANGE, KILL_DISTANCES } from '../../shared/constants.js';
 import {
   VENTS, VENT_BY_ID, EMERGENCY_BUTTON, FIX_POINTS, DOOR_ROOMS, ROOM_BY_ID,
   WALLS, DOOR_BY_ID, SECURITY_CONSOLE, CAMERAS,
 } from '../../shared/map.js';
 import { dist, lineOfSight, segmentsNear } from '../../shared/geom.js';
-import { openMinigame, closeMinigame, minigameOpen } from './minigames/index.js';
+import { openMinigame, closeMinigame } from './minigames/index.js';
 import { drawMiniMap, miniMapRoomAt, addEffect, renderCameraView } from './render.js';
 import { sfx, setMuted, isMuted } from './sound.js';
 import { input } from './input.js';
