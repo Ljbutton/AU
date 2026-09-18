@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0b0e14" />
+<title>Among Us — The Hull</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230b0e14'/><path d='M11 9a5 5 0 0 1 10 0v12a2 2 0 0 1-2 2h-6a2 2 0 0 1-2-2z' fill='%23c51111'/><ellipse cx='18' cy='12' rx='5' ry='3.4' fill='%239ad8ef'/></svg>" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ======================= MENU ======================= -->
+  <section id="screen-menu" class="screen active">
+    <div class="starfield"></div>
+    <div class="menu-inner">
+      <h1 class="logo"><span>Among</span> <span class="logo-us">Us</span></h1>
+      <p class="tagline">A recreation &mdash; find the Impostor aboard <b>The Hull</b></p>
+
+      <div class="panel">
+        <label class="field">
+          <span>Name</span>
+          <input id="input-name" maxlength="12" placeholder="Crewmate" autocomplete="off" />
+        </label>
+
+        <div class="field">
+          <span>Colour</span>
+          <div id="color-grid" class="color-grid"></div>
+        </div>
+
+        <div class="preview-row">
+          <canvas id="preview" width="180" height="200"></canvas>
+        </div>
+
+        <button id="btn-create" class="btn btn-primary">Host a Game</button>
+
+        <div class="join-row">
+          <input id="input-code" maxlength="6" placeholder="CODE" autocomplete="off" />
+          <button id="btn-join" class="btn">Join</button>
+        </div>
+        <p id="menu-error" class="error"></p>
+      </div>
+
+      <details class="howto">
+        <summary>How to play</summary>
+        <div class="howto-body">
+          <p><b>Crewmates</b> finish every task on the ship, or vote out all Impostors.</p>
+          <p><b>Impostors</b> kill the crew, sabotage the ship and blend in. Use vents to move unseen.</p>
+          <ul>
+            <li><b>WASD</b> / arrows / drag to move</li>
+            <li><b>E</b> or the <b>USE</b> button to work a console</li>
+            <li><b>R</b> report a body &middot; <b>Q</b> kill &middot; <b>F</b> vent &middot; <b>TAB</b> map</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ======================= LOBBY ======================= -->
+  <section id="screen-lobby" class="screen">
+    <div class="lobby-grid">
+      <div class="lobby-left">
+        <div class="code-card">
+          <span class="code-label">Lobby code</span>
+          <div class="code-value"><span id="lobby-code">------</span><button id="btn-copy" class="btn btn-tiny">copy</button></div>
+          <span class="code-hint">Share it &mdash; friends join from the main menu.</span>
+        </div>
+        <div id="lobby-players" class="lobby-players"></div>
+        <div class="lobby-actions">
+          <button id="btn-start" class="btn btn-primary">Start Game</button>
+          <div class="bot-row">
+            <button id="btn-add-bot" class="btn btn-small">+ Bot</button>
+            <button id="btn-remove-bot" class="btn btn-small">- Bot</button>
+          </div>
+          <button id="btn-leave" class="btn btn-ghost btn-small">Leave</button>
+        </div>
+        <p id="lobby-hint" class="hint"></p>
+      </div>
+      <div class="lobby-right">
+        <h2>Game Settings</h2>
+        <div id="settings-list" class="settings-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= GAME ======================= -->
+  <section id="screen-game" class="screen">
+    <canvas id="game"></canvas>
+
+    <!-- heads-up display -->
+    <div id="hud">
+      <div class="hud-top">
+        <div class="taskbar-wrap">
+          <div class="taskbar"><div id="taskbar-fill"></div></div>
+          <span id="taskbar-label">Total Tasks</span>
+        </div>
+        <div class="hud-top-right">
+          <button id="btn-map" class="icon-btn" title="Map (Tab)">MAP</button>
+          <button id="btn-quit" class="icon-btn" title="Leave">EXIT</button>
+        </div>
+      </div>
+
+      <div id="task-list" class="task-list"></div>
+      <div id="role-banner" class="role-banner"></div>
+      <div id="notice" class="notice"></div>
+      <div id="sab-banner" class="sab-banner"></div>
+
+      <div class="hud-bottom">
+        <div id="joystick" class="joystick"><div id="joystick-knob"></div></div>
+        <div class="action-buttons">
+          <button id="btn-sabotage" class="round-btn sabotage" title="Sabotage">SAB</button>
+          <button id="btn-vent" class="round-btn vent" title="Vent (F)">VENT</button>
+          <button id="btn-report" class="round-btn report" title="Report (R)">REPORT</button>
+          <button id="btn-kill" class="round-btn kill" title="Kill (Q)"><span class="cd" id="kill-cd"></span>KILL</button>
+          <button id="btn-use" class="round-btn use" title="Use (E)">USE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- vent navigation arrows -->
+    <div id="vent-ui" class="vent-ui hidden">
+      <div class="vent-links" id="vent-links"></div>
+      <button id="btn-vent-exit" class="btn btn-small">Exit Vent</button>
+    </div>
+
+    <!-- map / sabotage overlay -->
+    <div id="map-overlay" class="overlay hidden">
+      <div class="map-card">
+        <header>
+          <h2 id="map-title">Map</h2>
+          <button class="btn btn-tiny close-map">close</button>
+        </header>
+        <canvas id="map-canvas" width="1120" height="560"></canvas>
+        <p id="map-hint" class="hint"></p>
+      </div>
+    </div>
+
+    <!-- minigame host -->
+    <div id="minigame-overlay" class="overlay hidden">
+      <div class="minigame-card">
+        <header>
+          <h2 id="minigame-title">Task</h2>
+          <button class="btn btn-tiny" id="minigame-close">close</button>
+        </header>
+        <div id="minigame-body"></div>
+      </div>
+    </div>
+
+    <!-- death / ghost banner -->
+    <div id="ghost-banner" class="ghost-banner hidden">You are a ghost — finish your tasks to help the crew.</div>
+  </section>
+
+  <!-- ======================= MEETING ======================= -->
+  <section id="screen-meeting" class="screen">
+    <div class="meeting-wrap">
+      <header class="meeting-head">
+        <h2 id="meeting-title">Emergency Meeting</h2>
+        <div id="meeting-timer" class="meeting-timer">--</div>
+      </header>
+      <div class="meeting-body">
+        <div id="meeting-players" class="meeting-players"></div>
+        <div class="meeting-chat">
+          <div id="chat-log" class="chat-log"></div>
+          <form id="chat-form" class="chat-form">
+            <input id="chat-input" maxlength="140" placeholder="Type a message…" autocomplete="off" />
+            <button class="btn btn-small" type="submit">Send</button>
+          </form>
+        </div>
+      </div>
+      <footer class="meeting-foot">
+        <button id="btn-skip" class="btn">Skip Vote</button>
+        <span id="vote-status" class="hint"></span>
+      </footer>
+    </div>
+    <div id="eject-scene" class="eject-scene hidden">
+      <canvas id="eject-canvas" width="900" height="380"></canvas>
+      <p id="eject-text"></p>
+    </div>
+  </section>
+
+  <!-- ======================= GAME OVER ======================= -->
+  <section id="screen-end" class="screen">
+    <div class="end-wrap">
+      <h1 id="end-title">Victory</h1>
+      <p id="end-reason"></p>
+      <div id="end-players" class="end-players"></div>
+      <button id="btn-back-lobby" class="btn btn-primary">Back to Lobby</button>
+    </div>
+  </section>
+
+  <div id="connection-lost" class="disconnected hidden">
+    <div>
+      <h2>Disconnected</h2>
+      <p id="disconnect-reason">Lost contact with the ship.</p>
+      <button id="btn-reload" class="btn btn-primary">Back to menu</button>
+    </div>
+  </div>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

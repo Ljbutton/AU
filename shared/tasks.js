@@ -219,3 +219,24 @@ export function pendingConsoles(tasks) {
   }
   return out;
 }
+
+/**
+ * Every console position that can exist in a game (including the pools that
+ * randomised tasks draw from). The client uses this to furnish the ship, so
+ * consoles are visible whether or not they belong to your task list.
+ */
+export function allConsolePositions() {
+  const out = new Map();
+  const add = (s) => {
+    const key = `${Math.round(s.x)},${Math.round(s.y)}`;
+    if (!out.has(key)) out.set(key, { x: s.x, y: s.y, room: s.room, minigame: s.minigame });
+  };
+  for (const def of TASK_DEFS) {
+    const steps = typeof def.steps === 'function' ? def.steps(() => 0) : def.steps;
+    for (const s of steps) add(s);
+  }
+  for (const p of WIRE_PANELS) add({ ...p, minigame: 'wires' });
+  for (const p of DATA_SOURCES) add({ ...p, minigame: 'download' });
+  for (const p of POWER_NODES) add({ ...p, minigame: 'accept' });
+  return [...out.values()];
+}
