@@ -1,0 +1,15 @@
+{
+  "name": "among-us-recreation",
+  "version": "1.0.0",
+  "description": "A from-scratch, zero-dependency multiplayer recreation of Among Us (browser client + authoritative Node server).",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "test": "node tests/run.js"
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT",
+  "private": true
+}
