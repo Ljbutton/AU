@@ -950,7 +950,11 @@ export class GameRoom {
 
   broadcastLobby() { this.broadcast(this.lobbyState()); }
   broadcastLobbyRoster() {
-    this.broadcast({ t: 'roster', players: this.playerList.map((p) => ({ ...p.publicInfo(), alive: p.alive })) });
+    this.broadcast({
+      t: 'roster',
+      hostId: this.hostId,
+      players: this.playerList.map((p) => ({ ...p.publicInfo(), alive: p.alive })),
+    });
   }
 }
 

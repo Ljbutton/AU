@@ -125,6 +125,7 @@ function handle(msg) {
       break;
 
     case 'roster':
+      if (msg.hostId) state.hostId = msg.hostId;   // the host can leave mid-round
       upsertPlayers(msg.players);
       emit('roster', msg);
       break;

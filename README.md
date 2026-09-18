@@ -181,7 +181,7 @@ couple of seconds.
 npm test
 ```
 
-22 checks with no test framework: map reachability, doorway placement, console clearance,
+23 checks with no test framework: map reachability, doorway placement, console clearance,
 every room-to-room path and every task console walked by a real collision-resolved walker
 (including one that re-plans its route every tick, which is how doorway oscillation bugs
 show up), random walkers that must never escape the ship, line of sight through open and
