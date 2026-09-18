@@ -19,27 +19,30 @@
       <p class="tagline">A recreation &mdash; find the Impostor aboard <b>The Hull</b></p>
 
       <div class="panel">
-        <label class="field">
-          <span>Name</span>
-          <input id="input-name" maxlength="12" placeholder="Crewmate" autocomplete="off" />
-        </label>
-
-        <div class="field">
-          <span>Colour</span>
-          <div id="color-grid" class="color-grid"></div>
-        </div>
-
-        <div class="field">
-          <span>Hat</span>
-          <div id="hat-row" class="hat-row">
-            <button class="btn btn-small" data-dir="-1" type="button">‹</button>
-            <span id="hat-name">No Hat</span>
-            <button class="btn btn-small" data-dir="1" type="button">›</button>
+        <div class="identity">
+          <div class="preview-row">
+            <canvas id="preview" width="150" height="190"></canvas>
           </div>
-        </div>
+          <div class="identity-fields">
+            <label class="field">
+              <span>Name</span>
+              <input id="input-name" maxlength="12" placeholder="Crewmate" autocomplete="off" />
+            </label>
 
-        <div class="preview-row">
-          <canvas id="preview" width="180" height="210"></canvas>
+            <div class="field">
+              <span>Colour</span>
+              <div id="color-grid" class="color-grid"></div>
+            </div>
+
+            <div class="field field-last">
+              <span>Hat</span>
+              <div id="hat-row" class="hat-row">
+                <button class="btn btn-small" data-dir="-1" type="button">‹</button>
+                <span id="hat-name">No Hat</span>
+                <button class="btn btn-small" data-dir="1" type="button">›</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <button id="btn-create" class="btn btn-primary">Host a Game</button>

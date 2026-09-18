@@ -104,16 +104,16 @@ input:focus { border-color: var(--accent); }
   padding: 28px 16px 40px;
 }
 .logo {
-  font-size: clamp(42px, 9vw, 78px);
-  margin: 10px 0 0;
+  font-size: clamp(38px, 8vw, 68px);
+  margin: 6px 0 0;
   letter-spacing: 2px;
   text-shadow: 0 6px 0 #0a0d16, 0 10px 26px rgba(0, 0, 0, 0.7);
 }
 .logo-us { color: var(--danger); }
-.tagline { color: var(--muted); margin: 6px 0 22px; text-align: center; }
+.tagline { color: var(--muted); margin: 6px 0 16px; text-align: center; }
 
 .panel {
-  width: min(430px, 100%);
+  width: min(520px, 100%);
   background: var(--panel);
   border: 1px solid var(--panel-line);
   border-radius: var(--radius);
@@ -141,17 +141,32 @@ input:focus { border-color: var(--accent); }
   background: linear-gradient(45deg, transparent 44%, #fff 44%, #fff 56%, transparent 56%);
 }
 
+.identity { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 16px; align-items: center; }
+.identity-fields { min-width: 0; }
+.field-last { margin-bottom: 0; }
 .hat-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: rgba(0,0,0,0.25); border-radius: 12px; padding: 6px 10px; }
-.hat-row span { font-weight: 700; }
-.preview-row { display: flex; justify-content: center; margin: 4px 0 14px; }
+.hat-row span { font-weight: 700; font-size: 15px; }
+.preview-row { display: flex; justify-content: center; }
+@media (max-width: 520px) {
+  /* keep the two-column identity block, just smaller, so "Host a Game" stays
+     above the fold on a phone */
+  .identity { grid-template-columns: 96px minmax(0, 1fr); gap: 12px; }
+  #preview { width: 96px; height: 122px; }
+  .logo { font-size: 36px; }
+  .tagline { margin: 4px 0 10px; font-size: 13px; }
+  .menu-inner { padding: 16px 12px 28px; }
+  .panel { padding: 14px; }
+  .color-grid { gap: 6px; }
+  .field { margin-bottom: 12px; }
+}
 #preview { image-rendering: auto; }
 
 .join-row { display: flex; gap: 10px; margin-top: 14px; }
 .join-row input { text-transform: uppercase; letter-spacing: 5px; font-weight: 700; text-align: center; }
-#btn-create { width: 100%; margin-top: 4px; }
+#btn-create { width: 100%; margin-top: 16px; }
 .error { color: var(--danger); min-height: 20px; margin: 10px 0 0; font-size: 14px; text-align: center; }
 
-.howto { width: min(430px, 100%); margin-top: 18px; color: var(--muted); }
+.howto { width: min(520px, 100%); margin-top: 18px; color: var(--muted); }
 .howto summary { cursor: pointer; padding: 10px; border-radius: 10px; background: rgba(255,255,255,0.04); }
 .howto-body { padding: 10px 14px; font-size: 14px; line-height: 1.6; }
 .howto-body ul { padding-left: 18px; }
