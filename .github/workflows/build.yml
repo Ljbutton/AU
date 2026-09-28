@@ -35,6 +35,9 @@ jobs:
           dotnet restore src/TournamentTracker.Plugin \
             ${{ inputs.game_libs_version && format('-p:GameLibsVersion={0}', inputs.game_libs_version) || '' }}
           grep -o '"AmongUs.GameLibs.Steam/[^"]*"' src/TournamentTracker.Plugin/obj/project.assets.json | sort -u
+          find ~/.nuget/packages/amongus.gamelibs.steam -maxdepth 4 | head -40
+          cat ~/.nuget/packages/amongus.gamelibs.steam/*/*.nuspec || true
+          find ~/.nuget/packages/amongus.gamelibs.steam -name '*.props' -o -name '*.targets' | xargs -r cat
 
       - name: Build the plugin
         run: >
