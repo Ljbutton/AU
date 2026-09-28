@@ -19,9 +19,10 @@ host needs the mod.
 
 ## Install (host only)
 
-1. Install **BepInEx 6 (IL2CPP, bleeding edge)** for Among Us: download the
-   `BepInEx-Unity.IL2CPP-win-x64` build from <https://builds.bepinex.dev/projects/bepinex_be>,
-   extract it into the Among Us folder, and start the game once so BepInEx sets itself up.
+1. Install **BepInEx 6 bleeding-edge build 735 (IL2CPP)**, the build Among Us mods use:
+   download `BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.735` from
+   <https://builds.bepinex.dev/projects/bepinex_be>, extract it into the Among Us folder, and
+   start the game once so BepInEx sets itself up.
 2. Download `TournamentTracker-*.zip` from this repo's Releases (or from the latest
    **Build** run under Actions). Extract it into the Among Us folder so
    `BepInEx/plugins/TournamentTracker.dll` lands in place.
@@ -134,8 +135,11 @@ dotnet test tests/TournamentTracker.Tests          # core logic, no game needed
 dotnet build src/TournamentTracker.Plugin -c Release -p:GameLibsVersion=2025.x.y
 ```
 
-The plugin builds against `AmongUs.GameLibs.Steam` from the BepInEx NuGet feed. By default
-it uses the newest version; pass `GameLibsVersion` to match your game. On GitHub, run the
+The plugin builds against `AmongUs.GameLibs.Steam` from the BepInEx NuGet feed, with
+`BepInEx.IL2CPP.MSBuild` generating the interop assemblies at build time. By default it
+uses the newest game version (currently 2026.8.18); pass `GameLibsVersion` to match your
+game. BepInEx is pinned to be.735, because newer builds use an Il2CppInterop version the
+interop generator can't run. On GitHub, run the
 **Build** workflow by hand to choose the version, or push a `v*` tag to publish a release ZIP.
 
 Layout:
