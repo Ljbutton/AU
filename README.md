@@ -127,6 +127,15 @@ right away.
   at that moment. For a specific game use its name: `!adjust LJ-3 red -2 …`. The lobby's
   bot reacts ✅ when it's applied, or ❓ if the player couldn't be found. It shows in the
   points breakdown as "Referee: meta call −2".
+* **Restarted games:** if a game has to stop and restart, the host types `!void [reason]`
+  during it (or straight after it, for the last game), or a referee types
+  `!void LJ-3 reason` in the results channel (`!void LJ` means the game that lobby is
+  playing). A void game is kept for the record and its report says VOID, but it scores
+  nothing and doesn't count toward the round, so the replacement game is the one that counts.
+  Only `!unvoid` (in-game, or `!unvoid LJ-3` in the channel) brings it back: once the
+  lobby's bot has seen a void it reacts ✅ and reposts the game with it built in, so deleting
+  the `!void` message changes nothing. Preliminary channels work the same way (the scheduled
+  job applies them), so the organiser's bot needs Add Reactions and Attach Files there.
 * **Server standings:** `!servers` (and each new round) posts servers ranked by their
   players' total points, with each server's furthest player. A player's server is the one
   they played the most preliminaries in. Unofficial.
@@ -273,6 +282,7 @@ brings the old standings back.
 | `!resetleaderboard` | host | Start the combined leaderboard over for every lobby |
 | `!r1`, `!r2`… or `!round 3` | host | Start a tournament round (points restart; running total kept) |
 | `!servers` | host | Post the server standings |
+| `!void [reason]` / `!unvoid` | host | Throw out the current or last game (a restart) / bring it back |
 | `!refslot on\|off` | host | Referee ghost slot: the host plays as a ghost referee (experimental) |
 | `!setup` | host | Apply the setup code on the clipboard (`!setup clear` to stop using one) |
 | `!resetstats confirm` | host | Archive the stats file and start a new leaderboard |
@@ -339,23 +349,34 @@ allowed, penalties are negative, and 0 switches a rule off.
 | Finished every task | 0 (off; the task bonus covers it) | `CompletedTasks` |
 | Voted for an impostor who got ejected | +2 each | `CorrectVoteOut` |
 | Called the meeting where an impostor got ejected | +1 | `CaughtKiller` |
-| First player killed | +1 | `DiedFirst` |
-| Killed (not first) | +0.5 | `GotKilled` |
+| Killed | 0 (off) | `GotKilled` |
+| First player killed: ends on 90% of their crew teammates' average | see below | `DiedFirstShareOfCrewAverage` |
 | Voted for a crewmate who got ejected | −2 each | `IncorrectVoteOut` |
-| Vote accuracy bonus: % of their votes that were on impostors | up to +2 | `VoteAccuracyBonus` |
-| Task bonus: % of their tasks finished | up to +3 | `TaskPercentBonus` |
+| Reads bonus: +1 per vote on an impostor who stayed in, times the share of such votes that were right | up to +4 | `ReadVotePoints`, `ReadVoteBonus` |
+| Task bonus: % of their task effort finished, a long task counting double | up to +3 | `TaskPercentBonus`, `LongTaskWeight` |
 | Win by tasks | +5 | `CrewTaskWin` |
 | Win by vote | +3 | `CrewVoteWin` |
 | Alive when the team loses to sabotage | −5 | `CrewSabotageLossAlive` |
 | Any other loss | −1 | `CrewOtherLoss` |
 
-The vote-out points only count votes that put someone out: a vote for an impostor who
-survives the meeting earns no vote-out points. That vote still counts toward the **vote
-accuracy bonus**, which scales with the share of all a crewmate's votes that were on
-impostors (skips and missed votes don't count either way). The **task bonus** scales the
-same way with the share of tasks finished (up to +3). At the defaults, 2 of 3 correct
-votes (67%) earns +1.5 and 3 of 4 tasks (75%) earns +2.5. Both
-round to the nearest half point (`BonusRounding`). Win and loss points go to the whole team, dead or alive, but not to anyone
+A crewmate's vote scores one of two ways. A vote that **ejected** someone is a vote out:
++2 on an impostor, −2 on a crewmate. Any other vote, for someone who stayed in, is a
+**read**. Reads show who spotted the impostors early, so each read on an impostor earns +1,
+up to +4, and that is then multiplied by the share of their reads that were right. Right at
+four meetings earns +4; right at one earns +1; voting at everyone in 8 meetings and being
+right in 4 earns only +2, so calling lots of meetings to vote doesn't pay. Skips and missed
+votes don't count either way.
+
+The **task bonus** scales with the share of task effort finished (up to +3), where a long
+task counts as two short ones (`LongTaskWeight`). With 2 common, 3 long and 5 short tasks,
+finishing everything but the long ones is 7 of 13 (54%, +1.5), not 7 of 10.
+
+The **first crewmate killed** ends the game on 90% of the average of their crew teammates
+(everyone else on the crew who didn't disconnect), whatever they scored themselves. Dying
+first once is often bad luck and costs little; dying first every game keeps a player out of
+the top half. The report shows it as "Died first: 90% of crew average".
+
+Bonuses and the died-first score round to the nearest half point (`BonusRounding`). Win and loss points go to the whole team, dead or alive, but not to anyone
 who disconnected. A game won because the other team disconnected isn't on the sheet, so it
 scores nothing unless you set `DisconnectWin`.
 
@@ -375,7 +396,8 @@ Files go in `BepInEx/config/TournamentTracker/`:
   with its time, every meeting with the caller, the body and each vote, ejections, sabotages
   and the result.
 
-A game the host leaves before it ends is saved as `-abandoned` and is not counted.
+A game the host leaves before it ends is saved as `-abandoned` and is not counted; a void
+game is saved as `-void`.
 
 ## Building
 

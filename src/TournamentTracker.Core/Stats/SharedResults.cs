@@ -22,6 +22,10 @@ namespace TournamentTracker.Stats
         /// <summary>This tournament's games since the last reset, with referee adjustments applied.</summary>
         public List<GameRecord> GameRecords { get; set; } = new List<GameRecord>();
         public List<AdjustmentResult> Adjustments { get; set; } = new List<AdjustmentResult>();
+        public List<VoidResult> Voids { get; set; } = new List<VoidResult>();
+
+        /// <summary>Games a !void or !unvoid changed that haven't been reposted yet: game ID to the file to post.</summary>
+        public Dictionary<string, byte[]> Unsettled { get; set; } = new Dictionary<string, byte[]>();
     }
 
     /// <summary>Everything read from one channel (back to the newest reset message).</summary>
@@ -30,6 +34,7 @@ namespace TournamentTracker.Stats
         /// <summary>Fresh copies, newest first; a game posted twice appears once.</summary>
         public List<GameRecord> Games { get; set; } = new List<GameRecord>();
         public List<RefereeAdjustment> Adjustments { get; set; } = new List<RefereeAdjustment>();
+        public List<RefereeVoid> Voids { get; set; } = new List<RefereeVoid>();
         public bool SinceReset { get; set; }
         public bool MissingContentIntent { get; set; }
     }
@@ -82,7 +87,8 @@ namespace TournamentTracker.Stats
 
         public async Task<bool> PublishAsync(GameRecord game)
         {
-            string summary = $"Game {game.Name}{(game.Round > 0 ? $" · round {game.Round}" : "")} · {game.Winner ?? "no result"} · {game.Map}";
+            string summary = $"Game {game.Name}{(game.Round > 0 ? $" · round {game.Round}" : "")} · {game.Winner ?? "no result"} · {game.Map}"
+                + (game.Voided ? $" · VOID{(game.VoidReason.Length > 0 ? ": " + game.VoidReason : "")}" : "");
             var result = await _rest.PostFileAsync(_token, _channelId, summary, FileNameFor(game), FileFor(game)).ConfigureAwait(false);
             if (!result.Ok) _log.Error($"Could not post game {game.Name} to the results channel: {result}");
             return result.Ok;
@@ -107,8 +113,10 @@ namespace TournamentTracker.Stats
                 SinceReset = data.SinceReset,
                 MissingContentIntent = data.MissingContentIntent,
                 GameRecords = games,
-                Adjustments = Standings.Apply(games, data.Adjustments),
+                Voids = Standings.ApplyVoids(games, data.Voids),
             };
+            load.Unsettled = UnsettledFiles(load.Voids);
+            load.Adjustments = Standings.Apply(games.Where(g => g.Counted).ToList(), data.Adjustments);
             load.Store = Standings.Build(games, tournament);
             load.Games = load.Store.GamesRecorded;
             load.Hosts = games.Select(g => g.Host).Distinct().Count();
@@ -136,6 +144,8 @@ namespace TournamentTracker.Stats
                     }
                     var adjustment = RefereeAdjustment.TryParse(m.Content, m.Id, RefereeAdjustment.TimeOfSnowflake(m.Id));
                     if (adjustment != null) data.Adjustments.Add(adjustment);
+                    var voiding = RefereeVoid.TryParse(m.Content, m.Id, RefereeAdjustment.TimeOfSnowflake(m.Id));
+                    if (voiding != null) data.Voids.Add(voiding);
                     foreach (var (name, url) in m.Attachments)
                         if (name.StartsWith(FilePrefix, StringComparison.Ordinal) && name.EndsWith(".json", StringComparison.Ordinal))
                             files.Add((m.Id + "/" + name, url));
@@ -163,6 +173,43 @@ namespace TournamentTracker.Stats
                 if (seen.Add(game.Id.Length > 0 ? game.Id : key)) data.Games.Add(game);   // newest first: a resent game counts once
             }
             return data;
+        }
+
+        /// <summary>
+        /// Copies to repost of the games a new !void or !unvoid changed, listing those commands
+        /// as built in. Call before referee point changes are applied, so the copies are clean.
+        /// </summary>
+        public static Dictionary<string, byte[]> UnsettledFiles(IEnumerable<VoidResult> voids)
+        {
+            var files = new Dictionary<string, byte[]>();
+            foreach (var byGame in voids.Where(v => v.Game != null && !v.Settled).GroupBy(v => v.Game!))
+            {
+                var game = byGame.Key;
+                var clean = JsonSerializer.Deserialize<GameRecord>(JsonSerializer.Serialize(game, Json), Json)!;
+                clean.VoidCommands.AddRange(byGame.Select(v => v.Command.MessageId));
+                files[game.Id] = FileFor(clean);
+            }
+            return files;
+        }
+
+        /// <summary>
+        /// Posts a game's new void state as its newest copy, so the !void or !unvoid message can
+        /// be deleted without undoing it, then ticks the referee's messages.
+        /// </summary>
+        public async Task<bool> SettleVoidAsync(string channelId, GameRecord game, byte[] file, IEnumerable<VoidResult> commands)
+        {
+            string text = game.Voided
+                ? $"Game {game.Name} is void{(game.VoidReason.Length > 0 ? ": " + game.VoidReason : "")}. It no longer counts."
+                : $"Game {game.Name} counts again.";
+            var result = await _rest.PostFileAsync(_token, channelId, text, FileNameFor(game), file).ConfigureAwait(false);
+            if (!result.Ok)
+            {
+                _log.Error($"Could not repost game {game.Name}: {result}");
+                return false;
+            }
+            foreach (var c in commands)
+                await _rest.AddReactionAsync(_token, channelId, c.Command.MessageId, "✅").ConfigureAwait(false);
+            return true;
         }
 
         public static string FileNameFor(GameRecord game) => FilePrefix + game.Id + ".json";

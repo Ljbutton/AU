@@ -33,7 +33,8 @@ legend{font:600 12px var(--body);letter-spacing:.08em;text-transform:uppercase;c
 .kind b{font-weight:600}.kind small{color:var(--muted);font-size:12.5px}
 .field{display:grid;gap:5px;min-width:0}
 .field label{font-weight:500;font-size:14px}
-.field .hint{color:var(--muted);font-size:12.5px}
+.field .hint,#lab-status{color:var(--muted);font-size:12.5px}
+.lab-paste{display:grid;gap:6px;margin-top:12px;font-size:13px;color:var(--muted)}
 input[type=text],input[type=password],input[type=number],textarea{font:14px var(--body);color:var(--fg);background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:9px 11px;width:100%;min-width:0}
 input:focus-visible,textarea:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .mono{font-family:var(--mono)!important;font-size:13px!important}
@@ -106,7 +107,10 @@ button:disabled{opacity:.45;cursor:not-allowed}
   <details id="scoring">
     <summary>Point values <span class="hint" id="changed-count"></span></summary>
     <div class="inner"><div class="scores" id="scores"></div>
-      <div><button type="button" id="reset-scores">Back to the point sheet</button></div></div>
+      <div><button type="button" id="reset-scores">Back to the point sheet</button></div>
+      <label class="lab-paste">Paste values copied from the Points Lab
+        <textarea id="lab-values" rows="2" placeholder='{"kill":1,"readVoteBonus":4,…}'></textarea></label>
+      <div id="lab-status" class="hint"></div></div>
   </details>
 
   <details>
@@ -162,8 +166,9 @@ const RULES = [
   ['Impostor', [['kill','Kill (each)',1],['firstBlood','First blood',1],['votedCrewmateOut','Voted a crewmate out (each)',2],
     ['impostorSabotageWin','Sabotage win',5],['impostorVoteWin','Vote win',4],['impostorKillWin','Kill win',4],
     ['impostorTaskLoss','Lost to tasks',-3],['impostorVoteLoss','Lost to vote',-2],['votedOutFirst','Voted out first',-2],['votedOutLast','Voted out later',-1]]],
-  ['Crewmate', [['completedTasks','Finished every task',0],['taskPercentBonus','Task % bonus (up to)',3],['correctVoteOut','Correct vote out (each)',2],
-    ['voteAccuracyBonus','Vote accuracy bonus (up to)',2],['caughtKiller','Caught and voted out killer',1],['diedFirst','Died first',1],['gotKilled','Got killed',0.5],
+  ['Crewmate', [['completedTasks','Finished every task',0],['taskPercentBonus','Task % bonus (up to)',3],['longTaskWeight','Long task counts as (short tasks)',2],['correctVoteOut','Correct vote out (each)',2],
+    ['readVotePoints','Read on an impostor (each)',1],['readVoteBonus','Reads bonus (up to)',4],['caughtKiller','Caught and voted out killer',1],
+    ['diedFirstShareOfCrewAverage','Died first: share of crew average',0.9],['gotKilled','Got killed',0],
     ['incorrectVoteOut','Incorrect vote out (each)',-2],['crewTaskWin','Task win',5],['crewVoteWin','Vote win',3],
     ['crewSabotageLossAlive','Alive at a sabotage loss',-5],['crewOtherLoss','Any other loss',-1]]],
   ['Other', [['bonusRounding','Round % bonuses to',0.5],['disconnectWin','Win by disconnect',0]]],
@@ -174,7 +179,7 @@ for (const [group, rules] of RULES) {
   const h = document.createElement('h3'); h.textContent = group; scoresEl.appendChild(h);
   for (const [key, label, def] of rules) {
     const row = document.createElement('label'); row.className = 'score'; row.htmlFor = 'sc-' + key;
-    row.innerHTML = `<span></span><input type="number" step="0.5" id="sc-${key}" value="${def}" data-default="${def}">`;
+    row.innerHTML = `<span></span><input type="number" step="any" id="sc-${key}" value="${def}" data-default="${def}">`;
     row.firstChild.textContent = label; scoresEl.appendChild(row);
   }
 }
@@ -246,6 +251,19 @@ $('form').addEventListener('input', e => { if (e.target.id === 'tid') idEdited =
 $('form').addEventListener('change', build);
 $('form').addEventListener('submit', e => e.preventDefault());
 $('reset-scores').addEventListener('click', () => { scoresEl.querySelectorAll('input').forEach(i => i.value = i.dataset.default); build(); });
+$('lab-values').addEventListener('input', e => {
+  const text = e.target.value.trim(); const status = $('lab-status');
+  if (!text) { status.textContent = ''; return; }
+  let values;
+  try { values = JSON.parse(text); } catch { status.textContent = 'That isn\'t the text the lab copies.'; return; }
+  let n = 0;
+  for (const [key, v] of Object.entries(values)) {
+    const inp = $('sc-' + key);
+    if (inp && typeof v === 'number') { inp.value = v; n++; }
+  }
+  status.textContent = n ? `Filled in ${n} point values.` : 'No point values found in that text.';
+  build();
+});
 $('copy').addEventListener('click', async () => {
   const text = $('code').value;
   try { await navigator.clipboard.writeText(text); $('toast').textContent = 'Copied.'; }

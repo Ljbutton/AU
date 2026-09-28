@@ -47,6 +47,8 @@ namespace TournamentTracker.Stats
         /// </summary>
         public bool Voided { get; set; }
         public string VoidReason { get; set; } = "";
+        /// <summary>The referee !void and !unvoid messages already built into this copy (by message ID).</summary>
+        public List<string> VoidCommands { get; set; } = new List<string>();
 
         public bool Counted => Winner != null && !Voided;
 

@@ -46,6 +46,47 @@ namespace TournamentTracker.Stats
                 : DateTime.MinValue;
     }
 
+    /// <summary>
+    /// A referee throwing a game out (a restart) or bringing it back, typed in the private
+    /// results channel: <c>!void LJ-3 lobby restarted</c> or <c>!unvoid LJ-3</c>. The game is
+    /// found the same way as for <see cref="RefereeAdjustment"/>. Once the lobby's mod has
+    /// seen it, it reposts the game with the new state, so deleting this message later
+    /// changes nothing; only another !void or !unvoid does.
+    /// </summary>
+    public sealed class RefereeVoid
+    {
+        private static readonly Regex Pattern = new Regex(@"^!(?<cmd>void|unvoid)\s+(?<game>\S+)(?:\s+(?<reason>.+))?$",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+        public string MessageId { get; set; } = "";
+        public DateTime TimeUtc { get; set; }
+        public string Game { get; set; } = "";
+        public bool Void { get; set; }
+        public string Reason { get; set; } = "";
+
+        public static RefereeVoid? TryParse(string content, string messageId, DateTime timeUtc)
+        {
+            var m = Pattern.Match(content.Trim());
+            if (!m.Success) return null;
+            return new RefereeVoid
+            {
+                MessageId = messageId,
+                TimeUtc = timeUtc,
+                Game = m.Groups["game"].Value,
+                Void = string.Equals(m.Groups["cmd"].Value, "void", StringComparison.OrdinalIgnoreCase),
+                Reason = m.Groups["reason"].Success ? m.Groups["reason"].Value.Trim() : "",
+            };
+        }
+    }
+
+    public sealed class VoidResult
+    {
+        public RefereeVoid Command { get; set; } = new RefereeVoid();
+        public GameRecord? Game { get; set; }
+        /// <summary>Already built into the newest copy of the game.</summary>
+        public bool Settled { get; set; }
+    }
+
     public sealed class AdjustmentResult
     {
         public RefereeAdjustment Adjustment { get; set; } = new RefereeAdjustment();
@@ -91,13 +132,38 @@ namespace TournamentTracker.Stats
             return results;
         }
 
-        private static GameRecord? FindGame(IReadOnlyList<GameRecord> games, RefereeAdjustment a)
+        /// <summary>
+        /// Applies !void and !unvoid to the games (fresh copies), oldest first. A command the
+        /// game's copy already lists was built into it and is skipped.
+        /// </summary>
+        public static List<VoidResult> ApplyVoids(IReadOnlyList<GameRecord> games, IEnumerable<RefereeVoid> commands)
         {
-            var named = games.FirstOrDefault(g => string.Equals(g.Name, a.Game, StringComparison.OrdinalIgnoreCase)
-                                               || string.Equals(g.Id, a.Game, StringComparison.OrdinalIgnoreCase));
+            var results = new List<VoidResult>();
+            foreach (var c in commands.OrderBy(c => c.TimeUtc))
+            {
+                var game = FindGame(games, c.Game, c.TimeUtc);
+                var result = new VoidResult { Command = c, Game = game };
+                if (game != null && game.VoidCommands.Contains(c.MessageId))
+                    result.Settled = true;
+                else if (game != null)
+                {
+                    game.Voided = c.Void;
+                    game.VoidReason = c.Void ? c.Reason : "";
+                }
+                results.Add(result);
+            }
+            return results;
+        }
+
+        private static GameRecord? FindGame(IReadOnlyList<GameRecord> games, RefereeAdjustment a) => FindGame(games, a.Game, a.TimeUtc);
+
+        private static GameRecord? FindGame(IReadOnlyList<GameRecord> games, string text, DateTime timeUtc)
+        {
+            var named = games.FirstOrDefault(g => string.Equals(g.Name, text, StringComparison.OrdinalIgnoreCase)
+                                               || string.Equals(g.Id, text, StringComparison.OrdinalIgnoreCase));
             if (named != null) return named;
             // Just the lobby label: the game that lobby had started when the referee typed it.
-            return games.Where(g => string.Equals(g.Host, a.Game, StringComparison.OrdinalIgnoreCase) && g.StartedUtc <= a.TimeUtc)
+            return games.Where(g => string.Equals(g.Host, text, StringComparison.OrdinalIgnoreCase) && g.StartedUtc <= timeUtc)
                         .OrderByDescending(g => g.StartedUtc)
                         .FirstOrDefault();
         }
@@ -172,6 +238,7 @@ namespace TournamentTracker.Stats
 
             var totals = Build(tournamentGames, "").Players;
             var furthest = tournamentGames
+                .Where(g => g.Counted)
                 .SelectMany(g => g.Players.Select(p => (p.Key, g.Round)))
                 .GroupBy(x => x.Key)
                 .ToDictionary(x => x.Key, x => x.Max(y => y.Round));

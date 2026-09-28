@@ -25,12 +25,13 @@ namespace TournamentTracker.Discord
                 Outcome.Crewmates => $"{name} — Crewmates win",
                 _ => $"{name} — no result (not counted)",
             };
+            if (game.Voided) title = $"VOID · {name} — not counted";
 
             var summary = new Embed
             {
                 Title = Clip(title, Embed.TitleLimit),
-                Color = game.Winner == Outcome.Impostors ? ImpostorColor : game.Winner == Outcome.Crewmates ? CrewColor : NeutralColor,
-                Description = Clip(PlayerTable(game), Embed.DescriptionLimit),
+                Color = game.Voided ? NeutralColor : game.Winner == Outcome.Impostors ? ImpostorColor : game.Winner == Outcome.Crewmates ? CrewColor : NeutralColor,
+                Description = Clip((game.Voided ? $"**Void{(game.VoidReason.Length > 0 ? ": " + game.VoidReason : "")}.** Kept for the record; no points or stats count.\n" : "") + PlayerTable(game), Embed.DescriptionLimit),
                 Fields = new List<EmbedField>
                 {
                     Field("Result", Outcome.Describe(game.EndReason), true),

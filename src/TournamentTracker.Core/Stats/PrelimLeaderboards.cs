@@ -39,7 +39,13 @@ namespace TournamentTracker.Stats
                 if (data.MissingContentIntent)
                     _log.Warn($"Channel {channel}: some messages came back empty. Turn on the bot's Message Content Intent.");
                 var games = data.Games.Where(g => g.Mode == nameof(TrackerMode.Preliminary)).ToList();
-                Standings.Apply(games, data.Adjustments);
+                var voids = Standings.ApplyVoids(games, data.Voids);
+                foreach (var file in SharedResults.UnsettledFiles(voids))
+                {
+                    var game = games.First(g => g.Id == file.Key);
+                    await reader.SettleVoidAsync(channel, game, file.Value, voids.Where(v => v.Game == game && !v.Settled)).ConfigureAwait(false);
+                }
+                Standings.Apply(games.Where(g => g.Counted).ToList(), data.Adjustments);
                 string target = string.IsNullOrWhiteSpace(postTo) ? channel : postTo!.Trim();
                 var existing = await _rest.GetMessagesAsync(_token, target).ConfigureAwait(false) ?? new List<ChannelMessage>();
 

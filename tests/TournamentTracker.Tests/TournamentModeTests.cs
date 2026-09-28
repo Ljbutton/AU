@@ -25,7 +25,9 @@ public sealed class FakeDiscord
             long ms = new DateTimeOffset(at.Value).ToUnixTimeMilliseconds() - 1420070400000L;
             return ((ms << 22) + Interlocked.Increment(ref _next) % 1000).ToString();
         }
-        return Interlocked.Increment(ref _next).ToString();
+        // Posted now: after everything already in the channel.
+        long last = Messages.Count == 0 ? 0 : Messages.Max(m => long.Parse(m.Id));
+        return Math.Max(last + 1, Interlocked.Increment(ref _next)).ToString();
     }
 
     public void Say(string channel, string text, DateTime at) => Messages.Add(new Msg(NextId(at), channel, text, null, null, false, null));
@@ -285,6 +287,95 @@ public class TournamentModeTests : IDisposable
     }
 
     [Fact]
+    public async Task Host_voids_a_restarted_game_mid_game_and_it_counts_for_nothing()
+    {
+        var s = Session(TournamentCode());
+        var lobby = Lobby();
+        s.HandleChat(lobby[3], true, "!r1");
+        s.GameStarted("ABCDEF", "Polus", lobby);
+        Assert.True(s.HandleChat(lobby[3], true, "!void lights bug"));
+        Assert.Contains(s.Pump(), r => r.Public && r.Text.StartsWith("Game LJ-1 is void"));
+        s.GameAbandoned(lobby);
+        var replay = Play(s, lobby);                               // the restart counts
+        await s.PendingPosts;
+
+        Assert.Equal("LJ-2", replay.Name);
+        Assert.Equal(1, s.Store.GamesRecorded);
+        Assert.Contains(_discord.Webhooks, w => FakeDiscord.Title(w.Payload).StartsWith("VOID · Game LJ-1"));
+        Assert.Equal(2, s.Combined!.GameRecords.Count);             // both on record…
+        Assert.Equal(1, s.Combined.Store.GamesRecorded);           // …one counted
+        Assert.Contains(_discord.Messages, m => m.Channel == "results" && m.Content.Contains("VOID: lights bug"));
+    }
+
+    [Fact]
+    public async Task Host_can_void_the_last_game_afterwards_and_unvoid_it()
+    {
+        var s = Session(TournamentCode());
+        var lobby = Lobby();
+        s.HandleChat(lobby[3], true, "!r1");
+        Play(s, lobby);
+        await s.PendingPosts;
+        Assert.Equal(1, s.Store.GamesRecorded);
+
+        s.HandleChat(lobby[3], true, "!void wrong settings");
+        await s.PendingPosts;
+        Assert.Equal(0, s.Store.GamesRecorded);
+        Assert.Empty(s.Store.Players);
+        Assert.Equal(0, s.Combined!.Store.GamesRecorded);
+
+        s.HandleChat(lobby[3], true, "!unvoid");
+        await s.PendingPosts;
+        Assert.Equal(1, s.Store.GamesRecorded);
+        Assert.Equal(1, s.Combined!.Store.GamesRecorded);
+    }
+
+    [Fact]
+    public async Task Referee_void_sticks_even_if_the_message_is_deleted_and_only_unvoid_undoes_it()
+    {
+        var s = Session(TournamentCode());
+        var lobby = Lobby();
+        s.HandleChat(lobby[3], true, "!r1");
+        Play(s, lobby);
+        await s.PendingPosts;
+
+        _discord.Say("results", "!void LJ-1 restarted after a crash", _clock.Now);
+        s.HandleChat(lobby[3], true, "!lb");
+        await s.PendingPosts;
+        Assert.Equal(0, s.Combined!.Store.GamesRecorded);
+        var command = _discord.Messages.Single(m => m.Content.StartsWith("!void"));
+        Assert.Contains(("results", command.Id, "✅"), _discord.Reactions);
+        Assert.Contains(_discord.Messages, m => m.Content.StartsWith("Game LJ-1 is void") && m.File != null);
+        s.Pump();
+        Assert.Equal(0, s.Store.GamesRecorded);                    // the local totals follow
+
+        _discord.Messages.Remove(command);                         // deleting it undoes nothing
+        s.HandleChat(lobby[3], true, "!lb");
+        await s.PendingPosts;
+        Assert.Equal(0, s.Combined!.Store.GamesRecorded);
+
+        _clock.Advance(60);
+        _discord.Say("results", "!unvoid LJ-1", _clock.Now);
+        s.HandleChat(lobby[3], true, "!lb");
+        await s.PendingPosts;
+        Assert.Equal(1, s.Combined!.Store.GamesRecorded);
+        Assert.Equal(1, _discord.Messages.Count(m => m.Content.StartsWith("Game LJ-1 is void")));   // reposted once
+        s.Pump();
+        Assert.Equal(1, s.Store.GamesRecorded);
+    }
+
+    [Fact]
+    public void Void_messages_are_read_carefully()
+    {
+        var v = RefereeVoid.TryParse("!void LJ-3 lobby restarted", "1", DateTime.UtcNow)!;
+        Assert.True(v.Void);
+        Assert.Equal("LJ-3", v.Game);
+        Assert.Equal("lobby restarted", v.Reason);
+        Assert.False(RefereeVoid.TryParse("!UNVOID LJ-3", "1", DateTime.UtcNow)!.Void);
+        Assert.Null(RefereeVoid.TryParse("!void", "1", DateTime.UtcNow));
+        Assert.Null(RefereeVoid.TryParse("!voidx LJ-3", "1", DateTime.UtcNow));
+    }
+
+    [Fact]
     public void Adjustment_messages_are_read_carefully()
     {
         var a = RefereeAdjustment.TryParse("!adjust LJ-3 Soggy Dingus +1,5 great call", "1", DateTime.UtcNow)!;
@@ -408,6 +499,24 @@ public class PrelimLeaderboardTests
         Assert.Equal(1, _discord.Edits);
         Assert.Equal(2, _discord.Messages.Count(m => m.Embeds.HasValue));   // still two messages
         Assert.Contains("3 games", _discord.Messages.Where(m => m.Embeds.HasValue).Select(m => m.Embeds!.Value[0].GetProperty("footer").GetProperty("text").GetString()).First(t => t!.Contains("Sus")));
+    }
+
+    [Fact]
+    public async Task Referee_voids_in_a_preliminary_channel_stick_after_the_message_is_deleted()
+    {
+        _discord.AddGame("prelims", Prelim("oct-sus", "October: Sus Squad", "Sus Squad", "Soggy", 1, "HumansByTask"));
+        _discord.AddGame("prelims", Prelim("oct-sus", "October: Sus Squad", "Sus Squad", "Soggy", 2, "HumansByTask"));
+        _discord.Say("prelims", "!void Soggy-1 restarted", _clock.Now);
+
+        await Job().UpdateAsync(new[] { "prelims" });
+        string Footer() => _discord.Messages.Single(m => m.Embeds.HasValue).Embeds!.Value[0].GetProperty("footer").GetProperty("text").GetString()!;
+        Assert.StartsWith("1 game ·", Footer());
+        var command = _discord.Messages.Single(m => m.Content.StartsWith("!void"));
+        Assert.Contains(("prelims", command.Id, "✅"), _discord.Reactions);
+
+        _discord.Messages.Remove(command);
+        await Job().UpdateAsync(new[] { "prelims" });
+        Assert.StartsWith("1 game ·", Footer());
     }
 
     private static JsonElement Payload(FakeDiscord.Msg m) => JsonDocument.Parse("{\"embeds\":" + m.Embeds!.Value.GetRawText() + "}").RootElement;

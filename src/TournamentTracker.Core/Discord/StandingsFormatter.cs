@@ -79,7 +79,8 @@ namespace TournamentTracker.Discord
         {
             var lines = new List<string>
             {
-                game.Winner == null ? $"Game {game.Name}: no result, not counted." : $"Game {game.Name}: {game.Winner} win ({Outcome.Describe(game.EndReason)}).",
+                game.Voided ? $"Game {game.Name} is void and doesn't count."
+                : game.Winner == null ? $"Game {game.Name}: no result, not counted." : $"Game {game.Name}: {game.Winner} win ({Outcome.Describe(game.EndReason)}).",
             };
             if (game.Counted)
             {

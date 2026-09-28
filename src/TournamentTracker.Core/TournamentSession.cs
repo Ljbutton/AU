@@ -179,16 +179,12 @@ namespace TournamentTracker
             players = WithoutReferee(players);
             var game = Tracker.End(reason, winner, players, _clock());
             if (game == null) return null;
+            LastGame = game;
 
             Store.Apply(game);
             Store.NoteFinished(game);
             TrySave(() => Store.Save(_statsPath), "stats");
-            TrySave(() =>
-            {
-                Directory.CreateDirectory(_gamesDir);
-                string file = $"game-{game.Id}{(game.Counted ? "" : "-abandoned")}.json";
-                File.WriteAllText(Path.Combine(_gamesDir, file), JsonSerializer.Serialize(game, GameJson));
-            }, "game record");
+            TrySave(() => SaveGameFile(game), "game record");
 
             _log.Info($"Game {game.Name} over: {game.Winner ?? "no result"} ({reason})");
             var report = ReportFormatter.GameReport(game);
@@ -211,7 +207,7 @@ namespace TournamentTracker
 
             if (Shared != null)
             {
-                if (game.Counted)
+                if (game.Counted || game.Voided)
                 {
                     Chain(async () =>
                     {
@@ -242,7 +238,9 @@ namespace TournamentTracker
         {
             if (Shared == null) return;
             var load = await Shared.LoadAsync(_settings.EffectiveTournamentId, _settings.TournamentName).ConfigureAwait(false);
-            if (load != null) Combined = load;
+            if (load == null) return;
+            Combined = load;
+            await SettleVoidsAsync(load).ConfigureAwait(false);
         }
 
         /// <summary>Reads every host's games from the results channel and posts the combined leaderboard.</summary>

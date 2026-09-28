@@ -68,11 +68,23 @@ namespace TournamentTracker.Stats
 
         public void Apply(GameRecord game)
         {
-            if (!game.Counted) return;
+            if (game.Counted) Add(game, 1);
+        }
 
-            GamesRecorded++;
-            if (game.Winner == Outcome.Impostors) ImpostorWins++;
-            else CrewWins++;
+        /// <summary>Takes a game back out of the totals, e.g. one voided after it was applied.</summary>
+        public void Remove(GameRecord game)
+        {
+            Add(game, -1);
+            foreach (var key in Players.Where(kv => kv.Value.Games <= 0).Select(kv => kv.Key).ToList()) Players.Remove(key);
+        }
+
+        private void Add(GameRecord game, int n)
+        {
+            if (game.Winner == null) return;
+
+            GamesRecorded += n;
+            if (game.Winner == Outcome.Impostors) ImpostorWins += n;
+            else CrewWins += n;
 
             var firstDeath = game.Players
                 .Where(p => p.DeathCause == "Killed" && p.DiedAtSeconds.HasValue)
@@ -87,41 +99,44 @@ namespace TournamentTracker.Stats
                     Players[p.Key] = t;
                 }
 
-                t.Name = p.Name;
-                t.LastColorId = p.ColorId;
-                t.Games++;
-                if (p.Won) t.Wins++;
+                if (n > 0)
+                {
+                    t.Name = p.Name;
+                    t.LastColorId = p.ColorId;
+                }
+                t.Games += n;
+                if (p.Won) t.Wins += n;
                 if (p.IsImpostor)
                 {
-                    t.ImpostorGames++;
-                    if (p.Won) t.ImpostorWins++;
+                    t.ImpostorGames += n;
+                    if (p.Won) t.ImpostorWins += n;
                 }
                 else
                 {
-                    t.CrewGames++;
-                    if (p.Won) t.CrewWins++;
+                    t.CrewGames += n;
+                    if (p.Won) t.CrewWins += n;
                 }
 
-                t.Kills += p.Kills;
-                if (p.DeathCause == "Killed") t.Deaths++;
-                if (p.DeathCause == "Ejected") t.TimesEjected++;
-                if (p.DeathCause == "Disconnected") t.Disconnects++;
-                if (p.Survived) t.Survived++;
-                if (ReferenceEquals(p, firstDeath)) t.FirstDeaths++;
+                t.Kills += n * p.Kills;
+                if (p.DeathCause == "Killed") t.Deaths += n;
+                if (p.DeathCause == "Ejected") t.TimesEjected += n;
+                if (p.DeathCause == "Disconnected") t.Disconnects += n;
+                if (p.Survived) t.Survived += n;
+                if (ReferenceEquals(p, firstDeath)) t.FirstDeaths += n;
 
-                t.CorrectVotes += p.CorrectVotes;
-                t.IncorrectVotes += p.IncorrectVotes;
-                t.Skips += p.Skips;
-                t.MissedVotes += p.MissedVotes;
-                t.MeetingsCalled += p.MeetingsCalled;
-                t.BodiesReported += p.BodiesReported;
+                t.CorrectVotes += n * p.CorrectVotes;
+                t.IncorrectVotes += n * p.IncorrectVotes;
+                t.Skips += n * p.Skips;
+                t.MissedVotes += n * p.MissedVotes;
+                t.MeetingsCalled += n * p.MeetingsCalled;
+                t.BodiesReported += n * p.BodiesReported;
 
-                t.TasksCompleted += p.TasksCompleted;
-                t.TasksTotal += p.TasksTotal;
-                t.Sabotages += p.Sabotages;
-                if (p.FirstBlood) t.FirstBloods++;
-                t.KillersCaught += p.CaughtKiller;
-                t.Points += p.Points;
+                t.TasksCompleted += n * p.TasksCompleted;
+                t.TasksTotal += n * p.TasksTotal;
+                t.Sabotages += n * p.Sabotages;
+                if (p.FirstBlood) t.FirstBloods += n;
+                t.KillersCaught += n * p.CaughtKiller;
+                t.Points += n * p.Points;
             }
         }
 
