@@ -52,6 +52,9 @@ namespace TournamentTracker.Stats
 
         public bool Counted => Winner != null && !Voided;
 
+        /// <summary>Settings that didn't match the tournament's when the game started.</summary>
+        public List<string> SettingsIssues { get; set; } = new List<string>();
+
         public double DurationSeconds => ((EndedUtc ?? StartedUtc) - StartedUtc).TotalSeconds;
 
         public GamePlayer? ById(byte playerId) => Players.FirstOrDefault(p => p.PlayerId == playerId);

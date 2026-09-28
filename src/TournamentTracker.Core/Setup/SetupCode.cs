@@ -45,6 +45,9 @@ namespace TournamentTracker.Setup
         [JsonPropertyName("pc")] public List<string>? PrelimChannelIds { get; set; }
         [JsonPropertyName("adv")] public int? AdvanceCount { get; set; }
         [JsonPropertyName("gpr")] public int? GamesPerRound { get; set; }
+
+        /// <summary>Game settings the host's lobby is locked to (both kinds of code).</summary>
+        [JsonPropertyName("set")] public LobbySettings? Lobby { get; set; }
         [JsonPropertyName("ref")] public List<string>? RefereeUserIds { get; set; }
 
         /// <summary>Point values, so every host scores the same way. Missing: the defaults.</summary>
@@ -108,6 +111,7 @@ namespace TournamentTracker.Setup
             s.TournamentName = TournamentName;
             s.StatsWebhookUrl = Webhook;
             if (Scoring != null) s.Scoring = Scoring;
+            s.LobbySettings = Lobby;
 
             if (IsTournament)
             {

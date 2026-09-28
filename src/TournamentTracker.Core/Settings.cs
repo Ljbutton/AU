@@ -31,6 +31,9 @@ namespace TournamentTracker
         /// <summary>Games each lobby plays per round; the cut-line tiebreak applies once they're played.</summary>
         public int GamesPerRound { get; set; } = 3;
 
+        /// <summary>The tournament's game settings, from the setup code; null: nothing locked or checked.</summary>
+        public LobbySettings? LobbySettings { get; set; }
+
         /// <summary>Tournament: the organiser's preliminary channels, read for server standings.</summary>
         public List<string> PrelimChannelIds { get; set; } = new List<string>();
 

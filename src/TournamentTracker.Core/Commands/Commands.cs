@@ -83,6 +83,9 @@ namespace TournamentTracker
                         Reply("Posting the server standings.", false);
                     }
                     return true;
+                case "lock" when fromHost:
+                    LockCommand(args);
+                    return true;
                 case "void" when fromHost:
                 case "unvoid" when fromHost:
                     VoidCommand(command == "void", args);
@@ -105,7 +108,7 @@ namespace TournamentTracker
             if (fromHost)
             {
                 Reply($"Host: {p}link <player> <discord> · {p}unlink <player> · {p}links · {p}automute on|off · " +
-                      $"{p}unmuteall · {p}ref on|off · {p}refslot on|off · {p}spectators on|off · {p}refresh · {p}r1 {p}r2… · {p}void [reason] · {p}unvoid · {p}servers · {p}setup · {p}leaderboard · {p}resetleaderboard · {p}resetstats confirm", false);
+                      $"{p}unmuteall · {p}ref on|off · {p}refslot on|off · {p}spectators on|off · {p}refresh · {p}r1 {p}r2… · {p}void [reason] · {p}unvoid · {p}lock on|off · {p}servers · {p}setup · {p}leaderboard · {p}resetleaderboard · {p}resetstats confirm", false);
             }
         }
 

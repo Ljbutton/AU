@@ -20,6 +20,7 @@ namespace TournamentTracker.Plugin
         private static VoicePhase _lastPhase = VoicePhase.Menu;
         private static readonly Queue<string> PublicQueue = new Queue<string>();
         private static bool _loggedError;
+        private static float _nextLockCheck;
 
         /// <summary>Set once a game has ended, until the lobby returns, so the start fallback can't reopen it.</summary>
         private static bool _roundOver;
@@ -76,6 +77,12 @@ namespace TournamentTracker.Plugin
             var players = phase == VoicePhase.Menu ? new List<PlayerSnapshot>() : Game.Players();
 
             if (phase == VoicePhase.Lobby || phase == VoicePhase.Menu) _roundOver = false;
+            if (phase == VoicePhase.Lobby && Game.IsHost && Time.unscaledTime >= _nextLockCheck)
+            {
+                _nextLockCheck = Time.unscaledTime + 1f;
+                var locked = session.LockedSettings;
+                if (locked != null) session.SettingsRestored(LobbyLock.Enforce(locked));
+            }
             if (phase == VoicePhase.Tasks && !session.Tracker.InGame && ShipStatus.Instance != null)
                 StartGame();
 
@@ -103,6 +110,8 @@ namespace TournamentTracker.Plugin
             // Before roles are handed out everyone reads as a crewmate; wait for the real teams.
             if (!players.Exists(p => p.IsImpostor)) return;
             session.GameStarted(Game.LobbyCode(), Game.MapName(), players);
+            try { session.CheckSettings(LobbyLock.Read()); }
+            catch (Exception e) { TournamentPlugin.Logger.Error("Settings check failed: " + e); }
             try { RefSlot.MakeGhost(); }
             catch (Exception e) { TournamentPlugin.Logger.Error("Referee ghost failed: " + e); }
         }
