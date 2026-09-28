@@ -68,6 +68,9 @@ namespace TournamentTracker.Plugin
             m.SpectatorExemptUserIds = config.Bind("AutoMute", "SpectatorExemptUserIds", "",
                 "Discord user IDs never muted as spectators (casters, referees), comma separated.").Value
                 .Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim()).ToList();
+            m.RefereeUserIds = config.Bind("AutoMute", "RefereeUserIds", "",
+                "Discord user IDs who can still talk during referee mode (!ref on), besides the host. Comma separated.").Value
+                .Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim()).ToList();
             m.AutoLinkByName = config.Bind("AutoMute", "AutoLinkByName", m.AutoLinkByName,
                 "In the lobby, link a player automatically when their in-game name matches exactly one person's Discord name in the voice channel.").Value;
 

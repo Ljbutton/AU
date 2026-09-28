@@ -23,6 +23,7 @@ namespace TournamentTracker.Discord
         public bool? AutoMuteOn { get; set; }
         public int Spectators { get; set; }
         public bool SpectatorsMuted { get; set; }
+        public bool RefereeMode { get; set; }
         public string CommandPrefix { get; set; } = "!";
     }
 
@@ -36,6 +37,9 @@ namespace TournamentTracker.Discord
             if (s.LobbyCode.Length > 0) header.Add($"**Code:** `{s.LobbyCode}`");
             if (s.Map.Length > 0) header.Add($"**Map:** {s.Map}");
             if (header.Count > 0) sb.AppendLine(string.Join(" · ", header)).AppendLine();
+
+            if (s.RefereeMode && s.Phase != VoicePhase.Menu)
+                sb.AppendLine("🎙️ **Referee speaking.** Everyone else is muted until the referee is done.").AppendLine();
 
             if (s.Phase == VoicePhase.Menu)
             {

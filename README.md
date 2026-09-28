@@ -84,6 +84,15 @@ Voice switches a moment after the game does, so nobody gets cut off mid-word:
 
 A death applies at once, and `!unmuteall` / **F9** never wait.
 
+#### Referee mode
+
+Type `!ref on` in the lobby to explain the rules: everyone in the voice channel (players and
+spectators) is muted, but can still hear, except you and anyone in `RefereeUserIds`
+(co-referees, casters). `!ref off` gives everyone their voice back. It only ever turns on
+by hand, and it ends by itself when a game starts, so a forgotten toggle can't silence a
+meeting. You need to be linked to Discord yourself to be the one talking. The live status
+message shows when the referee is speaking.
+
 #### Spectators
 
 With `MuteSpectators = true` (or `!spectators on`), anyone in the game's voice channel who
@@ -123,6 +132,7 @@ Unlinked players are never muted, and spectators only when `MuteSpectators` is o
 | `!links` | host | Who in the lobby is linked and who isn't |
 | `!automute on\|off` | host | Pause or resume automute |
 | `!unmuteall` | host | Emergency: unmute everyone and turn automute off (**F9** does the same) |
+| `!ref on\|off` | host | Referee mode: mute everyone in voice except the referees, to explain the rules |
 | `!spectators on\|off` | host | Mute people in voice who aren't playing, during games |
 | `!refresh` | host | Post a fresh live status message at the bottom of the channel |
 | `!leaderboard` | host | Post the leaderboard to Discord now |
@@ -161,6 +171,7 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | AutoMute | `VoiceChannelId` | | Empty = where most linked players are |
 | AutoMute | `SpectatorExemptUserIds` | | Comma separated |
 | AutoMute | `AutoLinkByName` | true | |
+| AutoMute | `RefereeUserIds` | | Who else can talk in referee mode, comma separated |
 | Scoring | *(see below)* | | Every point value on the tournament sheet |
 
 ## Scoring

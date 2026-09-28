@@ -60,6 +60,9 @@ namespace TournamentTracker
                     RepostStatus();
                     Reply(_settings.LiveStatus ? "Posted a fresh status message in Discord." : "The live status message is off (LiveStatus in the config).", false);
                     return true;
+                case "ref" when fromHost:
+                    RefereeCommand(sender, args);
+                    return true;
                 case "spectators" when fromHost:
                     SpectatorsCommand(args);
                     return true;
@@ -78,7 +81,7 @@ namespace TournamentTracker
             if (fromHost)
             {
                 Reply($"Host: {p}link <player> <discord> · {p}unlink <player> · {p}links · {p}automute on|off · " +
-                      $"{p}unmuteall · {p}spectators on|off · {p}refresh · {p}leaderboard · {p}resetstats confirm", false);
+                      $"{p}unmuteall · {p}ref on|off · {p}spectators on|off · {p}refresh · {p}leaderboard · {p}resetstats confirm", false);
             }
         }
 
@@ -239,6 +242,40 @@ namespace TournamentTracker
             string arg = args.FirstOrDefault()?.ToLowerInvariant() ?? "";
             if (arg == "on" || arg == "off") AutoMute.Enabled = arg == "on";
             Reply($"Automute is {(AutoMute.Enabled ? "ON" : "OFF")}.", false);
+        }
+
+        private void RefereeCommand(PlayerSnapshot sender, string[] args)
+        {
+            if (AutoMute == null)
+            {
+                Reply("Automute isn't set up, so referee mode can't mute anyone.", false);
+                return;
+            }
+            string arg = args.FirstOrDefault()?.ToLowerInvariant() ?? "";
+            if (arg == "on")
+            {
+                if (!AutoMute.Enabled)
+                {
+                    Reply("Automute is off; turn it on with !automute on first.", false);
+                    return;
+                }
+                var host = Links.Find(sender.Key)?.DiscordUserId;
+                AutoMute.StartRefereeMode(host == null ? Array.Empty<string>() : new[] { host });
+                Reply(host == null
+                    ? "Referee mode ON: everyone in voice is muted except RefereeUserIds. You aren't linked, so link yourself to talk. !ref off to end."
+                    : "Referee mode ON: everyone in voice is muted except you and the referees. !ref off to end.", false);
+                if (Players.Count > 0) Reply("Referee is explaining the rules; you're muted for now.", true);
+            }
+            else if (arg == "off")
+            {
+                bool was = AutoMute.RefereeMode;
+                AutoMute.StopRefereeMode();
+                Reply(was ? "Referee mode OFF: everyone can talk again." : "Referee mode was already off.", false);
+            }
+            else
+            {
+                Reply($"Referee mode is {(AutoMute.RefereeMode ? "ON" : "OFF")}. Use {_settings.CommandPrefix}ref on or {_settings.CommandPrefix}ref off.", false);
+            }
         }
 
         private void SpectatorsCommand(string[] args)

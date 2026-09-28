@@ -219,6 +219,70 @@ public class LiveLobbyTests : IDisposable
         await Wait.Until(() => _voice.Calls.Any(c => c.User == "900" && c.State == VoiceState.Open));
     }
 
+    // ---- Referee mode ----
+
+    [Fact]
+    public async Task Referee_mode_mutes_everyone_in_voice_but_the_referees_until_switched_off()
+    {
+        var s = Session(c =>
+        {
+            c.AutoMute.AutoLinkByName = false;
+            c.AutoMute.RefereeUserIds.Add("800");                  // a co-referee
+        });
+        s.Links.Link(_lobby[0].Key, "Alice", "100", "alice");      // Alice is the host
+        s.Links.Link(_lobby[2].Key, "Carl", "102", "carl");
+        InVoice("vc", ("100", "alice"), ("102", "carl"), ("800", "coref"), ("900", "viewer"));
+        s.VoiceTick(VoicePhase.Lobby, _lobby);
+        await Wait.Until(() => _voice.Calls.Any(c => c.User == "102"));
+
+        Assert.True(s.HandleChat(_lobby[0], fromHost: true, "!ref on"));
+        var replies = s.Pump();
+        Assert.Contains(replies, r => !r.Public && r.Text.StartsWith("Referee mode ON"));
+        Assert.Contains(replies, r => r.Public && r.Text.Contains("muted for now"));
+        s.VoiceTick(VoicePhase.Lobby, _lobby);
+        await Wait.Until(() => _voice.Calls.Any(c => c.User == "900" && c.State.Mute) && _voice.Calls.Any(c => c.User == "102" && c.State.Mute));
+
+        Assert.Contains(_voice.Calls, c => c.User == "102" && c.State == new VoiceState(true, false));   // muted, can still hear
+        Assert.DoesNotContain(_voice.Calls, c => c.User == "100" && c.State.Mute);                      // the host talks
+        Assert.DoesNotContain(_voice.Calls, c => c.User == "800" && c.State.Mute);                      // so does the co-ref
+
+        s.HandleChat(_lobby[0], true, "!ref off");
+        s.VoiceTick(VoicePhase.Lobby, _lobby);
+        await Wait.Until(() => _voice.Calls.LastOrDefault(c => c.User == "900").State == VoiceState.Open
+                            && _voice.Calls.LastOrDefault(c => c.User == "102").State == VoiceState.Open);
+    }
+
+    [Fact]
+    public void Referee_mode_is_host_only_and_ends_when_the_game_starts()
+    {
+        var s = Session(c => c.AutoMute.AutoLinkByName = false);
+        Assert.False(s.HandleChat(_lobby[2], fromHost: false, "!ref on"));
+        Assert.False(s.AutoMute!.RefereeMode);
+
+        s.HandleChat(_lobby[0], true, "!ref on");
+        Assert.True(s.AutoMute.RefereeMode);
+        s.Pump();
+        s.VoiceTick(VoicePhase.Tasks, _lobby);
+        Assert.False(s.AutoMute.RefereeMode);
+        Assert.Contains(s.Pump(), r => r.Text == "Referee mode ended because the game started.");
+    }
+
+    [Fact]
+    public void Unmuteall_also_ends_referee_mode()
+    {
+        var s = Session(c => c.AutoMute.AutoLinkByName = false);
+        s.HandleChat(_lobby[0], true, "!ref on");
+        s.HandleChat(_lobby[0], true, "!unmuteall");
+        Assert.False(s.AutoMute!.RefereeMode);
+    }
+
+    [Fact]
+    public void Status_says_when_the_referee_is_speaking()
+    {
+        var msg = StatusFormatter.Build(new StatusInfo { Phase = VoicePhase.Lobby, RefereeMode = true });
+        Assert.Contains("Referee speaking", msg.Embeds![0].Description);
+    }
+
     // ---- Live status ----
 
     private static string? Title(Sent r) =>

@@ -41,6 +41,25 @@ namespace TournamentTracker.Voice
             }
         }
 
+        /// <summary>
+        /// Referee mode: everyone in voice is muted (not deafened) except the referees, so the
+        /// rules can be explained. Only ever switched on by hand; applies at once, no delay.
+        /// </summary>
+        public bool RefereeMode { get; private set; }
+        private readonly HashSet<string> _referees = new HashSet<string>();
+
+        public void StartRefereeMode(IEnumerable<string> refereeUserIds)
+        {
+            _referees.Clear();
+            foreach (var id in refereeUserIds.Concat(_settings.RefereeUserIds)) _referees.Add(id);
+            RefereeMode = true;
+        }
+
+        public void StopRefereeMode() => RefereeMode = false;
+
+        private VoiceState RefereeState(string userId) =>
+            _referees.Contains(userId) ? VoiceState.Open : new VoiceState(true, false);
+
         public bool MuteSpectators
         {
             get => _settings.MuteSpectators;
@@ -58,7 +77,7 @@ namespace TournamentTracker.Voice
             {
                 var link = _links.Find(p.Key);
                 if (link == null || !present.Add(link.DiscordUserId)) continue;
-                Send(link.DiscordUserId, MutePlanner.Plan(Phase, p.IsAlive, _settings));
+                Send(link.DiscordUserId, RefereeMode ? RefereeState(link.DiscordUserId) : MutePlanner.Plan(Phase, p.IsAlive, _settings));
             }
 
             if (spectators != null)
@@ -67,6 +86,11 @@ namespace TournamentTracker.Voice
                 var state = _settings.MuteSpectators && inGame ? new VoiceState(true, false) : VoiceState.Open;
                 foreach (var userId in spectators)
                 {
+                    if (RefereeMode)
+                    {
+                        if (present.Add(userId)) Send(userId, RefereeState(userId), lazy: true);
+                        continue;
+                    }
                     if (_settings.SpectatorExemptUserIds.Contains(userId) || !present.Add(userId)) continue;
                     Send(userId, state, lazy: true);
                 }
@@ -117,6 +141,7 @@ namespace TournamentTracker.Voice
         /// <summary>Unmutes and undeafens everyone the mod has touched, at once.</summary>
         public void ReleaseAll()
         {
+            RefereeMode = false;
             foreach (var userId in _sent.Keys.Concat(_dispatcher.KnownUsers).Distinct().ToList())
                 _dispatcher.SetDesired(userId, VoiceState.Open);
             _sent.Clear();

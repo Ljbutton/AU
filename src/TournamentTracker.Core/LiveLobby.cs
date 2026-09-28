@@ -39,6 +39,13 @@ namespace TournamentTracker
             var spectators = channel == null ? null : Spectators(channel, players);
 
             if (phase == VoicePhase.Lobby && _settings.AutoMute.AutoLinkByName) AutoLink(players, channel);
+
+            // Referee mode is for the lobby; a game starting ends it so meetings aren't silenced.
+            if (AutoMute != null && AutoMute.RefereeMode && phase == VoicePhase.Tasks)
+            {
+                AutoMute.StopRefereeMode();
+                Reply("Referee mode ended because the game started.", false);
+            }
             AutoMute?.Update(phase, players, spectators);
             UpdateStatus(phase, players, lobbyCode, map, spectators?.Count ?? 0);
             _lastPhase = phase;
@@ -151,6 +158,7 @@ namespace TournamentTracker
                 AutoMuteOn = AutoMute?.Enabled,
                 Spectators = spectators,
                 SpectatorsMuted = AutoMute != null && AutoMute.Enabled && _settings.AutoMute.MuteSpectators,
+                RefereeMode = AutoMute != null && AutoMute.Enabled && AutoMute.RefereeMode,
                 CommandPrefix = _settings.CommandPrefix,
                 Players = players.Where(p => !p.Disconnected).Select(p => new StatusPlayer
                 {
