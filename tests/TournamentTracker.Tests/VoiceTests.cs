@@ -98,9 +98,12 @@ public class AutoMuteTests : IDisposable
     public async Task Repeated_ticks_do_not_resend()
     {
         Enter(VoicePhase.Tasks, _players);
+        await Settle();
+        int before = _api.Calls.Count;
         for (int i = 0; i < 20; i++) _controller.Update(VoicePhase.Tasks, _players);
         await Settle();
-        Assert.Equal(3, _api.Calls.Count);
+        Assert.Equal(before, _api.Calls.Count);
+        Assert.Equal(3, _api.Calls.Count(c => c.State == new VoiceState(true, true)));
     }
 
     [Fact]
