@@ -71,7 +71,12 @@ namespace TournamentTracker.Stats
             victim.DeathCause = "Killed";
             victim.DiedAtSeconds = Elapsed(nowUtc);
             victim.KilledByKey = killer?.Key;
-            if (killer != null) killer.Kills++;
+            victim.DiedFirst = firstBlood;
+            if (killer != null)
+            {
+                killer.Kills++;
+                if (firstBlood) killer.FirstBlood = true;
+            }
 
             string who = killer?.Label ?? "Someone";
             Add(nowUtc, "kill", $"{who} killed {victim.Label}{(firstBlood ? " (first blood)" : "")}");
@@ -151,6 +156,21 @@ namespace TournamentTracker.Stats
 
             if (exiled != null)
             {
+                // Votes only score when they put someone out: see Scoring.
+                foreach (var v in meeting.Votes.Where(v => v.TargetKey == exiled.Key))
+                {
+                    var voter = _game.ByKey(v.VoterKey);
+                    if (voter == null) continue;
+                    if (exiled.IsImpostor && !voter.IsImpostor) voter.EjectVotesOnImpostor++;
+                    else if (!exiled.IsImpostor) voter.EjectVotesOnCrewmate++;
+                }
+                if (exiled.IsImpostor)
+                {
+                    exiled.ImpostorEjectOrder = 1 + _game.Players.Count(p => p.ImpostorEjectOrder.HasValue);
+                    var caller = meeting.CallerKey == null ? null : _game.ByKey(meeting.CallerKey);
+                    if (caller != null && !caller.IsImpostor) caller.CaughtKiller++;
+                }
+
                 meeting.EjectedKey = exiled.Key;
                 meeting.EjectedWasImpostor = exiled.IsImpostor;
                 if (exiled.DeathCause == null)
@@ -236,7 +256,8 @@ namespace TournamentTracker.Stats
             {
                 p.Survived = p.DeathCause == null;
                 p.Won = winner != null && p.IsImpostor == (winner == Outcome.Impostors) && p.DeathCause != "Disconnected";
-                p.Points = winner != null ? Scoring.Score(p, _rules) : 0;
+                p.PointBreakdown = winner != null ? Scoring.Breakdown(p, game, _rules) : new List<PointLine>();
+                p.Points = Scoring.Total(p.PointBreakdown);
             }
 
             Add(nowUtc, "end", winner != null

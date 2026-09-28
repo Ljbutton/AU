@@ -65,10 +65,16 @@ public class GameTrackerTests
         Assert.Equal("Killed", game.ById(2)!.DeathCause);
         Assert.Equal(30, game.ById(2)!.DiedAtSeconds);
 
-        // Default rules: win 2, impostor bonus 1, kill 1, correct vote 1, all tasks 1.
-        Assert.Equal(2 + 1 + 1, alice.Points);
-        Assert.Equal(2 + 1 + 2, bob.Points);
-        Assert.Equal(1 + 1, eve.Points);                // lost, but a correct vote and all tasks
+        // The tournament point sheet:
+        Assert.Equal(1 + 1 - 2 + 3, alice.Points);      // kill, first blood, voted out first, kill win
+        Assert.Equal(2 + 3, bob.Points);                // two kills, kill win
+        Assert.Equal(1 - 1, game.ById(2)!.Points);      // died first, lost
+        Assert.Equal(2 + 1 + 0.5 - 1, dana.Points);     // correct vote out, caught killer, got killed, lost
+        Assert.Equal(3 + 2 + 0.5 - 1, eve.Points);      // tasks, correct vote out, got killed, lost
+        Assert.Equal(-1, finn.Points);                  // missed the vote, lost
+        Assert.Equal(new[] { "Kill", "First blood", "Voted out first", "Kill win" }, alice.PointBreakdown.Select(l => l.Rule));
+        Assert.Equal(1, alice.ImpostorEjectOrder);
+        Assert.Equal(1, dana.CaughtKiller);
         Assert.True(alice.Won);
         Assert.False(eve.Won);
 

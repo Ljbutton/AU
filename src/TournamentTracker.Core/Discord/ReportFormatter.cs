@@ -43,27 +43,56 @@ namespace TournamentTracker.Discord
                 Timestamp = (game.EndedUtc ?? game.StartedUtc).ToString("o", CultureInfo.InvariantCulture),
             };
 
+            var points = new Embed
+            {
+                Title = "Points",
+                Color = NeutralColor,
+                Description = Clip(PointsBlock(game), 1500),
+            };
+
+            // Discord caps a message at 6000 characters across its embeds, so the timeline
+            // gets whatever the other two leave.
             var timeline = new Embed
             {
                 Title = "Timeline",
                 Color = NeutralColor,
-                Description = TimelineBlock(game.Timeline, Embed.DescriptionLimit),
+                Description = TimelineBlock(game.Timeline, 2600),
             };
 
-            return new WebhookMessage { Username = BotName, Embeds = new List<Embed> { summary, timeline } };
+            return new WebhookMessage { Username = BotName, Embeds = new List<Embed> { summary, points, timeline } };
         }
+
+        /// <summary>One line per player: their total, then each rule that scored.</summary>
+        public static string PointsBlock(GameRecord game)
+        {
+            if (!game.Counted) return "Not counted: the game ended without a result.";
+            var sb = new StringBuilder("```\n");
+            foreach (var p in game.Players.OrderByDescending(p => p.Points).ThenBy(p => p.ColorId))
+            {
+                string rules = p.PointBreakdown.Count == 0
+                    ? "nothing scored"
+                    : string.Join(", ", p.PointBreakdown.Select(l => $"{l.Rule} {Signed(l.Points)}"));
+                sb.Append(Pad(p.Name, 12)).Append(Signed(p.Points).PadLeft(6)).Append("  ").Append(rules).AppendLine();
+            }
+            sb.Append("```");
+            return sb.ToString();
+        }
+
+        public static string Pts(double points) => points.ToString("0.##", CultureInfo.InvariantCulture);
+
+        public static string Signed(double points) => points > 0 ? "+" + Pts(points) : Pts(points);
 
         public static WebhookMessage Leaderboard(StatsStore store, int size)
         {
             var rows = store.Leaderboard().Take(Math.Max(1, size)).ToList();
             var sb = new StringBuilder("```\n");
-            sb.AppendLine(" #  Player           Pts   W-L   K  Vote%  Task%");
+            sb.AppendLine(" #  Player            Pts   W-L   K  Vote%  Task%");
             for (int i = 0; i < rows.Count; i++)
             {
                 var t = rows[i];
                 sb.Append((i + 1).ToString().PadLeft(2)).Append("  ")
                   .Append(Pad(t.Name, 15)).Append(' ')
-                  .Append(t.Points.ToString().PadLeft(4)).Append(' ')
+                  .Append(Pts(t.Points).PadLeft(5)).Append(' ')
                   .Append($"{t.Wins}-{t.Losses}".PadLeft(5)).Append(' ')
                   .Append(t.Kills.ToString().PadLeft(3)).Append(' ')
                   .Append(Percent(t.VoteAccuracy, t.CorrectVotes + t.IncorrectVotes).PadLeft(6)).Append(' ')
@@ -101,7 +130,7 @@ namespace TournamentTracker.Discord
         public static string PlayerTable(GameRecord game)
         {
             var sb = new StringBuilder("```\n");
-            sb.AppendLine("Player           Role        K Tasks  ✓  ✗  Pts Result");
+            sb.AppendLine("Player           Role        K Tasks  ✓  ✗   Pts Result");
             var ordered = game.Players.OrderByDescending(p => p.IsImpostor).ThenByDescending(p => p.Points).ThenBy(p => p.ColorId);
             foreach (var p in ordered)
             {
@@ -112,9 +141,9 @@ namespace TournamentTracker.Discord
                   .Append(Pad(p.Role, 11)).Append(' ')
                   .Append(p.Kills.ToString()).Append(' ')
                   .Append(tasks.PadLeft(5)).Append(' ')
-                  .Append(p.CorrectVotes.ToString().PadLeft(2)).Append(' ')
-                  .Append(p.IncorrectVotes.ToString().PadLeft(2)).Append(' ')
-                  .Append((p.Points > 0 ? "+" + p.Points : p.Points.ToString()).PadLeft(4)).Append(' ')
+                  .Append(p.EjectVotesOnImpostor.ToString().PadLeft(2)).Append(' ')
+                  .Append(p.EjectVotesOnCrewmate.ToString().PadLeft(2)).Append(' ')
+                  .Append(Signed(p.Points).PadLeft(5)).Append(' ')
                   .Append(result)
                   .AppendLine();
             }
@@ -157,7 +186,7 @@ namespace TournamentTracker.Discord
         {
             var best = game.Players.Where(p => p.Won).OrderByDescending(p => p.Points).ThenByDescending(p => p.Kills).FirstOrDefault()
                 ?? game.Players.OrderByDescending(p => p.Points).FirstOrDefault();
-            return best == null ? "—" : $"{best.Label} (+{best.Points})";
+            return best == null ? "—" : $"{best.Label} ({Signed(best.Points)})";
         }
 
         private static string Icon(string kind) => kind switch

@@ -37,7 +37,10 @@ namespace TournamentTracker.Stats
         public int TasksTotal { get; set; }
         public int Sabotages { get; set; }
 
-        public int Points { get; set; }
+        public int FirstBloods { get; set; }
+        public int KillersCaught { get; set; }
+
+        public double Points { get; set; }
 
         public int Losses => Games - Wins;
         public double WinRate => Games == 0 ? 0 : (double)Wins / Games;
@@ -109,6 +112,8 @@ namespace TournamentTracker.Stats
                 t.TasksCompleted += p.TasksCompleted;
                 t.TasksTotal += p.TasksTotal;
                 t.Sabotages += p.Sabotages;
+                if (p.FirstBlood) t.FirstBloods++;
+                t.KillersCaught += p.CaughtKiller;
                 t.Points += p.Points;
             }
         }

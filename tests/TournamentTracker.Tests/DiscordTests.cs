@@ -107,20 +107,23 @@ public class ReportFormatterTests
     public void Game_report_has_summary_and_timeline()
     {
         var msg = ReportFormatter.GameReport(PlayedGame());
-        Assert.Equal(2, msg.Embeds!.Count);
+        Assert.Equal(3, msg.Embeds!.Count);
         var summary = msg.Embeds[0];
         Assert.Equal("Game 7 — Crewmates win", summary.Title);
         Assert.Contains("Red Alice", summary.Description);
         Assert.Contains(summary.Fields!, f => f.Name == "Result" && f.Value == "Impostors voted out");
         Assert.Contains(summary.Fields!, f => f.Name == "Length" && f.Value == "03:20");
-        Assert.Contains("00:40  Red (Alice) killed Green (Carl) (first blood)", msg.Embeds[1].Description);
+        Assert.Equal("Points", msg.Embeds[1].Title);
+        Assert.Contains("Dana", msg.Embeds[1].Description);
+        Assert.Contains("Correct vote out +2", msg.Embeds[1].Description);
+        Assert.Contains("00:40  Red (Alice) killed Green (Carl) (first blood)", msg.Embeds[2].Description);
     }
 
     [Fact]
     public void Long_games_stay_inside_discord_limits()
     {
         var msg = ReportFormatter.GameReport(PlayedGame(extraEvents: 400));
-        var timeline = msg.Embeds![1].Description!;
+        var timeline = msg.Embeds![2].Description!;
         Assert.True(timeline.Length <= Embed.DescriptionLimit);
         Assert.StartsWith("```", timeline);
         Assert.EndsWith("```", timeline);

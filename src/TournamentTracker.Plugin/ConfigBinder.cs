@@ -44,15 +44,35 @@ namespace TournamentTracker.Plugin
             m.MuteDeadDuringMeetings = config.Bind("AutoMute", "MuteDeadDuringMeetings", m.MuteDeadDuringMeetings,
                 "Keep dead players muted during meetings.").Value;
 
+            // Defaults follow the "Point Sheet Template" tab of Tournament_Points.xlsx.
+            // Penalties are negative numbers; halves are fine.
             var p = s.Scoring;
-            p.Win = config.Bind("Scoring", "Win", p.Win, "Points for being on the winning team.").Value;
-            p.ImpostorWinBonus = config.Bind("Scoring", "ImpostorWinBonus", p.ImpostorWinBonus, "Extra points for winning as impostor.").Value;
-            p.Kill = config.Bind("Scoring", "Kill", p.Kill, "Points per kill.").Value;
-            p.CorrectVote = config.Bind("Scoring", "CorrectVote", p.CorrectVote, "Points per vote a crewmate casts on an impostor.").Value;
-            p.IncorrectVote = config.Bind("Scoring", "IncorrectVote", p.IncorrectVote, "Points per vote a crewmate casts on a crewmate (use a negative number to penalise).").Value;
-            p.AllTasksCompleted = config.Bind("Scoring", "AllTasksCompleted", p.AllTasksCompleted, "Points for a crewmate finishing every task.").Value;
-            p.Survived = config.Bind("Scoring", "Survived", p.Survived, "Points for being alive at the end.").Value;
-            p.ReportedBody = config.Bind("Scoring", "ReportedBody", p.ReportedBody, "Points per body reported.").Value;
+            double Rule(string key, double value, string what) =>
+                config.Bind("Scoring", key, value, what).Value;
+
+            p.Kill = Rule("Kill", p.Kill, "Impostor: per kill.");
+            p.FirstBlood = Rule("FirstBlood", p.FirstBlood, "Impostor: extra for the first kill of the game.");
+            p.VotedCrewmateOut = Rule("VotedCrewmateOut", p.VotedCrewmateOut, "Impostor: per vote for a crewmate who then got ejected.");
+            p.ImpostorSabotageWin = Rule("ImpostorSabotageWin", p.ImpostorSabotageWin, "Impostor: team won by sabotage.");
+            p.ImpostorVoteWin = Rule("ImpostorVoteWin", p.ImpostorVoteWin, "Impostor: team won by voting crewmates out.");
+            p.ImpostorKillWin = Rule("ImpostorKillWin", p.ImpostorKillWin, "Impostor: team won by kills.");
+            p.ImpostorTaskLoss = Rule("ImpostorTaskLoss", p.ImpostorTaskLoss, "Impostor: team lost to crewmates finishing tasks.");
+            p.ImpostorVoteLoss = Rule("ImpostorVoteLoss", p.ImpostorVoteLoss, "Impostor: team lost by being voted out.");
+            p.VotedOutFirst = Rule("VotedOutFirst", p.VotedOutFirst, "Impostor: the first impostor ejected.");
+            p.VotedOutLast = Rule("VotedOutLast", p.VotedOutLast, "Impostor: an impostor ejected after the first.");
+
+            p.CompletedTasks = Rule("CompletedTasks", p.CompletedTasks, "Crewmate: finished every task.");
+            p.CorrectVoteOut = Rule("CorrectVoteOut", p.CorrectVoteOut, "Crewmate: per vote for an impostor who then got ejected.");
+            p.CaughtKiller = Rule("CaughtKiller", p.CaughtKiller, "Crewmate: called the meeting (report or button) where an impostor got ejected.");
+            p.DiedFirst = Rule("DiedFirst", p.DiedFirst, "Crewmate: first player killed (instead of GotKilled).");
+            p.GotKilled = Rule("GotKilled", p.GotKilled, "Crewmate: killed, other than first.");
+            p.IncorrectVoteOut = Rule("IncorrectVoteOut", p.IncorrectVoteOut, "Crewmate: per vote for a crewmate who then got ejected.");
+            p.CrewTaskWin = Rule("CrewTaskWin", p.CrewTaskWin, "Crewmate: team won on tasks.");
+            p.CrewVoteWin = Rule("CrewVoteWin", p.CrewVoteWin, "Crewmate: team won by voting the impostors out.");
+            p.CrewSabotageLossAlive = Rule("CrewSabotageLossAlive", p.CrewSabotageLossAlive, "Crewmate: alive when the team lost to a sabotage.");
+            p.CrewOtherLoss = Rule("CrewOtherLoss", p.CrewOtherLoss, "Crewmate: team lost any other way (kills, votes, or dead during a sabotage loss).");
+
+            p.DisconnectWin = Rule("DisconnectWin", p.DisconnectWin, "Either team: won because the other team disconnected. Not on the sheet.");
 
             return s;
         }

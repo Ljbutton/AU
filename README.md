@@ -108,11 +108,48 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | AutoMute | `DeafenAliveDuringTasks` | true | Alive players can't hear the dead |
 | AutoMute | `DeadCanTalkDuringTasks` | true | |
 | AutoMute | `MuteDeadDuringMeetings` | true | |
-| Scoring | `Win` / `ImpostorWinBonus` | 2 / 1 | |
-| Scoring | `Kill` | 1 | Per kill |
-| Scoring | `CorrectVote` / `IncorrectVote` | 1 / 0 | Crewmate votes on an impostor / a crewmate. Negative values give a penalty. |
-| Scoring | `AllTasksCompleted` | 1 | |
-| Scoring | `Survived` / `ReportedBody` | 0 / 0 | |
+| Scoring | *(see below)* | | Every point value on the tournament sheet |
+
+## Scoring
+
+The defaults follow the **Point Sheet Template** tab of the tournament spreadsheet
+(`Tournament_Points.xlsx`). Each value is a line under `[Scoring]` in the config. Halves are
+allowed, penalties are negative, and 0 switches a rule off.
+
+| Impostor | Points | Config key |
+| --- | --- | --- |
+| Kill | +1 each | `Kill` |
+| First blood (on top of the kill) | +1 | `FirstBlood` |
+| Voted for a crewmate who got ejected | +1 each | `VotedCrewmateOut` |
+| Win by sabotage | +5 | `ImpostorSabotageWin` |
+| Win by vote | +3 | `ImpostorVoteWin` |
+| Win by kills | +3 | `ImpostorKillWin` |
+| Lose to tasks | −3 | `ImpostorTaskLoss` |
+| Lose to vote | −2 | `ImpostorVoteLoss` |
+| First impostor voted out | −2 | `VotedOutFirst` |
+| Later impostor voted out | −1 | `VotedOutLast` |
+
+| Crewmate | Points | Config key |
+| --- | --- | --- |
+| Finished every task | +3 | `CompletedTasks` |
+| Voted for an impostor who got ejected | +2 each | `CorrectVoteOut` |
+| Called the meeting where an impostor got ejected | +1 | `CaughtKiller` |
+| First player killed | +1 | `DiedFirst` |
+| Killed (not first) | +0.5 | `GotKilled` |
+| Voted for a crewmate who got ejected | −2 each | `IncorrectVoteOut` |
+| Win by tasks | +5 | `CrewTaskWin` |
+| Win by vote | +3 | `CrewVoteWin` |
+| Alive when the team loses to sabotage | −5 | `CrewSabotageLossAlive` |
+| Any other loss | −1 | `CrewOtherLoss` |
+
+Votes only score when they put someone out: a vote for an impostor who survives the meeting
+earns nothing. Win and loss points go to the whole team, dead or alive, but not to anyone
+who disconnected. A game won because the other team disconnected isn't on the sheet, so it
+scores nothing unless you set `DisconnectWin`.
+
+Every game report on Discord includes a **Points** section listing each rule a player
+scored on, so referees can check it against the sheet. In the player table, ✓ counts votes
+that ejected an impostor and ✗ counts votes that ejected a crewmate.
 
 ## What gets recorded
 

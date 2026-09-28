@@ -36,7 +36,11 @@ public class StatsStoreTests
         Assert.Equal(1, store.ImpostorWins);
         Assert.Equal(1, store.CrewWins);
 
-        Assert.Equal("Alice", store.Leaderboard()[0].Name);
+        // Alice: 2 kills + first blood + kill win (6), then lost to tasks (-3).
+        Assert.Equal(3, alice.Points);
+        // Carl: died first, lost (0), then a task win (+5).
+        Assert.Equal("Carl", store.Leaderboard()[0].Name);
+        Assert.Equal(5, store.Leaderboard()[0].Points);
     }
 
     [Fact]

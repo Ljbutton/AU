@@ -28,6 +28,18 @@ namespace TournamentTracker.Stats
             return null;
         }
 
+        /// <summary>How the game was decided: "Tasks", "Vote", "Kill", "Sabotage", "Disconnect" or "Other".</summary>
+        public static string Kind(string reason)
+        {
+            string r = reason.ToLowerInvariant();
+            if (r.Contains("disconnect")) return "Disconnect";
+            if (r.Contains("task")) return "Tasks";
+            if (r.Contains("vote")) return "Vote";
+            if (r.Contains("sabotage")) return "Sabotage";
+            if (r.Contains("kill")) return "Kill";
+            return "Other";
+        }
+
         public static string Describe(string reason) => reason switch
         {
             "HumansByVote" or "CrewmatesByVote" => "Impostors voted out",

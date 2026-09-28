@@ -49,16 +49,46 @@ namespace TournamentTracker
         public bool IsConfigured => Enabled && BotTokens.Count > 0 && GuildId.Length > 0;
     }
 
-    /// <summary>Tournament points. Every value can be changed in the config file; 0 switches a rule off.</summary>
+    /// <summary>
+    /// Tournament points, matching the "Point Sheet Template" tab of Tournament_Points.xlsx.
+    /// Every value can be changed in the config file; 0 switches a rule off. Penalties are
+    /// stored as negative numbers. Halves are allowed.
+    /// </summary>
     public sealed class ScoringRules
     {
-        public int Win { get; set; } = 2;
-        public int ImpostorWinBonus { get; set; } = 1;
-        public int Kill { get; set; } = 1;
-        public int CorrectVote { get; set; } = 1;
-        public int IncorrectVote { get; set; } = 0;
-        public int AllTasksCompleted { get; set; } = 1;
-        public int Survived { get; set; } = 0;
-        public int ReportedBody { get; set; } = 0;
+        // Impostor, during the game
+        public double Kill { get; set; } = 1;
+        public double FirstBlood { get; set; } = 1;
+        public double VotedCrewmateOut { get; set; } = 1;
+
+        // Impostor, by how the game ended
+        public double ImpostorSabotageWin { get; set; } = 5;
+        public double ImpostorVoteWin { get; set; } = 3;
+        public double ImpostorKillWin { get; set; } = 3;
+        public double ImpostorTaskLoss { get; set; } = -3;
+        public double ImpostorVoteLoss { get; set; } = -2;
+
+        // Impostor penalties
+        public double VotedOutFirst { get; set; } = -2;
+        public double VotedOutLast { get; set; } = -1;
+
+        // Crewmate, during the game
+        public double CompletedTasks { get; set; } = 3;
+        public double CorrectVoteOut { get; set; } = 2;
+        public double CaughtKiller { get; set; } = 1;
+        public double DiedFirst { get; set; } = 1;
+        public double GotKilled { get; set; } = 0.5;
+
+        // Crewmate, by how the game ended
+        public double CrewTaskWin { get; set; } = 5;
+        public double CrewVoteWin { get; set; } = 3;
+        public double CrewSabotageLossAlive { get; set; } = -5;
+        public double CrewOtherLoss { get; set; } = -1;
+
+        // Crewmate penalties
+        public double IncorrectVoteOut { get; set; } = -2;
+
+        /// <summary>A game decided by the other team disconnecting. Not on the sheet, so off by default.</summary>
+        public double DisconnectWin { get; set; } = 0;
     }
 }

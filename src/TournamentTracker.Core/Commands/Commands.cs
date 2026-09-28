@@ -204,7 +204,7 @@ namespace TournamentTracker
                 return;
             }
             int rank = Store.Leaderboard().ToList().FindIndex(x => x.Key == t.Key) + 1;
-            Reply($"{t.Name}: #{rank}, {t.Points} pts, {t.Wins}W-{t.Losses}L, {t.Kills} kills", true);
+            Reply($"{t.Name}: #{rank}, {ReportFormatter.Pts(t.Points)} pts, {t.Wins}W-{t.Losses}L, {t.Kills} kills", true);
             Reply($"Imp {t.ImpostorWins}/{t.ImpostorGames} · Crew {t.CrewWins}/{t.CrewGames} · votes {t.CorrectVotes}✓ {t.IncorrectVotes}✗", true);
         }
 
@@ -240,7 +240,7 @@ namespace TournamentTracker
             else
                 Post(_settings.StatsWebhookUrl, ReportFormatter.Leaderboard(Store, _settings.LeaderboardSize));
 
-            var top = Store.Leaderboard().Take(5).Select((t, i) => $"{i + 1}. {t.Name} {t.Points}");
+            var top = Store.Leaderboard().Take(5).Select((t, i) => $"{i + 1}. {t.Name} {ReportFormatter.Pts(t.Points)}");
             Reply(Store.GamesRecorded == 0 ? "No games recorded yet." : string.Join(" · ", top), false);
         }
 

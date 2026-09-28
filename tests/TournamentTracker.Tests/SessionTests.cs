@@ -189,7 +189,7 @@ public class SessionTests : IDisposable
 
         s.HandleChat(lobby[3], false, "!stats red");
         var lines = s.Pump();
-        Assert.Equal("Alice: #1, 4 pts, 1W-0L, 1 kills", lines[0].Text);
+        Assert.Equal("Alice: #1, 5 pts, 1W-0L, 1 kills", lines[0].Text);
     }
 
     [Fact]

@@ -40,7 +40,9 @@ namespace TournamentTracker.Stats
         public bool IsImpostor { get; set; }
 
         public int Kills { get; set; }
+        public bool FirstBlood { get; set; }
         public string? KilledByKey { get; set; }
+        public bool DiedFirst { get; set; }
 
         /// <summary>"Killed", "Ejected" or "Disconnected"; null while alive.</summary>
         public string? DeathCause { get; set; }
@@ -57,14 +59,42 @@ namespace TournamentTracker.Stats
         public int Skips { get; set; }
         public int MissedVotes { get; set; }
         public int VotesReceived { get; set; }
+
+        /// <summary>Votes this player cast for someone who then got ejected, split by what the ejected player was.</summary>
+        public int EjectVotesOnImpostor { get; set; }
+        public int EjectVotesOnCrewmate { get; set; }
+
+        /// <summary>Meetings this crewmate called that ended with an impostor ejected.</summary>
+        public int CaughtKiller { get; set; }
+
+        /// <summary>1 for the first impostor ejected this game, 2 for the next; null if never ejected.</summary>
+        public int? ImpostorEjectOrder { get; set; }
+
         public int Sabotages { get; set; }
 
         public bool Won { get; set; }
         public bool Survived { get; set; }
-        public int Points { get; set; }
+        public double Points { get; set; }
+
+        /// <summary>Where the points came from, so a referee can check them against the sheet.</summary>
+        public List<PointLine> PointBreakdown { get; set; } = new List<PointLine>();
 
         public string Label => $"{Colors.Name(ColorId)} ({Name})";
         public bool AllTasksDone => !IsImpostor && TasksTotal > 0 && TasksCompleted >= TasksTotal;
+    }
+
+    public sealed class PointLine
+    {
+        public PointLine() { }
+
+        public PointLine(string rule, double points)
+        {
+            Rule = rule;
+            Points = points;
+        }
+
+        public string Rule { get; set; } = "";
+        public double Points { get; set; }
     }
 
     public sealed class MeetingRecord
