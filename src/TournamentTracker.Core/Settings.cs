@@ -158,7 +158,7 @@ namespace TournamentTracker
         public double VotedOutLast { get; set; } = -1;
 
         // Crewmate, during the game
-        public double CompletedTasks { get; set; } = 3;
+        public double CompletedTasks { get; set; } = 0;
         public double CorrectVoteOut { get; set; } = 2;
         public double CaughtKiller { get; set; } = 1;
         public double DiedFirst { get; set; } = 1;
@@ -174,7 +174,7 @@ namespace TournamentTracker
         /// <summary>Share of the crewmate's votes that were on impostors (whether or not they got ejected).</summary>
         public double VoteAccuracyBonus { get; set; } = 2;
         /// <summary>Share of the crewmate's tasks they finished.</summary>
-        public double TaskPercentBonus { get; set; } = 2;
+        public double TaskPercentBonus { get; set; } = 3;
         /// <summary>Percentage bonuses round to the nearest multiple of this (0.5 = halves). 0 keeps exact values.</summary>
         public double BonusRounding { get; set; } = 0.5;
 

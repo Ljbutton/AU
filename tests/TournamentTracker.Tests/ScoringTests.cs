@@ -85,7 +85,7 @@ public class ScoringTests
 
         Assert.Equal(1 + 1 - 3, Pts(g, 0));       // kill, first blood, lost to tasks
         Assert.Equal(-3, Pts(g, 1));
-        Assert.Equal(3 + 5, Pts(g, 4));           // completed tasks, task win
+        Assert.Equal(5, Pts(g, 4));               // task win (finishing tasks is scored by the % bonus, off here)
         Assert.Equal(1 + 5, Pts(g, 5));           // died first still wins with the team
         Assert.Equal(5, Pts(g, 2));
     }
@@ -123,18 +123,18 @@ public class ScoringTests
         t.VotingComplete(new[] { new VoteCast(2, 1), new VoteCast(3, VoteCast.SkippedVote) }, null, false, _clock.Now);
         t.VotingComplete(new[] { new VoteCast(2, 4) }, null, false, _clock.Now);
         var final = Players.Lobby();
-        final[2].TasksCompleted = 3;                    // 75% -> 1.5
-        final[3].TasksCompleted = 1;                    // 25% -> 0.5
+        final[2].TasksCompleted = 3;                    // 75% of 3 = 2.25 -> 2.5
+        final[3].TasksCompleted = 1;                    // 25% of 3 = 0.75 -> 1
         var g = t.End("HumansByTask", Outcome.Crewmates, final, _clock.Now)!;
 
         var green = g.ById(2)!;
         Assert.Contains(green.PointBreakdown, l => l.Rule == "Vote accuracy 67%" && l.Points == 1.5);
-        Assert.Contains(green.PointBreakdown, l => l.Rule == "Tasks 75%" && l.Points == 1.5);
-        Assert.Equal(1.5 + 1.5 + 5, green.Points);
+        Assert.Contains(green.PointBreakdown, l => l.Rule == "Tasks 75%" && l.Points == 2.5);
+        Assert.Equal(1.5 + 2.5 + 5, green.Points);
 
         var pink = g.ById(3)!;                          // one vote on an impostor, one skip: 100%
         Assert.Contains(pink.PointBreakdown, l => l.Rule == "Vote accuracy 100%" && l.Points == 2);
-        Assert.Contains(pink.PointBreakdown, l => l.Rule == "Tasks 25%" && l.Points == 0.5);
+        Assert.Contains(pink.PointBreakdown, l => l.Rule == "Tasks 25%" && l.Points == 1);
 
         var orange = g.ById(4)!;                        // never voted: no vote bonus at all
         Assert.DoesNotContain(orange.PointBreakdown, l => l.Rule.StartsWith("Vote accuracy"));
