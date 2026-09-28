@@ -196,6 +196,27 @@ preliminaries. Open it in `docs/replay-viewer.html`: play, pause, scrub, 0.5–8
 to any kill or meeting, follow a player, show bodies, trails, vents, roles and ghosts.
 `RecordReplays = false` in the config turns recording off.
 
+**Watching in Among Us, on the real map.** Anyone with the mod can open **Freeplay** on the
+replay's map and press **F8**: it lists the newest replays (saved with your own games, or
+downloaded from Discord into your Downloads folder); press 1–9 to pick one. The players
+appear with their own colour, hat, skin, visor and name, bodies lie where the kills were
+until the next meeting, and the camera is yours:
+
+| Key | |
+| --- | --- |
+| Space | Play / pause |
+| ← / → | Back / forward 5 seconds |
+| ↑ / ↓ | Faster / slower (0.5× to 8×) |
+| 1–9, 0 | Follow that player (Tab: the next one) |
+| F, then W A S D | Free camera |
+| Mouse wheel | Zoom in and out, down to the whole map |
+| R / G | Show roles (impostor names in red) / show ghosts |
+| F8 | Leave the replay |
+
+If you're on the wrong map it says which Freeplay map to open. The characters glide rather
+than play their walking animation. Replays recorded before this version have no outfits,
+so everyone appears without cosmetics.
+
 ### Referee ghost slot (experimental)
 
 For an 11-player lobby that plays like 10 while the host referees: the host types
