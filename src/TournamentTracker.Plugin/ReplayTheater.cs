@@ -275,7 +275,9 @@ namespace TournamentTracker.Plugin
         {
             try
             {
-                var body = Object.Instantiate(GameManager.Instance.DeadBodyPrefab);
+                var prefab = BodyPrefab();
+                if (prefab == null) return null;
+                var body = Object.Instantiate(prefab);
                 body.enabled = false;   // a replay body can't be reported
                 foreach (var renderer in body.bodyRenderers) PlayerMaterial.SetColors(color, renderer);
                 return body.gameObject;
@@ -285,6 +287,32 @@ namespace TournamentTracker.Plugin
                 Warn("body", e);
                 return null;
             }
+        }
+
+        private static DeadBody? _bodyPrefab;
+
+        /// <summary>
+        /// The game's dead body model. Game versions keep it in different places
+        /// (DeadBodyPrefab, an array of them, or GetDeadBody(role)), so it's looked up by name.
+        /// </summary>
+        private static DeadBody? BodyPrefab()
+        {
+            if (_bodyPrefab != null) return _bodyPrefab;
+            var manager = GameManager.Instance;
+            if (manager == null) return null;
+            var type = manager.GetType();
+            foreach (var name in new[] { "DeadBodyPrefab", "deadBodyPrefab", "DeadBodyPrefabs", "deadBodyPrefabs" })
+            {
+                object? value = type.GetProperty(name)?.GetValue(manager) ?? type.GetField(name)?.GetValue(manager);
+                if (value is DeadBody single) return _bodyPrefab = single;
+                if (value is System.Collections.IEnumerable list)
+                    foreach (var item in list)
+                        if (item is DeadBody first) return _bodyPrefab = first;
+            }
+            var getter = type.GetMethods().FirstOrDefault(m => m.Name == "GetDeadBody" && m.GetParameters().Length == 1);
+            var role = PlayerControl.LocalPlayer?.Data?.Role;
+            if (getter != null && role != null && getter.Invoke(manager, new object[] { role }) is DeadBody fromRole) return _bodyPrefab = fromRole;
+            return null;
         }
 
         public static void Stop()
