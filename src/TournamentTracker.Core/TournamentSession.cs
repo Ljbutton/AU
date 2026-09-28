@@ -209,6 +209,7 @@ namespace TournamentTracker
             if (game.Counted)
             {
                 CountRoundGame(game, 1);
+                CountImpostorGames(game, 1);
                 if (_settings.Mode == TrackerMode.Tournament && _settings.GamesPerRound > 0 && GamesThisRound == _settings.GamesPerRound && game.Round == Round)
                     Reply($"That was game {GamesThisRound} of {_settings.GamesPerRound}: round {Round} is done for this lobby.", false);
             }

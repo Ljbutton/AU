@@ -48,6 +48,9 @@ namespace TournamentTracker.Setup
 
         /// <summary>Game settings the host's lobby is locked to (both kinds of code).</summary>
         [JsonPropertyName("set")] public LobbySettings? Lobby { get; set; }
+
+        /// <summary>Fair impostor rotation within each round.</summary>
+        [JsonPropertyName("rot")] public bool? ImpostorRotation { get; set; }
         [JsonPropertyName("ref")] public List<string>? RefereeUserIds { get; set; }
 
         /// <summary>Point values, so every host scores the same way. Missing: the defaults.</summary>
@@ -112,6 +115,7 @@ namespace TournamentTracker.Setup
             s.StatsWebhookUrl = Webhook;
             if (Scoring != null) s.Scoring = Scoring;
             s.LobbySettings = Lobby;
+            s.ImpostorRotation = ImpostorRotation == true;
 
             if (IsTournament)
             {

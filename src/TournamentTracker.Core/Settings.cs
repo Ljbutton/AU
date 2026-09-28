@@ -34,6 +34,9 @@ namespace TournamentTracker
         /// <summary>The tournament's game settings, from the setup code; null: nothing locked or checked.</summary>
         public LobbySettings? LobbySettings { get; set; }
 
+        /// <summary>Spread impostor turns evenly within a round (see Rotation). Off unless the setup code turns it on.</summary>
+        public bool ImpostorRotation { get; set; }
+
         /// <summary>Tournament: the organiser's preliminary channels, read for server standings.</summary>
         public List<string> PrelimChannelIds { get; set; } = new List<string>();
 

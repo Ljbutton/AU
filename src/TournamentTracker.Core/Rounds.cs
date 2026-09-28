@@ -19,6 +19,7 @@ namespace TournamentTracker
             public int Round { get; set; }
             public string? RefSlotKey { get; set; }
             public Dictionary<int, int> RoundGames { get; set; } = new Dictionary<int, int>();
+            public Dictionary<int, Dictionary<string, int>> ImpostorGames { get; set; } = new Dictionary<int, Dictionary<string, int>>();
         }
 
         /// <summary>Counted games this lobby has played per round.</summary>
@@ -49,6 +50,7 @@ namespace TournamentTracker
                     Round = state?.Round ?? 0;
                     RefSlotKey = state?.RefSlotKey;
                     _roundGames = state?.RoundGames ?? new Dictionary<int, int>();
+                    _impostorGames = state?.ImpostorGames ?? new Dictionary<int, Dictionary<string, int>>();
                 }
             }
             catch (Exception e)
@@ -66,7 +68,7 @@ namespace TournamentTracker
         private void SaveState() => TrySave(() =>
         {
             Directory.CreateDirectory(_dataDir);
-            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames }));
+            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames, ImpostorGames = _impostorGames }));
         }, "state");
 
         /// <summary>!r3 or !round 3 sets the round; !round on its own says which it is.</summary>
@@ -92,6 +94,7 @@ namespace TournamentTracker
             SetRound(round.Value);
             Reply($"Round {Round} started: points start from zero for this round (the running total keeps counting).", false);
             if (Players.Count > 0) Reply($"Round {Round} starts now!", true);
+            if (RotationOn && Players.Count > 0) Reply("Impostor rotation is on: nobody is impostor twice this round until everyone has been once.", true);
             if (previous > 0 && Round > previous) OnRoundAdvanced();
             return true;
         }

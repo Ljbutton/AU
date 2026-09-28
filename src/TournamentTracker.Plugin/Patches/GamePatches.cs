@@ -39,7 +39,11 @@ namespace TournamentTracker.Plugin.Patches
     [HarmonyPatch(typeof(RoleManager), nameof(RoleManager.SelectRoles))]
     internal static class RefereeRolePatch
     {
-        public static void Postfix() => Hook.Run("Referee role", RefSlot.KeepCrewmate);
+        public static void Postfix()
+        {
+            Hook.Run("Impostor rotation", ImpostorRotation.Apply);
+            Hook.Run("Referee role", RefSlot.KeepCrewmate);
+        }
     }
 
     [HarmonyPatch(typeof(ShipStatus), nameof(ShipStatus.Begin))]
