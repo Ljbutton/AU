@@ -48,17 +48,26 @@ namespace TournamentTracker
         private Task _postChain = Task.CompletedTask;
 
         public TournamentSession(TrackerSettings settings, string dataDir, ILog log,
-            HttpClient? http = null, Func<DateTime>? clock = null, IVoiceApi? voiceApi = null, IVoicePresence? presence = null)
+            HttpClient? http = null, Func<DateTime>? clock = null, IVoiceApi? voiceApi = null, IVoicePresence? presence = null,
+            Setup.SetupCode? setup = null)
         {
+            // A setup code overrides the settings file; applied on a copy so the caller's object stays as it was.
+            if (setup != null)
+            {
+                settings = JsonSerializer.Deserialize<TrackerSettings>(JsonSerializer.Serialize(settings))!;
+                setup.ApplyTo(settings);
+                Setup = setup;
+            }
             _settings = settings;
             _log = log;
             _clock = clock ?? (() => DateTime.UtcNow);
             _dataDir = dataDir;
-            string slug = Slug(settings.TournamentName);
+            string slug = settings.EffectiveTournamentId;
             _statsPath = Path.Combine(dataDir, $"stats-{slug}.json");
             _gamesDir = Path.Combine(dataDir, "games", slug);
 
             Store = StatsStore.Load(_statsPath, settings.TournamentName);
+            LoadState();
             Links = LinkRegistry.Load(Path.Combine(dataDir, "links.json"), log);
             Tracker = new GameTracker(settings.Scoring);
             Tracker.EventRecorded += OnTimelineEvent;
@@ -139,8 +148,14 @@ namespace TournamentTracker
             string label = LobbyLabel(players);
             var game = Tracker.Start(Store.NextGameNumber(label), _settings.TournamentName, lobbyCode, map, players, _clock());
             game.Host = label;
+            game.TournamentId = _settings.EffectiveTournamentId;
+            game.Mode = _settings.Mode.ToString();
+            game.Server = _settings.ServerName;
+            game.Round = Round;
             game.Id = $"{(label.Length > 0 ? FileSafe(label) + "-" : "")}{game.GameNumber}-{game.StartedUtc:yyyyMMdd-HHmmss}";
             _log.Info($"Tracking game {game.Name} on {map} with {players.Count} players");
+            if (_settings.Mode == TrackerMode.Tournament && Round == 0)
+                Reply($"No round set, so this game counts as round 0. Type {_settings.CommandPrefix}r1 in the lobby before the next game.", false);
         }
 
         public void Kill(byte killerId, byte victimId) => Tracker.Kill(killerId, victimId, _clock());
@@ -174,7 +189,24 @@ namespace TournamentTracker
             }, "game record");
 
             _log.Info($"Game {game.Name} over: {game.Winner ?? "no result"} ({reason})");
-            Post(_settings.StatsWebhookUrl, ReportFormatter.GameReport(game));
+            var report = ReportFormatter.GameReport(game);
+            if (_settings.Mode == TrackerMode.Preliminary)
+            {
+                // The data file rides along with the report so the organiser's job can build standings.
+                string url = _settings.StatsWebhookUrl;
+                if (!string.IsNullOrWhiteSpace(url))
+                    Chain(async () =>
+                    {
+                        var result = await _rest.ExecuteWebhookWithFileAsync(url, report, SharedResults.FileNameFor(game), SharedResults.FileFor(game)).ConfigureAwait(false);
+                        if (!result.Ok) _log.Error("Discord webhook post failed: " + result);
+                    });
+                foreach (var line in StandingsFormatter.ChatSummary(game)) Reply(line, false);
+            }
+            else
+            {
+                Post(_settings.StatsWebhookUrl, report);
+            }
+
             if (Shared != null)
             {
                 if (game.Counted)
@@ -182,7 +214,8 @@ namespace TournamentTracker
                     Chain(async () =>
                     {
                         await Shared.PublishAsync(game).ConfigureAwait(false);
-                        if (_settings.PostLeaderboardAfterEachGame) await PostCombinedAsync().ConfigureAwait(false);
+                        if (_settings.Mode == TrackerMode.Tournament) await PostLobbyStandingsAsync().ConfigureAwait(false);
+                        else if (_settings.PostLeaderboardAfterEachGame) await PostCombinedAsync().ConfigureAwait(false);
                     });
                 }
             }
@@ -206,7 +239,7 @@ namespace TournamentTracker
         private async Task RefreshCombinedAsync()
         {
             if (Shared == null) return;
-            var load = await Shared.LoadAsync(_settings.TournamentName).ConfigureAwait(false);
+            var load = await Shared.LoadAsync(_settings.EffectiveTournamentId, _settings.TournamentName).ConfigureAwait(false);
             if (load != null) Combined = load;
         }
 

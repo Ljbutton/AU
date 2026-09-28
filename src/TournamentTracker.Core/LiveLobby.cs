@@ -161,6 +161,7 @@ namespace TournamentTracker
             {
                 Phase = phase,
                 Label = LobbyLabel(players),
+                Round = _settings.Mode == TrackerMode.Tournament ? Round : 0,
                 LobbyCode = lobbyCode,
                 Map = map,
                 AutoMuteOn = AutoMute?.Enabled,

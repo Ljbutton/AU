@@ -28,8 +28,13 @@ namespace TournamentTracker
             string command = parts[0].ToLowerInvariant();
             var args = parts.Skip(1).ToArray();
 
+            if (fromHost && TryRoundCommand(command, args)) return true;
+
             switch (command)
             {
+                case "setup" when fromHost:
+                    SetupCommand(args);
+                    return true;
                 case "help":
                     Help(fromHost);
                     return true;
@@ -66,6 +71,15 @@ namespace TournamentTracker
                 case "spectators" when fromHost:
                     SpectatorsCommand(args);
                     return true;
+                case "servers" when fromHost:
+                    if (Shared == null || _settings.PrelimChannelIds.Count == 0)
+                        Reply("Server standings need a tournament setup code with preliminary channels.", false);
+                    else
+                    {
+                        Chain(PostServerStandingsAsync);
+                        Reply("Posting the server standings.", false);
+                    }
+                    return true;
                 case "resetleaderboard" when fromHost:
                     ResetLeaderboardCommand();
                     return true;
@@ -84,7 +98,7 @@ namespace TournamentTracker
             if (fromHost)
             {
                 Reply($"Host: {p}link <player> <discord> · {p}unlink <player> · {p}links · {p}automute on|off · " +
-                      $"{p}unmuteall · {p}ref on|off · {p}spectators on|off · {p}refresh · {p}leaderboard · {p}resetleaderboard · {p}resetstats confirm", false);
+                      $"{p}unmuteall · {p}ref on|off · {p}spectators on|off · {p}refresh · {p}r1 {p}r2… · {p}servers · {p}setup · {p}leaderboard · {p}resetleaderboard · {p}resetstats confirm", false);
             }
         }
 
@@ -296,6 +310,13 @@ namespace TournamentTracker
 
         private void LeaderboardCommand()
         {
+            if (Shared != null && _settings.Mode == TrackerMode.Tournament)
+            {
+                Chain(PostLobbyStandingsAsync);
+                Chain(PostRoundStandingsAsync);
+                Reply($"Posting round {Round} standings: this lobby, then all lobbies.", false);
+                return;
+            }
             if (Shared != null)
             {
                 Chain(PostCombinedAsync);

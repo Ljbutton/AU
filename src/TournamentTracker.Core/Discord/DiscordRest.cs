@@ -227,6 +227,32 @@ namespace TournamentTracker.Discord
             return path.TrimEnd('/') + "/messages/" + messageId + query;
         }
 
+        /// <summary>A webhook post with one file attached (the game's data, for the organiser's scheduled job).</summary>
+        public Task<DiscordResult> ExecuteWebhookWithFileAsync(string webhookUrl, WebhookMessage message, string fileName, byte[] file, CancellationToken ct = default)
+        {
+            var node = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(message, WebhookMessage.JsonOptions))!.AsObject();
+            node["attachments"] = new System.Text.Json.Nodes.JsonArray(new System.Text.Json.Nodes.JsonObject { ["id"] = 0, ["filename"] = fileName });
+            string payload = node.ToJsonString();
+            return SendAsync(() =>
+            {
+                var form = new MultipartFormDataContent();
+                form.Add(new StringContent(payload, Encoding.UTF8, "application/json"), "payload_json");
+                var part = new ByteArrayContent(file);
+                part.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+                form.Add(part, "files[0]", fileName);
+                return new HttpRequestMessage(HttpMethod.Post, webhookUrl + (webhookUrl.Contains("?") ? "&" : "?") + "wait=true") { Content = form };
+            }, "webhook:" + webhookUrl, ct);
+        }
+
+        public Task<DiscordResult> AddReactionAsync(string botToken, string channelId, string messageId, string emoji, CancellationToken ct = default) =>
+            SendAsync(() =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Put,
+                    $"{_apiBase}/channels/{channelId}/messages/{messageId}/reactions/{Uri.EscapeDataString(emoji)}/@me");
+                Authorize(req, botToken);
+                return req;
+            }, "reaction:" + botToken.GetHashCode() + ":" + channelId, ct);
+
         private static void Authorize(HttpRequestMessage req, string botToken) =>
             req.Headers.TryAddWithoutValidation("Authorization", "Bot " + botToken);
 

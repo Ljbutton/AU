@@ -18,6 +18,16 @@ namespace TournamentTracker.Stats
         /// <summary>What people see: "LJ-3", or just "3" without a label.</summary>
         public string Name => Host.Length > 0 ? $"{Host}-{GameNumber}" : GameNumber.ToString();
         public string Tournament { get; set; } = "";
+        public string TournamentId { get; set; } = "";
+
+        /// <summary>"Preliminary", "Tournament" or "Standard".</summary>
+        public string Mode { get; set; } = "";
+
+        /// <summary>Tournament round (1, 2, 3…); 0 when rounds aren't used.</summary>
+        public int Round { get; set; }
+
+        /// <summary>Preliminaries: the server the game was played in.</summary>
+        public string Server { get; set; } = "";
         public string LobbyCode { get; set; } = "";
         public string Map { get; set; } = "";
         public DateTime StartedUtc { get; set; }

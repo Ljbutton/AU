@@ -1,9 +1,45 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace TournamentTracker
 {
+    public enum TrackerMode
+    {
+        /// <summary>Everything from the config file, nothing preset.</summary>
+        Standard,
+        /// <summary>Practice/qualifier games in other servers: reports go to the organiser's server, nothing else.</summary>
+        Preliminary,
+        /// <summary>The real tournament: live status, combined standings by round, referee tools.</summary>
+        Tournament,
+    }
+
     public sealed class TrackerSettings
     {
+        public TrackerMode Mode { get; set; } = TrackerMode.Standard;
+
+        /// <summary>Keeps each tournament's (and each preliminary's) stats apart. Empty: made from TournamentName.</summary>
+        public string TournamentId { get; set; } = "";
+
+        public string EffectiveTournamentId => Slugify(TournamentId.Length > 0 ? TournamentId : TournamentName);
+
+        /// <summary>Preliminaries only: the server these games are played in, for server standings.</summary>
+        public string ServerName { get; set; } = "";
+
+        /// <summary>Tournament: how many players from each lobby move on to the next round (the cut line).</summary>
+        public int AdvanceCount { get; set; } = 5;
+
+        /// <summary>Tournament: the organiser's preliminary channels, read for server standings.</summary>
+        public List<string> PrelimChannelIds { get; set; } = new List<string>();
+
+        /// <summary>Lower-case letters, digits and dashes.</summary>
+        public static string Slugify(string name)
+        {
+            var chars = name.Trim().ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray();
+            string slug = new string(chars).Trim('-');
+            while (slug.Contains("--")) slug = slug.Replace("--", "-");
+            return slug.Length == 0 ? "tournament" : slug;
+        }
+
         /// <summary>Stats are kept per tournament name, so a new name starts a fresh leaderboard.</summary>
         public string TournamentName { get; set; } = "Among Us Tournament";
 

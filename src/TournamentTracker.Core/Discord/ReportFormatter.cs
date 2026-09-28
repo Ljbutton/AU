@@ -18,11 +18,12 @@ namespace TournamentTracker.Discord
 
         public static WebhookMessage GameReport(GameRecord game)
         {
+            string name = game.Round > 0 ? $"Game {game.Name} · Round {game.Round}" : $"Game {game.Name}";
             string title = game.Winner switch
             {
-                Outcome.Impostors => $"Game {game.Name} — Impostors win",
-                Outcome.Crewmates => $"Game {game.Name} — Crewmates win",
-                _ => $"Game {game.Name} — no result (not counted)",
+                Outcome.Impostors => $"{name} — Impostors win",
+                Outcome.Crewmates => $"{name} — Crewmates win",
+                _ => $"{name} — no result (not counted)",
             };
 
             var summary = new Embed
@@ -39,7 +40,7 @@ namespace TournamentTracker.Discord
                     Field("Meetings", MeetingSummary(game), true),
                     Field("MVP", Mvp(game), true),
                 },
-                Footer = new EmbedFooter { Text = $"{game.Tournament} · {(game.Id.Length > 0 ? game.Id : "game " + game.GameNumber)} · Lobby {game.LobbyCode}" },
+                Footer = new EmbedFooter { Text = $"{game.Tournament}{(game.Server.Length > 0 ? " · " + game.Server : "")} · {(game.Id.Length > 0 ? game.Id : "game " + game.GameNumber)} · Lobby {game.LobbyCode}" },
                 Timestamp = (game.EndedUtc ?? game.StartedUtc).ToString("o", CultureInfo.InvariantCulture),
             };
 

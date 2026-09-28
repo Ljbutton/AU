@@ -24,8 +24,16 @@ namespace TournamentTracker.Plugin
         /// <summary>Set once a game has ended, until the lobby returns, so the start fallback can't reopen it.</summary>
         private static bool _roundOver;
 
+        /// <summary>Set when !setup changed the code; the session is rebuilt on the next frame.</summary>
+        public static bool RestartRequested;
+
         public static void Update()
         {
+            if (RestartRequested)
+            {
+                RestartRequested = false;
+                Restart();
+            }
             var session = TournamentPlugin.Session;
             if (session == null) return;
             try
@@ -100,6 +108,24 @@ namespace TournamentTracker.Plugin
             if (session == null || !Game.IsHost) return;
             _roundOver = true;
             session.GameEnded(reason, Game.Players());
+        }
+
+        private static void Restart()
+        {
+            var old = TournamentPlugin.Session;
+            try
+            {
+                // Hand everyone's voice back and let the old session's posts finish first.
+                old?.ShutdownAsync(TimeSpan.FromSeconds(2)).Wait(TimeSpan.FromSeconds(3));
+                old?.Dispose();
+                TournamentPlugin.StartSession();
+                foreach (var reply in old?.Pump() ?? Array.Empty<ChatReply>()) Game.LocalChat(reply.Text);
+                Game.LocalChat($"Tracker restarted: {(TournamentPlugin.Session.Setup?.Describe() ?? "using the settings file")}.");
+            }
+            catch (Exception e)
+            {
+                TournamentPlugin.Logger.Error("Restart after !setup failed: " + e);
+            }
         }
 
         public static void Shutdown()

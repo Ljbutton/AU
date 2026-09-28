@@ -66,13 +66,15 @@ public class VoicePresenceTests
                 return JsonDocument.Parse(Encoding.UTF8.GetString(buf, 0, r.Count)).RootElement;
             }
             await Send("""{"op":10,"d":{"heartbeat_interval":200}}""");
-            while (true)
+            bool identified = false;
+            while (!(identified && heartbeat))
             {
                 var msg = await Receive();
                 int op = msg.GetProperty("op").GetInt32();
                 if (op == 2)
                 {
                     identify = msg.Clone();
+                    identified = true;
                     await Send("""{"op":0,"s":1,"t":"READY","d":{"user":{"id":"bot1"}}}""");
                     await Send("""{"op":0,"s":2,"t":"GUILD_CREATE","d":{"id":"g1","voice_states":[{"user_id":"1","channel_id":"vc"}],"members":[{"user":{"id":"1","username":"alice"}}]}}""");
                 }
@@ -80,7 +82,6 @@ public class VoicePresenceTests
                 {
                     heartbeat = true;
                     await Send("""{"op":11}""");
-                    break;
                 }
             }
         });
