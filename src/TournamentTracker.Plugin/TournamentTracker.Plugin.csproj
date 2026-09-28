@@ -24,5 +24,7 @@
   <ItemGroup>
     <PackageReference Include="BepInEx.Unity.IL2CPP" Version="$(BepInExVersion)" Private="false" ExcludeAssets="runtime;native" />
     <PackageReference Include="AmongUs.GameLibs.Steam" Version="$(GameLibsVersion)" PrivateAssets="all" />
+    <!-- The game libs are dummy DLLs; this generates the IL2CPP interop assemblies from them at build time. -->
+    <PackageReference Include="BepInEx.IL2CPP.MSBuild" Version="2.*-*" PrivateAssets="all" ExcludeAssets="runtime" />
   </ItemGroup>
 </Project>
