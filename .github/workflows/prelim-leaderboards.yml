@@ -1,0 +1,31 @@
+name: Preliminary leaderboards
+
+# Every 10 minutes, reads the preliminary games posted to the organiser's Discord channels
+# and keeps one combined leaderboard per preliminary up to date. Needs the repository
+# secret DISCORD_BOT_TOKEN and the variable PRELIM_CHANNEL_IDS (see README). Scheduled runs
+# only happen on the repository's default branch.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: prelim-leaderboards
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Update the leaderboards
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          PRELIM_CHANNEL_IDS: ${{ vars.PRELIM_CHANNEL_IDS }}
+          PRELIM_LEADERBOARD_CHANNEL: ${{ vars.PRELIM_LEADERBOARD_CHANNEL }}
+        run: dotnet run --project tools/PrelimBoard -c Release

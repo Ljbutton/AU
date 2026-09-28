@@ -158,6 +158,29 @@ namespace TournamentTracker.Discord
             }, "channel-post:" + botToken.GetHashCode() + ":" + channelId, ct);
         }
 
+        /// <summary>Posts embeds as the bot (used by the scheduled preliminary job).</summary>
+        public Task<DiscordResult> PostEmbedsAsync(string botToken, string channelId, WebhookMessage message, CancellationToken ct = default)
+        {
+            string json = JsonSerializer.Serialize(new { embeds = message.Embeds, allowed_mentions = new { parse = Array.Empty<string>() } }, WebhookMessage.JsonOptions);
+            return SendAsync(() =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post, $"{_apiBase}/channels/{channelId}/messages") { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+                Authorize(req, botToken);
+                return req;
+            }, "channel-post:" + botToken.GetHashCode() + ":" + channelId, ct);
+        }
+
+        public Task<DiscordResult> EditEmbedsAsync(string botToken, string channelId, string messageId, WebhookMessage message, CancellationToken ct = default)
+        {
+            string json = JsonSerializer.Serialize(new { embeds = message.Embeds }, WebhookMessage.JsonOptions);
+            return SendAsync(() =>
+            {
+                var req = new HttpRequestMessage(new HttpMethod("PATCH"), $"{_apiBase}/channels/{channelId}/messages/{messageId}") { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+                Authorize(req, botToken);
+                return req;
+            }, "channel-edit:" + botToken.GetHashCode() + ":" + channelId, ct);
+        }
+
         /// <summary>Up to 100 messages, newest first, older than <paramref name="before"/> when given.</summary>
         public async Task<IReadOnlyList<ChannelMessage>?> GetMessagesAsync(string botToken, string channelId, string? before = null, CancellationToken ct = default)
         {
@@ -378,6 +401,9 @@ namespace TournamentTracker.Discord
         public string AuthorId { get; set; } = "";
         public bool AuthorIsBot { get; set; }
         public int Embeds { get; set; }
+        public string? EmbedTitle { get; set; }
+        public string? EmbedDescription { get; set; }
+        public string? EmbedFooter { get; set; }
         public List<(string FileName, string Url)> Attachments { get; set; } = new List<(string, string)>();
 
         internal static ChannelMessage Parse(JsonElement e)
@@ -388,6 +414,13 @@ namespace TournamentTracker.Discord
                 Content = e.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() ?? "" : "",
                 Embeds = e.TryGetProperty("embeds", out var em) && em.ValueKind == JsonValueKind.Array ? em.GetArrayLength() : 0,
             };
+            if (m.Embeds > 0)
+            {
+                var first = e.GetProperty("embeds")[0];
+                m.EmbedTitle = first.TryGetProperty("title", out var t) ? t.GetString() : null;
+                m.EmbedDescription = first.TryGetProperty("description", out var d) ? d.GetString() : null;
+                m.EmbedFooter = first.TryGetProperty("footer", out var f) && f.TryGetProperty("text", out var ft) ? ft.GetString() : null;
+            }
             if (e.TryGetProperty("author", out var a))
             {
                 m.AuthorId = a.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "";

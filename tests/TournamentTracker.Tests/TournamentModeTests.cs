@@ -16,6 +16,7 @@ public sealed class FakeDiscord
     public readonly List<(string Url, JsonElement Payload, string? File)> Webhooks = new();
     public readonly List<(string Channel, string Message, string Emoji)> Reactions = new();
     private long _next = 1_300_000_000_000_000_000;
+    public int Edits;
 
     private string NextId(DateTime? at = null)
     {
@@ -56,7 +57,7 @@ public sealed class FakeDiscord
             Webhooks.Add((url, payload, file));
             return FakeHttp.Json(HttpStatusCode.OK, """{"id":"42"}""");
         }
-        var m = System.Text.RegularExpressions.Regex.Match(url, @"/channels/(\w+)/messages");
+        var m = System.Text.RegularExpressions.Regex.Match(url, @"/channels/(\w+)/messages(\?|$)");
         if (m.Success && r.Method == HttpMethod.Get)
         {
             string channel = m.Groups[1].Value;
@@ -65,7 +66,7 @@ public sealed class FakeDiscord
                 ["id"] = x.Id,
                 ["content"] = x.Content,
                 ["author"] = new { id = x.Bot ? "bot" : "ref", bot = x.Bot },
-                ["embeds"] = Array.Empty<object>(),
+                ["embeds"] = x.Embeds.HasValue ? x.Embeds.Value : (object)Array.Empty<object>(),
                 ["attachments"] = x.File == null ? Array.Empty<object>() : new object[] { new { filename = x.File, url = $"https://cdn.test/{x.Id}/{x.File}" } },
             });
             return FakeHttp.Json(HttpStatusCode.OK, JsonSerializer.Serialize(items));
@@ -80,8 +81,22 @@ public sealed class FakeDiscord
                 Messages.Add(new Msg(NextId(), channel, payload.GetProperty("content").GetString()!,
                     payload.GetProperty("attachments")[0].GetProperty("filename").GetString(), parts[1].ReadAsStringAsync().Result, true, null));
             }
-            else Messages.Add(new Msg(NextId(), channel, JsonDocument.Parse(r.Content!.ReadAsStringAsync().Result).RootElement.GetProperty("content").GetString()!, null, null, true, null));
+            else
+            {
+                var body = JsonDocument.Parse(r.Content!.ReadAsStringAsync().Result).RootElement.Clone();
+                Messages.Add(new Msg(NextId(), channel, body.TryGetProperty("content", out var c) ? c.GetString()! : "", null, null, true,
+                    body.TryGetProperty("embeds", out var e) ? e : null));
+            }
             return FakeHttp.Json(HttpStatusCode.OK, """{"id":"1"}""");
+        }
+        var edit = System.Text.RegularExpressions.Regex.Match(url, @"/channels/(\w+)/messages/(\d+)$");
+        if (edit.Success && r.Method.Method == "PATCH")
+        {
+            int i = Messages.FindIndex(x => x.Id == edit.Groups[2].Value);
+            var body = JsonDocument.Parse(r.Content!.ReadAsStringAsync().Result).RootElement.Clone();
+            Messages[i] = Messages[i] with { Embeds = body.GetProperty("embeds") };
+            Edits++;
+            return FakeHttp.Json(HttpStatusCode.OK, "{}");
         }
         return FakeHttp.Json(HttpStatusCode.OK, "{}");
     }
@@ -338,4 +353,46 @@ public class TournamentModeTests : IDisposable
         Assert.Equal("Prelims", saved.TournamentName);
         await s.PendingPosts;
     }
+}
+
+public class PrelimLeaderboardTests
+{
+    private readonly FakeDiscord _discord = new();
+    private readonly FakeClock _clock = new();
+
+    private GameRecord Prelim(string id, string name, string server, string host, int n, string reason)
+    {
+        var t = new GameTracker(new ScoringRules());
+        var g = t.Start(n, name, "X", "Skeld", Players.Lobby(), _clock.Now);
+        g.TournamentId = id; g.Server = server; g.Host = host; g.Mode = "Preliminary"; g.Id = $"{host}-{n}-{_clock.Now:HHmmss}";
+        _clock.Advance(600);
+        return t.End(reason, Outcome.WinnerFromReason(reason), Players.Lobby(), _clock.Now)!;
+    }
+
+    private PrelimLeaderboards Job() => new(new DiscordRest(new HttpClient(new FakeHttp { Default = _discord.Handle }), NullLog.Instance), "tok", NullLog.Instance);
+
+    [Fact]
+    public async Task One_leaderboard_per_preliminary_combining_every_lobby_and_edited_in_place()
+    {
+        _discord.AddGame("prelims", Prelim("oct-sus", "October: Sus Squad", "Sus Squad", "Soggy", 1, "HumansByTask"));
+        _discord.AddGame("prelims", Prelim("oct-sus", "October: Sus Squad", "Sus Squad", "Fred", 1, "HumansByTask"));   // a second lobby at once
+        _discord.AddGame("prelims", Prelim("oct-hq", "October: Crew HQ", "Crew HQ", "Millie", 1, "ImpostorByKill"));
+
+        Assert.Equal(2, await Job().UpdateAsync(new[] { "prelims" }));
+        var boards = _discord.Messages.Where(m => m.Embeds.HasValue).ToList();
+        Assert.Equal(2, boards.Count);
+        var sus = boards.Single(b => FakeDiscord.Title(Payload(b)) == "October: Sus Squad — Preliminary leaderboard");
+        Assert.Contains("2 games · 2 lobbies · Sus Squad", sus.Embeds!.Value[0].GetProperty("footer").GetProperty("text").GetString());
+
+        Assert.Equal(0, await Job().UpdateAsync(new[] { "prelims" }));        // nothing new: no edits
+
+        _discord.AddGame("prelims", Prelim("oct-sus", "October: Sus Squad", "Sus Squad", "Soggy", 2, "HumansByTask"));
+        _discord.Say("prelims", "!adjust Soggy-2 red -1 meta", _clock.Now);
+        Assert.Equal(1, await Job().UpdateAsync(new[] { "prelims" }));
+        Assert.Equal(1, _discord.Edits);
+        Assert.Equal(2, _discord.Messages.Count(m => m.Embeds.HasValue));   // still two messages
+        Assert.Contains("3 games", _discord.Messages.Where(m => m.Embeds.HasValue).Select(m => m.Embeds!.Value[0].GetProperty("footer").GetProperty("text").GetString()).First(t => t!.Contains("Sus")));
+    }
+
+    private static JsonElement Payload(FakeDiscord.Msg m) => JsonDocument.Parse("{\"embeds\":" + m.Embeds!.Value.GetRawText() + "}").RootElement;
 }
