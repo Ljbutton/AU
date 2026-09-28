@@ -52,6 +52,7 @@ namespace TournamentTracker
             }
             AutoMute?.Update(phase, playing, spectators);
             UpdateStatus(phase, players, lobbyCode, map, spectators?.Count ?? 0);
+            UpdateOverlay(phase, players, map);
             _lastPhase = phase;
         }
 

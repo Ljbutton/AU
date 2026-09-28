@@ -68,6 +68,7 @@ namespace TournamentTracker
 
             Store = StatsStore.Load(_statsPath, settings.TournamentName);
             LoadState();
+            if (_overlayOn) StartOverlay();
             Links = LinkRegistry.Load(Path.Combine(dataDir, "links.json"), log);
             Tracker = new GameTracker(settings.Scoring);
             Tracker.EventRecorded += OnTimelineEvent;
@@ -405,6 +406,7 @@ namespace TournamentTracker
         {
             _dispatcher?.Dispose();
             _gateway?.Dispose();
+            _overlay?.Dispose();
         }
     }
 }

@@ -40,6 +40,9 @@ namespace TournamentTracker
         /// <summary>This host's mod answers the organiser's commands in the results channel (!lobbies, !start…).</summary>
         public bool Lead { get; set; }
 
+        /// <summary>Port for the stream overlay (!overlay on), on this computer only.</summary>
+        public int OverlayPort { get; set; } = 8765;
+
         /// <summary>Tournament: the organiser's preliminary channels, read for server standings.</summary>
         public List<string> PrelimChannelIds { get; set; } = new List<string>();
 

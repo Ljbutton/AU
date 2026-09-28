@@ -83,6 +83,9 @@ namespace TournamentTracker
                         Reply("Posting the server standings.", false);
                     }
                     return true;
+                case "overlay" when fromHost:
+                    OverlayCommand(args);
+                    return true;
                 case "lead" when fromHost:
                     LeadCommand();
                     return true;
@@ -111,7 +114,7 @@ namespace TournamentTracker
             if (fromHost)
             {
                 Reply($"Host: {p}link <player> <discord> · {p}unlink <player> · {p}links · {p}automute on|off · " +
-                      $"{p}unmuteall · {p}ref on|off · {p}refslot on|off · {p}spectators on|off · {p}refresh · {p}r1 {p}r2… · {p}void [reason] · {p}unvoid · {p}lock on|off · {p}lead · {p}servers · {p}setup · {p}leaderboard · {p}resetleaderboard · {p}resetstats confirm", false);
+                      $"{p}unmuteall · {p}ref on|off · {p}refslot on|off · {p}spectators on|off · {p}refresh · {p}r1 {p}r2… · {p}void [reason] · {p}unvoid · {p}lock on|off · {p}lead · {p}overlay on|off · {p}servers · {p}setup · {p}leaderboard · {p}resetleaderboard · {p}resetstats confirm", false);
             }
         }
 
