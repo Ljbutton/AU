@@ -46,15 +46,28 @@ namespace TournamentTracker.Plugin.Patches
         });
     }
 
-    [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.CoStartMeeting))]
-    internal static class MeetingPatch
+    // The host starts every meeting (it approves reports and buttons) through RpcStartMeeting;
+    // StartMeeting is the receiving side. Both are hooked; the tracker ignores the second call.
+    internal static class MeetingHook
     {
-        public static void Prefix(PlayerControl __instance, NetworkedPlayerInfo __0) => Hook.Run("Meeting", () =>
+        public static void Record(PlayerControl caller, NetworkedPlayerInfo body) => Hook.Run("Meeting", () =>
         {
-            if (__instance == null) return;
+            if (caller == null) return;
             Driver.StartGame();
-            TournamentPlugin.Session.MeetingCalled(__instance.PlayerId, __0 == null ? null : __0.PlayerId);
+            TournamentPlugin.Session.MeetingCalled(caller.PlayerId, body == null ? null : body.PlayerId);
         });
+    }
+
+    [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.RpcStartMeeting))]
+    internal static class RpcStartMeetingPatch
+    {
+        public static void Prefix(PlayerControl __instance, NetworkedPlayerInfo __0) => MeetingHook.Record(__instance, __0);
+    }
+
+    [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.StartMeeting))]
+    internal static class StartMeetingPatch
+    {
+        public static void Prefix(PlayerControl __instance, NetworkedPlayerInfo __0) => MeetingHook.Record(__instance, __0);
     }
 
     [HarmonyPatch(typeof(MeetingHud), nameof(MeetingHud.VotingComplete))]
