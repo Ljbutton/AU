@@ -43,7 +43,7 @@ public class RefSlotTests : IDisposable
     }
 
     [Fact]
-    public void The_host_can_become_the_referee_ghost_or_pick_someone()
+    public void Only_the_host_can_be_the_referee_ghost()
     {
         var s = Session();
         var lobby = ElevenPlayers();
@@ -52,9 +52,9 @@ public class RefSlotTests : IDisposable
         Assert.Equal((byte)10, s.RefSlotPlayerId(lobby));
         Assert.Contains("Referee ghost slot ON", s.Pump().First().Text);
 
-        s.HandleChat(lobby[10], true, "!refslot green");
-        Assert.Equal((byte)2, s.RefSlotPlayerId(lobby));
-        Assert.Contains(s.Pump(), r => r.Public && r.Text == "Carl is the referee ghost for the next games.");
+        s.HandleChat(lobby[10], true, "!refslot green");        // picking someone else isn't a thing
+        Assert.Equal((byte)10, s.RefSlotPlayerId(lobby));
+        Assert.Contains("is ON: you become a ghost", s.Pump().Single().Text);
 
         Assert.False(s.HandleChat(lobby[0], false, "!refslot on"));
         s.HandleChat(lobby[10], true, "!refslot off");

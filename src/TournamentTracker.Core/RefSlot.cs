@@ -4,7 +4,7 @@ using System.Linq;
 namespace TournamentTracker
 {
     /// <summary>
-    /// The referee ghost slot: an extra player (the host, or someone they pick) who is made a
+    /// The referee ghost slot: the host joins as an extra player who is made a
     /// ghost as each game starts, so an 11-player lobby plays like 10 while the referee
     /// watches everything. The ghost is never an impostor, has no tasks, and is left out of
     /// stats, points and automute (they can always talk). Off until the host turns it on.
@@ -22,16 +22,16 @@ namespace TournamentTracker
         public IReadOnlyList<PlayerSnapshot> WithoutReferee(IReadOnlyList<PlayerSnapshot> players) =>
             RefSlotKey == null ? players : players.Where(p => p.Key != RefSlotKey).ToList();
 
+        /// <summary>!refslot on|off. Only the host can be the referee ghost.</summary>
         private void RefSlotCommand(PlayerSnapshot sender, string[] args)
         {
             string p = _settings.CommandPrefix;
-            string arg = string.Join(" ", args).Trim();
-            if (arg.Length == 0)
+            string arg = string.Join(" ", args).Trim().ToLowerInvariant();
+            if (arg != "on" && arg != "off")
             {
-                var who = RefSlotKey == null ? null : Players.FirstOrDefault(x => x.Key == RefSlotKey);
                 Reply(RefSlotKey == null
-                    ? $"Referee ghost slot is OFF. {p}refslot on makes you the ghost referee; {p}refslot <player> picks someone else."
-                    : $"Referee ghost slot is ON: {(who != null ? who.ToString() : "the saved referee (not in this lobby)")} becomes a ghost each game. {p}refslot off to stop.", false);
+                    ? $"Referee ghost slot is OFF. {p}refslot on makes you (the host) a ghost referee each game."
+                    : $"Referee ghost slot is ON: you become a ghost each game. {p}refslot off to stop.", false);
                 return;
             }
             if (Tracker.InGame)
@@ -39,24 +39,17 @@ namespace TournamentTracker
                 Reply("Change the referee slot in the lobby, between games.", false);
                 return;
             }
-            if (arg.Equals("off", System.StringComparison.OrdinalIgnoreCase))
+            if (arg == "off")
             {
                 RefSlotKey = null;
                 SaveState();
-                Reply("Referee ghost slot OFF: everyone plays normally.", false);
+                Reply("Referee ghost slot OFF: you play normally.", false);
                 return;
             }
-            var target = arg.Equals("on", System.StringComparison.OrdinalIgnoreCase) ? sender : FindPlayer(arg);
-            if (target == null)
-            {
-                Reply($"No player matches \"{arg}\".", false);
-                return;
-            }
-            RefSlotKey = target.Key;
+            RefSlotKey = sender.Key;
             SaveState();
-            Reply($"Referee ghost slot ON: {target} becomes a ghost at the start of each game (never impostor, no tasks, not scored). " +
-                  "Set the lobby to 11 players. A ghost with the mod installed can zoom out with the mouse wheel.", false);
-            if (target.Key != sender.Key) Reply($"{target.Name} is the referee ghost for the next games.", true);
+            Reply("Referee ghost slot ON: you become a ghost at the start of each game (never impostor, no tasks, not scored). " +
+                  "Set the lobby to 11 players. Zoom out with the mouse wheel or + and -.", false);
         }
     }
 }

@@ -133,12 +133,11 @@ right away.
 
 ### Referee ghost slot (experimental)
 
-For an 11-player lobby that plays like 10 while a referee watches: the host types
-`!refslot on` in the lobby to become the ghost referee, or `!refslot <player>` to pick
-someone else, and sets the lobby to 11 players. At the start of every game that player
-becomes a ghost: never an impostor, no tasks, not in stats, points or automute (they can
-always talk). A ghost with the mod installed can zoom out with the **mouse wheel** or
-**+ / −** to see the whole map. `!refslot off` turns it off; the choice is remembered.
+For an 11-player lobby that plays like 10 while the host referees: the host types
+`!refslot on` in the lobby and sets the lobby to 11 players. Only the host can be the ghost
+referee. At the start of every game the host becomes a ghost: never an impostor, no tasks, not in stats, points or automute (they can
+always talk). The host can zoom out with the **mouse wheel** or **+ / −** to see the
+whole map (for refereeing and streaming). `!refslot off` turns it off; the choice is remembered.
 
 ## Discord setup (without a setup code)
 
@@ -274,7 +273,7 @@ brings the old standings back.
 | `!resetleaderboard` | host | Start the combined leaderboard over for every lobby |
 | `!r1`, `!r2`… or `!round 3` | host | Start a tournament round (points restart; running total kept) |
 | `!servers` | host | Post the server standings |
-| `!refslot on\|off\|<player>` | host | Referee ghost slot (experimental) |
+| `!refslot on\|off` | host | Referee ghost slot: the host plays as a ghost referee (experimental) |
 | `!setup` | host | Apply the setup code on the clipboard (`!setup clear` to stop using one) |
 | `!resetstats confirm` | host | Archive the stats file and start a new leaderboard |
 

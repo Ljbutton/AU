@@ -1,0 +1,33 @@
+name: Release maintenance
+
+# Deletes GitHub releases and their tags. Run by hand: Actions > Release maintenance >
+# Run workflow, and list the tags to delete.
+
+on:
+  workflow_dispatch:
+    inputs:
+      delete_tags:
+        description: 'Releases (tags) to delete, space separated, e.g. v2.0.0 v2.1.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete releases and tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAGS: ${{ inputs.delete_tags }}
+        run: |
+          set -euo pipefail
+          for tag in $TAGS; do
+            if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
+              echo "Deleted release and tag $tag"
+            else
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag" && echo "Deleted tag $tag" || echo "No tag $tag"
+            fi
+          done

@@ -64,9 +64,9 @@ namespace TournamentTracker.Plugin
     }
 
     /// <summary>
-    /// Ghosts can zoom the camera out with the mouse wheel (or + and -) to watch the whole map,
-    /// for refereeing and streaming. Works for anyone with the mod installed, host or not,
-    /// but only while they're dead, so it can't help a living player.
+    /// The host, as a ghost, can zoom the camera out with the mouse wheel (or + and -) to watch
+    /// the whole map, for refereeing and streaming. Only while dead, so it never helps a
+    /// living player, and only for the host, who is the only referee ghost.
     /// </summary>
     internal static class GhostZoom
     {
@@ -79,8 +79,8 @@ namespace TournamentTracker.Plugin
             var camera = Camera.main;
             if (camera == null) return;
             var local = PlayerControl.LocalPlayer;
-            bool ghost = local != null && local.Data != null && local.Data.IsDead
-                         && AmongUsClient.Instance != null && AmongUsClient.Instance.GameState == InnerNetClient.GameStates.Started;
+            bool ghost = local != null && local.Data != null && local.Data.IsDead && Game.IsHost
+                         && AmongUsClient.Instance.GameState == InnerNetClient.GameStates.Started;
             if (!ghost)
             {
                 if (_zoomed) camera.orthographicSize = Normal;
