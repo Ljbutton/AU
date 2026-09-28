@@ -12,14 +12,38 @@ on:
         description: 'AmongUs.GameLibs.Steam version to build against (blank = latest)'
         required: false
       release_tag:
-        description: 'Publish a GitHub release with this tag, e.g. v2.0.0 (blank = just build)'
+        description: 'Publish a GitHub release with this tag, e.g. v1.0.1 (blank = just build)'
+        required: false
+      delete_tags:
+        description: 'Delete these releases and tags first, space separated (blank = none)'
         required: false
 
 permissions:
   contents: write
 
 jobs:
+  delete-releases:
+    if: inputs.delete_tags != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete releases and tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAGS: ${{ inputs.delete_tags }}
+        run: |
+          set -euo pipefail
+          for tag in $TAGS; do
+            if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
+              echo "Deleted release and tag $tag"
+            else
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag" && echo "Deleted tag $tag" || echo "No tag $tag"
+            fi
+          done
+
   build:
+    needs: delete-releases
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
