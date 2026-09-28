@@ -8,6 +8,15 @@ namespace TournamentTracker.Stats
     public sealed class GameRecord
     {
         public int GameNumber { get; set; }
+
+        /// <summary>The lobby label (the host's name unless LobbyLabel is set). Games are numbered per host.</summary>
+        public string Host { get; set; } = "";
+
+        /// <summary>Unique across hosts and restarts: label, number and start time, e.g. "LJ-3-20261003-192144".</summary>
+        public string Id { get; set; } = "";
+
+        /// <summary>What people see: "LJ-3", or just "3" without a label.</summary>
+        public string Name => Host.Length > 0 ? $"{Host}-{GameNumber}" : GameNumber.ToString();
         public string Tournament { get; set; } = "";
         public string LobbyCode { get; set; } = "";
         public string Map { get; set; } = "";

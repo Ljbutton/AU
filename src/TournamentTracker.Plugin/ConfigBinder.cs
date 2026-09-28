@@ -14,6 +14,8 @@ namespace TournamentTracker.Plugin
 
             s.TournamentName = config.Bind("General", "TournamentName", d.TournamentName,
                 "Stats are kept per tournament. Change the name to start a fresh leaderboard (the old one is kept).").Value;
+            s.LobbyLabel = config.Bind("General", "LobbyLabel", "",
+                "Names this host's lobby in Discord and in game numbers (\"Game LJ-3\"). Leave empty to use the host's in-game name. All hosts can then share one TournamentName.").Value.Trim();
             s.CommandPrefix = config.Bind("General", "CommandPrefix", d.CommandPrefix,
                 "Prefix for chat commands, e.g. !link").Value;
             s.AllowSelfLink = config.Bind("General", "AllowSelfLink", d.AllowSelfLink,
@@ -27,6 +29,8 @@ namespace TournamentTracker.Plugin
                 "Keep one live message in Discord showing the lobby code, map, phase, and each player's colour, name and Discord link. Deaths only show once the game has revealed them.").Value;
             s.StatusWebhookUrl = config.Bind("Discord", "StatusWebhookUrl", "",
                 "Webhook for the live status message. Leave empty to use the StatsWebhookUrl channel.").Value.Trim();
+            s.ResultsChannelId = config.Bind("Discord", "ResultsChannelId", "",
+                "For several hosts: the ID of a private channel where every host's mod posts its games, so one combined leaderboard covers all lobbies. Type !resetleaderboard in that channel to start it over. Needs a bot token and the Message Content Intent.").Value.Trim();
             s.PostLeaderboardAfterEachGame = config.Bind("Discord", "PostLeaderboardAfterEachGame", d.PostLeaderboardAfterEachGame,
                 "Post the updated leaderboard after every game.").Value;
             s.LeaderboardSize = config.Bind("Discord", "LeaderboardSize", d.LeaderboardSize,

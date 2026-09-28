@@ -122,6 +122,76 @@ namespace TournamentTracker.Discord
             }, "webhook:" + webhookUrl, ct);
         }
 
+        /// <summary>Posts a message with one file attached, as the bot.</summary>
+        public Task<DiscordResult> PostFileAsync(string botToken, string channelId, string content, string fileName, byte[] file, CancellationToken ct = default)
+        {
+            string payload = JsonSerializer.Serialize(new
+            {
+                content,
+                allowed_mentions = new { parse = Array.Empty<string>() },
+                attachments = new[] { new { id = 0, filename = fileName } },
+            });
+            return SendAsync(() =>
+            {
+                var form = new MultipartFormDataContent();
+                form.Add(new StringContent(payload, Encoding.UTF8, "application/json"), "payload_json");
+                var part = new ByteArrayContent(file);
+                part.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+                form.Add(part, "files[0]", fileName);
+                var req = new HttpRequestMessage(HttpMethod.Post, $"{_apiBase}/channels/{channelId}/messages") { Content = form };
+                Authorize(req, botToken);
+                return req;
+            }, "channel-post:" + botToken.GetHashCode() + ":" + channelId, ct);
+        }
+
+        public Task<DiscordResult> PostMessageAsync(string botToken, string channelId, string content, CancellationToken ct = default)
+        {
+            string payload = JsonSerializer.Serialize(new { content, allowed_mentions = new { parse = Array.Empty<string>() } });
+            return SendAsync(() =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post, $"{_apiBase}/channels/{channelId}/messages")
+                {
+                    Content = new StringContent(payload, Encoding.UTF8, "application/json"),
+                };
+                Authorize(req, botToken);
+                return req;
+            }, "channel-post:" + botToken.GetHashCode() + ":" + channelId, ct);
+        }
+
+        /// <summary>Up to 100 messages, newest first, older than <paramref name="before"/> when given.</summary>
+        public async Task<IReadOnlyList<ChannelMessage>?> GetMessagesAsync(string botToken, string channelId, string? before = null, CancellationToken ct = default)
+        {
+            var result = await SendAsync(() =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Get,
+                    $"{_apiBase}/channels/{channelId}/messages?limit=100" + (before == null ? "" : "&before=" + before));
+                Authorize(req, botToken);
+                return req;
+            }, "channel-read:" + botToken.GetHashCode() + ":" + channelId, ct).ConfigureAwait(false);
+            if (!result.Ok)
+            {
+                _log.Warn($"Could not read Discord channel {channelId}: {result}");
+                return null;
+            }
+            using var doc = JsonDocument.Parse(result.Body);
+            return doc.RootElement.EnumerateArray().Select(ChannelMessage.Parse).ToList();
+        }
+
+        /// <summary>Downloads an attachment from Discord's CDN (the URL carries its own signature).</summary>
+        public async Task<string?> DownloadAsync(string url, CancellationToken ct = default)
+        {
+            try
+            {
+                using var response = await _http.GetAsync(url, ct).ConfigureAwait(false);
+                return response.IsSuccessStatusCode ? await response.Content.ReadAsStringAsync().ConfigureAwait(false) : null;
+            }
+            catch (Exception e) when (!ct.IsCancellationRequested)
+            {
+                _log.Warn("Download failed: " + e.Message);
+                return null;
+            }
+        }
+
         /// <summary>Edits a message this webhook posted earlier.</summary>
         public Task<DiscordResult> EditWebhookMessageAsync(string webhookUrl, string messageId, WebhookMessage message, CancellationToken ct = default)
         {
@@ -272,6 +342,35 @@ namespace TournamentTracker.Discord
                 GlobalName = user.TryGetProperty("global_name", out var g) && g.ValueKind == JsonValueKind.String ? g.GetString() : null,
                 Nick = e.TryGetProperty("nick", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() : null,
             };
+        }
+    }
+
+    public sealed class ChannelMessage
+    {
+        public string Id { get; set; } = "";
+        public string Content { get; set; } = "";
+        public string AuthorId { get; set; } = "";
+        public bool AuthorIsBot { get; set; }
+        public int Embeds { get; set; }
+        public List<(string FileName, string Url)> Attachments { get; set; } = new List<(string, string)>();
+
+        internal static ChannelMessage Parse(JsonElement e)
+        {
+            var m = new ChannelMessage
+            {
+                Id = e.GetProperty("id").GetString() ?? "",
+                Content = e.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() ?? "" : "",
+                Embeds = e.TryGetProperty("embeds", out var em) && em.ValueKind == JsonValueKind.Array ? em.GetArrayLength() : 0,
+            };
+            if (e.TryGetProperty("author", out var a))
+            {
+                m.AuthorId = a.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "";
+                m.AuthorIsBot = a.TryGetProperty("bot", out var b) && b.ValueKind == JsonValueKind.True;
+            }
+            if (e.TryGetProperty("attachments", out var att) && att.ValueKind == JsonValueKind.Array)
+                foreach (var f in att.EnumerateArray())
+                    m.Attachments.Add((f.GetProperty("filename").GetString() ?? "", f.GetProperty("url").GetString() ?? ""));
+            return m;
         }
     }
 

@@ -66,6 +66,9 @@ namespace TournamentTracker
                 case "spectators" when fromHost:
                     SpectatorsCommand(args);
                     return true;
+                case "resetleaderboard" when fromHost:
+                    ResetLeaderboardCommand();
+                    return true;
                 case "resetstats" when fromHost:
                     ResetStatsCommand(args);
                     return true;
@@ -81,7 +84,7 @@ namespace TournamentTracker
             if (fromHost)
             {
                 Reply($"Host: {p}link <player> <discord> · {p}unlink <player> · {p}links · {p}automute on|off · " +
-                      $"{p}unmuteall · {p}ref on|off · {p}spectators on|off · {p}refresh · {p}leaderboard · {p}resetstats confirm", false);
+                      $"{p}unmuteall · {p}ref on|off · {p}spectators on|off · {p}refresh · {p}leaderboard · {p}resetleaderboard · {p}resetstats confirm", false);
             }
         }
 
@@ -208,13 +211,13 @@ namespace TournamentTracker
                 Reply($"No player matches \"{string.Join(" ", args)}\".", true);
                 return;
             }
-            var t = Store.Find(target.Key);
+            var t = Standings.Find(target.Key);
             if (t == null || t.Games == 0)
             {
                 Reply($"{target.Name}: no games yet.", true);
                 return;
             }
-            int rank = Store.Leaderboard().ToList().FindIndex(x => x.Key == t.Key) + 1;
+            int rank = Standings.Leaderboard().ToList().FindIndex(x => x.Key == t.Key) + 1;
             Reply($"{t.Name}: #{rank}, {ReportFormatter.Pts(t.Points)} pts, {t.Wins}W-{t.Losses}L, {t.Kills} kills", true);
             Reply($"Imp {t.ImpostorWins}/{t.ImpostorGames} · Crew {t.CrewWins}/{t.CrewGames} · votes {t.CorrectVotes}✓ {t.IncorrectVotes}✗", true);
         }
@@ -293,6 +296,12 @@ namespace TournamentTracker
 
         private void LeaderboardCommand()
         {
+            if (Shared != null)
+            {
+                Chain(PostCombinedAsync);
+                Reply("Posting the combined leaderboard for all lobbies.", false);
+                return;
+            }
             if (string.IsNullOrWhiteSpace(_settings.StatsWebhookUrl))
                 Reply("No StatsWebhookUrl set; showing top 5 here only.", false);
             else
@@ -300,6 +309,23 @@ namespace TournamentTracker
 
             var top = Store.Leaderboard().Take(5).Select((t, i) => $"{i + 1}. {t.Name} {ReportFormatter.Pts(t.Points)}");
             Reply(Store.GamesRecorded == 0 ? "No games recorded yet." : string.Join(" · ", top), false);
+        }
+
+        /// <summary>Starts the combined leaderboard over for every host. Past games stay in the channel.</summary>
+        private void ResetLeaderboardCommand()
+        {
+            if (Shared == null)
+            {
+                Reply($"There's no combined leaderboard (ResultsChannelId isn't set). To reset this PC's stats use {_settings.CommandPrefix}resetstats confirm.", false);
+                return;
+            }
+            string who = LobbyLabel();
+            Chain(async () =>
+            {
+                if (await Shared.PostResetAsync(who.Length > 0 ? who : "the host").ConfigureAwait(false))
+                    await PostCombinedAsync().ConfigureAwait(false);
+            });
+            Reply("Combined leaderboard reset for every lobby. Delete the reset message in the results channel to undo.", false);
         }
 
         private void ResetStatsCommand(string[] args)

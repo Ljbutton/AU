@@ -18,6 +18,7 @@ namespace TournamentTracker.Discord
     {
         public VoicePhase Phase { get; set; }
         public string LobbyCode { get; set; } = "";
+        public string Label { get; set; } = "";
         public string Map { get; set; } = "";
         public List<StatusPlayer> Players { get; set; } = new List<StatusPlayer>();
         public bool? AutoMuteOn { get; set; }
@@ -80,7 +81,7 @@ namespace TournamentTracker.Discord
                 {
                     new Embed
                     {
-                        Title = Title(s.Phase),
+                        Title = (s.Label.Length > 0 ? s.Label + " — " : "") + Title(s.Phase),
                         Color = Color(s.Phase),
                         Description = ReportFormatter.Clip(sb.ToString().TrimEnd(), Embed.DescriptionLimit),
                         Footer = footer.Count > 0 ? new EmbedFooter { Text = string.Join(" · ", footer) } : null,

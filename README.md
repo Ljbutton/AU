@@ -71,6 +71,9 @@ token, comma separated. The work is spread across all of them.
 
 **Keep the config file private.** Anyone with the bot token can control that bot.
 
+The bot isn't hosted anywhere: the mod on the host's PC acts as the bot while Among Us is
+open, so there's no server to run. The bot shows as offline when no host has the game open.
+
 #### Timing
 
 Voice switches a moment after the game does, so nobody gets cut off mid-word:
@@ -97,7 +100,8 @@ message shows when the referee is speaking.
 
 With `MuteSpectators = true` (or `!spectators on`), anyone in the game's voice channel who
 isn't playing is muted while a game is running and unmuted in the lobby. The game's voice
-channel is the one most linked players are in; set `VoiceChannelId` to pin it. Put casters
+channel is the one the host is in (once the host is linked), otherwise the one most linked
+players are in; set `VoiceChannelId` to pin it. Put casters
 and referees in `SpectatorExemptUserIds` so they're never muted. Off by default.
 
 ### Linking players to Discord
@@ -119,6 +123,36 @@ so a link survives name and colour changes, and they're saved in
 
 Unlinked players are never muted, and spectators only when `MuteSpectators` is on.
 
+## Several lobbies at once
+
+Each lobby needs its own host running the mod. Everything else is automatic:
+
+* **Labels.** Each lobby is named after its host's in-game name, so games are numbered per
+  host (`Game LJ-3`, `Game MAL-3`) with a unique ID that includes the start time
+  (`LJ-3-20261003-192144`). All hosts keep the same `TournamentName`. Set `LobbyLabel` to use
+  something else, e.g. "Bracket 1".
+* **Voice.** Each host's mod follows the voice channel that host is sitting in, so give each
+  lobby its own voice channel.
+* **Bots.** Give each host their own bot: Discord rate-limits each bot separately, so two
+  lobbies sharing one bot mute more slowly.
+
+### Combined leaderboard
+
+To have one leaderboard across every lobby, make a **private** text channel (e.g.
+`#tournament-data`) that each host's bot can see, send messages and attach files in, and put
+its channel ID in every host's `ResultsChannelId`. After each game, the host's mod posts
+the game's record there as a small file, then reads every host's files back and posts the
+combined leaderboard. Each host's own `!stats` and `!leaderboard` show the combined numbers.
+
+In the Developer Portal, turn on **Message Content Intent** (Bot → Privileged Gateway
+Intents) for every host's bot. Without it a bot can't read the files other bots posted, and
+the log warns about it.
+
+**To reset it**, type `!resetleaderboard` in that channel yourself, from any device, or use
+`!resetleaderboard` in the game as a host. Only games posted after the newest reset
+message count. The older game files stay in the channel, so deleting the reset message
+brings the old standings back.
+
 ## Chat commands
 
 | Command | Who | What |
@@ -135,7 +169,8 @@ Unlinked players are never muted, and spectators only when `MuteSpectators` is o
 | `!ref on\|off` | host | Referee mode: mute everyone in voice except the referees, to explain the rules |
 | `!spectators on\|off` | host | Mute people in voice who aren't playing, during games |
 | `!refresh` | host | Post a fresh live status message at the bottom of the channel |
-| `!leaderboard` | host | Post the leaderboard to Discord now |
+| `!leaderboard` | host | Post the leaderboard to Discord now (combined across lobbies if set up) |
+| `!resetleaderboard` | host | Start the combined leaderboard over for every lobby |
 | `!resetstats confirm` | host | Archive the stats file and start a new leaderboard |
 
 \* unless `AllowSelfLink = false`.
@@ -149,6 +184,7 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | Section | Setting | Default | |
 | --- | --- | --- | --- |
 | General | `TournamentName` | Among Us Tournament | A new name starts a new leaderboard. The old one is kept. |
+| General | `LobbyLabel` | | Names this lobby (`Game LJ-3`); empty = the host's in-game name |
 | General | `CommandPrefix` | `!` | |
 | General | `AllowSelfLink` | true | |
 | Discord | `StatsWebhookUrl` | | Game reports and leaderboard |
@@ -158,6 +194,7 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | Discord | `LeaderboardMinGames` | 1 | Games a player needs before they appear on the leaderboard |
 | Discord | `LeaderboardMentions` | false | Show linked players as @mentions on the leaderboard (nobody is pinged) |
 | Discord | `LiveStatus` | true | The live lobby status message |
+| Discord | `ResultsChannelId` | | Shared channel for the combined leaderboard across hosts |
 | Discord | `StatusWebhookUrl` | | Its own channel; empty = the stats channel |
 | AutoMute | `Enabled` | false | |
 | AutoMute | `BotTokens` | | Comma separated |

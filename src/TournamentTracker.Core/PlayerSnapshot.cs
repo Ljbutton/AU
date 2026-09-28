@@ -17,6 +17,9 @@ namespace TournamentTracker
         public int TasksCompleted { get; set; }
         public int TasksTotal { get; set; }
 
+        /// <summary>This is the host (the player running the mod).</summary>
+        public bool IsHost { get; set; }
+
         public bool IsAlive => !IsDead && !Disconnected;
 
         public static string MakeKey(string? friendCode, string name) =>

@@ -87,6 +87,20 @@ namespace TournamentTracker
                 _log.Warn("Automute is enabled but BotTokens or GuildId is empty; it stays off.");
             }
 
+            string? token = settings.AutoMute.BotTokens.FirstOrDefault();
+            if (settings.ResultsChannelId.Length > 0)
+            {
+                if (token == null)
+                {
+                    _log.Warn("ResultsChannelId is set but there is no bot token; the combined leaderboard is off.");
+                }
+                else
+                {
+                    Shared = new SharedResults(_rest, token, settings.ResultsChannelId, log);
+                    Chain(RefreshCombinedAsync);
+                }
+            }
+
             if (string.IsNullOrWhiteSpace(settings.StatsWebhookUrl))
                 _log.Warn("StatsWebhookUrl is empty: games are saved locally but not posted to Discord.");
         }
@@ -96,6 +110,15 @@ namespace TournamentTracker
         public GameTracker Tracker { get; }
         public AutoMuteController? AutoMute { get; }
         public IVoicePresence? Presence { get; }
+
+        /// <summary>The shared results channel, when several hosts share one leaderboard.</summary>
+        public SharedResults? Shared { get; }
+
+        /// <summary>The latest combined leaderboard read from the results channel.</summary>
+        public SharedLoad? Combined { get; private set; }
+
+        /// <summary>The leaderboard to show: combined across hosts when available, else this host's.</summary>
+        public StatsStore Standings => Combined?.Store ?? Store;
         private readonly VoiceGateway? _gateway;
 
         /// <summary>The most recent player list the plugin reported, used to resolve chat command targets.</summary>
@@ -113,8 +136,11 @@ namespace TournamentTracker
         {
             if (Tracker.InGame) return;
             Players = players;
-            Tracker.Start(Store.GamesRecorded + 1, _settings.TournamentName, lobbyCode, map, players, _clock());
-            _log.Info($"Tracking game {Store.GamesRecorded + 1} on {map} with {players.Count} players");
+            string label = LobbyLabel(players);
+            var game = Tracker.Start(Store.NextGameNumber(label), _settings.TournamentName, lobbyCode, map, players, _clock());
+            game.Host = label;
+            game.Id = $"{(label.Length > 0 ? FileSafe(label) + "-" : "")}{game.GameNumber}-{game.StartedUtc:yyyyMMdd-HHmmss}";
+            _log.Info($"Tracking game {game.Name} on {map} with {players.Count} players");
         }
 
         public void Kill(byte killerId, byte victimId) => Tracker.Kill(killerId, victimId, _clock());
@@ -138,25 +164,61 @@ namespace TournamentTracker
             if (game == null) return null;
 
             Store.Apply(game);
+            Store.NoteFinished(game);
             TrySave(() => Store.Save(_statsPath), "stats");
             TrySave(() =>
             {
                 Directory.CreateDirectory(_gamesDir);
-                string file = $"game-{game.GameNumber:0000}-{game.StartedUtc:yyyyMMdd-HHmmss}{(game.Counted ? "" : "-abandoned")}.json";
+                string file = $"game-{game.Id}{(game.Counted ? "" : "-abandoned")}.json";
                 File.WriteAllText(Path.Combine(_gamesDir, file), JsonSerializer.Serialize(game, GameJson));
             }, "game record");
 
-            _log.Info($"Game {game.GameNumber} over: {game.Winner ?? "no result"} ({reason})");
+            _log.Info($"Game {game.Name} over: {game.Winner ?? "no result"} ({reason})");
             Post(_settings.StatsWebhookUrl, ReportFormatter.GameReport(game));
-            if (game.Counted && _settings.PostLeaderboardAfterEachGame)
+            if (Shared != null)
+            {
+                if (game.Counted)
+                {
+                    Chain(async () =>
+                    {
+                        await Shared.PublishAsync(game).ConfigureAwait(false);
+                        if (_settings.PostLeaderboardAfterEachGame) await PostCombinedAsync().ConfigureAwait(false);
+                    });
+                }
+            }
+            else if (game.Counted && _settings.PostLeaderboardAfterEachGame)
+            {
                 Post(_settings.StatsWebhookUrl, LeaderboardMessage());
+            }
             // Move the live status below the report so it stays at the bottom of the channel.
             RepostStatus();
             return game;
         }
 
-        private WebhookMessage LeaderboardMessage() => ReportFormatter.Leaderboard(Store, _settings.LeaderboardSize,
-            _settings.LeaderboardMinGames, _settings.LeaderboardMentions ? key => Links.Find(key)?.DiscordUserId : null);
+        private WebhookMessage LeaderboardMessage(StatsStore? store = null, string? note = null)
+        {
+            var message = ReportFormatter.Leaderboard(store ?? Store, _settings.LeaderboardSize,
+                _settings.LeaderboardMinGames, _settings.LeaderboardMentions ? key => Links.Find(key)?.DiscordUserId : null);
+            if (note != null && message.Embeds?.FirstOrDefault()?.Footer is EmbedFooter footer) footer.Text = note + " · " + footer.Text;
+            return message;
+        }
+
+        private async Task RefreshCombinedAsync()
+        {
+            if (Shared == null) return;
+            var load = await Shared.LoadAsync(_settings.TournamentName).ConfigureAwait(false);
+            if (load != null) Combined = load;
+        }
+
+        /// <summary>Reads every host's games from the results channel and posts the combined leaderboard.</summary>
+        private async Task PostCombinedAsync()
+        {
+            await RefreshCombinedAsync().ConfigureAwait(false);
+            if (Combined == null || string.IsNullOrWhiteSpace(_settings.StatsWebhookUrl)) return;
+            string note = $"All lobbies ({Combined.Hosts} host{(Combined.Hosts == 1 ? "" : "s")})" + (Combined.SinceReset ? " since the last reset" : "");
+            var result = await _rest.ExecuteWebhookAsync(_settings.StatsWebhookUrl, LeaderboardMessage(Combined.Store, note)).ConfigureAwait(false);
+            if (!result.Ok) _log.Error("Discord webhook post failed: " + result);
+        }
 
         // ---- Voice ---------------------------------------------------------------------
 
@@ -195,12 +257,22 @@ namespace TournamentTracker
         private void Post(string webhookUrl, WebhookMessage message)
         {
             if (string.IsNullOrWhiteSpace(webhookUrl)) return;
+            Chain(async () =>
+            {
+                var result = await _rest.ExecuteWebhookAsync(webhookUrl, message).ConfigureAwait(false);
+                if (!result.Ok) _log.Error("Discord webhook post failed: " + result);
+            });
+        }
+
+        /// <summary>Runs Discord work in order with the posts, off the game thread.</summary>
+        private void Chain(Func<Task> work)
+        {
             lock (_postLock)
             {
                 _postChain = _postChain.ContinueWith(async _ =>
                 {
-                    var result = await _rest.ExecuteWebhookAsync(webhookUrl, message).ConfigureAwait(false);
-                    if (!result.Ok) _log.Error("Discord webhook post failed: " + result);
+                    try { await work().ConfigureAwait(false); }
+                    catch (Exception e) { _log.Error("Discord task failed: " + e.Message); }
                 }, TaskScheduler.Default).Unwrap();
             }
         }
@@ -209,6 +281,32 @@ namespace TournamentTracker
         {
             try { save(); }
             catch (Exception e) { _log.Error($"Could not save {what}: {e.Message}"); }
+        }
+
+        private string _hostLabel = "";
+
+        /// <summary>The configured LobbyLabel, else the host's in-game name.</summary>
+        public string LobbyLabel(IReadOnlyList<PlayerSnapshot>? players = null)
+        {
+            if (_settings.LobbyLabel.Trim().Length > 0) return Clean(_settings.LobbyLabel);
+            var host = (players ?? Players).FirstOrDefault(p => p.IsHost);
+            if (host != null && host.Name.Trim().Length > 0) _hostLabel = Clean(host.Name);
+            return _hostLabel;
+
+            static string Clean(string s)
+            {
+                s = s.Trim().Replace("`", "'");
+                return s.Length > 20 ? s.Substring(0, 20) : s;
+            }
+        }
+
+        /// <summary>A label safe for file names and IDs: letters, digits and dashes.</summary>
+        internal static string FileSafe(string s)
+        {
+            var chars = s.Trim().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray();
+            string safe = new string(chars).Trim('-');
+            while (safe.Contains("--")) safe = safe.Replace("--", "-");
+            return safe.Length == 0 ? "host" : safe;
         }
 
         private static string Slug(string name)

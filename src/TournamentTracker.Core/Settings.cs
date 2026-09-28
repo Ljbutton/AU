@@ -7,6 +7,12 @@ namespace TournamentTracker
         /// <summary>Stats are kept per tournament name, so a new name starts a fresh leaderboard.</summary>
         public string TournamentName { get; set; } = "Among Us Tournament";
 
+        /// <summary>
+        /// Names this host's lobby in Discord and in game numbers ("Game LJ-3"). Empty: the
+        /// host's in-game name. Lets several hosts share one TournamentName.
+        /// </summary>
+        public string LobbyLabel { get; set; } = "";
+
         /// <summary>Discord webhook that receives the end-of-game report and leaderboard.</summary>
         public string StatsWebhookUrl { get; set; } = "";
 
@@ -18,6 +24,12 @@ namespace TournamentTracker
 
         /// <summary>Webhook for the live status message. Empty: the StatsWebhookUrl channel.</summary>
         public string StatusWebhookUrl { get; set; } = "";
+
+        /// <summary>
+        /// A private channel where every host's mod posts its games, for one combined leaderboard
+        /// across all lobbies. Uses the first bot token. Empty: each host keeps its own leaderboard.
+        /// </summary>
+        public string ResultsChannelId { get; set; } = "";
 
         public bool PostLeaderboardAfterEachGame { get; set; } = true;
         public int LeaderboardSize { get; set; } = 15;

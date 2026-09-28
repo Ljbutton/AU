@@ -20,9 +20,9 @@ namespace TournamentTracker.Discord
         {
             string title = game.Winner switch
             {
-                Outcome.Impostors => $"Game {game.GameNumber} — Impostors win",
-                Outcome.Crewmates => $"Game {game.GameNumber} — Crewmates win",
-                _ => $"Game {game.GameNumber} — no result (not counted)",
+                Outcome.Impostors => $"Game {game.Name} — Impostors win",
+                Outcome.Crewmates => $"Game {game.Name} — Crewmates win",
+                _ => $"Game {game.Name} — no result (not counted)",
             };
 
             var summary = new Embed
@@ -39,7 +39,7 @@ namespace TournamentTracker.Discord
                     Field("Meetings", MeetingSummary(game), true),
                     Field("MVP", Mvp(game), true),
                 },
-                Footer = new EmbedFooter { Text = $"{game.Tournament} · Lobby {game.LobbyCode}" },
+                Footer = new EmbedFooter { Text = $"{game.Tournament} · {(game.Id.Length > 0 ? game.Id : "game " + game.GameNumber)} · Lobby {game.LobbyCode}" },
                 Timestamp = (game.EndedUtc ?? game.StartedUtc).ToString("o", CultureInfo.InvariantCulture),
             };
 
@@ -151,7 +151,7 @@ namespace TournamentTracker.Discord
         public static WebhookMessage LiveEvent(GameRecord game, TimelineEvent e) => new WebhookMessage
         {
             Username = BotName,
-            Content = Clip($"`G{game.GameNumber} {Clock(e.AtSeconds)}` {Icon(e.Kind)} {Escape(e.Text)}", 2000),
+            Content = Clip($"`{game.Name} {Clock(e.AtSeconds)}` {Icon(e.Kind)} {Escape(e.Text)}", 2000),
         };
 
         public static string PlayerTable(GameRecord game)

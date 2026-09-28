@@ -66,8 +66,10 @@ namespace TournamentTracker.Plugin
             }
 
             string name = p.PlayerName ?? "";
+            var local = PlayerControl.LocalPlayer;
             return new PlayerSnapshot
             {
+                IsHost = local != null && local.PlayerId == p.PlayerId,
                 PlayerId = p.PlayerId,
                 Key = PlayerSnapshot.MakeKey(p.FriendCode, name),
                 Name = name,

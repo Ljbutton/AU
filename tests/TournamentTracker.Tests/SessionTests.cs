@@ -61,7 +61,7 @@ public class SessionTests : IDisposable
 
         Assert.Equal(Outcome.Crewmates, game.Winner);
         Assert.Equal(1, s.Store.GamesRecorded);
-        Assert.Single(Directory.GetFiles(Path.Combine(_dir.Path, "games", "fall-cup"), "game-0001-*.json"));
+        Assert.Single(Directory.GetFiles(Path.Combine(_dir.Path, "games", "fall-cup"), "game-1-*.json"));
 
         var posts = _http.Requests.Where(r => r.Url.StartsWith(Webhook)).ToList();
         Assert.Equal(2, posts.Count);

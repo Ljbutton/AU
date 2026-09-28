@@ -59,6 +59,13 @@ namespace TournamentTracker.Stats
         public int ImpostorWins { get; set; }
         public Dictionary<string, PlayerTotals> Players { get; set; } = new Dictionary<string, PlayerTotals>();
 
+        /// <summary>Games finished per lobby label, counted or not, so each host's games number 1, 2, 3…</summary>
+        public Dictionary<string, int> GamesByHost { get; set; } = new Dictionary<string, int>();
+
+        public int NextGameNumber(string host) => (GamesByHost.TryGetValue(host, out var n) ? n : 0) + 1;
+
+        public void NoteFinished(GameRecord game) => GamesByHost[game.Host] = Math.Max(game.GameNumber, GamesByHost.TryGetValue(game.Host, out var n) ? n : 0);
+
         public void Apply(GameRecord game)
         {
             if (!game.Counted) return;

@@ -66,11 +66,18 @@ namespace TournamentTracker
 
         // ---- Voice channel -------------------------------------------------------------
 
-        /// <summary>The configured voice channel, or the one most linked players are in.</summary>
+        /// <summary>
+        /// The configured voice channel; else the one the host is in (if the host is linked);
+        /// else the one most linked players are in.
+        /// </summary>
         private string? GameVoiceChannel(IReadOnlyList<PlayerSnapshot> players)
         {
             if (Presence == null || !Presence.Connected) return null;
             if (_settings.AutoMute.VoiceChannelId.Length > 0) return _settings.AutoMute.VoiceChannelId;
+            var host = players.FirstOrDefault(p => p.IsHost);
+            var hostId = host == null ? null : Links.Find(host.Key)?.DiscordUserId;
+            var hostChannel = hostId == null ? null : Presence.Members.FirstOrDefault(m => m.UserId == hostId)?.ChannelId;
+            if (hostChannel != null) return hostChannel;
             var linked = new HashSet<string>(players.Select(p => Links.Find(p.Key)?.DiscordUserId).Where(id => id != null)!);
             return Presence.Members
                 .Where(m => linked.Contains(m.UserId))
@@ -153,6 +160,7 @@ namespace TournamentTracker
             var info = new StatusInfo
             {
                 Phase = phase,
+                Label = LobbyLabel(players),
                 LobbyCode = lobbyCode,
                 Map = map,
                 AutoMuteOn = AutoMute?.Enabled,
