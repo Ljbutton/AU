@@ -28,6 +28,9 @@ jobs:
       - name: Test the core
         run: dotnet test tests/TournamentTracker.Tests -c Release
 
+      - name: List game library versions on the BepInEx feed
+        run: curl -fsSL https://nuget.bepinex.dev/v3-flatcontainer/amongus.gamelibs.steam/index.json | tail -c 600
+
       - name: Build the plugin
         run: >
           dotnet build src/TournamentTracker.Plugin -c Release

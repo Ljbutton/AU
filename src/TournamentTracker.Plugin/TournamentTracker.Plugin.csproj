@@ -12,9 +12,9 @@
     <RootNamespace>TournamentTracker.Plugin</RootNamespace>
     <DebugType>embedded</DebugType>
     <RestoreAdditionalProjectSources>https://nuget.bepinex.dev/v3/index.json</RestoreAdditionalProjectSources>
-    <GameLibsVersion Condition="'$(GameLibsVersion)' == ''">*</GameLibsVersion>
+    <GameLibsVersion Condition="'$(GameLibsVersion)' == ''">*-*</GameLibsVersion>
     <BepInExVersion Condition="'$(BepInExVersion)' == ''">6.0.0-be.*</BepInExVersion>
-    <NoWarn>$(NoWarn);NU1603;NU1604</NoWarn>
+    <NoWarn>$(NoWarn);NU1604</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
