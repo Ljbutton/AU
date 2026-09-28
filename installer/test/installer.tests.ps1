@@ -52,6 +52,14 @@ Set-Content -LiteralPath (Join-Parts @($bundle, 'BepInEx', 'plugins', 'Tournamen
 Install-Bundle $bundle $game | Out-Null
 Check ((Get-Content -LiteralPath (Join-Parts @($game, 'BepInEx', 'plugins', 'TournamentTracker.dll'))) -eq 'newer') 'running it again updates the mod'
 
+# Setup codes
+$code = 'TT1-eyJtIjoicHJlbGltIiwiaWQiOiJvY3Qtc3VzIiwibiI6Ik9jdG9iZXIgcHJlbGltcyIsInNydiI6IlN1cyBTcXVhZCIsIndoIjoiaHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMS94In0'
+$parsed = Read-SetupCode ("  " + $code.Insert(12, "`n ") + "  ")
+Check ($parsed -and $parsed.Description -eq 'October prelims (preliminary in Sus Squad)') 'reads a setup code, even with line breaks from copying'
+Check ($parsed.Code -eq $code) 'keeps the code without the stray whitespace'
+Check ($null -eq (Read-SetupCode 'hello')) 'rejects text that is not a setup code'
+Check ($null -eq (Read-SetupCode 'TT1-bm90anNvbg')) 'rejects a damaged code'
+
 Remove-Item -LiteralPath $root -Recurse -Force
 if ($failures -gt 0) { Write-Host "$failures check(s) failed" -ForegroundColor Red; exit 1 }
 Write-Host 'All installer checks passed.'

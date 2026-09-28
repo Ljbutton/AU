@@ -99,6 +99,52 @@ function Install-Bundle([string]$bundleDir, [string]$gameDir) {
            (Test-Path -LiteralPath (Join-Parts @($gameDir, 'winhttp.dll')))
 }
 
+# Reads a setup code (TT1-...) far enough to show what it's for. Returns $null if it isn't one.
+function Read-SetupCode([string]$text) {
+    $t = ($text -replace '\s', '')
+    $i = $t.IndexOf('TT1-')
+    if ($i -lt 0) { return $null }
+    $body = $t.Substring($i + 4).Replace('-', '+').Replace('_', '/')
+    while ($body.Length % 4 -ne 0) { $body += '=' }
+    try {
+        $json = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($body)) | ConvertFrom-Json
+        if (-not $json.n -or -not $json.wh) { return $null }
+        $mode = if ($json.m -eq 'tournament') { 'tournament host' } else { 'preliminary' }
+        $where = if ($json.srv) { " in $($json.srv)" } else { '' }
+        return [pscustomobject]@{ Code = $t.Substring($i); Description = "$($json.n) ($mode$where)" }
+    } catch {
+        return $null
+    }
+}
+
+# Asks for the organiser's setup code and saves it where the mod reads it.
+function Set-SetupCode([string]$gameDir) {
+    $dir = Join-Parts @($gameDir, 'BepInEx', 'config', 'TournamentTracker')
+    $file = Join-Parts @($dir, 'setup-code.txt')
+    $current = if (Test-Exists $file) { Read-SetupCode (Get-Content -Raw -LiteralPath $file) } else { $null }
+
+    Write-Step 'Setup code'
+    if ($current) {
+        Write-Host "  Current setup: $($current.Description)"
+        Write-Host '  Paste a new code to replace it, or just press Enter to keep it.'
+    } else {
+        Write-Host '  Paste the setup code the organiser gave you (it starts with TT1-),'
+        Write-Host '  then press Enter. No code? Just press Enter.'
+    }
+    while ($true) {
+        $text = Read-Host '  Code'
+        if (-not $text -or -not $text.Trim()) { return $current }
+        $code = Read-SetupCode $text
+        if ($code) {
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+            Set-Content -LiteralPath $file -Value $code.Code -Encoding ASCII
+            Write-Ok "Set up for: $($code.Description)"
+            return $code
+        }
+        Write-Problem "That doesn't look like a setup code. Copy the whole code (it starts with TT1-) and paste it again, or press Enter to skip."
+    }
+}
+
 function Invoke-Installer {
     Write-Host ''
     Write-Host '  ============================================' -ForegroundColor Magenta
@@ -154,16 +200,22 @@ function Invoke-Installer {
         Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
     }
 
+    Write-Ok 'Mod installed.'
+    $setup = Set-SetupCode $gameDir
+
     Write-Host ''
-    Write-Ok 'Installed!'
+    Write-Ok 'All done!'
     Write-Host ''
-    Write-Host '  Next:'
-    Write-Host '   1. Start Among Us. The FIRST start takes a few minutes: a black console window'
-    Write-Host '      appears while the mod loader sets itself up. That only happens once.'
-    Write-Host '   2. Close the game, then fill in the settings file:'
-    Write-Host "      $(Join-Parts @($gameDir, 'BepInEx', 'config', 'com.ljbutton.tournamenttracker.cfg'))"
+    Write-Host '  Next: start Among Us and host a lobby. The FIRST start takes a few minutes:'
+    Write-Host '  a black console window appears while the mod loader sets itself up. That only'
+    Write-Host '  happens once.'
+    if (-not $setup) {
+        Write-Host ''
+        Write-Host '  No setup code yet. When you get one, copy it and type !setup in the lobby chat,'
+        Write-Host '  or run this installer again.'
+    }
     Write-Host ''
-    Write-Host '  To update later, run this installer again. Your settings are kept.'
+    Write-Host '  To update later, run this installer again. Your setup and stats are kept.'
 }
 
 if ($env:TT_INSTALLER_TEST -ne '1') {
