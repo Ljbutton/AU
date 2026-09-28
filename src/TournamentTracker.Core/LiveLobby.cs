@@ -189,7 +189,7 @@ namespace TournamentTracker
         {
             if (_statusClosed || !_settings.LiveStatus) return;
             _statusClosed = true;
-            SetStatus(StatusFormatter.Build(new StatusInfo { Phase = VoicePhase.Menu }));
+            SetStatus(StatusFormatter.Build(new StatusInfo { Phase = VoicePhase.Menu, Label = LobbyLabel() }));
         }
 
         private void SetStatus(WebhookMessage message)

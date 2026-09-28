@@ -358,7 +358,7 @@ public class LiveLobbyTests : IDisposable
         await s.PendingPosts;
         var closed = _http.Requests.Last();
         Assert.Equal(Webhook + "/messages/502", closed.Url);
-        Assert.Equal("Lobby closed", Title(closed));
+        Assert.EndsWith("Lobby closed", Title(closed));
     }
 
     [Fact]
