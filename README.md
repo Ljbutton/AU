@@ -137,13 +137,20 @@ allowed, penalties are negative, and 0 switches a rule off.
 | First player killed | +1 | `DiedFirst` |
 | Killed (not first) | +0.5 | `GotKilled` |
 | Voted for a crewmate who got ejected | −2 each | `IncorrectVoteOut` |
+| Vote accuracy bonus: % of their votes that were on impostors | up to +2 | `VoteAccuracyBonus` |
+| Task bonus: % of their tasks finished | up to +2 | `TaskPercentBonus` |
 | Win by tasks | +5 | `CrewTaskWin` |
 | Win by vote | +3 | `CrewVoteWin` |
 | Alive when the team loses to sabotage | −5 | `CrewSabotageLossAlive` |
 | Any other loss | −1 | `CrewOtherLoss` |
 
-Votes only score when they put someone out: a vote for an impostor who survives the meeting
-earns nothing. Win and loss points go to the whole team, dead or alive, but not to anyone
+The vote-out points only count votes that put someone out: a vote for an impostor who
+survives the meeting earns no vote-out points. That vote still counts toward the **vote
+accuracy bonus**, which scales with the share of all a crewmate's votes that were on
+impostors (skips and missed votes don't count either way). The **task bonus** scales the
+same way with the share of tasks finished, on top of the +3 for finishing all of them. At
+the defaults, 2 of 3 correct votes (67%) earns +1.5 and 3 of 4 tasks (75%) earns +1.5. Both
+round to the nearest half point (`BonusRounding`). Win and loss points go to the whole team, dead or alive, but not to anyone
 who disconnected. A game won because the other team disconnected isn't on the sheet, so it
 scores nothing unless you set `DisconnectWin`.
 

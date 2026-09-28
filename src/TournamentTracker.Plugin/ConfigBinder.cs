@@ -67,6 +67,9 @@ namespace TournamentTracker.Plugin
             p.DiedFirst = Rule("DiedFirst", p.DiedFirst, "Crewmate: first player killed (instead of GotKilled).");
             p.GotKilled = Rule("GotKilled", p.GotKilled, "Crewmate: killed, other than first.");
             p.IncorrectVoteOut = Rule("IncorrectVoteOut", p.IncorrectVoteOut, "Crewmate: per vote for a crewmate who then got ejected.");
+            p.VoteAccuracyBonus = Rule("VoteAccuracyBonus", p.VoteAccuracyBonus, "Crewmate: bonus scaled by the share of their votes that were on impostors (full amount at 100%). Counts every vote, ejected or not; skips don't count.");
+            p.TaskPercentBonus = Rule("TaskPercentBonus", p.TaskPercentBonus, "Crewmate: bonus scaled by the share of their tasks they finished (full amount at 100%).");
+            p.BonusRounding = Rule("BonusRounding", p.BonusRounding, "Round the two percentage bonuses to a multiple of this (0.5 = halves, 0 = exact).");
             p.CrewTaskWin = Rule("CrewTaskWin", p.CrewTaskWin, "Crewmate: team won on tasks.");
             p.CrewVoteWin = Rule("CrewVoteWin", p.CrewVoteWin, "Crewmate: team won by voting the impostors out.");
             p.CrewSabotageLossAlive = Rule("CrewSabotageLossAlive", p.CrewSabotageLossAlive, "Crewmate: alive when the team lost to a sabotage.");

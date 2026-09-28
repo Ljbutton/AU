@@ -7,7 +7,8 @@ namespace TournamentTracker.Tests;
 public class ScoringTests
 {
     private readonly FakeClock _clock = new();
-    private readonly GameTracker _t = new(new ScoringRules());
+    // The sheet's own rules; the percentage bonuses have their own tests below.
+    private readonly GameTracker _t = new(new ScoringRules { VoteAccuracyBonus = 0, TaskPercentBonus = 0 });
 
     private void Start() => _t.Start(1, "Cup", "X", "Polus", Players.Lobby(), _clock.Now);
 
@@ -110,6 +111,44 @@ public class ScoringTests
         Assert.Equal(2 + 1 + 10, g.ById(0)!.Points);
         Assert.Equal(-1, g.ById(2)!.Points);
     }
+
+    [Fact]
+    public void Percentage_bonuses_scale_with_vote_accuracy_and_tasks()
+    {
+        var t = new GameTracker(new ScoringRules());   // defaults: 2 max each, halves
+        var lobby = Players.Lobby();                    // crewmates have 4 tasks
+        t.Start(1, "Cup", "X", "Polus", lobby, _clock.Now);
+        // Green votes an impostor twice and a crewmate once: 67% -> 1.33 -> 1.5.
+        t.VotingComplete(new[] { new VoteCast(2, 0), new VoteCast(3, 1) }, null, false, _clock.Now);
+        t.VotingComplete(new[] { new VoteCast(2, 1), new VoteCast(3, VoteCast.SkippedVote) }, null, false, _clock.Now);
+        t.VotingComplete(new[] { new VoteCast(2, 4) }, null, false, _clock.Now);
+        var final = Players.Lobby();
+        final[2].TasksCompleted = 3;                    // 75% -> 1.5
+        final[3].TasksCompleted = 1;                    // 25% -> 0.5
+        var g = t.End("HumansByTask", Outcome.Crewmates, final, _clock.Now)!;
+
+        var green = g.ById(2)!;
+        Assert.Contains(green.PointBreakdown, l => l.Rule == "Vote accuracy 67%" && l.Points == 1.5);
+        Assert.Contains(green.PointBreakdown, l => l.Rule == "Tasks 75%" && l.Points == 1.5);
+        Assert.Equal(1.5 + 1.5 + 5, green.Points);
+
+        var pink = g.ById(3)!;                          // one vote on an impostor, one skip: 100%
+        Assert.Contains(pink.PointBreakdown, l => l.Rule == "Vote accuracy 100%" && l.Points == 2);
+        Assert.Contains(pink.PointBreakdown, l => l.Rule == "Tasks 25%" && l.Points == 0.5);
+
+        var orange = g.ById(4)!;                        // never voted: no vote bonus at all
+        Assert.DoesNotContain(orange.PointBreakdown, l => l.Rule.StartsWith("Vote accuracy"));
+        Assert.DoesNotContain(g.ById(0)!.PointBreakdown, l => l.Rule.StartsWith("Tasks"));   // impostors don't get them
+    }
+
+    [Theory]
+    [InlineData(2, 0.67, 0.5, 1.5)]
+    [InlineData(2, 0.6, 0.5, 1.0)]
+    [InlineData(2, 0.625, 0.5, 1.5)]
+    [InlineData(3, 1.0, 0.5, 3.0)]
+    [InlineData(2, 0.67, 0, 1.34)]
+    public void Scaled_bonus_rounds_to_the_step(double max, double share, double step, double expected) =>
+        Assert.Equal(expected, Scoring.Scaled(max, share, step), 3);
 
     [Theory]
     [InlineData("HumansByTask", "Tasks")]

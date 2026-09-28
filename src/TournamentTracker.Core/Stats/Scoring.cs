@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -60,6 +61,12 @@ namespace TournamentTracker.Stats
                 else if (p.DeathCause == "Killed") Add("Got killed", r.GotKilled);
                 Add("Incorrect vote out", r.IncorrectVoteOut, p.EjectVotesOnCrewmate);
 
+                int graded = p.CorrectVotes + p.IncorrectVotes;
+                if (graded > 0)
+                    Add($"Vote accuracy {Percent(p.CorrectVotes, graded)}%", Scaled(r.VoteAccuracyBonus, (double)p.CorrectVotes / graded, r.BonusRounding));
+                if (p.TasksTotal > 0)
+                    Add($"Tasks {Percent(p.TasksCompleted, p.TasksTotal)}%", Scaled(r.TaskPercentBonus, (double)p.TasksCompleted / p.TasksTotal, r.BonusRounding));
+
                 if (!left && game.Winner != null)
                 {
                     if (won)
@@ -83,6 +90,15 @@ namespace TournamentTracker.Stats
             }
             return lines;
         }
+
+        /// <summary><paramref name="max"/> scaled by <paramref name="share"/> (0 to 1), rounded to a multiple of <paramref name="step"/>.</summary>
+        public static double Scaled(double max, double share, double step)
+        {
+            double value = max * Math.Clamp(share, 0, 1);
+            return step > 0 ? Math.Round(value / step, MidpointRounding.AwayFromZero) * step : value;
+        }
+
+        private static int Percent(int part, int whole) => (int)Math.Round(100.0 * part / whole, MidpointRounding.AwayFromZero);
 
         public static double Total(IEnumerable<PointLine> lines) => lines.Sum(l => l.Points);
     }

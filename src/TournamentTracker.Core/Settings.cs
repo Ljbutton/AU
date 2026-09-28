@@ -85,6 +85,14 @@ namespace TournamentTracker
         public double CrewSabotageLossAlive { get; set; } = -5;
         public double CrewOtherLoss { get; set; } = -1;
 
+        // Crewmate bonuses scaled by percentage: the full amount at 100%, half at 50%, and so on.
+        /// <summary>Share of the crewmate's votes that were on impostors (whether or not they got ejected).</summary>
+        public double VoteAccuracyBonus { get; set; } = 2;
+        /// <summary>Share of the crewmate's tasks they finished.</summary>
+        public double TaskPercentBonus { get; set; } = 2;
+        /// <summary>Percentage bonuses round to the nearest multiple of this (0.5 = halves). 0 keeps exact values.</summary>
+        public double BonusRounding { get; set; } = 0.5;
+
         // Crewmate penalties
         public double IncorrectVoteOut { get; set; } = -2;
 

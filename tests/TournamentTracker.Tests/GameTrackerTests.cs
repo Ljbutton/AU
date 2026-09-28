@@ -69,8 +69,10 @@ public class GameTrackerTests
         Assert.Equal(1 + 1 - 2 + 3, alice.Points);      // kill, first blood, voted out first, kill win
         Assert.Equal(2 + 3, bob.Points);                // two kills, kill win
         Assert.Equal(1 - 1, game.ById(2)!.Points);      // died first, lost
-        Assert.Equal(2 + 1 + 0.5 - 1, dana.Points);     // correct vote out, caught killer, got killed, lost
-        Assert.Equal(3 + 2 + 0.5 - 1, eve.Points);      // tasks, correct vote out, got killed, lost
+        // correct vote out, caught killer, got killed, lost, 100% vote accuracy
+        Assert.Equal(2 + 1 + 0.5 - 1 + 2, dana.Points);
+        // tasks, correct vote out, got killed, lost, 100% vote accuracy, 100% tasks
+        Assert.Equal(3 + 2 + 0.5 - 1 + 2 + 2, eve.Points);
         Assert.Equal(-1, finn.Points);                  // missed the vote, lost
         Assert.Equal(new[] { "Kill", "First blood", "Voted out first", "Kill win" }, alice.PointBreakdown.Select(l => l.Rule));
         Assert.Equal(1, alice.ImpostorEjectOrder);
