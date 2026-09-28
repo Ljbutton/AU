@@ -29,7 +29,12 @@ jobs:
         run: dotnet test tests/TournamentTracker.Tests -c Release
 
       - name: List game library versions on the BepInEx feed
-        run: curl -fsSL https://nuget.bepinex.dev/v3-flatcontainer/amongus.gamelibs.steam/index.json | tail -c 600
+        run: |
+          curl -fsSL "https://nuget.bepinex.dev/v3/search?q=AmongUs.GameLibs&prerelease=true&take=5" \
+            | python3 -c "import sys,json; [print(d['id'], [v['version'] for v in d['versions']][-8:]) for d in json.load(sys.stdin)['data']]" || true
+          dotnet restore src/TournamentTracker.Plugin \
+            ${{ inputs.game_libs_version && format('-p:GameLibsVersion={0}', inputs.game_libs_version) || '' }}
+          grep -o '"AmongUs.GameLibs.Steam/[^"]*"' src/TournamentTracker.Plugin/obj/project.assets.json | sort -u
 
       - name: Build the plugin
         run: >
