@@ -69,6 +69,42 @@ so a link survives name and colour changes, and they're saved in
 
 Unlinked players, casters and spectators in the voice channel are never muted.
 
+## Google Sheets
+
+The mod can also write every game into a Google Sheet, so referees get a spreadsheet
+they can filter, total and correct. Start from a **new, blank** spreadsheet; the script
+creates everything else.
+
+1. Create a blank sheet at <https://sheets.new> and name it (e.g. "Fall Cup Results").
+2. Open **Extensions → Apps Script**. Delete the sample code, paste in all of
+   `TournamentSheet.gs` (it's in the ZIP and in `sheets/` in this repo), and change
+   `const SECRET = 'change-me';` to a password of your own. Save.
+3. Choose `setup` in the function menu and click **Run**. Google asks you to authorise the
+   script for your own sheet; allow it. The tabs appear in your spreadsheet.
+4. Click **Deploy → New deployment**, pick type **Web app**, set *Execute as* **Me** and
+   *Who has access* **Anyone**, then **Deploy**. Copy the web app URL (it ends in `/exec`).
+5. In the mod config, under `[GoogleSheets]`, set `WebAppUrl` to that URL and `Secret` to
+   your password.
+
+Opening the URL in a browser shows "Tournament sheet is ready" when it's deployed. After
+you change the script, use **Deploy → Manage deployments → Edit → New version** so the URL
+keeps working.
+
+The tabs:
+
+| Tab | What's in it |
+| --- | --- |
+| Leaderboard | Points, games, wins, kills, votes, tasks, vote % and task % per player. It recalculates from Player Games. Type a tournament name in B1 to show only that tournament. |
+| Player Games | One row per player per game, with every stat and the points. Referees can type in **Ref Adj** (e.g. −2 for a meta call) and **Ref Note**; the leaderboard includes the adjustment. |
+| Games | One row per game: map, winner, how it ended, length, impostors, MVP. |
+| Points Detail | Every rule each player scored on, to check against the point sheet. |
+| Players | The name used for each friend code. Rename a player here and later games use the new name. |
+
+If the sheet can't be reached (no internet, script not deployed yet), the game waits on
+the host's PC and is sent after the next game or when the mod starts. `!sheetsync` sends
+every saved game of the tournament again. Rows are replaced rather than duplicated, and
+referee adjustments are kept.
+
 ## Chat commands
 
 | Command | Who | What |
@@ -83,6 +119,7 @@ Unlinked players, casters and spectators in the voice channel are never muted.
 | `!automute on\|off` | host | Pause or resume automute |
 | `!unmuteall` | host | Emergency: unmute everyone and turn automute off (**F9** does the same) |
 | `!leaderboard` | host | Post the leaderboard to Discord now |
+| `!sheetsync` | host | Send every saved game to the Google Sheet again |
 | `!resetstats confirm` | host | Archive the stats file and start a new leaderboard |
 
 \* unless `AllowSelfLink = false`.
@@ -101,6 +138,8 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | Discord | `StatsWebhookUrl` | | Game reports and leaderboard |
 | Discord | `LiveFeedWebhookUrl` | | Optional play-by-play |
 | Discord | `PostLeaderboardAfterEachGame` | true | |
+| GoogleSheets | `WebAppUrl` | | The Apps Script web app URL; empty turns Google Sheets off |
+| GoogleSheets | `Secret` | | Must match `SECRET` in the script |
 | Discord | `LeaderboardSize` | 15 | |
 | AutoMute | `Enabled` | false | |
 | AutoMute | `BotTokens` | | Comma separated |

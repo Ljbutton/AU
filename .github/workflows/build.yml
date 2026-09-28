@@ -28,6 +28,9 @@ jobs:
       - name: Test the core
         run: dotnet test tests/TournamentTracker.Tests -c Release
 
+      - name: Test the Google Sheets script
+        run: node sheets/test/mock-sheets.test.js sheets/test/fixtures/payload-*.json
+
       - name: Build the plugin
         run: >
           dotnet build src/TournamentTracker.Plugin -c Release
@@ -44,6 +47,7 @@ jobs:
           mkdir -p "$root/BepInEx/plugins" "$root/BepInEx/config/TournamentTracker"
           cp src/TournamentTracker.Plugin/bin/Release/net6.0/TournamentTracker.dll "$root/BepInEx/plugins/"
           cp examples/links.example.json "$root/BepInEx/config/TournamentTracker/"
+          cp sheets/TournamentSheet.gs "$root/"
           cp README.md LICENSE "$root/"
           grep -E 'AmongUs.GameLibs|BepInEx' versions.txt > "$root/BUILT-AGAINST.txt" || true
           (cd dist && zip -qr "$name.zip" "$name")

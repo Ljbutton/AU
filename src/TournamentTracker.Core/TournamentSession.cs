@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
 using TournamentTracker.Discord;
+using TournamentTracker.Sheets;
 using TournamentTracker.Stats;
 using TournamentTracker.Voice;
 
@@ -77,6 +78,15 @@ namespace TournamentTracker
                 _log.Warn("Automute is enabled but BotTokens or GuildId is empty; it stays off.");
             }
 
+            if (!string.IsNullOrWhiteSpace(settings.GoogleSheetsUrl))
+            {
+                if (string.IsNullOrWhiteSpace(settings.GoogleSheetsSecret))
+                    _log.Warn("GoogleSheetsUrl is set but GoogleSheetsSecret is empty; the sheet will refuse the games.");
+                Sheets = new SheetsSync(settings.GoogleSheetsUrl, settings.GoogleSheetsSecret,
+                    http ?? SheetsSync.CreateHttpClient(), Path.Combine(dataDir, "sheets-outbox"), log);
+                if (Sheets.OutboxCount > 0) Sheets.Flush();
+            }
+
             if (string.IsNullOrWhiteSpace(settings.StatsWebhookUrl))
                 _log.Warn("StatsWebhookUrl is empty: games are saved locally but not posted to Discord.");
         }
@@ -85,6 +95,7 @@ namespace TournamentTracker
         public LinkRegistry Links { get; }
         public GameTracker Tracker { get; }
         public AutoMuteController? AutoMute { get; }
+        public SheetsSync? Sheets { get; }
 
         /// <summary>The most recent player list the plugin reported, used to resolve chat command targets.</summary>
         public IReadOnlyList<PlayerSnapshot> Players { get; private set; } = Array.Empty<PlayerSnapshot>();
@@ -138,6 +149,7 @@ namespace TournamentTracker
             Post(_settings.StatsWebhookUrl, ReportFormatter.GameReport(game));
             if (game.Counted && _settings.PostLeaderboardAfterEachGame)
                 Post(_settings.StatsWebhookUrl, ReportFormatter.Leaderboard(Store, _settings.LeaderboardSize));
+            Sheets?.Enqueue(game);
             return game;
         }
 
@@ -216,6 +228,7 @@ namespace TournamentTracker
             AutoMute?.ReleaseAll();
             if (_dispatcher != null) await _dispatcher.WaitIdleAsync(timeout).ConfigureAwait(false);
             await Task.WhenAny(PendingPosts, Task.Delay(timeout)).ConfigureAwait(false);
+            if (Sheets != null) await Task.WhenAny(Sheets.Pending, Task.Delay(timeout)).ConfigureAwait(false);
         }
 
         public void Dispose() => _dispatcher?.Dispose();
