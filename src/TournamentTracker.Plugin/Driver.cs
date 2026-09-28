@@ -22,6 +22,7 @@ namespace TournamentTracker.Plugin
         private static bool _loggedError;
         private static float _nextLockCheck;
         private static bool _loggedReplay;
+        private static bool _loggedTheater;
 
         /// <summary>Set once a game has ended, until the lobby returns, so the start fallback can't reopen it.</summary>
         private static bool _roundOver;
@@ -36,6 +37,9 @@ namespace TournamentTracker.Plugin
                 RestartRequested = false;
                 Restart();
             }
+            try { ReplayTheater.Update(); }
+            catch (Exception e) { if (!_loggedTheater) TournamentPlugin.Logger.Error("Replay theatre failed: " + e); _loggedTheater = true; }
+            if (ReplayTheater.Active) return;
             try { GhostZoom.Update(); }
             catch (Exception e) { if (!_loggedError) TournamentPlugin.Logger.Error("Zoom failed: " + e); _loggedError = true; }
 

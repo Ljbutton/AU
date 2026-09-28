@@ -64,6 +64,23 @@ namespace TournamentTracker.Plugin
                 if (!_mapFailed) TournamentPlugin.Logger.Warn("Replay: couldn't read the map (" + e.Message + "); the replay will show positions only.");
                 _mapFailed = true;
             }
+            try { CaptureDetails(session); }
+            catch (Exception e) { TournamentPlugin.Logger.Warn("Replay: couldn't read the outfits (" + e.Message + ")."); }
+        }
+
+        /// <summary>The map number and everyone's cosmetics, so the in-game replay can dress them.</summary>
+        private static void CaptureDetails(TournamentSession session)
+        {
+            var outfits = new Dictionary<byte, ReplayOutfit>();
+            var all = PlayerControl.AllPlayerControls;
+            for (int i = 0; i < all.Count; i++)
+            {
+                var o = all[i]?.Data?.DefaultOutfit;
+                if (o == null) continue;
+                outfits[all[i].PlayerId] = new ReplayOutfit { Hat = o.HatId ?? "", Skin = o.SkinId ?? "", Visor = o.VisorId ?? "", Pet = o.PetId ?? "", NamePlate = o.NamePlateId ?? "" };
+            }
+            int mapId = GameOptionsManager.Instance?.CurrentGameOptions?.MapId ?? -1;
+            session.ReplayDetails(mapId, outfits);
         }
 
         /// <summary>A collider as a line of world points x0,y0,x1,y1… (closed for areas).</summary>

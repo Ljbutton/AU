@@ -33,6 +33,16 @@ namespace TournamentTracker.Stats
         [JsonPropertyName("vents")] public List<float[]> Vents { get; set; } = new List<float[]>();
     }
 
+    /// <summary>A player's cosmetics, so the in-game replay can dress them as they were.</summary>
+    public sealed class ReplayOutfit
+    {
+        [JsonPropertyName("hat")] public string Hat { get; set; } = "";
+        [JsonPropertyName("skin")] public string Skin { get; set; } = "";
+        [JsonPropertyName("visor")] public string Visor { get; set; } = "";
+        [JsonPropertyName("pet")] public string Pet { get; set; } = "";
+        [JsonPropertyName("plate")] public string NamePlate { get; set; } = "";
+    }
+
     public sealed class ReplayRoom
     {
         [JsonPropertyName("name")] public string Name { get; set; } = "";
@@ -59,6 +69,12 @@ namespace TournamentTracker.Stats
         }
 
         public ReplayMap? Map { get; set; }
+
+        /// <summary>The game's map number (0 The Skeld, 1 MIRA HQ, 2 Polus, 3 dlekS, 4 Airship, 5 The Fungle); -1 unknown.</summary>
+        public int MapId { get; set; } = -1;
+
+        /// <summary>Cosmetics by player ID.</summary>
+        public Dictionary<byte, ReplayOutfit> Outfits { get; } = new Dictionary<byte, ReplayOutfit>();
         public int Frames => _frames.Count;
 
         /// <summary>Adds a frame at <paramref name="seconds"/> into the game (skipped if too soon after the last).</summary>
@@ -90,10 +106,15 @@ namespace TournamentTracker.Stats
                 tournament = game.Tournament,
                 round = game.Round,
                 map = game.Map,
+                mapId = MapId,
                 winner = game.Winner,
                 endReason = game.EndReason,
                 voided = game.Voided,
-                players = game.Players.Select(p => new { id = p.PlayerId, name = p.Name, color = p.ColorId, impostor = p.IsImpostor, points = p.Points }),
+                players = game.Players.Select(p => new
+                {
+                    id = p.PlayerId, name = p.Name, color = p.ColorId, impostor = p.IsImpostor, points = p.Points,
+                    outfit = Outfits.TryGetValue(p.PlayerId, out var o) ? o : null,
+                }),
                 geometry = Map,
                 events = game.Timeline.Select(e => new { t = e.AtSeconds, kind = e.Kind, text = e.Text }),
                 frames = _frames,

@@ -25,6 +25,14 @@ namespace TournamentTracker
             if (_replay != null) _replay.Map = map;
         }
 
+        /// <summary>The map number and everyone's cosmetics, for the in-game replay.</summary>
+        public void ReplayDetails(int mapId, IReadOnlyDictionary<byte, ReplayOutfit> outfits)
+        {
+            if (_replay == null) return;
+            _replay.MapId = mapId;
+            foreach (var kv in outfits) _replay.Outfits[kv.Key] = kv.Value;
+        }
+
         public void RecordPositions(IEnumerable<ReplayPosition> positions)
         {
             var game = Tracker.Current;
