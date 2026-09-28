@@ -78,7 +78,8 @@ namespace TournamentTracker.Plugin
             if ((phase == VoicePhase.Lobby || phase == VoicePhase.Menu) && session.Tracker.InGame)
                 session.GameAbandoned(players);
 
-            session.VoiceTick(phase, players);
+            if (phase == VoicePhase.Menu) session.VoiceTick(phase, players);
+            else session.VoiceTick(phase, players, Game.LobbyCode(), Game.MapName());
             _lastPhase = phase;
         }
 

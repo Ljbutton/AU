@@ -6,11 +6,18 @@ use the normal game. It:
 * **Tracks stats** for every game: kills, deaths, ejections, meetings, body reports, votes
   (correct, wrong, skipped, missed), tasks, sabotages, disconnects, wins and losses by team.
 * **Keeps a tournament leaderboard** with configurable points, saved between sessions.
-* **Posts to Discord** through a webhook: a report after each game (player table, impostors,
-  MVP, full timeline) and the updated leaderboard. You can also turn on a live play-by-play.
+* **Posts to Discord** through a webhook: a live status message for the lobby, a report after
+  each game (player table, impostors, points breakdown, MVP, full timeline) and the updated
+  leaderboard. You can also turn on a live play-by-play.
 * **Automutes Discord voice**: alive players are muted (and deafened) during tasks, everyone
-  alive can talk in meetings, and dead players talk among themselves during tasks. It works
-  like AutoMuteUs, but the host's game drives it directly, so no capture app is needed.
+  alive can talk in meetings, and dead players talk among themselves during tasks, with a
+  short delay at each change. It can also mute spectators and link players by name
+  automatically. It works like AutoMuteUs, but the host's game drives it directly, so no
+  capture app is needed.
+
+**Platforms:** the host plays the Windows PC version from Steam or Epic Games (the Xbox app /
+Game Pass version can't be modded). Everyone else can join from any platform: PC, phone,
+Switch, Xbox or PlayStation.
 
 The host's client runs the game, so it sees every kill, vote and role. That is why only the
 host needs the mod.
@@ -37,15 +44,24 @@ Among Us updates, rebuild against the new version (see *Building*).
 ### Stats (webhook, no bot needed)
 
 Channel settings → Integrations → Webhooks → New Webhook → Copy URL. Paste the URL into
-`StatsWebhookUrl`. If you want a live feed of kills and meetings, make a second webhook in a
+`StatsWebhookUrl`.
+
+The same channel gets a **live status message**: the lobby code, map, phase, and each
+player's colour, name and Discord link. It updates as people join, link and play, and moves
+below each game report so it stays at the bottom. Deaths only appear once the game has
+revealed them (at a meeting or the end), so it never gives away a kill. Give it its own
+channel with `StatusWebhookUrl`, or turn it off with `LiveStatus = false`. `!refresh` posts a
+fresh copy.
+
+If you want a live feed of kills and meetings, make a second webhook in a
 **staff-only** channel (the feed reveals the impostors) and use it for `LiveFeedWebhookUrl`.
 
 ### Automute (bot)
 
 1. Create an application at <https://discord.com/developers/applications>. Under **Bot**,
    reset the token and copy it. The bot needs no privileged intents.
-2. Invite the bot with the Mute Members and Deafen Members permissions:
-   `https://discord.com/oauth2/authorize?client_id=YOUR_APP_ID&scope=bot&permissions=12582912`
+2. Invite the bot with the View Channels, Mute Members and Deafen Members permissions:
+   `https://discord.com/oauth2/authorize?client_id=YOUR_APP_ID&scope=bot&permissions=12583936`
 3. Turn on Developer Mode in Discord, right-click your server → **Copy Server ID**.
 4. In the config, set `[AutoMute] Enabled = true`, `BotTokens = <token>` and `GuildId = <server id>`.
 
@@ -54,6 +70,26 @@ few seconds to mute everyone. To make that faster, invite two or three bots and 
 token, comma separated. The work is spread across all of them.
 
 **Keep the config file private.** Anyone with the bot token can control that bot.
+
+#### Timing
+
+Voice switches a moment after the game does, so nobody gets cut off mid-word:
+
+| Change | Default | Setting |
+| --- | --- | --- |
+| Game starts → alive players muted | 3 s (time to react to the role reveal) | `DelayGameStart` |
+| Meeting ends → alive players muted again | 3 s | `DelayMeetingEnd` |
+| Game ends → everyone unmuted | 3 s | `DelayGameEnd` |
+| Meeting called → alive players unmuted | 0 s, so nobody misses the start of the discussion | `DelayMeetingStart` |
+
+A death applies at once, and `!unmuteall` / **F9** never wait.
+
+#### Spectators
+
+With `MuteSpectators = true` (or `!spectators on`), anyone in the game's voice channel who
+isn't playing is muted while a game is running and unmuted in the lobby. The game's voice
+channel is the one most linked players are in; set `VoiceChannelId` to pin it. Put casters
+and referees in `SpectatorExemptUserIds` so they're never muted. Off by default.
 
 ### Linking players to Discord
 
@@ -64,10 +100,15 @@ so a link survives name and colour changes, and they're saved in
 * Players type **`!link their_discord_username`** (or their numeric user ID, or
   `<@id>`) in the lobby chat.
 * The host can link anyone: **`!link red coolbean`** or **`!link CoolBean 1234…`**.
+* **Automatically:** in the lobby, a player whose in-game name matches exactly one person in
+  the voice channel (their server nickname, display name or username, ignoring capitals,
+  spaces and symbols) is linked for them, and the lobby chat says so. A wrong match is fixed
+  with `!unlink`, and that player won't be auto-linked again that session. Turn it off with
+  `AutoLinkByName = false`.
 * Or fill in `links.json` before the event (see `links.example.json`). A player's key is their
   friend code in lower case, e.g. `coolbean#1234`.
 
-Unlinked players, casters and spectators in the voice channel are never muted.
+Unlinked players are never muted, and spectators only when `MuteSpectators` is on.
 
 ## Chat commands
 
@@ -82,6 +123,8 @@ Unlinked players, casters and spectators in the voice channel are never muted.
 | `!links` | host | Who in the lobby is linked and who isn't |
 | `!automute on\|off` | host | Pause or resume automute |
 | `!unmuteall` | host | Emergency: unmute everyone and turn automute off (**F9** does the same) |
+| `!spectators on\|off` | host | Mute people in voice who aren't playing, during games |
+| `!refresh` | host | Post a fresh live status message at the bottom of the channel |
 | `!leaderboard` | host | Post the leaderboard to Discord now |
 | `!resetstats confirm` | host | Archive the stats file and start a new leaderboard |
 
@@ -102,12 +145,22 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | Discord | `LiveFeedWebhookUrl` | | Optional play-by-play |
 | Discord | `PostLeaderboardAfterEachGame` | true | |
 | Discord | `LeaderboardSize` | 15 | |
+| Discord | `LeaderboardMinGames` | 1 | Games a player needs before they appear on the leaderboard |
+| Discord | `LeaderboardMentions` | false | Show linked players as @mentions on the leaderboard (nobody is pinged) |
+| Discord | `LiveStatus` | true | The live lobby status message |
+| Discord | `StatusWebhookUrl` | | Its own channel; empty = the stats channel |
 | AutoMute | `Enabled` | false | |
 | AutoMute | `BotTokens` | | Comma separated |
 | AutoMute | `GuildId` | | |
 | AutoMute | `DeafenAliveDuringTasks` | true | Alive players can't hear the dead |
 | AutoMute | `DeadCanTalkDuringTasks` | true | |
 | AutoMute | `MuteDeadDuringMeetings` | true | |
+| AutoMute | `DelayGameStart` / `DelayMeetingEnd` / `DelayGameEnd` | 3 / 3 / 3 | Seconds; see *Timing* |
+| AutoMute | `DelayMeetingStart` | 0 | Seconds |
+| AutoMute | `MuteSpectators` | false | See *Spectators* |
+| AutoMute | `VoiceChannelId` | | Empty = where most linked players are |
+| AutoMute | `SpectatorExemptUserIds` | | Comma separated |
+| AutoMute | `AutoLinkByName` | true | |
 | Scoring | *(see below)* | | Every point value on the tournament sheet |
 
 ## Scoring

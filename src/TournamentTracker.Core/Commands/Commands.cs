@@ -56,6 +56,13 @@ namespace TournamentTracker
                 case "lb" when fromHost:
                     LeaderboardCommand();
                     return true;
+                case "refresh" when fromHost:
+                    RepostStatus();
+                    Reply(_settings.LiveStatus ? "Posted a fresh status message in Discord." : "The live status message is off (LiveStatus in the config).", false);
+                    return true;
+                case "spectators" when fromHost:
+                    SpectatorsCommand(args);
+                    return true;
                 case "resetstats" when fromHost:
                     ResetStatsCommand(args);
                     return true;
@@ -71,7 +78,7 @@ namespace TournamentTracker
             if (fromHost)
             {
                 Reply($"Host: {p}link <player> <discord> · {p}unlink <player> · {p}links · {p}automute on|off · " +
-                      $"{p}unmuteall · {p}leaderboard · {p}resetstats confirm", false);
+                      $"{p}unmuteall · {p}spectators on|off · {p}refresh · {p}leaderboard · {p}resetstats confirm", false);
             }
         }
 
@@ -186,6 +193,7 @@ namespace TournamentTracker
                 target = named;
             }
             bool isPublic = !fromHost || target.Key != sender.Key;
+            BlockAutoLink(target.Key);
             Reply(Links.Unlink(target.Key) ? $"Unlinked {target}." : $"{target} wasn't linked.", isPublic);
         }
 
@@ -233,12 +241,25 @@ namespace TournamentTracker
             Reply($"Automute is {(AutoMute.Enabled ? "ON" : "OFF")}.", false);
         }
 
+        private void SpectatorsCommand(string[] args)
+        {
+            if (AutoMute == null)
+            {
+                Reply("Automute isn't set up, so spectators can't be muted.", false);
+                return;
+            }
+            string arg = args.FirstOrDefault()?.ToLowerInvariant() ?? "";
+            if (arg == "on" || arg == "off") AutoMute.MuteSpectators = arg == "on";
+            string presence = Presence == null ? " (not connected to Discord voice yet)" : Presence.Connected ? "" : " (connecting to Discord…)";
+            Reply($"Spectator muting is {(AutoMute.MuteSpectators ? "ON: people in voice who aren't playing are muted during games" : "OFF")}{presence}.", false);
+        }
+
         private void LeaderboardCommand()
         {
             if (string.IsNullOrWhiteSpace(_settings.StatsWebhookUrl))
                 Reply("No StatsWebhookUrl set; showing top 5 here only.", false);
             else
-                Post(_settings.StatsWebhookUrl, ReportFormatter.Leaderboard(Store, _settings.LeaderboardSize));
+                Post(_settings.StatsWebhookUrl, LeaderboardMessage());
 
             var top = Store.Leaderboard().Take(5).Select((t, i) => $"{i + 1}. {t.Name} {ReportFormatter.Pts(t.Points)}");
             Reply(Store.GamesRecorded == 0 ? "No games recorded yet." : string.Join(" · ", top), false);

@@ -37,17 +37,27 @@ public class AutoMuteTests : IDisposable
     private readonly LinkRegistry _links = new();
     private readonly AutoMuteController _controller;
     private readonly List<PlayerSnapshot> _players = Players.Lobby();
+    private readonly FakeClock _clock = new();
+    private readonly AutoMuteSettings _settings = new();
 
     public AutoMuteTests()
     {
         _dispatcher = new MuteDispatcher(_api, new[] { "token-a", "token-b" }, NullLog.Instance);
-        _controller = new AutoMuteController(new AutoMuteSettings(), _links, _dispatcher);
+        _controller = new AutoMuteController(_settings, _links, _dispatcher, () => _clock.Now);
         _links.Link(_players[0].Key, "Alice", "100", "alice");
         _links.Link(_players[2].Key, "Carl", "102", "carl");
         _links.Link(_players[3].Key, "Dana", "103", "dana");
     }
 
     public void Dispose() => _dispatcher.Dispose();
+
+    /// <summary>Enters a phase and waits out its delay, like a few seconds of game ticks.</summary>
+    private void Enter(VoicePhase phase, IReadOnlyList<PlayerSnapshot>? players = null, IReadOnlyCollection<string>? spectators = null)
+    {
+        _controller.Update(phase, players ?? _players, spectators);
+        _clock.Advance(10);
+        _controller.Update(phase, players ?? _players, spectators);
+    }
 
     private async Task Settle()
     {
@@ -57,26 +67,26 @@ public class AutoMuteTests : IDisposable
     [Fact]
     public async Task Follows_the_game_through_its_phases()
     {
-        _controller.Update(VoicePhase.Lobby, _players);
+        Enter(VoicePhase.Lobby, _players);
         await Settle();
         Assert.Equal(VoiceState.Open, _dispatcher.Applied("100"));
 
-        _controller.Update(VoicePhase.Tasks, _players);
+        Enter(VoicePhase.Tasks, _players);
         await Settle();
         Assert.Equal(new VoiceState(true, true), _dispatcher.Applied("100"));
         Assert.Equal(new VoiceState(true, true), _dispatcher.Applied("102"));
 
         _players[2].IsDead = true;
-        _controller.Update(VoicePhase.Tasks, _players);
+        Enter(VoicePhase.Tasks, _players);
         await Settle();
         Assert.Equal(VoiceState.Open, _dispatcher.Applied("102"));   // dead talk freely
 
-        _controller.Update(VoicePhase.Meeting, _players);
+        Enter(VoicePhase.Meeting, _players);
         await Settle();
         Assert.Equal(VoiceState.Open, _dispatcher.Applied("100"));
         Assert.Equal(new VoiceState(true, false), _dispatcher.Applied("102"));
 
-        _controller.Update(VoicePhase.GameOver, _players);
+        Enter(VoicePhase.GameOver, _players);
         await Settle();
         Assert.All(new[] { "100", "102", "103" }, id => Assert.Equal(VoiceState.Open, _dispatcher.Applied(id)));
 
@@ -87,6 +97,7 @@ public class AutoMuteTests : IDisposable
     [Fact]
     public async Task Repeated_ticks_do_not_resend()
     {
+        Enter(VoicePhase.Tasks, _players);
         for (int i = 0; i < 20; i++) _controller.Update(VoicePhase.Tasks, _players);
         await Settle();
         Assert.Equal(3, _api.Calls.Count);
@@ -96,7 +107,7 @@ public class AutoMuteTests : IDisposable
     public async Task Work_is_spread_over_every_bot_token()
     {
         _api.Latency = TimeSpan.FromMilliseconds(50);
-        _controller.Update(VoicePhase.Tasks, _players);
+        Enter(VoicePhase.Tasks, _players);
         await Settle();
         Assert.Equal(2, _api.Calls.Select(c => c.Token).Distinct().Count());
     }
@@ -104,9 +115,9 @@ public class AutoMuteTests : IDisposable
     [Fact]
     public async Task A_player_leaving_the_lobby_gets_their_voice_back()
     {
-        _controller.Update(VoicePhase.Tasks, _players);
+        Enter(VoicePhase.Tasks, _players);
         await Settle();
-        _controller.Update(VoicePhase.Tasks, _players.Where(p => p.PlayerId != 3).ToList());
+        Enter(VoicePhase.Tasks, _players.Where(p => p.PlayerId != 3).ToList());
         await Settle();
         Assert.Equal(VoiceState.Open, _dispatcher.Applied("103"));
         Assert.Equal(new VoiceState(true, true), _dispatcher.Applied("100"));
@@ -115,13 +126,88 @@ public class AutoMuteTests : IDisposable
     [Fact]
     public async Task Disabling_releases_everyone_and_stops_updates()
     {
-        _controller.Update(VoicePhase.Tasks, _players);
+        Enter(VoicePhase.Tasks, _players);
         await Settle();
         _controller.Enabled = false;
         await Settle();
         _controller.Update(VoicePhase.Tasks, _players);
         await Settle();
         Assert.All(new[] { "100", "102", "103" }, id => Assert.Equal(VoiceState.Open, _dispatcher.Applied(id)));
+    }
+
+    [Fact]
+    public async Task Phase_changes_wait_for_the_delay()
+    {
+        Enter(VoicePhase.Lobby);
+        await Settle();
+
+        _controller.Update(VoicePhase.Tasks, _players);            // game starts
+        _clock.Advance(2.9);
+        _controller.Update(VoicePhase.Tasks, _players);
+        await Settle();
+        Assert.Equal(VoicePhase.Lobby, _controller.Phase);
+        Assert.Equal(VoiceState.Open, _dispatcher.Applied("100"));
+
+        _clock.Advance(0.2);                                       // 3 seconds in
+        _controller.Update(VoicePhase.Tasks, _players);
+        await Settle();
+        Assert.Equal(new VoiceState(true, true), _dispatcher.Applied("100"));
+
+        _controller.Update(VoicePhase.Meeting, _players);          // meetings open at once by default
+        await Settle();
+        Assert.Equal(VoiceState.Open, _dispatcher.Applied("100"));
+    }
+
+    [Fact]
+    public async Task Deaths_apply_without_waiting()
+    {
+        Enter(VoicePhase.Tasks);
+        _players[2].IsDead = true;
+        _controller.Update(VoicePhase.Tasks, _players);
+        await Settle();
+        Assert.Equal(VoiceState.Open, _dispatcher.Applied("102"));
+    }
+
+    [Fact]
+    public void Delays_follow_the_settings()
+    {
+        _settings.DelayGameStart = 7;
+        _settings.DelayMeetingEnd = 5;
+        _settings.DelayGameEnd = 4;
+        _settings.DelayMeetingStart = 1;
+        Assert.Equal(7, _controller.DelayFor(VoicePhase.Lobby, VoicePhase.Tasks));
+        Assert.Equal(5, _controller.DelayFor(VoicePhase.Meeting, VoicePhase.Tasks));
+        Assert.Equal(1, _controller.DelayFor(VoicePhase.Tasks, VoicePhase.Meeting));
+        Assert.Equal(4, _controller.DelayFor(VoicePhase.Meeting, VoicePhase.GameOver));
+        Assert.Equal(4, _controller.DelayFor(VoicePhase.Tasks, VoicePhase.Lobby));
+        Assert.Equal(0, _controller.DelayFor(VoicePhase.GameOver, VoicePhase.Lobby));
+    }
+
+    [Fact]
+    public async Task Spectators_are_muted_during_games_only_when_switched_on()
+    {
+        var spectators = new[] { "900", "901" };
+        _settings.SpectatorExemptUserIds.Add("901");
+
+        Enter(VoicePhase.Tasks, _players, spectators);
+        await Settle();
+        Assert.Null(_dispatcher.Applied("900"));                    // off by default: never touched
+
+        _controller.MuteSpectators = true;
+        _controller.Update(VoicePhase.Tasks, _players, spectators);
+        await Settle();
+        Assert.Equal(new VoiceState(true, false), _dispatcher.Applied("900"));
+        Assert.Null(_dispatcher.Applied("901"));                    // exempt (a caster)
+
+        Enter(VoicePhase.Lobby, _players, spectators);
+        await Settle();
+        Assert.Equal(VoiceState.Open, _dispatcher.Applied("900"));
+
+        Enter(VoicePhase.Tasks, _players, spectators);
+        await Settle();
+        Enter(VoicePhase.Tasks, _players, Array.Empty<string>());   // they left the channel
+        await Settle();
+        Assert.Equal(VoiceState.Open, _dispatcher.Applied("900"));
     }
 }
 

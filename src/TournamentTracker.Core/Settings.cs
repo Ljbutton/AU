@@ -13,8 +13,20 @@ namespace TournamentTracker
         /// <summary>Optional webhook for a live play-by-play (kills, meetings, ejections). Keep it in a staff-only channel.</summary>
         public string LiveFeedWebhookUrl { get; set; } = "";
 
+        /// <summary>Keep one live message in Discord showing the lobby, its players and their links, and the phase.</summary>
+        public bool LiveStatus { get; set; } = true;
+
+        /// <summary>Webhook for the live status message. Empty: the StatsWebhookUrl channel.</summary>
+        public string StatusWebhookUrl { get; set; } = "";
+
         public bool PostLeaderboardAfterEachGame { get; set; } = true;
         public int LeaderboardSize { get; set; } = 15;
+
+        /// <summary>Players need this many counted games to appear on the leaderboard.</summary>
+        public int LeaderboardMinGames { get; set; } = 1;
+
+        /// <summary>Show linked players as Discord @mentions on the leaderboard (no one gets pinged).</summary>
+        public bool LeaderboardMentions { get; set; }
 
         public string CommandPrefix { get; set; } = "!";
 
@@ -45,6 +57,28 @@ namespace TournamentTracker
 
         /// <summary>Dead players stay muted during meetings.</summary>
         public bool MuteDeadDuringMeetings { get; set; } = true;
+
+        // Seconds to wait before switching voice to a new phase.
+        /// <summary>Lobby to tasks: lets everyone react to the role reveal before the mute.</summary>
+        public double DelayGameStart { get; set; } = 3;
+        /// <summary>Meeting to tasks: the end of the ejection screen.</summary>
+        public double DelayMeetingEnd { get; set; } = 3;
+        /// <summary>Tasks or meeting to the end screen or lobby.</summary>
+        public double DelayGameEnd { get; set; } = 3;
+        /// <summary>Tasks to meeting. 0 so nobody loses the start of the discussion.</summary>
+        public double DelayMeetingStart { get; set; } = 0;
+
+        /// <summary>Server-mute people in the game's voice channel who aren't in the lobby, while a game is running.</summary>
+        public bool MuteSpectators { get; set; }
+
+        /// <summary>The voice channel the game uses. Empty: the channel most linked players are in.</summary>
+        public string VoiceChannelId { get; set; } = "";
+
+        /// <summary>Discord user IDs never muted as spectators (casters, referees).</summary>
+        public List<string> SpectatorExemptUserIds { get; set; } = new List<string>();
+
+        /// <summary>Link players automatically when their in-game name matches a Discord name in the voice channel.</summary>
+        public bool AutoLinkByName { get; set; } = true;
 
         public bool IsConfigured => Enabled && BotTokens.Count > 0 && GuildId.Length > 0;
     }

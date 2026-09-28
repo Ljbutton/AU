@@ -1,4 +1,5 @@
 using System.Net;
+using TournamentTracker.Discord;
 using TournamentTracker.Stats;
 using TournamentTracker.Voice;
 using Xunit;
@@ -13,6 +14,7 @@ public class SessionTests : IDisposable
     private readonly FakeVoiceApi _voice = new();
     private readonly FakeClock _clock = new();
     private readonly List<TournamentSession> _sessions = new();
+    private VoicePresenceState Presence { get; } = new("g1");
 
     public void Dispose()
     {
@@ -22,7 +24,7 @@ public class SessionTests : IDisposable
 
     private TournamentSession Session(bool bot = true, Action<TrackerSettings>? configure = null)
     {
-        var settings = new TrackerSettings { TournamentName = "Fall Cup", StatsWebhookUrl = Webhook };
+        var settings = new TrackerSettings { TournamentName = "Fall Cup", StatsWebhookUrl = Webhook, LiveStatus = false };
         if (bot)
         {
             settings.AutoMute.Enabled = true;
@@ -30,7 +32,7 @@ public class SessionTests : IDisposable
             settings.AutoMute.BotTokens.Add("tok");
         }
         configure?.Invoke(settings);
-        var s = new TournamentSession(settings, _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now, _voice);
+        var s = new TournamentSession(settings, _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now, _voice, Presence);
         _sessions.Add(s);
         return s;
     }
@@ -165,6 +167,8 @@ public class SessionTests : IDisposable
         var s = Session();
         var lobby = Players.Lobby();
         s.Links.Link(lobby[2].Key, "Carl", "102", "carl");
+        s.VoiceTick(VoicePhase.Tasks, lobby);
+        _clock.Advance(5);                       // past the game-start delay
         s.VoiceTick(VoicePhase.Tasks, lobby);
         await Wait.Until(() => _voice.Calls.Any(c => c.State.Mute));
 

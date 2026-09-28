@@ -82,25 +82,48 @@ namespace TournamentTracker.Discord
 
         public static string Signed(double points) => points > 0 ? "+" + Pts(points) : Pts(points);
 
-        public static WebhookMessage Leaderboard(StatsStore store, int size)
+        /// <param name="minGames">Players with fewer counted games are left off.</param>
+        /// <param name="mentionFor">When given, players linked to Discord are shown as @mentions (this doesn't ping them).</param>
+        public static WebhookMessage Leaderboard(StatsStore store, int size, int minGames = 1, Func<string, string?>? mentionFor = null)
         {
-            var rows = store.Leaderboard().Take(Math.Max(1, size)).ToList();
-            var sb = new StringBuilder("```\n");
-            sb.AppendLine(" #  Player            Pts   W-L   K  Vote%  Task%");
-            for (int i = 0; i < rows.Count; i++)
+            var eligible = store.Leaderboard().Where(t => t.Games >= Math.Max(1, minGames)).ToList();
+            var rows = eligible.Take(Math.Max(1, size)).ToList();
+            var sb = new StringBuilder();
+            if (mentionFor == null)
             {
-                var t = rows[i];
-                sb.Append((i + 1).ToString().PadLeft(2)).Append("  ")
-                  .Append(Pad(t.Name, 15)).Append(' ')
-                  .Append(Pts(t.Points).PadLeft(5)).Append(' ')
-                  .Append($"{t.Wins}-{t.Losses}".PadLeft(5)).Append(' ')
-                  .Append(t.Kills.ToString().PadLeft(3)).Append(' ')
-                  .Append(Percent(t.VoteAccuracy, t.CorrectVotes + t.IncorrectVotes).PadLeft(6)).Append(' ')
-                  .Append(Percent(t.TaskCompletion, t.TasksTotal).PadLeft(6))
-                  .AppendLine();
+                sb.Append("```\n");
+                sb.AppendLine(" #  Player            Pts   W-L   K  Vote%  Task%");
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    var t = rows[i];
+                    sb.Append((i + 1).ToString().PadLeft(2)).Append("  ")
+                      .Append(Pad(t.Name, 15)).Append(' ')
+                      .Append(Pts(t.Points).PadLeft(5)).Append(' ')
+                      .Append($"{t.Wins}-{t.Losses}".PadLeft(5)).Append(' ')
+                      .Append(t.Kills.ToString().PadLeft(3)).Append(' ')
+                      .Append(Percent(t.VoteAccuracy, t.CorrectVotes + t.IncorrectVotes).PadLeft(6)).Append(' ')
+                      .Append(Percent(t.TaskCompletion, t.TasksTotal).PadLeft(6))
+                      .AppendLine();
+                }
+                if (rows.Count == 0) sb.AppendLine(NoPlayersYet(minGames));
+                sb.Append("```");
             }
-            if (rows.Count == 0) sb.AppendLine("No games recorded yet.");
-            sb.Append("```");
+            else
+            {
+                // Mentions only render outside code blocks, so this layout is a list.
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    var t = rows[i];
+                    string? id = mentionFor(t.Key);
+                    string who = id != null ? $"<@{id}>" : Escape(t.Name);
+                    sb.Append($"`{(i + 1).ToString().PadLeft(2)}.` {who} — **{Pts(t.Points)}** pts · {t.Wins}-{t.Losses} · {t.Kills} K");
+                    if (t.CorrectVotes + t.IncorrectVotes > 0) sb.Append($" · votes {Percent(t.VoteAccuracy, 1)}");
+                    if (t.TasksTotal > 0) sb.Append($" · tasks {Percent(t.TaskCompletion, 1)}");
+                    sb.AppendLine();
+                }
+                if (rows.Count == 0) sb.AppendLine(NoPlayersYet(minGames));
+            }
+            int hidden = store.Players.Count - eligible.Count;
 
             return new WebhookMessage
             {
@@ -114,12 +137,16 @@ namespace TournamentTracker.Discord
                         Description = Clip(sb.ToString(), Embed.DescriptionLimit),
                         Footer = new EmbedFooter
                         {
-                            Text = $"{store.GamesRecorded} game{(store.GamesRecorded == 1 ? "" : "s")} · Crew {store.CrewWins} – {store.ImpostorWins} Impostors",
+                            Text = $"{store.GamesRecorded} game{(store.GamesRecorded == 1 ? "" : "s")} · Crew {store.CrewWins} – {store.ImpostorWins} Impostors"
+                                + (hidden > 0 ? $" · {hidden} player{(hidden == 1 ? "" : "s")} under {minGames} games not shown" : ""),
                         },
                     },
                 },
             };
         }
+
+        private static string NoPlayersYet(int minGames) =>
+            minGames > 1 ? $"No one has played {minGames} games yet." : "No games recorded yet.";
 
         public static WebhookMessage LiveEvent(GameRecord game, TimelineEvent e) => new WebhookMessage
         {

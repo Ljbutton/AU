@@ -23,10 +23,18 @@ namespace TournamentTracker.Plugin
                 "Webhook URL for game reports and the leaderboard (Server Settings > Integrations > Webhooks).").Value.Trim();
             s.LiveFeedWebhookUrl = config.Bind("Discord", "LiveFeedWebhookUrl", d.LiveFeedWebhookUrl,
                 "Optional webhook for a live play-by-play of kills, meetings and ejections. It reveals the impostors: use a staff-only channel.").Value.Trim();
+            s.LiveStatus = config.Bind("Discord", "LiveStatus", s.LiveStatus,
+                "Keep one live message in Discord showing the lobby code, map, phase, and each player's colour, name and Discord link. Deaths only show once the game has revealed them.").Value;
+            s.StatusWebhookUrl = config.Bind("Discord", "StatusWebhookUrl", "",
+                "Webhook for the live status message. Leave empty to use the StatsWebhookUrl channel.").Value.Trim();
             s.PostLeaderboardAfterEachGame = config.Bind("Discord", "PostLeaderboardAfterEachGame", d.PostLeaderboardAfterEachGame,
                 "Post the updated leaderboard after every game.").Value;
             s.LeaderboardSize = config.Bind("Discord", "LeaderboardSize", d.LeaderboardSize,
                 "How many players the leaderboard shows.").Value;
+            s.LeaderboardMinGames = config.Bind("Discord", "LeaderboardMinGames", d.LeaderboardMinGames,
+                "Players need at least this many counted games to appear on the leaderboard.").Value;
+            s.LeaderboardMentions = config.Bind("Discord", "LeaderboardMentions", d.LeaderboardMentions,
+                "Show linked players as Discord @mentions on the leaderboard. Nobody gets pinged.").Value;
 
             var m = s.AutoMute;
             m.Enabled = config.Bind("AutoMute", "Enabled", false,
@@ -43,6 +51,25 @@ namespace TournamentTracker.Plugin
                 "Unmute dead players during tasks so they can talk to each other.").Value;
             m.MuteDeadDuringMeetings = config.Bind("AutoMute", "MuteDeadDuringMeetings", m.MuteDeadDuringMeetings,
                 "Keep dead players muted during meetings.").Value;
+
+            m.DelayGameStart = config.Bind("AutoMute", "DelayGameStart", m.DelayGameStart,
+                "Seconds between the game starting and alive players being muted (time to react to the role reveal).").Value;
+            m.DelayMeetingEnd = config.Bind("AutoMute", "DelayMeetingEnd", m.DelayMeetingEnd,
+                "Seconds between a meeting ending and alive players being muted again.").Value;
+            m.DelayGameEnd = config.Bind("AutoMute", "DelayGameEnd", m.DelayGameEnd,
+                "Seconds between the game ending and everyone being unmuted.").Value;
+            m.DelayMeetingStart = config.Bind("AutoMute", "DelayMeetingStart", m.DelayMeetingStart,
+                "Seconds between a meeting being called and alive players being unmuted. 0 so nobody misses the start of the discussion.").Value;
+
+            m.MuteSpectators = config.Bind("AutoMute", "MuteSpectators", m.MuteSpectators,
+                "Server-mute people in the game's voice channel who aren't playing, while a game is running. Also !spectators on|off.").Value;
+            m.VoiceChannelId = config.Bind("AutoMute", "VoiceChannelId", "",
+                "The game's voice channel ID. Leave empty to use the channel most linked players are in.").Value.Trim();
+            m.SpectatorExemptUserIds = config.Bind("AutoMute", "SpectatorExemptUserIds", "",
+                "Discord user IDs never muted as spectators (casters, referees), comma separated.").Value
+                .Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim()).ToList();
+            m.AutoLinkByName = config.Bind("AutoMute", "AutoLinkByName", m.AutoLinkByName,
+                "In the lobby, link a player automatically when their in-game name matches exactly one person's Discord name in the voice channel.").Value;
 
             // Defaults follow the "Point Sheet Template" tab of Tournament_Points.xlsx.
             // Penalties are negative numbers; halves are fine.

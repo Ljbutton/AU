@@ -122,6 +122,41 @@ namespace TournamentTracker.Discord
             }, "webhook:" + webhookUrl, ct);
         }
 
+        /// <summary>Edits a message this webhook posted earlier.</summary>
+        public Task<DiscordResult> EditWebhookMessageAsync(string webhookUrl, string messageId, WebhookMessage message, CancellationToken ct = default)
+        {
+            string json = JsonSerializer.Serialize(message, WebhookMessage.JsonOptions);
+            return SendAsync(() => new HttpRequestMessage(new HttpMethod("PATCH"), MessageUrl(webhookUrl, messageId))
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+            }, "webhook-edit:" + webhookUrl, ct);
+        }
+
+        public Task<DiscordResult> DeleteWebhookMessageAsync(string webhookUrl, string messageId, CancellationToken ct = default) =>
+            SendAsync(() => new HttpRequestMessage(HttpMethod.Delete, MessageUrl(webhookUrl, messageId)), "webhook-delete:" + webhookUrl, ct);
+
+        /// <summary>The ID of the message a webhook post (sent with wait=true) created.</summary>
+        public static string? MessageIdOf(DiscordResult result)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(result.Body);
+                return doc.RootElement.TryGetProperty("id", out var id) ? id.GetString() : null;
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+        }
+
+        private static string MessageUrl(string webhookUrl, string messageId)
+        {
+            int q = webhookUrl.IndexOf('?');
+            string path = q < 0 ? webhookUrl : webhookUrl.Substring(0, q);
+            string query = q < 0 ? "" : webhookUrl.Substring(q);
+            return path.TrimEnd('/') + "/messages/" + messageId + query;
+        }
+
         private static void Authorize(HttpRequestMessage req, string botToken) =>
             req.Headers.TryAddWithoutValidation("Authorization", "Bot " + botToken);
 

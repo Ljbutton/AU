@@ -48,7 +48,7 @@ namespace TournamentTracker
         private Task _postChain = Task.CompletedTask;
 
         public TournamentSession(TrackerSettings settings, string dataDir, ILog log,
-            HttpClient? http = null, Func<DateTime>? clock = null, IVoiceApi? voiceApi = null)
+            HttpClient? http = null, Func<DateTime>? clock = null, IVoiceApi? voiceApi = null, IVoicePresence? presence = null)
         {
             _settings = settings;
             _log = log;
@@ -69,8 +69,18 @@ namespace TournamentTracker
             if (mute.IsConfigured)
             {
                 _dispatcher = new MuteDispatcher(voiceApi ?? new DiscordVoiceApi(_rest, mute.GuildId), mute.BotTokens, log);
-                AutoMute = new AutoMuteController(mute, Links, _dispatcher);
+                AutoMute = new AutoMuteController(mute, Links, _dispatcher, _clock);
                 _log.Info($"Automute ready with {mute.BotTokens.Count} bot token(s)");
+
+                // Spectator muting and auto-link need to see who is in voice; that only
+                // comes over the gateway, which uses the first bot token.
+                Presence = presence;
+                if (Presence == null && (mute.MuteSpectators || mute.AutoLinkByName))
+                {
+                    _gateway = new VoiceGateway(mute.BotTokens[0], mute.GuildId, log);
+                    _gateway.Start();
+                    Presence = _gateway;
+                }
             }
             else if (mute.Enabled)
             {
@@ -85,6 +95,8 @@ namespace TournamentTracker
         public LinkRegistry Links { get; }
         public GameTracker Tracker { get; }
         public AutoMuteController? AutoMute { get; }
+        public IVoicePresence? Presence { get; }
+        private readonly VoiceGateway? _gateway;
 
         /// <summary>The most recent player list the plugin reported, used to resolve chat command targets.</summary>
         public IReadOnlyList<PlayerSnapshot> Players { get; private set; } = Array.Empty<PlayerSnapshot>();
@@ -137,19 +149,16 @@ namespace TournamentTracker
             _log.Info($"Game {game.GameNumber} over: {game.Winner ?? "no result"} ({reason})");
             Post(_settings.StatsWebhookUrl, ReportFormatter.GameReport(game));
             if (game.Counted && _settings.PostLeaderboardAfterEachGame)
-                Post(_settings.StatsWebhookUrl, ReportFormatter.Leaderboard(Store, _settings.LeaderboardSize));
+                Post(_settings.StatsWebhookUrl, LeaderboardMessage());
+            // Move the live status below the report so it stays at the bottom of the channel.
+            RepostStatus();
             return game;
         }
 
-        // ---- Voice ---------------------------------------------------------------------
+        private WebhookMessage LeaderboardMessage() => ReportFormatter.Leaderboard(Store, _settings.LeaderboardSize,
+            _settings.LeaderboardMinGames, _settings.LeaderboardMentions ? key => Links.Find(key)?.DiscordUserId : null);
 
-        /// <summary>Called a few times a second with the current phase and players.</summary>
-        public void VoiceTick(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players)
-        {
-            Players = players;
-            foreach (var p in players) Links.Touch(p.Key, p.Name);
-            AutoMute?.Update(phase, players);
-        }
+        // ---- Voice ---------------------------------------------------------------------
 
         /// <summary>Emergency stop: gives everyone their voice back and turns automute off.</summary>
         public void UnmuteEveryone()
@@ -215,9 +224,14 @@ namespace TournamentTracker
         {
             AutoMute?.ReleaseAll();
             if (_dispatcher != null) await _dispatcher.WaitIdleAsync(timeout).ConfigureAwait(false);
+            CloseStatus();
             await Task.WhenAny(PendingPosts, Task.Delay(timeout)).ConfigureAwait(false);
         }
 
-        public void Dispose() => _dispatcher?.Dispose();
+        public void Dispose()
+        {
+            _dispatcher?.Dispose();
+            _gateway?.Dispose();
+        }
     }
 }
