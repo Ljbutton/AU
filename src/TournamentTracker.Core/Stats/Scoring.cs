@@ -32,7 +32,7 @@ namespace TournamentTracker.Stats
             if (change != 0)
             {
                 first.PointBreakdown.Add(new PointLine(
-                    $"Died first: {Percent(r.DiedFirstShareOfCrewAverage)} of crew average {average.ToString("0.#", CultureInfo.InvariantCulture)}", change));
+                    $"Died first: {Percent(r.DiedFirstShareOfCrewAverage)} of crew average {OneDecimal(average)}", change));
                 first.Points = target;
             }
         }
@@ -149,6 +149,13 @@ namespace TournamentTracker.Stats
         /// <summary>Rounds to a multiple of <paramref name="step"/>, halves away from zero; 0 keeps the exact value.</summary>
         public static double Round(double value, double step) =>
             step > 0 ? Math.Round(value / step, MidpointRounding.AwayFromZero) * step : value;
+
+        private static string OneDecimal(double value)
+        {
+            double rounded = Math.Round(value, 1, MidpointRounding.AwayFromZero);
+            if (rounded == 0) rounded = 0;   // no "-0"
+            return rounded.ToString("0.#", CultureInfo.InvariantCulture);
+        }
 
         private static string Percent(double share) => (int)Math.Round(100 * share, MidpointRounding.AwayFromZero) + "%";
 

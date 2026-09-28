@@ -1,0 +1,722 @@
+<title>Points Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#f3f4ef;--surface:#fbfbf8;--sunk:#e9ebe4;--fg:#18211d;--muted:#5d6862;--line:#d6dad0;
+  --accent:#0f766e;--accent-soft:#d5ece8;--imp:#c2362b;--imp-soft:#f6dcd8;--crew:#2457c5;--crew-soft:#dbe4f7;
+  --good:#1f7a3f;--warn:#a15c07;--bad:#b42318;--band:#cfe7de;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1413;--surface:#151c1a;--sunk:#1c2522;--fg:#e4ebe7;--muted:#96a39c;--line:#2a3531;
+  --accent:#34d3bd;--accent-soft:#143a34;--imp:#f07166;--imp-soft:#3b1d1a;--crew:#7ea2f2;--crew-soft:#1a2640;
+  --good:#5fd08a;--warn:#e8a54a;--bad:#f07166;--band:#1d3a33;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1413;--surface:#151c1a;--sunk:#1c2522;--fg:#e4ebe7;--muted:#96a39c;--line:#2a3531;
+  --accent:#34d3bd;--accent-soft:#143a34;--imp:#f07166;--imp-soft:#3b1d1a;--crew:#7ea2f2;--crew-soft:#1a2640;
+  --good:#5fd08a;--warn:#e8a54a;--bad:#f07166;--band:#1d3a33;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--sans);margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
+header{display:grid;gap:6px;margin-bottom:22px}
+.kicker{font:600 11.5px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+h1{font-size:30px;line-height:1.15;margin:0;text-wrap:balance;letter-spacing:-.01em}
+.lede{color:var(--muted);max-width:70ch;margin:0}
+.settings{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{font:500 12px var(--mono);background:var(--sunk);border:1px solid var(--line);border-radius:999px;padding:3px 9px;color:var(--muted)}
+.layout{display:grid;grid-template-columns:340px minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px}
+.values{position:sticky;top:calc(env(safe-area-inset-top,0px) + 14px);max-height:calc(100vh - 28px);overflow:auto}
+@media (max-width:900px){.values{position:static;max-height:none}}
+.values h2,.section h2{font-size:17px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 12px}
+.group{font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:16px 0 6px;display:flex;align-items:center;gap:8px}
+.group::after{content:"";flex:1;border-top:1px solid var(--line)}
+.rule{display:grid;grid-template-columns:minmax(0,1fr) 78px;gap:10px;align-items:center;padding:3px 0}
+.rule span{font-size:13.5px}
+.rule input{font:500 14px var(--mono);width:100%;min-width:0;padding:5px 8px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--fg);text-align:right;font-variant-numeric:tabular-nums}
+.rule.changed span{font-weight:600}
+.rule.changed input{border-color:var(--accent);background:var(--accent-soft)}
+.rule small{display:block;color:var(--muted);font-size:11.5px;font-family:var(--mono)}
+input:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.actions{display:grid;gap:8px;margin-top:16px}
+button{font:600 13.5px var(--sans);border-radius:8px;padding:9px 12px;border:1px solid var(--line);background:var(--sunk);color:var(--fg);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.copied{font-size:12.5px;color:var(--muted);min-height:1.3em}
+#copy-fallback{width:100%;font:12px var(--mono);border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--fg);padding:8px}
+main{display:grid;gap:22px;min-width:0}
+.section{display:grid;gap:14px;min-width:0}
+.meter{display:grid;gap:10px}
+.big{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.big b{font:600 44px/1 var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.verdict{font-weight:600;font-size:14px;padding:3px 10px;border-radius:999px}
+.verdict.good{color:var(--good);background:color-mix(in srgb,var(--good) 14%,transparent)}
+.verdict.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.scale{position:relative;height:46px;margin:4px 6px 0}
+.scale .track{position:absolute;left:0;right:0;top:12px;height:10px;border-radius:5px;background:var(--sunk);border:1px solid var(--line)}
+.scale .band{position:absolute;top:12px;height:10px;background:var(--band);border-left:2px solid var(--accent);border-right:2px solid var(--accent)}
+.scale .mark{position:absolute;top:4px;width:3px;height:26px;margin-left:-1.5px;background:var(--fg);border-radius:2px;transition:left .25s}
+.scale .ghost{position:absolute;top:8px;width:2px;height:18px;margin-left:-1px;background:var(--muted);opacity:.6}
+.scale .tick{position:absolute;top:30px;font:11px var(--mono);color:var(--muted);transform:translateX(-50%)}
+.cells{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:560px){.cells{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.cell{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg)}
+.cell .k{font-size:12px;color:var(--muted)}
+.cell .v{font:600 22px var(--mono);font-variant-numeric:tabular-nums}
+.cell .d{font:12px var(--mono);color:var(--muted)}
+.cell.imp{border-left:4px solid var(--imp)}.cell.crew{border-left:4px solid var(--crew)}
+.mix{display:flex;height:26px;border-radius:7px;overflow:hidden;border:1px solid var(--line)}
+.mix div{display:flex;align-items:center;justify-content:center;font:600 11px var(--mono);color:#fff;min-width:0;overflow:hidden;white-space:nowrap}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+details.model{border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+details.model summary{cursor:pointer;padding:10px 12px;font-weight:600;font-size:14px}
+.knobs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px 18px;padding:4px 12px 14px}
+.knob{display:grid;gap:2px;font-size:13px}
+.knob div{display:flex;justify-content:space-between;gap:8px}
+.knob output{font:500 12.5px var(--mono);color:var(--muted)}
+.knob input{width:100%;accent-color:var(--accent)}
+.bars{display:grid;gap:7px}
+.bar{display:grid;grid-template-columns:150px minmax(0,1fr) 92px;gap:10px;align-items:center;font-size:13px}
+@media (max-width:520px){.bar{grid-template-columns:104px minmax(0,1fr) 78px}}
+.bar .fill{height:16px;border-radius:4px;background:var(--sunk);position:relative;overflow:hidden}
+.bar .fill i{position:absolute;inset:0 auto 0 0;background:var(--accent);border-radius:4px;transition:width .25s}
+.bar .fill .half{position:absolute;top:0;bottom:0;left:50%;border-left:1px dashed var(--muted)}
+.bar .n{font:500 12.5px var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.bar .n small{color:var(--muted)}
+.checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.check h3{font-size:14px;margin:0 0 2px}
+.check p{margin:0 0 10px;color:var(--muted);font-size:12.5px}
+.note{font-size:13px;color:var(--muted);margin:0}
+.flag{font-size:13px;border-radius:8px;padding:8px 11px;background:var(--sunk)}
+.flag.good{color:var(--good)}.flag.warn{color:var(--warn)}
+.stories{display:grid;gap:14px}
+.story{border:1px solid var(--line);border-radius:12px;background:var(--bg);overflow:hidden}
+.story > summary{list-style:none;cursor:pointer;padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.story > summary::-webkit-details-marker{display:none}
+.story .result{font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:999px}
+.result.imp{background:var(--imp-soft);color:var(--imp)}.result.crew{background:var(--crew-soft);color:var(--crew)}
+.story .what{font-weight:600;font-size:14.5px}
+.story .plot{color:var(--muted);font-size:13px;padding:0 14px 8px;margin:0}
+.rows{overflow-x:auto;padding:0 6px 10px}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:560px}
+th{font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.pts{font:600 14px var(--mono);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+td.pts small{display:block;font-weight:400;font-size:11px;color:var(--muted)}
+.who{display:flex;gap:8px;align-items:flex-start}
+.dot{width:12px;height:12px;border-radius:50%;flex:none;margin-top:3px;border:1px solid rgba(0,0,0,.25)}
+.who b{font-weight:600}.who .role{font:11px var(--mono);color:var(--muted);display:block}
+.lines{display:flex;flex-wrap:wrap;gap:4px}
+.lines span{font:11.5px var(--mono);background:var(--sunk);border-radius:5px;padding:1px 6px;white-space:nowrap}
+.lines .neg{color:var(--bad)}
+.foot{color:var(--muted);font-size:12.5px;margin-top:28px;max-width:80ch}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="kicker">Tournament scoring · private</div>
+  <h1>Points Lab</h1>
+  <p class="lede">Change any point value and everything below is re-scored straight away: the balance meter, a 3-game round check, and five example games. The scoring here is a copy of the mod's, checked against it on 3,000 generated games with identical results.</p>
+  <div class="settings" aria-label="Lobby settings">
+    <span class="chip">10 players</span><span class="chip">2 impostors</span><span class="chip">2 common · 3 long · 5 short tasks</span>
+    <span class="chip">1 emergency each</span><span class="chip">kill cooldown 25s</span><span class="chip">confirm ejects off</span><span class="chip">3 games a round · top 5 move on</span>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="panel values" aria-label="Point values">
+    <h2>Point values</h2>
+    <p class="sub">Starts at the mod's current defaults. Changed values are highlighted.</p>
+    <div id="rules"></div>
+    <div class="actions">
+      <button class="primary" id="copy">Copy for the setup-code generator</button>
+      <div class="copied" id="copied" aria-live="polite"></div>
+      <textarea id="copy-fallback" rows="3" hidden readonly></textarea>
+      <button id="reset">Back to the mod's defaults</button>
+    </div>
+  </aside>
+
+  <main>
+    <section class="panel section" id="balance" aria-labelledby="balance-h">
+      <div>
+        <h2 id="balance-h">Balance meter</h2>
+        <p class="sub" id="balance-sub">Average points of a winning impostor ÷ a winning crewmate, over simulated games. Target 1.3×.</p>
+      </div>
+      <div class="meter">
+        <div class="big"><b id="ratio">–</b><span class="verdict" id="verdict"></span></div>
+        <div class="scale" id="scale" aria-hidden="true"></div>
+      </div>
+      <div class="cells" id="cells"></div>
+      <div>
+        <div class="mix" id="mix" role="img" aria-label="How the simulated games ended"></div>
+        <div class="legend" id="mix-legend" style="margin-top:6px"></div>
+      </div>
+      <details class="model">
+        <summary>Lobby model: how the simulated games play</summary>
+        <p class="note" style="padding:0 12px 6px">A simple model of a lobby, not real data. Nudge it until the win mix above looks like your games; the point values are then judged against that. Each player gets their own read, kill and task skill.</p>
+        <div class="knobs" id="knobs"></div>
+      </details>
+    </section>
+
+    <section class="panel section" aria-labelledby="round-h">
+      <div>
+        <h2 id="round-h">Round check</h2>
+        <p class="sub" id="round-sub">Lobbies of 10 play 3 games with random impostors; the top 5 on points move on. How often does each kind of player make it?</p>
+      </div>
+      <div class="checks">
+        <div class="check"><h3>By games as impostor</h3><p>Role luck. Ideally close together.</p><div class="bars" id="by-imp"></div></div>
+        <div class="check"><h3>By times killed first</h3><p>Once can be bad luck; three times shouldn't make the top half.</p><div class="bars" id="by-first"></div></div>
+        <div class="check"><h3>By read skill</h3><p>Players who spot impostors should move on more.</p><div class="bars" id="by-read"></div></div>
+      </div>
+      <div class="flag" id="round-flags"></div>
+    </section>
+
+    <section class="panel section" aria-labelledby="stories-h">
+      <div>
+        <h2 id="stories-h">Example games</h2>
+        <p class="sub">Five hand-written games, scored with your values. Small numbers under each score are the change from the mod's defaults.</p>
+      </div>
+      <div class="stories" id="stories"></div>
+    </section>
+  </main>
+</div>
+<p class="foot">Copy the values into the setup-code generator's “Paste values copied from the Points Lab” box to put them in a code. Your edits are remembered in this browser only.</p>
+</div>
+
+<script>
+// ---- Scoring: a line-for-line copy of the mod's GameTracker + Scoring --------------------
+const RULES = [
+  ['Impostor', [
+    ['kill', 'Kill (each)', 1], ['firstBlood', 'First blood', 1], ['votedCrewmateOut', 'Voted a crewmate out (each)', 2],
+    ['impostorSabotageWin', 'Sabotage win', 5], ['impostorVoteWin', 'Vote win', 4], ['impostorKillWin', 'Kill win', 4],
+    ['impostorTaskLoss', 'Lost to tasks', -3], ['impostorVoteLoss', 'Lost to vote', -2],
+    ['votedOutFirst', 'Voted out first', -2], ['votedOutLast', 'Voted out later', -1]]],
+  ['Crewmate', [
+    ['crewTaskWin', 'Task win', 5], ['crewVoteWin', 'Vote win', 3], ['crewSabotageLossAlive', 'Alive at a sabotage loss', -5],
+    ['crewOtherLoss', 'Any other loss', -1], ['correctVoteOut', 'Correct vote out (each)', 2], ['incorrectVoteOut', 'Incorrect vote out (each)', -2],
+    ['caughtKiller', 'Caught and voted out killer', 1], ['readVotePoints', 'Read on an impostor (each)', 1], ['readVoteBonus', 'Reads bonus (up to)', 4],
+    ['taskPercentBonus', 'Task % bonus (up to)', 3], ['longTaskWeight', 'Long task counts as (short tasks)', 2],
+    ['completedTasks', 'Finished every task', 0], ['gotKilled', 'Got killed', 0], ['diedFirstShareOfCrewAverage', 'Died first: share of crew average', 0.9]]],
+  ['Other', [['bonusRounding', 'Round bonuses to', 0.5], ['disconnectWin', 'Win by disconnect', 0]]],
+];
+const DEFAULTS = Object.fromEntries(RULES.flatMap(([, rs]) => rs.map(([k, , v]) => [k, v])));
+
+function roundStep(v, step) {
+  if (!(step > 0)) return v;
+  const q = v / step;
+  return Math.sign(q) * Math.round(Math.abs(q)) * step;   // halves away from zero, like the mod
+}
+const clamp01 = x => Math.min(1, Math.max(0, x));
+const pct = share => Math.sign(100 * share) * Math.round(Math.abs(100 * share)) + '%';
+const oneDecimal = v => { const x = Math.sign(v) * Math.round(Math.abs(v) * 10) / 10; return String(x === 0 ? 0 : x); };
+
+function winnerFromReason(reason) {
+  const r = reason.toLowerCase();
+  const crew = r.includes('human') || r.includes('crewmate'), imp = r.includes('impostor') || r.includes('imposter');
+  if (r.includes('disconnect')) return imp ? 'Crewmates' : crew ? 'Impostors' : null;
+  if (imp && !crew) return 'Impostors';
+  if (crew && !imp) return 'Crewmates';
+  return null;
+}
+function kindOf(reason) {
+  const r = reason.toLowerCase();
+  if (r.includes('disconnect')) return 'Disconnect';
+  if (r.includes('task')) return 'Tasks';
+  if (r.includes('vote')) return 'Vote';
+  if (r.includes('sabotage')) return 'Sabotage';
+  if (r.includes('kill')) return 'Kill';
+  return 'Other';
+}
+
+/**
+ * A game: { players: [{id, name, imp, tasksTotal, longTotal, tasksDone, longDone}],
+ *           events: [{kill: [killer, victim]} | {meeting: {caller, body, votes: [[voter, target | -1 for skip]], ejected}}],
+ *           reason: 'HumansByTask' | 'HumansByVote' | 'ImpostorByKill' | 'ImpostorByVote' | 'ImpostorBySabotage',
+ *           deadAtEnd: [ids] }
+ */
+function track(game) {
+  const P = new Map();
+  for (const s of game.players) {
+    const total = s.imp ? 0 : s.tasksTotal, longTotal = s.imp ? 0 : Math.min(s.longTotal, total);
+    P.set(s.id, {
+      id: s.id, name: s.name, imp: !!s.imp, kills: 0, firstBlood: false, diedFirst: false, death: null,
+      tasksTotal: total, tasksDone: s.imp ? 0 : Math.min(s.tasksDone, total),
+      longTotal, longDone: s.imp ? 0 : Math.min(s.longDone, longTotal),
+      ejImp: 0, ejCrew: 0, caught: 0, order: null, readsRight: 0, readsWrong: 0,
+    });
+  }
+  for (const e of game.events) {
+    if (e.kill) {
+      const killer = P.get(e.kill[0]), victim = P.get(e.kill[1]);
+      if (!victim || victim.death) continue;
+      const first = [...P.values()].every(p => p.death !== 'Killed');
+      victim.death = 'Killed'; victim.diedFirst = first;
+      if (killer) { killer.kills++; if (first) killer.firstBlood = true; }
+    } else if (e.meeting) {
+      const m = e.meeting, exiled = m.ejected == null ? null : P.get(m.ejected);
+      const votes = m.votes.filter(([v, t]) => P.has(v) && (t === -1 || P.has(t)));
+      for (const [v, t] of votes) {
+        if (t === -1 || (exiled && t === exiled.id)) continue;
+        const voter = P.get(v), target = P.get(t);
+        if (voter.imp) continue;
+        if (target.imp) voter.readsRight++; else voter.readsWrong++;
+      }
+      if (exiled) {
+        for (const [v, t] of votes) {
+          if (t !== exiled.id) continue;
+          const voter = P.get(v);
+          if (exiled.imp && !voter.imp) voter.ejImp++;
+          else if (!exiled.imp) voter.ejCrew++;
+        }
+        if (exiled.imp) {
+          exiled.order = 1 + [...P.values()].filter(p => p.order != null).length;
+          const caller = m.caller == null ? null : P.get(m.caller);
+          if (caller && !caller.imp) caller.caught++;
+        }
+        if (!exiled.death) exiled.death = 'Ejected';
+      }
+    }
+  }
+  for (const id of game.deadAtEnd || []) { const p = P.get(id); if (p && !p.death) p.death = 'Killed'; }
+  return [...P.values()];
+}
+
+function readBonus(correct, incorrect, r) {
+  if (correct <= 0) return 0;
+  const earned = Math.min(r.readVoteBonus, r.readVotePoints * correct);
+  return roundStep(earned * correct / (correct + incorrect), r.bonusRounding);
+}
+function taskEffort(p, longWeight) {
+  if (p.tasksTotal <= 0) return 0;
+  const extra = Math.max(0, longWeight - 1), total = p.tasksTotal + extra * p.longTotal;
+  return total <= 0 ? 0 : clamp01((p.tasksDone + extra * p.longDone) / total);
+}
+
+function breakdown(p, winner, kind, r) {
+  const lines = [];
+  const add = (rule, points, times = 1) => { if (times > 0 && points !== 0) lines.push([times > 1 ? `${rule} x${times}` : rule, points * times]); };
+  const left = p.death === 'Disconnected', won = winner != null && p.imp === (winner === 'Impostors');
+  if (p.imp) {
+    add('Kill', r.kill, p.kills);
+    if (p.firstBlood) add('First blood', r.firstBlood);
+    add('Voted a crewmate out', r.votedCrewmateOut, p.ejCrew);
+    if (p.order === 1) add('Voted out first', r.votedOutFirst);
+    else if (p.order > 1) add('Voted out last', r.votedOutLast);
+    if (!left && winner != null) {
+      if (won) {
+        if (kind === 'Sabotage') add('Sabotage win', r.impostorSabotageWin);
+        else if (kind === 'Vote') add('Vote win', r.impostorVoteWin);
+        else if (kind === 'Kill') add('Kill win', r.impostorKillWin);
+        else if (kind === 'Disconnect') add('Win by disconnect', r.disconnectWin);
+      } else {
+        if (kind === 'Tasks') add('Lost to tasks', r.impostorTaskLoss);
+        else if (kind === 'Vote') add('Lost to vote', r.impostorVoteLoss);
+      }
+    }
+  } else {
+    if (p.tasksTotal > 0 && p.tasksDone >= p.tasksTotal) add('Completed tasks', r.completedTasks);
+    add('Correct vote out', r.correctVoteOut, p.ejImp);
+    add('Caught and voted out killer', r.caughtKiller, p.caught);
+    if (p.death === 'Killed') add('Got killed', r.gotKilled);
+    add('Incorrect vote out', r.incorrectVoteOut, p.ejCrew);
+    if (p.readsRight > 0) add(`Reads ${p.readsRight}/${p.readsRight + p.readsWrong} on impostors`, readBonus(p.readsRight, p.readsWrong, r));
+    if (p.tasksTotal > 0) {
+      const effort = taskEffort(p, r.longTaskWeight);
+      add(`Tasks ${pct(effort)}`, roundStep(r.taskPercentBonus * clamp01(effort), r.bonusRounding));
+    }
+    if (!left && winner != null) {
+      if (won) {
+        if (kind === 'Tasks') add('Task win', r.crewTaskWin);
+        else if (kind === 'Vote') add('Vote win', r.crewVoteWin);
+        else if (kind === 'Disconnect') add('Win by disconnect', r.disconnectWin);
+      } else if (kind === 'Sabotage' && p.death == null) add('Lost to sabotage while alive', r.crewSabotageLossAlive);
+      else if (kind !== 'Disconnect') add('Lost', r.crewOtherLoss);
+    }
+  }
+  return lines;
+}
+
+/** Scores a game the way the mod does. Returns the tracked players with .points and .lines. */
+function scoreGame(game, r) {
+  const players = track(game), winner = winnerFromReason(game.reason), kind = kindOf(game.reason);
+  for (const p of players) {
+    p.lines = winner != null ? breakdown(p, winner, kind, r) : [];
+    p.points = p.lines.reduce((s, l) => s + l[1], 0);
+  }
+  if (winner == null || !(r.diedFirstShareOfCrewAverage > 0)) return players;
+  const first = players.find(p => !p.imp && p.diedFirst && p.death === 'Killed');
+  if (!first) return players;
+  const mates = players.filter(p => !p.imp && p !== first && p.death !== 'Disconnected');
+  if (!mates.length) return players;
+  const average = mates.reduce((s, p) => s + p.points, 0) / mates.length;
+  const target = roundStep(r.diedFirstShareOfCrewAverage * average, r.bonusRounding);
+  const change = target - first.points;
+  if (change !== 0) {
+    first.lines.push([`Died first: ${pct(r.diedFirstShareOfCrewAverage)} of crew average ${oneDecimal(average)}`, change]);
+    first.points = target;
+  }
+  return players;
+}
+
+// ---- A simple model of a tournament lobby, to generate many games ----------------------
+function rng(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const pick = (rand, list) => list[Math.floor(rand() * list.length)];
+
+/**
+ * Plays one game. lobby: [{id, name, read, kill, task}] skills around 1; model: the knobs.
+ * Tasks: 2 common + 3 long + 5 short per crewmate; a long task takes two turns of work.
+ */
+function playGame(rand, lobby, model, impIds) {
+  const TASKS = model.common + model.long + model.short, LONG = model.long;
+  const S = lobby.map(p => ({ ...p, imp: impIds.includes(p.id), alive: true, work: 0 }));
+  const workNeeded = model.common + model.short + 2 * model.long;
+  const events = [];
+  const alive = () => S.filter(p => p.alive), crewAlive = () => S.filter(p => p.alive && !p.imp), impsAlive = () => S.filter(p => p.alive && p.imp);
+  let reason = null, emergencies = Object.fromEntries(S.map(p => [p.id, model.emergencies]));
+  for (let turn = 0; turn < 40 && !reason; turn++) {
+    // Task work: alive crew work, ghosts work a bit faster.
+    for (const p of S) if (!p.imp) p.work = Math.min(workNeeded, p.work + model.taskPace * p.task * (p.alive ? 1 : 1.3) * (0.5 + rand()));
+    const done = S.filter(p => !p.imp).every(p => p.work >= workNeeded);
+    if (done) { reason = 'HumansByTask'; break; }
+    // Kills.
+    let body = null;
+    for (const imp of impsAlive()) {
+      if (rand() < model.killChance * imp.kill) {
+        const victims = crewAlive();
+        if (!victims.length) break;
+        const v = pick(rand, victims);
+        v.alive = false; body = v;
+        events.push({ kill: [imp.id, v.id] });
+        if (impsAlive().length >= crewAlive().length) { reason = 'ImpostorByKill'; break; }
+      }
+    }
+    if (reason) break;
+    if (rand() < model.sabotageWin * (impsAlive().length / 2)) { reason = 'ImpostorBySabotage'; break; }
+    // A meeting: a body gets found, or someone presses the button.
+    let caller = null, bodyId = null;
+    if (body && rand() < model.reportChance) { caller = pick(rand, alive()); bodyId = body.id; }
+    else {
+      const pressers = alive().filter(p => emergencies[p.id] > 0);
+      if (pressers.length && rand() < model.buttonChance) { caller = pick(rand, pressers); emergencies[caller.id]--; }
+    }
+    if (!caller) continue;
+    const votes = [], crew = crewAlive(), imps = impsAlive();
+    const impTarget = crew.length ? pick(rand, crew) : null;
+    // Crew suspicion this meeting: one "suspect" crewmate draws the wrong votes, so votes cluster.
+    const suspect = crew.length ? pick(rand, crew) : null;
+    for (const p of alive()) {
+      if (p.imp) { votes.push([p.id, impTarget ? impTarget.id : -1]); continue; }
+      if (rand() < model.skip) { votes.push([p.id, -1]); continue; }
+      if (rand() < Math.min(0.95, model.read * p.read)) votes.push([p.id, pick(rand, imps).id]);
+      else {
+        const others = crew.filter(c => c !== p);
+        const t = others.length ? (rand() < 0.6 && suspect !== p ? suspect : pick(rand, others)) : null;
+        votes.push([p.id, t ? t.id : -1]);
+      }
+    }
+    const tally = new Map();
+    for (const [, t] of votes) tally.set(t, (tally.get(t) || 0) + 1);
+    let best = -1, bestN = 0, tie = false;
+    for (const [t, n] of tally) { if (n > bestN) { best = t; bestN = n; tie = false; } else if (n === bestN) tie = true; }
+    const ejected = !tie && best !== -1 ? best : null;
+    events.push({ meeting: { caller: caller.id, body: bodyId, votes, ejected } });
+    if (ejected != null) {
+      const ej = S.find(p => p.id === ejected);
+      ej.alive = false;
+      if (!impsAlive().length) { reason = 'HumansByVote'; break; }
+      if (impsAlive().length >= crewAlive().length) { reason = 'ImpostorByVote'; break; }
+    }
+  }
+  if (!reason) reason = 'HumansByTask';
+  const perTaskWork = workNeeded / TASKS;
+  return {
+    players: S.map(p => {
+      // Turn work into tasks: short and common first, long ones last.
+      const shortDone = Math.min(model.common + model.short, Math.floor(p.imp ? 0 : Math.min(p.work, model.common + model.short)));
+      const longDone = p.imp ? 0 : Math.min(LONG, Math.floor(Math.max(0, p.work - (model.common + model.short)) / 2));
+      const all = reason === 'HumansByTask' && !p.imp;
+      return { id: p.id, name: p.name, imp: p.imp, tasksTotal: TASKS, longTotal: LONG,
+        tasksDone: all ? TASKS : shortDone + longDone, longDone: all ? LONG : longDone };
+    }),
+    events, reason,
+    deadAtEnd: S.filter(p => !p.alive).map(p => p.id),
+  };
+}
+
+const MODEL = { common: 2, long: 3, short: 5, emergencies: 1, taskPace: 2, killChance: 0.3, sabotageWin: 0.025,
+  reportChance: 0.8, buttonChance: 0.35, skip: 0.3, read: 0.6, spread: 0.4 };
+
+function makeLobby(rand, spread) {
+  const vary = () => Math.max(0.2, 1 + (rand() * 2 - 1) * spread);
+  return Array.from({ length: 10 }, (_, i) => ({ id: i, name: 'P' + (i + 1), read: vary(), kill: vary(), task: vary() }));
+}
+function randomImps(rand) {
+  const a = Math.floor(rand() * 10); let b = Math.floor(rand() * 9); if (b >= a) b++;
+  return [a, b];
+}
+
+if (typeof module !== 'undefined') module.exports = { RULES, DEFAULTS, scoreGame, track, playGame, makeLobby, randomImps, rng, MODEL, roundStep };
+
+</script>
+<script>
+(() => {
+const COLORS = [['Red','#c51111'],['Blue','#132ed1'],['Green','#117f2d'],['Pink','#ed54ba'],['Orange','#ef7d0d'],['Yellow','#f5f557'],['Black','#3f474e'],['White','#d6e0f0'],['Purple','#6b2fbb'],['Brown','#71491e']];
+const REASONS = {
+  ImpostorByKill: ['Impostors: kills', 'var(--imp)', 1], ImpostorByVote: ['Impostors: wrong ejection', 'color-mix(in srgb,var(--imp) 70%,#000)', .85],
+  ImpostorBySabotage: ['Impostors: sabotage', 'color-mix(in srgb,var(--imp) 55%,#f59e0b)', .9],
+  HumansByVote: ['Crew: voted out', 'var(--crew)', 1], HumansByTask: ['Crew: tasks', 'color-mix(in srgb,var(--crew) 60%,#14b8a6)', 1],
+};
+const $ = id => document.getElementById(id);
+const store = { get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+const fmt = v => (Math.round(v * 100) / 100).toString();
+const signed = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + fmt(Math.abs(v));
+
+// ---- Point value inputs ----------------------------------------------------------------
+let rules = { ...DEFAULTS, ...(store.get('lab-rules') || {}) };
+const HELP = { readVotePoints: 'per vote on an impostor who stayed in', readVoteBonus: 'then × share of reads right',
+  diedFirstShareOfCrewAverage: '0.9 = 90%; 0 = off', longTaskWeight: 'in the task %', bonusRounding: '0.5 = halves' };
+const rulesEl = $('rules');
+for (const [group, list] of RULES) {
+  const h = document.createElement('div'); h.className = 'group'; h.textContent = group; rulesEl.appendChild(h);
+  for (const [key, label] of list) {
+    const row = document.createElement('label'); row.className = 'rule'; row.dataset.key = key;
+    const span = document.createElement('span'); span.textContent = label;
+    if (HELP[key]) { const s = document.createElement('small'); s.textContent = HELP[key]; span.appendChild(s); }
+    const inp = document.createElement('input'); inp.type = 'number'; inp.step = 'any'; inp.value = rules[key]; inp.id = 'r-' + key; inp.inputMode = 'decimal';
+    inp.addEventListener('input', () => { const v = parseFloat(inp.value); if (!isNaN(v)) { rules[key] = v; changed(); } });
+    row.append(span, inp); rulesEl.appendChild(row);
+  }
+}
+function markChanged() {
+  rulesEl.querySelectorAll('.rule').forEach(r => r.classList.toggle('changed', rules[r.dataset.key] !== DEFAULTS[r.dataset.key]));
+}
+$('reset').addEventListener('click', () => {
+  rules = { ...DEFAULTS };
+  for (const k in rules) $('r-' + k).value = rules[k];
+  changed();
+});
+$('copy').addEventListener('click', () => {
+  const text = JSON.stringify(rules);
+  const done = msg => { $('copied').textContent = msg; };
+  const fallback = () => { const t = $('copy-fallback'); t.hidden = false; t.value = text; t.focus(); t.select(); done('Select and copy the text above.'); };
+  try {
+    navigator.clipboard.writeText(text).then(() => done('Copied. Paste it into the generator\'s Points Lab box.'), fallback);
+  } catch { fallback(); }
+});
+
+// ---- Model knobs -----------------------------------------------------------------------
+let model = { ...MODEL, ...(store.get('lab-model') || {}) };
+const KNOBS = [
+  ['read', 'Crew read skill', 0.2, 0.95, 0.05, v => Math.round(v * 100) + '% of votes on an impostor'],
+  ['killChance', 'Kill pace', 0.1, 0.6, 0.02, v => Math.round(v * 100) + '% chance per impostor between meetings'],
+  ['taskPace', 'Task pace', 1, 3.5, 0.1, v => v.toFixed(1) + ' tasks of work per crewmate a stretch'],
+  ['sabotageWin', 'Sabotage wins', 0, 0.08, 0.005, v => (v * 100).toFixed(1) + '% a stretch'],
+  ['skip', 'Skipping', 0, 0.7, 0.05, v => Math.round(v * 100) + '% of crew votes'],
+  ['spread', 'Skill spread', 0, 0.8, 0.05, v => '±' + Math.round(v * 100) + '% between players'],
+];
+for (const [key, label, min, max, step, show] of KNOBS) {
+  const wrap = document.createElement('label'); wrap.className = 'knob';
+  const top = document.createElement('div'); const name = document.createElement('span'); name.textContent = label;
+  const out = document.createElement('output'); out.textContent = show(model[key]);
+  top.append(name, out);
+  const inp = document.createElement('input'); inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step; inp.value = model[key];
+  inp.addEventListener('input', () => { model[key] = parseFloat(inp.value); out.textContent = show(model[key]); regenerate(); });
+  wrap.append(top, inp); $('knobs').appendChild(wrap);
+}
+
+// ---- Simulated rounds (the games stay fixed while point values change) -----------------
+const ROUNDS = 1500;
+let rounds = [];
+function generate() {
+  const rand = rng(20261003);
+  rounds = [];
+  for (let i = 0; i < ROUNDS; i++) {
+    const lobby = makeLobby(rand, model.spread);
+    const games = [0, 1, 2].map(() => playGame(rand, lobby, model, randomImps(rand)));
+    rounds.push({ lobby, games });
+  }
+}
+
+function analyse(r) {
+  const sum = { impWin: [0, 0], impLoss: [0, 0], crewWin: [0, 0], crewLoss: [0, 0], first: [0, 0] };
+  const reasons = {};
+  const byImp = [[0, 0], [0, 0], [0, 0], [0, 0]], byFirst = [[0, 0], [0, 0], [0, 0], [0, 0]], byRead = [[0, 0], [0, 0], [0, 0], [0, 0]];
+  const cutLines = [];
+  for (const round of rounds) {
+    const total = new Array(10).fill(0), imp = new Array(10).fill(0), first = new Array(10).fill(0);
+    for (const g of round.games) {
+      reasons[g.reason] = (reasons[g.reason] || 0) + 1;
+      const impWon = g.reason.startsWith('Impostor');
+      for (const p of scoreGame(g, r)) {
+        const key = p.imp ? (impWon ? 'impWin' : 'impLoss') : (impWon ? 'crewLoss' : 'crewWin');
+        sum[key][0] += p.points; sum[key][1]++;
+        if (!p.imp && p.diedFirst) { sum.first[0] += p.points; sum.first[1]++; }
+        total[p.id] += p.points;
+        if (p.imp) imp[p.id]++;
+        if (!p.imp && p.diedFirst) first[p.id]++;
+      }
+    }
+    // Rank: points, ties broken at random (the same way every time).
+    const order = total.map((t, i) => [t, i, ((i + 1) * 2654435761 + round.games.length * 97) % 1000]).sort((a, b) => b[0] - a[0] || a[2] - b[2]);
+    const moves = new Set(order.slice(0, 5).map(x => x[1]));
+    cutLines.push(order[4][0]);
+    const readRank = round.lobby.map((p, i) => [p.read, i]).sort((a, b) => a[0] - b[0]);
+    readRank.forEach(([, i], rank) => { const q = Math.min(3, Math.floor(rank / 2.5)); byRead[q][0] += moves.has(i); byRead[q][1]++; });
+    for (let i = 0; i < 10; i++) {
+      byImp[imp[i]][0] += moves.has(i); byImp[imp[i]][1]++;
+      byFirst[first[i]][0] += moves.has(i); byFirst[first[i]][1]++;
+    }
+  }
+  const avg = ([s, n]) => n ? s / n : 0;
+  cutLines.sort((a, b) => a - b);
+  return {
+    impWin: avg(sum.impWin), impLoss: avg(sum.impLoss), crewWin: avg(sum.crewWin), crewLoss: avg(sum.crewLoss), first: avg(sum.first),
+    impGame: (sum.impWin[0] + sum.impLoss[0]) / (sum.impWin[1] + sum.impLoss[1]),
+    crewGame: (sum.crewWin[0] + sum.crewLoss[0]) / (sum.crewWin[1] + sum.crewLoss[1]),
+    reasons, byImp, byFirst, byRead, cut: cutLines[Math.floor(cutLines.length / 2)], games: rounds.length * 3,
+  };
+}
+
+// ---- Drawing ------------------------------------------------------------------------------
+const LO = 0.6, HI = 2.0, at = v => ((Math.min(HI, Math.max(LO, v)) - LO) / (HI - LO)) * 100;
+function drawScale(ratio, base) {
+  const el = $('scale');
+  el.innerHTML = `<div class="track"></div><div class="band" style="left:${at(1.2)}%;width:${at(1.4) - at(1.2)}%"></div>`
+    + `<div class="ghost" style="left:${at(base)}%" title="Mod defaults"></div><div class="mark" style="left:${at(ratio)}%"></div>`
+    + [0.6, 1, 1.3, 1.6, 2].map(t => `<span class="tick" style="left:${at(t)}%">${t}×</span>`).join('');
+}
+function cell(cls, label, value, base) {
+  const d = value - base;
+  return `<div class="cell ${cls}"><div class="k">${label}</div><div class="v">${signed(value).replace('±', '')}</div>`
+    + `<div class="d">${Math.abs(d) < 0.005 ? 'same as defaults' : signed(d) + ' vs defaults'}</div></div>`;
+}
+function bars(el, rows) {
+  el.innerHTML = rows.map(([label, [hit, n]]) => {
+    const rate = n ? hit / n : 0;
+    return `<div class="bar"><span>${label}</span><div class="fill"><i style="width:${(rate * 100).toFixed(1)}%"></i><span class="half"></span></div>`
+      + `<span class="n">${n ? Math.round(rate * 100) + '%' : '–'} <small>${n ? 'of ' + n.toLocaleString() : ''}</small></span></div>`;
+  }).join('');
+}
+
+let baseline = null;
+function render() {
+  const a = analyse(rules);
+  if (!baseline) baseline = analyse(DEFAULTS);
+  const b = baseline;
+  const ratio = a.impWin / a.crewWin, baseRatio = b.impWin / b.crewWin;
+  $('ratio').textContent = ratio.toFixed(2) + '×';
+  const v = $('verdict');
+  const off = ratio < 1.2 ? 'below' : ratio > 1.4 ? 'above' : null;
+  v.className = 'verdict ' + (off ? 'warn' : 'good');
+  v.textContent = off ? `${off} the 1.2–1.4 band` : 'on target';
+  $('balance-sub').textContent = `Average points of a winning impostor ÷ a winning crewmate, over ${a.games.toLocaleString()} simulated games. Target 1.3× (shaded 1.2–1.4); the faint mark is the mod's defaults (${baseRatio.toFixed(2)}×).`;
+  drawScale(ratio, baseRatio);
+  $('cells').innerHTML = cell('imp', 'Impostor, won', a.impWin, b.impWin) + cell('imp', 'Impostor, lost', a.impLoss, b.impLoss)
+    + cell('crew', 'Crewmate, won', a.crewWin, b.crewWin) + cell('crew', 'Crewmate, lost', a.crewLoss, b.crewLoss)
+    + cell('crew', 'Killed first', a.first, b.first)
+    + cell('', 'Impostor ÷ crew, any game', a.impGame / a.crewGame, b.impGame / b.crewGame).replace(/<div class="v">[^<]*/, `<div class="v">${(a.impGame / a.crewGame).toFixed(2)}×`);
+  const n = Object.values(a.reasons).reduce((s, x) => s + x, 0);
+  const order = ['ImpostorByKill', 'ImpostorByVote', 'ImpostorBySabotage', 'HumansByVote', 'HumansByTask'];
+  $('mix').innerHTML = order.map(k => { const p = (a.reasons[k] || 0) / n * 100; return `<div style="width:${p}%;background:${REASONS[k][1]}" title="${REASONS[k][0]} ${p.toFixed(0)}%">${p >= 7 ? p.toFixed(0) + '%' : ''}</div>`; }).join('');
+  const impShare = order.slice(0, 3).reduce((s, k) => s + (a.reasons[k] || 0), 0) / n;
+  $('mix-legend').innerHTML = order.map(k => `<span><i style="background:${REASONS[k][1]}"></i>${REASONS[k][0]} ${((a.reasons[k] || 0) / n * 100).toFixed(0)}%</span>`).join('')
+    + `<span>· impostors win ${(impShare * 100).toFixed(0)}%</span>`;
+
+  bars($('by-imp'), [['Never impostor', a.byImp[0]], ['Impostor once', a.byImp[1]], ['Impostor twice', a.byImp[2]], ['All 3 games', a.byImp[3]]]);
+  bars($('by-first'), [['Never', a.byFirst[0]], ['Once', a.byFirst[1]], ['Twice', a.byFirst[2]], ['All 3 games', a.byFirst[3]]]);
+  bars($('by-read'), [['Weakest 25%', a.byRead[0]], ['Below middle', a.byRead[1]], ['Above middle', a.byRead[2]], ['Sharpest 25%', a.byRead[3]]]);
+  $('round-sub').textContent = `${ROUNDS.toLocaleString()} simulated lobbies of 10 play 3 games with random impostors; the top 5 on points move on (dashed line: half). The 5th-place total is usually about ${fmt(a.cut)} points.`;
+
+  const rate = ([h, k]) => k ? h / k : 0;
+  const flags = [];
+  const twice = rate(a.byImp[2]), never = rate(a.byImp[0]);
+  flags.push(twice - never > 0.35 ? `Role luck is large: twice-impostor players move on ${Math.round(twice * 100)}% of the time vs ${Math.round(never * 100)}% for never-impostor.` : `Role luck is modest: ${Math.round(never * 100)}% (never impostor) vs ${Math.round(twice * 100)}% (twice).`);
+  const three = rate(a.byFirst[3]), twoF = rate(a.byFirst[2]);
+  if (a.byFirst[3][1] + a.byFirst[2][1] > 0)
+    flags.push(`Killed first twice: ${Math.round(twoF * 100)}% move on${a.byFirst[3][1] ? `; all three games: ${Math.round(three * 100)}%` : ''}.`);
+  $('round-flags').className = 'flag ' + (twice - never > 0.35 ? 'warn' : 'good');
+  $('round-flags').textContent = flags.join(' ');
+
+  renderStories();
+}
+
+// ---- Example games -------------------------------------------------------------------------
+const T = (done, longDone) => ({ tasksDone: done, longDone });
+function lobby(imps, tasks) {
+  return COLORS.map(([name], id) => ({ id, name, imp: imps.includes(id), tasksTotal: 10, longTotal: 3, ...(tasks[id] || T(10, 3)) }));
+}
+const K = (a, b) => ({ kill: [a, b] }), M = (caller, body, votes, ejected) => ({ meeting: { caller, body, votes, ejected } });
+const STORIES = [
+  { title: 'Impostors win by kills after a wrong ejection', plot: 'Red and Blue kill early; Orange reports and the crew votes out Yellow by mistake. Three more kills end it.',
+    game: { players: lobby([0, 1], { 2: T(1, 0), 3: T(3, 0), 4: T(5, 1), 5: T(4, 0), 6: T(6, 1), 7: T(7, 2), 8: T(7, 2), 9: T(8, 2) }),
+      events: [K(0, 2), K(1, 3), M(4, 2, [[0, 5], [1, 5], [4, 5], [6, 5], [7, 0], [8, -1], [9, 5], [5, 1]], 5), K(0, 4), K(1, 6), K(0, 7)],
+      reason: 'ImpostorByKill', deadAtEnd: [2, 3, 4, 5, 6, 7] },
+    notes: { 0: '3 kills, first blood', 1: '2 kills', 2: 'killed first, 1 task', 7: 'read Red, killed', 9: 'voted Yellow out, survived' } },
+  { title: 'Crew votes both impostors out', plot: 'An early button meeting: Pink and White read Blue, Purple guesses Black, nobody goes. Green dies, Pink reports and Red is voted out; Blue kills Yellow, Black presses the button and Blue goes too.',
+    game: { players: lobby([0, 1], { 2: T(2, 0), 5: T(5, 1), 3: T(6, 1), 4: T(6, 1), 6: T(6, 1), 7: T(6, 1), 8: T(6, 1), 9: T(6, 1) }),
+      events: [M(7, null, [[0, -1], [1, -1], [2, -1], [3, 1], [4, -1], [5, -1], [6, -1], [7, 1], [8, 6], [9, -1]], null),
+        K(0, 2), M(3, 2, [[1, 4], [3, 0], [4, 0], [5, 0], [6, 0], [7, 0], [8, 4], [9, -1], [0, 4]], 0),
+        K(1, 5), M(6, null, [[1, 6], [3, 1], [4, 1], [6, 1], [7, 1], [8, 1], [9, 1]], 1)],
+      reason: 'HumansByVote', deadAtEnd: [2, 5] },
+    notes: { 3: 'read Blue early, reported, voted right twice', 7: 'read Blue early, voted right twice', 8: 'two wrong reads, then right', 9: 'skipped, then right', 2: 'killed first' } },
+  { title: 'Crew wins on tasks', plot: 'Three kills and one body report, where Yellow and Black read the impostors and Purple reads Black. Nobody is ejected; the task bar fills.',
+    game: { players: lobby([0, 1], {}),
+      events: [K(0, 2), M(5, 2, [[0, -1], [1, -1], [5, 1], [6, 0], [7, -1], [8, 6], [9, -1], [3, -1], [4, -1]], null), K(1, 3), K(0, 4)],
+      reason: 'HumansByTask', deadAtEnd: [2, 3, 4] },
+    notes: { 5: 'reported, read Blue', 6: 'read Red', 8: 'wrong read', 2: 'killed first', 0: '2 kills, first blood' } },
+  { title: 'Impostors win by sabotage', plot: 'Two kills, then a button meeting ejects Brown (a crewmate) on Red, Blue and Orange\'s votes. Reactor goes and nobody fixes it.',
+    game: { players: lobby([0, 1], { 2: T(1, 0), 3: T(3, 1), 4: T(6, 1), 5: T(6, 1), 6: T(4, 0), 7: T(8, 2), 8: T(5, 1), 9: T(3, 0) }),
+      events: [K(0, 2), K(1, 3), M(8, null, [[0, 9], [1, 9], [4, 9], [5, 0], [6, -1], [7, -1], [8, 1], [9, 0]], 9)],
+      reason: 'ImpostorBySabotage', deadAtEnd: [2, 3, 9] },
+    notes: { 0: '1 kill, first blood, voted Brown out', 4: 'voted Brown out, alive at the sabotage', 8: 'called it, read Blue', 9: 'ejected, read Red' } },
+  { title: 'Impostors win by a wrong ejection', plot: 'Three kills; Yellow reports and Black is voted out wrongly. Blue kills Yellow; White reports and Purple is voted out too, leaving 2 on 2.',
+    game: { players: lobby([0, 1], { 2: T(1, 0), 3: T(2, 0), 4: T(3, 1), 5: T(5, 1), 6: T(6, 1), 7: T(7, 2), 8: T(6, 1), 9: T(4, 1) }),
+      events: [K(0, 2), K(1, 3), K(0, 4), M(5, 4, [[0, 6], [1, 6], [5, 1], [6, 0], [7, 6], [8, -1], [9, -1]], 6), K(1, 5),
+        M(7, 5, [[0, 8], [1, 8], [7, 0], [8, 1], [9, 8]], 8)],
+      reason: 'ImpostorByVote', deadAtEnd: [2, 3, 4, 5, 6, 8] },
+    notes: { 5: 'read Blue, then killed', 6: 'read Red, then ejected', 7: 'wrong vote out, then read Red', 8: 'read Blue, then ejected', 9: 'wrong vote out' } },
+];
+function renderStories() {
+  const el = $('stories');
+  const open = new Set([...el.querySelectorAll('details[open]')].map(d => d.dataset.i));
+  el.innerHTML = STORIES.map((s, i) => {
+    const mine = scoreGame(s.game, rules), base = scoreGame(s.game, DEFAULTS);
+    const impWon = s.game.reason.startsWith('Impostor');
+    const rows = mine.slice().sort((a, b) => b.points - a.points).map(p => {
+      const d = p.points - base.find(x => x.id === p.id).points;
+      const note = s.notes[p.id] ? ` · ${s.notes[p.id]}` : '';
+      return `<tr><td><div class="who"><span class="dot" style="background:${COLORS[p.id][1]}"></span><div><b>${p.name}</b><span class="role">${p.imp ? 'Impostor' : 'Crewmate'}${note}</span></div></div></td>`
+        + `<td><div class="lines">${p.lines.map(([rule, pts]) => `<span class="${pts < 0 ? 'neg' : ''}">${rule} ${signed(pts)}</span>`).join('') || '<span>no points</span>'}</div></td>`
+        + `<td class="pts">${signed(p.points).replace('±', '')}${Math.abs(d) > 1e-9 ? `<small>${signed(d)}</small>` : ''}</td></tr>`;
+    }).join('');
+    return `<details class="story" data-i="${i}" ${open.has(String(i)) || (!open.size && i === 0) ? 'open' : ''}>`
+      + `<summary><span class="result ${impWon ? 'imp' : 'crew'}">${impWon ? 'Impostors win' : 'Crew wins'}</span><span class="what">${s.title}</span></summary>`
+      + `<p class="plot">${s.plot}</p><div class="rows"><table><thead><tr><th>Player</th><th>Where the points came from</th><th style="text-align:right">Points</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
+  }).join('');
+}
+
+// ---- Wiring -------------------------------------------------------------------------------
+let timer = null;
+function changed() {
+  markChanged();
+  store.set('lab-rules', rules);
+  clearTimeout(timer); timer = setTimeout(render, 120);
+}
+function regenerate() {
+  store.set('lab-model', model);
+  clearTimeout(timer);
+  timer = setTimeout(() => { generate(); baseline = null; render(); }, 150);
+}
+generate();
+markChanged();
+render();
+})();
+</script>
