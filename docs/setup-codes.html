@@ -34,6 +34,12 @@ legend{font:600 12px var(--body);letter-spacing:.08em;text-transform:uppercase;c
 .field{display:grid;gap:5px;min-width:0}
 .field label{font-weight:500;font-size:14px}
 .field .hint,#lab-status{color:var(--muted);font-size:12.5px}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:14px;margin:8px 0}
+.check input{margin-top:3px}
+.settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 14px;margin-top:8px}
+.settings-grid label{display:grid;gap:4px;font-size:12.5px;color:var(--muted)}
+.settings-grid label.tick{display:flex;gap:8px;align-items:center;color:var(--fg);font-size:13.5px}
+.settings-grid select{font:14px var(--body);color:var(--fg);background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:8px 10px}
 .lab-paste{display:grid;gap:6px;margin-top:12px;font-size:13px;color:var(--muted)}
 input[type=text],input[type=password],input[type=number],textarea{font:14px var(--body);color:var(--fg);background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:9px 11px;width:100%;min-width:0}
 input:focus-visible,textarea:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
@@ -101,6 +107,35 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <div class="row">
       <div class="field"><label for="advance">Players who move on per lobby</label><input type="number" id="advance" min="1" max="10" value="5"></div>
       <div class="field"><label for="refs">Referee user IDs (optional)</label><input type="text" id="refs" class="mono" placeholder="Who can talk in referee mode"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label for="gpr">Games per round</label><input type="number" id="gpr" min="1" max="10" value="3"><span class="hint">Cut-line tiebreaks apply once a lobby has played them all.</span></div>
+      <label class="check"><input type="checkbox" id="lead"> <span><b>Lead lobby</b>: this host's mod answers !lobbies, !move, !start… in the results channel. Tick it in the code for one host only (you).</span></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Fairness and settings</legend>
+    <label class="check"><input type="checkbox" id="rot"> <span><b>Fair impostor rotation</b>: within a round nobody is impostor twice until everyone has been once. Off unless ticked.</span></label>
+    <label class="check"><input type="checkbox" id="lock" checked> <span><b>Lock lobby settings</b> to these while the code is in use (hosts type !lock off for a casual game):</span></label>
+    <div class="settings-grid" id="lock-fields">
+      <label>Impostors<input type="number" id="s-imp" value="2" min="1" max="3"></label>
+      <label>Kill cooldown (s)<input type="number" id="s-kc" value="25" step="any"></label>
+      <label>Kill distance<select id="s-kd"><option value="0" selected>Short</option><option value="1">Medium</option><option value="2">Long</option></select></label>
+      <label>Emergency meetings<input type="number" id="s-em" value="1" min="0"></label>
+      <label>Emergency cooldown (s)<input type="number" id="s-ec" value="20" min="0"></label>
+      <label>Discussion (s)<input type="number" id="s-dt" value="15" min="0"></label>
+      <label>Voting (s)<input type="number" id="s-vt" value="150" min="0"></label>
+      <label>Player speed<input type="number" id="s-ps" value="1" step="any"></label>
+      <label>Crewmate vision<input type="number" id="s-cv" value="0.25" step="any"></label>
+      <label>Impostor vision<input type="number" id="s-iv" value="1" step="any"></label>
+      <label>Common tasks<input type="number" id="s-ct" value="2" min="0"></label>
+      <label>Long tasks<input type="number" id="s-lt" value="3" min="0"></label>
+      <label>Short tasks<input type="number" id="s-st" value="5" min="0"></label>
+      <label class="tick"><input type="checkbox" id="s-ce"> Confirm ejects</label>
+      <label class="tick"><input type="checkbox" id="s-av"> Anonymous votes</label>
+      <label class="tick"><input type="checkbox" id="s-vis"> Visual tasks</label>
+      <label class="tick"><input type="checkbox" id="s-ro" checked> All special roles off</label>
     </div>
   </fieldset>
 
@@ -225,6 +260,17 @@ function build() {
     if (prelims.length) code.pc = prelims;
     code.adv = Math.max(1, Math.min(10, parseInt($('advance').value, 10) || 5));
     const refs = ids($('refs').value); if (refs.length) code.ref = refs;
+    code.gpr = Math.max(1, Math.min(10, parseInt($('gpr').value, 10) || 3));
+    if ($('lead').checked) code.lead = true;
+  }
+  if ($('rot').checked) code.rot = true;
+  $('lock-fields').hidden = !$('lock').checked;
+  if ($('lock').checked) {
+    const set = {};
+    for (const k of ['imp', 'em', 'ec', 'dt', 'vt', 'ct', 'lt', 'st', 'kd']) { const v = parseInt($('s-' + k).value, 10); if (!isNaN(v)) set[k] = v; }
+    for (const k of ['kc', 'ps', 'cv', 'iv']) { const v = parseFloat($('s-' + k).value); if (!isNaN(v)) set[k] = v; }
+    for (const k of ['ce', 'av', 'vis', 'ro']) set[k] = $('s-' + k).checked;
+    code.set = set;
   }
   const sc = {}; let changed = 0;
   scoresEl.querySelectorAll('input').forEach(inp => {
@@ -277,6 +323,8 @@ $('load-btn').addEventListener('click', () => {
     $('webhook').value = c.wh || ''; $('guild').value = c.g || ''; $('results').value = c.rc || '';
     $('token').value = (c.bt || [])[0] || ''; $('prelims').value = (c.pc || []).join(', ');
     $('advance').value = c.adv || 5; $('refs').value = (c.ref || []).join(', ');
+    $('gpr').value = c.gpr || 3; $('lead').checked = !!c.lead; $('rot').checked = !!c.rot; $('lock').checked = !!c.set;
+    if (c.set) for (const [k, v] of Object.entries(c.set)) { const el = $('s-' + k); if (!el) continue; if (el.type === 'checkbox') el.checked = !!v; else el.value = v; }
     scoresEl.querySelectorAll('input').forEach(i => { const k = i.id.slice(3); i.value = c.sc && k in c.sc ? c.sc[k] : i.dataset.default; });
     show('load-bad', ''); build();
   } catch (err) { show('load-bad', err instanceof SyntaxError || /atob|decode|base64/i.test(err.message) ? 'That setup code is damaged. Copy the whole code again.' : err.message); }

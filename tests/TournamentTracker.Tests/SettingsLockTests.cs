@@ -126,3 +126,26 @@ public class RotationTests : IDisposable
         }
     }
 }
+
+public class GeneratorOptionsTests
+{
+    // Made by docs/setup-codes.html (tournament host, rotation, lead lobby, 4 games a round, kill cooldown 22.5).
+    private const string FromGenerator = "TT1-eyJtIjoidG91cm5hbWVudCIsImlkIjoiZmFsbC1jdXAiLCJuIjoiRmFsbCBDdXAiLCJ3aCI6Imh0dHBzOi8vZGlzY29yZC5jb20vYXBpL3dlYmhvb2tzLzEyMy9hYmMiLCJnIjoiMTE4MDAwMDAwMDAwMDAwMDAwIiwiYnQiOlsiYWFhLmJiYi5jY2MiXSwicmMiOiIxMjkwMDAwMDAwMDAwMDAwMDAiLCJhZHYiOjUsImdwciI6NCwibGVhZCI6dHJ1ZSwicm90Ijp0cnVlLCJzZXQiOnsiaW1wIjoyLCJlbSI6MSwiZWMiOjIwLCJkdCI6MTUsInZ0IjoxNTAsImN0IjoyLCJsdCI6Mywic3QiOjUsImtkIjowLCJrYyI6MjIuNSwicHMiOjEsImN2IjowLjI1LCJpdiI6MSwiY2UiOmZhbHNlLCJhdiI6ZmFsc2UsInZpcyI6ZmFsc2UsInJvIjp0cnVlfSwic2MiOnsia2lsbCI6MSwiZmlyc3RCbG9vZCI6MSwidm90ZWRDcmV3bWF0ZU91dCI6MiwiaW1wb3N0b3JTYWJvdGFnZVdpbiI6NSwiaW1wb3N0b3JWb3RlV2luIjo0LCJpbXBvc3RvcktpbGxXaW4iOjQsImltcG9zdG9yVGFza0xvc3MiOi0zLCJpbXBvc3RvclZvdGVMb3NzIjotMiwidm90ZWRPdXRGaXJzdCI6LTIsInZvdGVkT3V0TGFzdCI6LTEsImNvbXBsZXRlZFRhc2tzIjowLCJ0YXNrUGVyY2VudEJvbnVzIjozLCJsb25nVGFza1dlaWdodCI6MiwiY29ycmVjdFZvdGVPdXQiOjIsInJlYWRWb3RlUG9pbnRzIjoxLCJyZWFkVm90ZUJvbnVzIjo0LCJjYXVnaHRLaWxsZXIiOjEsImRpZWRGaXJzdFNoYXJlT2ZDcmV3QXZlcmFnZSI6MC45LCJnb3RLaWxsZWQiOjAsImluY29ycmVjdFZvdGVPdXQiOi0yLCJjcmV3VGFza1dpbiI6NSwiY3Jld1ZvdGVXaW4iOjMsImNyZXdTYWJvdGFnZUxvc3NBbGl2ZSI6LTUsImNyZXdPdGhlckxvc3MiOi0xLCJib251c1JvdW5kaW5nIjowLjUsImRpc2Nvbm5lY3RXaW4iOjB9fQ";
+
+    [Fact]
+    public void The_generator_s_new_options_reach_the_settings()
+    {
+        Assert.True(TournamentTracker.Setup.SetupCode.TryParse(FromGenerator, out var code, out var error), error);
+        var s = new TrackerSettings();
+        code.ApplyTo(s);
+        Assert.True(s.ImpostorRotation);
+        Assert.True(s.Lead);
+        Assert.Equal(4, s.GamesPerRound);
+        Assert.Equal(22.5f, s.LobbySettings!.KillCooldown);
+        Assert.Equal(0, s.LobbySettings.KillDistance);
+        Assert.True(s.LobbySettings.RolesOff);
+        Assert.False(s.LobbySettings.ConfirmEjects);
+        Assert.Equal(4, s.Scoring.ReadVoteBonus);
+        Assert.Equal(0.9, s.Scoring.DiedFirstShareOfCrewAverage);
+    }
+}

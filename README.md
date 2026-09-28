@@ -91,8 +91,20 @@ Open `docs/setup-codes.html` (the setup code generator) in a browser and fill it
   ID, one bot's token, the private results channel and the preliminary channels. It
   contains the bot token, so send it privately.
 
-Both carry the point values, so every host scores the same. Codes are only encoded, not
-encrypted: anyone holding one can read what's in it.
+Both carry the point values, so every host scores the same, and the game settings (below).
+Tournament host codes also carry the games per round and, for one host only (you), the
+**lead lobby** tick that makes that host's mod answer your results-channel commands. Codes
+are only encoded, not encrypted: anyone holding one can read what's in it.
+
+* **Settings lock** (on by default in the generator): while a preliminary or tournament code
+  is in use, the host's lobby is kept on the tournament's settings (impostors, cooldowns,
+  vision, kill distance, tasks, special roles off…). Anything changed in the lobby is put
+  back and the host is told. A game that still starts on the wrong settings says so in its
+  report (and to the referees). For a casual game the host types `!lock off` (until they
+  restart Among Us); without a code nothing is ever touched.
+* **Fair impostor rotation** (off unless ticked): within a round nobody is impostor a
+  second time until everyone has been once, still drawn at random. The mod swaps the
+  roles the game handed out, and announces it when a round starts.
 
 ### 4. The combined preliminary leaderboard
 
@@ -136,9 +148,53 @@ right away.
   lobby's bot has seen a void it reacts ✅ and reposts the game with it built in, so deleting
   the `!void` message changes nothing. Preliminary channels work the same way (the scheduled
   job applies them), so the organiser's bot needs Add Reactions and Attach Files there.
+* **Round progress and ties:** standings say which game of the round they're after
+  ("after game 2 of 3"), the all-lobbies view shows how far each lobby has got, and a host
+  starting a 4th game in a round is warned. When a lobby has played all its games, a tie
+  across the cut line is broken by impostor wins, then vote %, then task % (over the
+  round). The players it moves above the line get +0.25 on their total; it isn't shown in
+  any public breakdown, but the referees get a note in the results channel saying who,
+  why and by how much. A tie that's level on all three is left to a referee (use `!adjust`).
+* **Disconnects:** when a player leaves mid-game the host is told, and pointed to `!void`
+  if it's before the first meeting; the referees get a note. A player who leaves keeps
+  the points they'd earned and takes their team's loss (and the sabotage penalty if they
+  left alive), but doesn't share a win.
+* **Next round's lobbies** (from the private results channel, any device; answered by the
+  lead lobby's mod):
+  * `!lobbies 3` puts everyone who moved on from round 2 into lobbies of 10, snake-seeded
+    by their round-2 points (1st, 4th, 5th, 8th… in lobby A when there are 2 lobbies), and
+    lists the best of the rest as alternates. 10 or fewer make the Final.
+  * `!move Soggy B`, `!swap Soggy Fred`, `!drop Fred` (shows the next alternates),
+    `!add Millie B` (an alternate or anyone), `!host B LJ` adjust it; each change reposts the list.
+  * `!start 3 in 10` switches every lobby's mod to round 3 (after the current game if one
+    is running) and pings each lobby's linked players in the tournament channel with their
+    lobby and host, then again when it starts. `!start 3` on its own says it's starting now.
+  * `!lead` typed in-game by a host makes their mod the one that answers from then on.
+  This needs the bot's Message Content Intent (already needed for the results channel).
 * **Server standings:** `!servers` (and each new round) posts servers ranked by their
   players' total points, with each server's furthest player. A player's server is the one
   they played the most preliminaries in. Unofficial.
+
+### Stream overlay
+
+`!overlay on` (host) starts an overlay for OBS on the host's computer: add a **Browser
+source** with `http://localhost:8765/` (size 360×900). It shows the lobby, round and game
+number, the players, the round standings with the cut line, and the latest meetings and
+ejections. It only shows what the players in the game already know (a death appears once a
+meeting reveals it). `http://localhost:8765/?full=1` adds roles, kills and task bars: only
+for a stream on a delay, since anyone watching live could see who the impostors are. Add
+`&show=players` (or `standings`, `feed`, comma separated) to show some panels only.
+`!overlay off` stops it; the choice is remembered.
+
+### Replays
+
+Every game is recorded: each player's position about ten times a second (and whether
+they're dead or in a vent), the map's walls, rooms and vents read from the game, and the
+game's events. The file (`tt-replay-LJ-3-….json.gz`, about 0.5 MB) is saved with the game
+and posted with it: in the results channel for tournaments, in the organiser's channel for
+preliminaries. Open it in `docs/replay-viewer.html`: play, pause, scrub, 0.5–8× speed, jump
+to any kill or meeting, follow a player, show bodies, trails, vents, roles and ghosts.
+`RecordReplays = false` in the config turns recording off.
 
 ### Referee ghost slot (experimental)
 
@@ -282,6 +338,9 @@ brings the old standings back.
 | `!resetleaderboard` | host | Start the combined leaderboard over for every lobby |
 | `!r1`, `!r2`… or `!round 3` | host | Start a tournament round (points restart; running total kept) |
 | `!servers` | host | Post the server standings |
+| `!lock on\|off` | host | Keep the lobby on the tournament's settings / free it for a casual game |
+| `!lead` | host | This lobby's mod answers the results-channel commands |
+| `!overlay on\|off` | host | Stream overlay for OBS at http://localhost:8765/ |
 | `!void [reason]` / `!unvoid` | host | Throw out the current or last game (a restart) / bring it back |
 | `!refslot on\|off` | host | Referee ghost slot: the host plays as a ghost referee (experimental) |
 | `!setup` | host | Apply the setup code on the clipboard (`!setup clear` to stop using one) |
@@ -301,6 +360,9 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | General | `LobbyLabel` | | Names this lobby (`Game LJ-3`); empty = the host's in-game name |
 | General | `CommandPrefix` | `!` | |
 | General | `AllowSelfLink` | true | |
+| General | `RecordReplays` | true | Record a replay of every game |
+| General | `OverlayPort` | 8765 | Stream overlay port (this computer only) |
+| General | `GamesPerRound` | 3 | Tournament rounds; a setup code overrides it |
 | Discord | `StatsWebhookUrl` | | Game reports and leaderboard |
 | Discord | `LiveFeedWebhookUrl` | | Optional play-by-play |
 | Discord | `PostLeaderboardAfterEachGame` | true | |

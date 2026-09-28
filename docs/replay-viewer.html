@@ -1,0 +1,382 @@
+<title>Replay Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter+Tight:wght@500;600;700&display=swap">
+<style>
+/* A deliberately dark "security monitor" look, the same in either theme. */
+:root{
+  --bg:#0b0f12;--panel:#12181d;--sunk:#0e1418;--line:#243039;--fg:#e6edf1;--muted:#8c9aa5;
+  --accent:#4ee0b5;--imp:#ff5d4f;--meet:#f5c542;--eject:#b58cff;--sab:#ff9f43;--wall:#6f8795;--room:rgba(78,224,181,.05);
+  --sans:"Inter Tight",system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--sans)}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;padding:14px 16px;max-width:1500px;margin:0 auto}
+@media (max-width:900px){.app{grid-template-columns:minmax(0,1fr)}}
+header{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+h1{font-size:19px;margin:0;letter-spacing:-.01em}
+.rec{font:600 11px var(--mono);color:var(--imp);letter-spacing:.12em;display:flex;align-items:center;gap:6px}
+.rec::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--imp);box-shadow:0 0 8px var(--imp)}
+.meta{color:var(--muted);font-size:13px;min-width:0}
+.spacer{flex:1}
+button,select,label.btn{font:600 13px var(--sans);color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 11px;cursor:pointer}
+button:hover,label.btn:hover{border-color:var(--accent)}
+button.on{background:color-mix(in srgb,var(--accent) 18%,var(--panel));border-color:var(--accent)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.stage{position:relative;background:var(--sunk);border:1px solid var(--line);border-radius:12px;overflow:hidden;min-width:0;aspect-ratio:16/10;max-height:72vh;width:100%}
+canvas{display:block;width:100%;height:100%;cursor:grab;touch-action:none}
+canvas:active{cursor:grabbing}
+.drop{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;background:rgba(11,15,18,.88)}
+.drop div{max-width:44ch;display:grid;gap:12px;justify-items:center}
+.drop p{margin:0;color:var(--muted)}
+.drop.over{outline:2px dashed var(--accent);outline-offset:-10px}
+.hud{position:absolute;left:12px;top:10px;font:600 13px var(--mono);color:var(--fg);text-shadow:0 1px 3px #000;pointer-events:none}
+.hud .phase{color:var(--meet)}
+.controls{display:grid;gap:8px;margin-top:10px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.time{font:600 13px var(--mono);font-variant-numeric:tabular-nums;min-width:9ch}
+.track{position:relative;height:34px}
+.track input{position:absolute;inset:auto 0 0 0;width:100%;accent-color:var(--accent);margin:0}
+.marks{position:absolute;left:0;right:0;top:0;height:16px}
+.marks i{position:absolute;top:2px;width:3px;height:12px;border-radius:2px;margin-left:-1px;cursor:pointer}
+aside{display:grid;gap:14px;align-content:start;min-width:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+.panel h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;font-family:var(--mono)}
+.players{display:grid;gap:3px}
+.pl{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:8px;align-items:center;padding:4px 6px;border-radius:7px;cursor:pointer;border:1px solid transparent}
+.pl:hover{background:var(--sunk)}.pl.follow{border-color:var(--accent)}
+.pl .dot{width:12px;height:12px;border-radius:50%;border:1px solid rgba(0,0,0,.5)}
+.pl .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl .st{font:11px var(--mono);color:var(--muted)}
+.pl.dead .nm{text-decoration:line-through;color:var(--muted)}
+.imp{color:var(--imp);font:600 10px var(--mono);margin-left:4px}
+.events{display:grid;gap:2px;max-height:38vh;overflow:auto}
+.ev{display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px;padding:4px 6px;border-radius:7px;cursor:pointer;font-size:13px}
+.ev:hover{background:var(--sunk)}.ev.past{opacity:.55}
+.ev .t{font:12px var(--mono);color:var(--muted)}
+.ev.kill .t{color:var(--imp)}.ev.meeting .t{color:var(--meet)}.ev.eject .t{color:var(--eject)}.ev.sabotage .t{color:var(--sab)}
+.keys{color:var(--muted);font-size:12px;margin:0}
+kbd{font:11px var(--mono);border:1px solid var(--line);border-radius:4px;padding:0 4px;background:var(--sunk)}
+</style>
+
+<div class="app">
+  <header>
+    <span class="rec">REPLAY</span>
+    <h1 id="title">Replay Viewer</h1>
+    <span class="meta" id="meta">Open a tt-replay file from the results channel.</span>
+    <span class="spacer"></span>
+    <label class="btn" for="file">Open replay…</label>
+    <input type="file" id="file" accept=".gz,.json,application/gzip,application/json" hidden>
+  </header>
+
+  <section style="min-width:0">
+    <div class="stage" id="stage">
+      <canvas id="map" aria-label="Map with players"></canvas>
+      <div class="hud" id="hud"></div>
+      <div class="drop" id="drop"><div>
+        <strong>Drop a replay here</strong>
+        <p>Files are named <code>tt-replay-LJ-3-….json.gz</code>. They're posted with each game in the results channel and saved in the host's games folder.</p>
+        <div class="row" style="justify-content:center"><label class="btn" for="file">Open replay…</label><button id="sample">Watch a sample</button></div>
+      </div></div>
+    </div>
+    <div class="controls">
+      <div class="track"><div class="marks" id="marks"></div><input type="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="Time"></div>
+      <div class="row">
+        <button id="play" aria-label="Play">▶ Play</button>
+        <button id="back">−5s</button><button id="fwd">+5s</button>
+        <span class="time" id="time">0:00 / 0:00</span>
+        <select id="speed" aria-label="Speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select>
+        <span class="spacer"></span>
+        <button id="roles" class="on">Roles</button><button id="ghosts">Ghosts</button><button id="trails" class="on">Trails</button><button id="fit">Fit map</button>
+      </div>
+      <p class="keys"><kbd>Space</kbd> play · <kbd>←</kbd><kbd>→</kbd> 5 s · click a player to follow them · scroll to zoom, drag to move</p>
+    </div>
+  </section>
+
+  <aside>
+    <div class="panel"><h2>Players</h2><div class="players" id="players"></div></div>
+    <div class="panel"><h2>Timeline</h2><div class="events" id="events"></div></div>
+  </aside>
+</div>
+
+<script>
+(() => {
+const COLORS = ['#c51111','#132ed1','#117f2d','#ed54ba','#ef7d0d','#f5f557','#3f474e','#d6e0f0','#6b2fbb','#71491e','#38fedc','#50ef39','#5f1d2e','#ecc0d3','#fffebe','#708496','#928776','#ec7578'];
+const EV = { kill: 'var(--imp)', meeting: 'var(--meet)', eject: 'var(--eject)', sabotage: 'var(--sab)', end: 'var(--accent)', disconnect: 'var(--muted)', tasks: 'var(--accent)' };
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+let R = null, t = 0, playing = false, speed = 1, follow = null;
+let showRoles = true, showGhosts = false, showTrails = true;
+let view = { x: 0, y: 0, scale: 20 };      // world -> screen: (wx - x) * scale, flipped y
+let bodies = [];
+
+// ---- Loading -------------------------------------------------------------------------------
+async function readFile(file) {
+  let stream = file.stream();
+  const head = new Uint8Array(await file.slice(0, 2).arrayBuffer());
+  if (head[0] === 0x1f && head[1] === 0x8b) stream = stream.pipeThrough(new DecompressionStream('gzip'));
+  return JSON.parse(await new Response(stream).text());
+}
+$('file').addEventListener('change', async e => { if (e.target.files[0]) load(await readFile(e.target.files[0]).catch(err => alertBox(err))); });
+const drop = $('drop'), stage = $('stage');
+stage.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+stage.addEventListener('dragleave', () => drop.classList.remove('over'));
+stage.addEventListener('drop', async e => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) load(await readFile(f).catch(err => alertBox(err))); });
+$('sample').addEventListener('click', () => load(sample()));
+function alertBox(err) { $('meta').textContent = 'Couldn\'t read that file: ' + err.message; return null; }
+
+function load(replay) {
+  if (!replay || !replay.frames) return;
+  R = replay;
+  R.duration = R.frames.length ? R.frames[R.frames.length - 1][0] : 0;
+  R.byId = Object.fromEntries(R.players.map((p, i) => [p.id, { ...p, i }]));
+  drop.hidden = true;
+  $('title').textContent = `Game ${R.name}`;
+  $('meta').textContent = [R.tournament, R.round ? 'Round ' + R.round : '', R.map, R.winner ? R.winner + ' win' : 'no result', R.voided ? 'VOID' : ''].filter(Boolean).join(' · ');
+  findBodies();
+  t = 0; follow = null; fit(); buildLists(); buildMarks(); render();
+}
+
+// Bodies: a player who dies outside a meeting leaves a body until the next meeting starts.
+function findBodies() {
+  bodies = [];
+  const meetings = R.events.filter(e => e.kind === 'meeting').map(e => e.t);
+  const ejects = R.events.filter(e => e.kind === 'eject').map(e => e.t);
+  R.players.forEach((p, i) => {
+    for (let f = 1; f < R.frames.length; f++) {
+      const was = R.frames[f - 1][3 + 3 * i], now = R.frames[f][3 + 3 * i];
+      if (was & 1 || !(now & 1) || now & 8) continue;
+      const at = R.frames[f][0];
+      if (ejects.some(e => Math.abs(e - at) < 4)) break;
+      const until = meetings.find(m => m > at) ?? Infinity;
+      bodies.push({ i, at, until, x: R.frames[f - 1][1 + 3 * i], y: R.frames[f - 1][2 + 3 * i] });
+      break;
+    }
+  });
+}
+
+// ---- Position at time t (interpolated, no sliding across teleports) -----------------------
+function frameIndex(time) {
+  let lo = 0, hi = R.frames.length - 1;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (R.frames[mid][0] <= time) lo = mid; else hi = mid - 1; }
+  return lo;
+}
+function positions(time) {
+  const a = frameIndex(time), b = Math.min(a + 1, R.frames.length - 1);
+  const fa = R.frames[a], fb = R.frames[b];
+  const k = fb[0] > fa[0] ? Math.min(1, Math.max(0, (time - fa[0]) / (fb[0] - fa[0]))) : 0;
+  return R.players.map((p, i) => {
+    const s = fa[3 + 3 * i];
+    let x = fa[1 + 3 * i], y = fa[2 + 3 * i];
+    const x2 = fb[1 + 3 * i], y2 = fb[2 + 3 * i];
+    if (!(fb[3 + 3 * i] & 8) && Math.hypot(x2 - x, y2 - y) < 2.5) { x += (x2 - x) * k; y += (y2 - y) * k; }
+    return { x, y, dead: !!(s & 1), vent: !!(s & 2), gone: !!(s & 4) || !!(s & 8) };
+  });
+}
+
+// ---- Camera -------------------------------------------------------------------------------
+const canvas = $('map'), ctx = canvas.getContext('2d');
+function bounds() {
+  let xs = [], ys = [];
+  const add = arr => { for (let j = 0; j + 1 < arr.length; j += 2) { xs.push(arr[j]); ys.push(arr[j + 1]); } };
+  (R.geometry?.walls || []).forEach(add);
+  if (!xs.length) R.frames.forEach(f => R.players.forEach((_, i) => { if (!(f[3 + 3 * i] & 12)) { xs.push(f[1 + 3 * i]); ys.push(f[2 + 3 * i]); } }));
+  if (!xs.length) return { x0: -10, x1: 10, y0: -10, y1: 10 };
+  return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+}
+function fit() {
+  if (!R) return;
+  const b = bounds(), w = canvas.clientWidth, h = canvas.clientHeight;
+  view.scale = Math.min(w / (b.x1 - b.x0 + 4), h / (b.y1 - b.y0 + 4));
+  view.x = (b.x0 + b.x1) / 2; view.y = (b.y0 + b.y1) / 2;
+}
+const sx = x => (x - view.x) * view.scale + canvas.clientWidth / 2;
+const sy = y => canvas.clientHeight / 2 - (y - view.y) * view.scale;
+
+// ---- Drawing -------------------------------------------------------------------------------
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.clientWidth * dpr; canvas.height = canvas.clientHeight * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+function line(arr, close) {
+  ctx.beginPath();
+  for (let j = 0; j + 1 < arr.length; j += 2) (j ? ctx.lineTo : ctx.moveTo).call(ctx, sx(arr[j]), sy(arr[j + 1]));
+  if (close) ctx.closePath();
+}
+function bean(x, y, color, r, alpha = 1) {
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color; ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.ellipse(x, y, r * 0.8, r, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#bfe3f2';
+  ctx.beginPath(); ctx.ellipse(x + r * 0.35, y - r * 0.25, r * 0.42, r * 0.26, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+function render() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  ctx.clearRect(0, 0, w, h);
+  if (!R) return;
+  const pos = positions(t);
+  if (follow != null && pos[R.byId[follow].i]) { const p = pos[R.byId[follow].i]; view.x += (p.x - view.x) * 0.25; view.y += (p.y - view.y) * 0.25; }
+
+  // Rooms and walls.
+  ctx.font = `600 ${Math.max(10, Math.min(14, view.scale * 0.45))}px ${css('--sans')}`;
+  ctx.textAlign = 'center';
+  for (const room of R.geometry?.rooms || []) {
+    line(room.area, true); ctx.fillStyle = css('--room'); ctx.fill();
+    let cx = 0, cy = 0, n = 0; for (let j = 0; j + 1 < room.area.length; j += 2) { cx += room.area[j]; cy += room.area[j + 1]; n++; }
+    ctx.fillStyle = 'rgba(140,154,165,.55)';
+    ctx.fillText(room.name.replace(/([a-z])([A-Z])/g, '$1 $2'), sx(cx / n), sy(cy / n));
+  }
+  ctx.strokeStyle = css('--wall'); ctx.lineWidth = 1.6;
+  for (const wall of R.geometry?.walls || []) { line(wall, false); ctx.stroke(); }
+  ctx.fillStyle = 'rgba(111,135,149,.5)';
+  for (const [vx, vy] of R.geometry?.vents || []) { ctx.fillRect(sx(vx) - 5, sy(vy) - 3, 10, 6); }
+
+  // Trails: the last 4 seconds.
+  if (showTrails) {
+    const a = frameIndex(Math.max(0, t - 4)), b = frameIndex(t);
+    R.players.forEach((p, i) => {
+      if (pos[i].dead && !showGhosts) return;
+      ctx.strokeStyle = COLORS[p.color] || '#888'; ctx.globalAlpha = 0.35; ctx.lineWidth = 2;
+      ctx.beginPath(); let started = false, px = 0, py = 0;
+      for (let f = a; f <= b; f++) {
+        const s = R.frames[f][3 + 3 * i]; if (s & 12) { started = false; continue; }
+        const x = R.frames[f][1 + 3 * i], y = R.frames[f][2 + 3 * i];
+        if (started && Math.hypot(x - px, y - py) < 2.5) ctx.lineTo(sx(x), sy(y)); else ctx.moveTo(sx(x), sy(y));
+        started = true; px = x; py = y;
+      }
+      ctx.stroke(); ctx.globalAlpha = 1;
+    });
+  }
+
+  // Bodies.
+  const r = Math.max(7, Math.min(14, view.scale * 0.36));
+  for (const b of bodies) if (t >= b.at && t < b.until) {
+    const x = sx(b.x), y = sy(b.y), c = COLORS[R.players[b.i].color] || '#888';
+    ctx.fillStyle = c; ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(x, y + r * 0.3, r * 0.8, r * 0.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - 3, y - 3); ctx.lineTo(x + 3, y + 3); ctx.moveTo(x + 3, y - 3); ctx.lineTo(x - 3, y + 3); ctx.stroke();
+  }
+
+  // Players.
+  ctx.font = `600 11px ${css('--sans')}`;
+  R.players.forEach((p, i) => {
+    const q = pos[i];
+    if (q.gone || (q.dead && !showGhosts)) return;
+    const x = sx(q.x), y = sy(q.y);
+    if (showRoles && p.impostor && !q.dead) { ctx.strokeStyle = css('--imp'); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(x, y, r * 1.45, 0, Math.PI * 2); ctx.stroke(); }
+    if (follow === p.id) { ctx.strokeStyle = css('--accent'); ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.arc(x, y, r * 1.9, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+    bean(x, y, COLORS[p.color] || '#888', r, q.dead ? 0.35 : q.vent ? 0.4 : 1);
+    ctx.fillStyle = '#fff'; ctx.globalAlpha = q.dead ? 0.5 : 1;
+    ctx.fillText(p.name + (q.vent ? ' (vent)' : ''), x, y - r * 1.5);
+    ctx.globalAlpha = 1;
+  });
+
+  const now = [...R.events].reverse().find(e => e.t <= t);
+  const inMeeting = now && now.kind === 'meeting';
+  $('hud').innerHTML = `${clock(t)}${inMeeting ? ' · <span class="phase">MEETING</span>' : ''}`;
+  $('time').textContent = `${clock(t)} / ${clock(R.duration)}`;
+  $('seek').value = R.duration ? Math.round(t / R.duration * 1000) : 0;
+  updateLists(pos);
+}
+
+// ---- Side panels -------------------------------------------------------------------------------
+function buildLists() {
+  $('players').innerHTML = R.players.map(p => `<div class="pl" data-id="${p.id}"><span class="dot" style="background:${COLORS[p.color] || '#888'}"></span>`
+    + `<span class="nm">${esc(p.name)}<span class="imp" data-imp>${p.impostor ? 'IMP' : ''}</span></span><span class="st"></span></div>`).join('');
+  $('players').querySelectorAll('.pl').forEach(el => el.addEventListener('click', () => { const id = +el.dataset.id; follow = follow === id ? null : id; if (follow != null) view.scale = Math.max(view.scale, 28); render(); }));
+  $('events').innerHTML = R.events.map((e, i) => `<div class="ev ${e.kind}" data-i="${i}"><span class="t">${clock(e.t)}</span><span>${esc(e.text)}</span></div>`).join('');
+  $('events').querySelectorAll('.ev').forEach(el => el.addEventListener('click', () => { seek(Math.max(0, R.events[+el.dataset.i].t - 3)); }));
+}
+function updateLists(pos) {
+  $('players').querySelectorAll('.pl').forEach((el, i) => {
+    const q = pos[i];
+    el.classList.toggle('dead', q.dead); el.classList.toggle('follow', follow === +el.dataset.id);
+    el.querySelector('.st').textContent = q.gone ? 'left' : q.dead ? 'dead' : q.vent ? 'vent' : '';
+    el.querySelector('[data-imp]').hidden = !showRoles;
+  });
+  $('events').querySelectorAll('.ev').forEach(el => el.classList.toggle('past', R.events[+el.dataset.i].t > t));
+}
+function buildMarks() {
+  $('marks').innerHTML = R.events.filter(e => EV[e.kind] && e.kind !== 'tasks').map(e =>
+    `<i title="${clock(e.t)} ${esc(e.text)}" style="left:${(e.t / Math.max(1, R.duration) * 100).toFixed(2)}%;background:${EV[e.kind]}" data-t="${e.t}"></i>`).join('');
+  $('marks').querySelectorAll('i').forEach(el => el.addEventListener('click', () => seek(Math.max(0, +el.dataset.t - 3))));
+}
+
+// ---- Controls -------------------------------------------------------------------------------
+function seek(time) { t = Math.min(R ? R.duration : 0, Math.max(0, time)); render(); }
+function setPlaying(on) { playing = on && !!R; $('play').textContent = playing ? '❚❚ Pause' : '▶ Play'; if (playing) last = performance.now(); }
+$('play').addEventListener('click', () => { if (R && t >= R.duration) t = 0; setPlaying(!playing); });
+$('back').addEventListener('click', () => seek(t - 5));
+$('fwd').addEventListener('click', () => seek(t + 5));
+$('speed').addEventListener('change', e => speed = +e.target.value);
+$('seek').addEventListener('input', e => { if (R) seek(+e.target.value / 1000 * R.duration); });
+$('fit').addEventListener('click', () => { follow = null; fit(); render(); });
+for (const [id, set] of [['roles', v => showRoles = v], ['ghosts', v => showGhosts = v], ['trails', v => showTrails = v]])
+  $(id).addEventListener('click', e => { const on = !e.currentTarget.classList.contains('on'); e.currentTarget.classList.toggle('on', on); set(on); render(); });
+document.addEventListener('keydown', e => {
+  if (!R || e.target.tagName === 'INPUT' && e.target.type !== 'range' || e.target.tagName === 'SELECT') return;
+  if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
+  if (e.code === 'ArrowLeft') { e.preventDefault(); seek(t - 5); }
+  if (e.code === 'ArrowRight') { e.preventDefault(); seek(t + 5); }
+});
+canvas.addEventListener('wheel', e => { if (!R) return; e.preventDefault(); view.scale = Math.min(120, Math.max(3, view.scale * (e.deltaY < 0 ? 1.15 : 1 / 1.15))); render(); }, { passive: false });
+let dragging = null;
+canvas.addEventListener('pointerdown', e => { dragging = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointermove', e => { if (!dragging) return; follow = null; view.x -= (e.clientX - dragging.x) / view.scale; view.y += (e.clientY - dragging.y) / view.scale; dragging = { x: e.clientX, y: e.clientY }; render(); });
+canvas.addEventListener('pointerup', () => dragging = null);
+new ResizeObserver(() => { resize(); render(); }).observe(canvas);
+
+let last = performance.now();
+function loop(now) {
+  if (playing && R) { t += (now - last) / 1000 * speed; if (t >= R.duration) { t = R.duration; setPlaying(false); } render(); }
+  else if (follow != null && R) render();
+  last = now; requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ---- A made-up sample game (not a real map) --------------------------------------------------
+function sample() {
+  const rooms = [['Cafeteria', 0, 8, 7, 5], ['Weapons', 12, 8, 4, 4], ['Navigation', 20, 1, 4, 4], ['Shields', 12, -7, 4, 4], ['Admin', 3, -1, 4, 3], ['Storage', 0, -8, 5, 5],
+    ['Electrical', -9, -6, 4, 4], ['MedBay', -8, 4, 4, 4], ['Engine', -17, 0, 4, 6]];
+  const rect = (x, y, w, h) => [x - w, y - h, x + w, y - h, x + w, y + h, x - w, y + h, x - w, y - h];
+  const names = ['Soggy', 'Fred', 'Millie', 'LJ', 'Kai', 'Zed', 'Ana', 'Bo', 'Cy', 'Di'];
+  let seed = 7; const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const players = names.map((n, i) => ({ id: i, name: n, color: i, impostor: i === 0 || i === 4, points: 0 }));
+  const st = players.map(() => ({ x: rand() * 6 - 3, y: 8 + rand() * 3, tx: 0, ty: 8, dead: false, vent: false }));
+  const frames = [], events = [{ t: 0, kind: 'start', text: 'Game started on the sample map. Impostors: Red (Soggy), Orange (Kai)' }];
+  const plan = { 18: ['kill', 0, 6], 41: ['kill', 4, 9], 44: ['meeting', 3, 9], 60: ['eject', 7], 83: ['kill', 0, 2], 88: ['sabotage', 4], 101: ['kill', 4, 8], 112: ['meeting', 1, 2], 128: ['eject', 4], 150: ['kill', 0, 5] };
+  const room = () => rooms[Math.floor(rand() * rooms.length)];
+  for (let step = 0; step <= 1600; step++) {
+    const time = step / 10, sec = Math.round(time * 10) / 10;
+    const ev = Number.isInteger(sec) ? plan[sec] : null;
+    if (ev) {
+      const [kind, a, b] = ev;
+      if (kind === 'kill') { st[a].x = st[b].x + 0.4; st[a].y = st[b].y; st[b].dead = true; events.push({ t: sec, kind, text: `${names[a]} killed ${names[b]}` }); }
+      if (kind === 'meeting') { events.push({ t: sec, kind, text: `${names[a]} reported ${names[b]}'s body` }); st.forEach((s, i) => { if (!s.dead) { s.x = Math.cos(i) * 3; s.y = 8 + Math.sin(i) * 2.5; s.tx = s.x; s.ty = s.y; s.hold = sec + 16; } }); }
+      if (kind === 'eject') { st[a].dead = true; events.push({ t: sec, kind, text: `${names[a]} was ejected (${players[a].impostor ? 'Impostor' : 'not an Impostor'})` }); }
+      if (kind === 'sabotage') events.push({ t: sec, kind, text: `${names[a]} sabotaged Reactor` });
+    }
+    const f = [sec];
+    st.forEach((s, i) => {
+      if (!(s.hold > sec)) {
+        if (Math.hypot(s.tx - s.x, s.ty - s.y) < 0.3) { const r = room(); s.tx = r[1] + (rand() - 0.5) * r[3]; s.ty = r[2] + (rand() - 0.5) * r[4]; }
+        const d = Math.hypot(s.tx - s.x, s.ty - s.y), v = s.dead ? 0.14 : 0.1;
+        if (d > 0) { s.x += (s.tx - s.x) / d * Math.min(v, d); s.y += (s.ty - s.y) / d * Math.min(v, d); }
+      }
+      f.push(Math.round(s.x * 100) / 100, Math.round(s.y * 100) / 100, s.dead ? 1 : 0);
+    });
+    frames.push(f);
+  }
+  events.push({ t: 160, kind: 'end', text: 'Impostors win (Crew killed)' });
+  return { v: 1, id: 'sample', name: 'SAMPLE-1', tournament: 'Sample (not a real game)', round: 1, map: 'Sample map', winner: 'Impostors',
+    players, events, frames, geometry: { walls: rooms.map(r => rect(r[1], r[2], r[3], r[4])), rooms: rooms.map(r => ({ name: r[0], area: rect(r[1], r[2], r[3], r[4]) })), vents: [[12, 6], [-9, -4], [2, -8]] } };
+}
+})();
+</script>

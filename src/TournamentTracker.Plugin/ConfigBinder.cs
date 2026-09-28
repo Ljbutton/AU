@@ -16,6 +16,12 @@ namespace TournamentTracker.Plugin
                 "Stats are kept per tournament. Change the name to start a fresh leaderboard (the old one is kept).").Value;
             s.LobbyLabel = config.Bind("General", "LobbyLabel", "",
                 "Names this host's lobby in Discord and in game numbers (\"Game LJ-3\"). Leave empty to use the host's in-game name. All hosts can then share one TournamentName.").Value.Trim();
+            s.RecordReplays = config.Bind("General", "RecordReplays", d.RecordReplays,
+                "Record a replay of every game for the replay viewer (about 0.5 MB each, saved with the game).").Value;
+            s.OverlayPort = config.Bind("General", "OverlayPort", d.OverlayPort,
+                "Port for the stream overlay (!overlay on), reachable from this computer only.").Value;
+            s.GamesPerRound = config.Bind("General", "GamesPerRound", d.GamesPerRound,
+                "Tournament rounds: games each lobby plays per round. A setup code overrides it.").Value;
             s.CommandPrefix = config.Bind("General", "CommandPrefix", d.CommandPrefix,
                 "Prefix for chat commands, e.g. !link").Value;
             s.AllowSelfLink = config.Bind("General", "AllowSelfLink", d.AllowSelfLink,
