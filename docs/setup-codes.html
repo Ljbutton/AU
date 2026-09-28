@@ -1,0 +1,268 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tournament Setup Codes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: form on the left, the finished code pinned on the right; one column on phones. */
+:root{
+  --bg:#f3f4f7; --panel:#ffffff; --sunk:#eceef3; --line:#d9dce4; --fg:#1b1e27; --muted:#5d6475;
+  --accent:#b3202a; --accent-fg:#ffffff; --ok:#15803d; --warn:#a15c07; --warn-bg:#fdf3e2; --err:#b42318;
+  --display:"Rubik","Segoe UI",system-ui,sans-serif; --body:"Rubik","Segoe UI",system-ui,sans-serif; --mono:"JetBrains Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#14161c; --panel:#1c1f27; --sunk:#12141a; --line:#2d313c; --fg:#e8eaf0; --muted:#9aa1b2;
+  --accent:#ff5a5f; --accent-fg:#1a0b0c; --ok:#4ade80; --warn:#f5b453; --warn-bg:#2c2214; --err:#ff8a80; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#14161c; --panel:#1c1f27; --sunk:#12141a; --line:#2d313c; --fg:#e8eaf0; --muted:#9aa1b2;
+  --accent:#ff5a5f; --accent-fg:#1a0b0c; --ok:#4ade80; --warn:#f5b453; --warn-bg:#2c2214; --err:#ff8a80; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);padding-inline:16px;padding-block:28px 56px;margin:0}
+.wrap{max-width:1080px;margin:0 auto}
+h1{font:700 28px/1.2 var(--display);margin:0 0 6px;text-wrap:balance;letter-spacing:-.01em}
+.lede{color:var(--muted);max-width:66ch;margin:0 0 22px}
+.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+form{display:grid;gap:18px}
+fieldset{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:16px;margin:0;display:grid;gap:14px;min-width:0}
+legend{font:600 12px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:0 6px}
+.kind{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kind label{display:grid;gap:2px;border:1.5px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer;background:var(--panel)}
+.kind input{position:absolute;opacity:0;pointer-events:none}
+.kind label:has(input:checked){border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.kind label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.kind b{font-weight:600}.kind small{color:var(--muted);font-size:12.5px}
+.field{display:grid;gap:5px;min-width:0}
+.field label{font-weight:500;font-size:14px}
+.field .hint{color:var(--muted);font-size:12.5px}
+input[type=text],input[type=password],input[type=number],textarea{font:14px var(--body);color:var(--fg);background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:9px 11px;width:100%;min-width:0}
+input:focus-visible,textarea:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.mono{font-family:var(--mono)!important;font-size:13px!important}
+.row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (max-width:520px){.row{grid-template-columns:minmax(0,1fr)}}
+.bad{color:var(--err);font-size:12.5px}
+details{border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+summary{cursor:pointer;padding:12px 16px;font-weight:600}
+details .inner{padding:0 16px 16px;display:grid;gap:14px}
+.scores{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 18px}
+@media (max-width:520px){.scores{grid-template-columns:minmax(0,1fr)}}
+.scores h3{grid-column:1/-1;font:600 12px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:8px 0 2px}
+.score{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13.5px}
+.score input{width:76px;text-align:right;font-variant-numeric:tabular-nums;padding:5px 8px}
+.score.changed span{color:var(--accent);font-weight:600}
+aside{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px);display:grid;gap:14px;min-width:0}
+@media (max-width:860px){aside{position:static}}
+.out{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:12px}
+.out h2{font:600 17px var(--display);margin:0}
+.status{font-size:13.5px;display:flex;gap:8px;align-items:flex-start}
+.status.ok{color:var(--ok)}.status.no{color:var(--muted)}
+textarea#code{min-height:130px;resize:vertical;word-break:break-all}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+button{font:600 14px var(--body);border-radius:8px;padding:9px 14px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--fg)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.warn{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:10px 12px;font-size:13.5px}
+.howto{font-size:13.5px;color:var(--muted);margin:0;padding-left:18px;display:grid;gap:4px}
+.howto code,.hint code{font-family:var(--mono);font-size:12px;background:var(--sunk);padding:1px 4px;border-radius:4px;color:var(--fg)}
+.toast{font-size:13px;color:var(--ok);min-height:1.2em}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body>
+
+<div class="wrap">
+<h1>Tournament setup codes</h1>
+<p class="lede">Make the code a host pastes into the installer (or copies before typing <code>!setup</code> in the lobby). A preliminary code only points games at your Discord. A tournament host code also carries your bot, so give those out privately.</p>
+
+<div class="grid">
+<form id="form" autocomplete="off">
+  <fieldset>
+    <legend>Kind of code</legend>
+    <div class="kind">
+      <label><input type="radio" name="kind" id="kind-prelim" value="prelim" checked><b>Preliminary</b><small>For hosts in other servers. Reports go to your server.</small></label>
+      <label><input type="radio" name="kind" id="kind-tournament" value="tournament"><b>Tournament host</b><small>Your trusted hosts. Automute, rounds and standings.</small></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Tournament</legend>
+    <div class="field"><label for="name">Name</label><input type="text" id="name" value="Fall Cup 2026"><span class="hint">Shown on every report and leaderboard.</span></div>
+    <div class="field prelim-only"><label for="server">Preliminary server</label><input type="text" id="server" value="Sus Squad"><span class="hint">The Discord server these games are played in. Make one code per server.</span></div>
+    <div class="field"><label for="tid">Tournament ID</label><input type="text" id="tid" class="mono"><span class="hint">Keeps this tournament's stats apart from every other. Filled in from the name; every host of the same event needs the same ID.</span></div>
+    <div class="field"><label for="webhook">Report channel webhook</label><input type="text" id="webhook" class="mono" placeholder="https://discord.com/api/webhooks/…"><span class="hint">Channel settings → Integrations → Webhooks → Copy URL. Preliminaries: your preliminary channel. Tournament: your results channel for players.</span><span class="bad" id="webhook-bad" hidden></span></div>
+  </fieldset>
+
+  <fieldset class="tournament-only" hidden>
+    <legend>Your bot</legend>
+    <div class="row">
+      <div class="field"><label for="guild">Server ID</label><input type="text" id="guild" class="mono" inputmode="numeric" placeholder="1180000000000000000"><span class="bad" id="guild-bad" hidden></span></div>
+      <div class="field"><label for="results">Private results channel ID</label><input type="text" id="results" class="mono" inputmode="numeric" placeholder="1290000000000000000"><span class="bad" id="results-bad" hidden></span></div>
+    </div>
+    <div class="field"><label for="token">Bot token</label><input type="password" id="token" class="mono" placeholder="MTIz…"><span class="hint">One bot per lobby that runs at the same time is fastest. The token never leaves this page except inside the code.</span></div>
+    <div class="field"><label for="prelims">Preliminary channel IDs</label><input type="text" id="prelims" class="mono" placeholder="1290000000000000001, 1290000000000000002"><span class="hint">Where preliminary reports went; used for server standings. Comma separated.</span><span class="bad" id="prelims-bad" hidden></span></div>
+    <div class="row">
+      <div class="field"><label for="advance">Players who move on per lobby</label><input type="number" id="advance" min="1" max="10" value="5"></div>
+      <div class="field"><label for="refs">Referee user IDs (optional)</label><input type="text" id="refs" class="mono" placeholder="Who can talk in referee mode"></div>
+    </div>
+  </fieldset>
+
+  <details id="scoring">
+    <summary>Point values <span class="hint" id="changed-count"></span></summary>
+    <div class="inner"><div class="scores" id="scores"></div>
+      <div><button type="button" id="reset-scores">Back to the point sheet</button></div></div>
+  </details>
+
+  <details>
+    <summary>Edit an existing code</summary>
+    <div class="inner">
+      <div class="field"><label for="load">Paste a code</label><textarea id="load" class="mono" rows="3" placeholder="TT1-…"></textarea><span class="bad" id="load-bad" hidden></span></div>
+      <div><button type="button" id="load-btn">Load into the form</button></div>
+    </div>
+  </details>
+</form>
+
+<aside>
+  <div class="out">
+    <h2>The code</h2>
+    <div class="status no" id="status">Add the webhook to finish the code.</div>
+    <textarea id="code" class="mono" readonly aria-label="Setup code"></textarea>
+    <div class="btns"><button type="button" class="primary" id="copy" disabled>Copy code</button></div>
+    <div class="toast" id="toast" role="status"></div>
+    <div class="warn" id="secret" hidden>This code contains your bot token. Send it to that host privately. If it leaks, reset the token in the Discord Developer Portal and make new codes.</div>
+  </div>
+  <div class="out">
+    <h2>What the host does</h2>
+    <ol class="howto">
+      <li>Download <code>Install-TournamentTracker.bat</code> from the latest release and run it.</li>
+      <li>Paste this code when it asks.</li>
+      <li>Already installed? Copy the code, then type <code>!setup</code> in the lobby chat.</li>
+    </ol>
+  </div>
+</aside>
+</div>
+</div>
+
+<script>
+// ---- codec: must match SetupCode.cs (TT1- + base64url of the JSON, no padding) ----
+const PREFIX = 'TT1-';
+function encodeCode(obj) {
+  const bytes = new TextEncoder().encode(JSON.stringify(obj));
+  let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
+  return PREFIX + btoa(bin).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+function decodeCode(text) {
+  const t = (text || '').replace(/\s+/g, '');
+  const i = t.indexOf(PREFIX);
+  if (i < 0) throw new Error("That isn't a setup code (they start with TT1-).");
+  let body = t.slice(i + PREFIX.length).replace(/-/g, '+').replace(/_/g, '/');
+  while (body.length % 4) body += '=';
+  const bin = atob(body);
+  return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))));
+}
+// ---- end codec ----
+
+const RULES = [
+  ['Impostor', [['kill','Kill (each)',1],['firstBlood','First blood',1],['votedCrewmateOut','Voted a crewmate out (each)',1],
+    ['impostorSabotageWin','Sabotage win',5],['impostorVoteWin','Vote win',3],['impostorKillWin','Kill win',3],
+    ['impostorTaskLoss','Lost to tasks',-3],['impostorVoteLoss','Lost to vote',-2],['votedOutFirst','Voted out first',-2],['votedOutLast','Voted out later',-1]]],
+  ['Crewmate', [['completedTasks','Finished every task',3],['taskPercentBonus','Task % bonus (up to)',2],['correctVoteOut','Correct vote out (each)',2],
+    ['voteAccuracyBonus','Vote accuracy bonus (up to)',2],['caughtKiller','Caught and voted out killer',1],['diedFirst','Died first',1],['gotKilled','Got killed',0.5],
+    ['incorrectVoteOut','Incorrect vote out (each)',-2],['crewTaskWin','Task win',5],['crewVoteWin','Vote win',3],
+    ['crewSabotageLossAlive','Alive at a sabotage loss',-5],['crewOtherLoss','Any other loss',-1]]],
+  ['Other', [['bonusRounding','Round % bonuses to',0.5],['disconnectWin','Win by disconnect',0]]],
+];
+const $ = id => document.getElementById(id);
+const scoresEl = $('scores');
+for (const [group, rules] of RULES) {
+  const h = document.createElement('h3'); h.textContent = group; scoresEl.appendChild(h);
+  for (const [key, label, def] of rules) {
+    const row = document.createElement('label'); row.className = 'score'; row.htmlFor = 'sc-' + key;
+    row.innerHTML = `<span></span><input type="number" step="0.5" id="sc-${key}" value="${def}" data-default="${def}">`;
+    row.firstChild.textContent = label; scoresEl.appendChild(row);
+  }
+}
+
+let idEdited = false;
+const slug = s => s.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '') || 'tournament';
+const kind = () => document.querySelector('input[name=kind]:checked').value;
+const ids = s => s.split(/[\s,;]+/).map(x => x.trim()).filter(Boolean);
+const snowflake = s => /^\d{15,21}$/.test(s);
+function show(id, msg) { const el = $(id); el.textContent = msg || ''; el.hidden = !msg; }
+
+function autoId() {
+  if (idEdited) return;
+  const parts = [$('name').value];
+  if (kind() === 'prelim' && $('server').value.trim()) parts.push($('server').value);
+  $('tid').value = slug(parts.join(' '));
+}
+
+function build() {
+  const k = kind();
+  document.querySelectorAll('.prelim-only').forEach(e => e.hidden = k !== 'prelim');
+  document.querySelector('.tournament-only').hidden = k !== 'tournament';
+  autoId();
+  const problems = [];
+  const name = $('name').value.trim(), wh = $('webhook').value.trim();
+  if (!name) problems.push('Give the tournament a name.');
+  const whOk = /^https:\/\/(ptb\.|canary\.)?discord(app)?\.com\/api\/webhooks\/\d+\/[\w-]+/.test(wh);
+  show('webhook-bad', wh && !whOk ? "That isn't a Discord webhook URL. It starts with https://discord.com/api/webhooks/." : '');
+  if (!whOk) problems.push('Add the webhook to finish the code.');
+
+  const code = { m: k, id: $('tid').value.trim() || slug(name), n: name, wh };
+  if (k === 'prelim') {
+    if ($('server').value.trim()) code.srv = $('server').value.trim();
+  } else {
+    const guild = $('guild').value.trim(), results = $('results').value.trim(), token = $('token').value.trim(), prelims = ids($('prelims').value);
+    show('guild-bad', guild && !snowflake(guild) ? 'Server IDs are long numbers (right-click the server → Copy Server ID).' : '');
+    show('results-bad', results && !snowflake(results) ? 'Channel IDs are long numbers (right-click the channel → Copy Channel ID).' : '');
+    show('prelims-bad', prelims.some(p => !snowflake(p)) ? 'Each channel ID is a long number.' : '');
+    if (!snowflake(guild)) problems.push('Add your server ID.');
+    if (token.split('.').length < 3) problems.push('Add the bot token.');
+    if (!snowflake(results)) problems.push('Add the private results channel ID.');
+    code.g = guild; code.bt = [token]; code.rc = results;
+    if (prelims.length) code.pc = prelims;
+    code.adv = Math.max(1, Math.min(10, parseInt($('advance').value, 10) || 5));
+    const refs = ids($('refs').value); if (refs.length) code.ref = refs;
+  }
+  const sc = {}; let changed = 0;
+  scoresEl.querySelectorAll('input').forEach(inp => {
+    const v = parseFloat(inp.value); const def = parseFloat(inp.dataset.default);
+    sc[inp.id.slice(3)] = isNaN(v) ? def : v;
+    const diff = !isNaN(v) && v !== def; inp.parentElement.classList.toggle('changed', diff); if (diff) changed++;
+  });
+  code.sc = sc;
+  $('changed-count').textContent = changed ? `(${changed} changed from the point sheet)` : '(the point sheet)';
+
+  const ready = problems.length === 0;
+  $('code').value = ready ? encodeCode(code) : '';
+  $('copy').disabled = !ready;
+  $('secret').hidden = !(ready && k === 'tournament');
+  const st = $('status');
+  st.className = 'status ' + (ready ? 'ok' : 'no');
+  st.textContent = ready
+    ? (k === 'prelim' ? `Ready: ${name}, preliminary in ${code.srv || 'an unnamed server'}.` : `Ready: ${name}, tournament host with automute.`)
+    : problems[0];
+  $('toast').textContent = '';
+}
+
+$('form').addEventListener('input', e => { if (e.target.id === 'tid') idEdited = $('tid').value.trim() !== ''; build(); });
+$('form').addEventListener('change', build);
+$('form').addEventListener('submit', e => e.preventDefault());
+$('reset-scores').addEventListener('click', () => { scoresEl.querySelectorAll('input').forEach(i => i.value = i.dataset.default); build(); });
+$('copy').addEventListener('click', async () => {
+  const text = $('code').value;
+  try { await navigator.clipboard.writeText(text); $('toast').textContent = 'Copied.'; }
+  catch { $('code').select(); $('toast').textContent = 'Selected: press Ctrl+C (or ⌘C) to copy.'; }
+});
+$('load-btn').addEventListener('click', () => {
+  try {
+    const c = decodeCode($('load').value);
+    $(c.m === 'tournament' ? 'kind-tournament' : 'kind-prelim').checked = true;
+    $('name').value = c.n || ''; $('server').value = c.srv || ''; $('tid').value = c.id || ''; idEdited = !!c.id;
+    $('webhook').value = c.wh || ''; $('guild').value = c.g || ''; $('results').value = c.rc || '';
+    $('token').value = (c.bt || [])[0] || ''; $('prelims').value = (c.pc || []).join(', ');
+    $('advance').value = c.adv || 5; $('refs').value = (c.ref || []).join(', ');
+    scoresEl.querySelectorAll('input').forEach(i => { const k = i.id.slice(3); i.value = c.sc && k in c.sc ? c.sc[k] : i.dataset.default; });
+    show('load-bad', ''); build();
+  } catch (err) { show('load-bad', err instanceof SyntaxError || /atob|decode|base64/i.test(err.message) ? 'That setup code is damaged. Copy the whole code again.' : err.message); }
+});
+build();
+</script>
+</body></html>

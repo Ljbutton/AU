@@ -132,6 +132,22 @@ public class SetupCodeTests
     }
 
     [Fact]
+    public void A_code_from_the_generator_page_is_read_by_the_mod()
+    {
+        // Produced by the page's own encoder (node), including non-ASCII in the name.
+        Assert.True(SetupCode.TryParse("TT1-eyJtIjoidG91cm5hbWVudCIsImlkIjoiZmFsbC1jdXAtMjAyNiIsIm4iOiJGYWxsIEN1cCAyMDI2IOKAlCDDiXTDqSIsIndoIjoiaHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMS94IiwiZyI6IjExODAwMDAwMDAwMDAwMDAwMDAiLCJidCI6WyJhLmIuYyJdLCJyYyI6IjEyOTAwMDAwMDAwMDAwMDAwMDAiLCJwYyI6WyIxMjkwMDAwMDAwMDAwMDAwMDAxIl0sImFkdiI6NSwic2MiOnsia2lsbCI6MS41LCJnb3RLaWxsZWQiOjAuNX19", out var code, out var error), error);
+        Assert.Equal("Fall Cup 2026 — Été", code.TournamentName);
+        Assert.True(code.IsTournament);
+        Assert.Equal(1.5, code.Scoring!.Kill);
+        var settings = new TrackerSettings();
+        code.ApplyTo(settings);
+        Assert.Equal(TrackerMode.Tournament, settings.Mode);
+        Assert.Equal(new[] { "a.b.c" }, settings.AutoMute.BotTokens);
+        Assert.True(settings.AutoMute.Enabled);
+        Assert.Equal(5, settings.AdvanceCount);
+    }
+
+    [Fact]
     public void A_preliminary_code_switches_to_preliminary_mode()
     {
         var settings = new TrackerSettings { LiveStatus = true, ResultsChannelId = "x", PostLeaderboardAfterEachGame = true };

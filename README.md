@@ -35,9 +35,13 @@ the mod together with the mod loader it needs (BepInEx 6 build 735), and install
 it can't find the game it asks you to pick the folder. Run it again any time to update;
 your settings, links and stats are kept.
 
-Then start Among Us once. The first start takes a few minutes while BepInEx sets itself
-up (a black console window appears). Close the game, fill in
-`BepInEx/config/com.ljbutton.tournamenttracker.cfg`, and you're ready.
+At the end it asks for your **setup code**: paste the code the organiser gave you. That's
+all the setup there is. Then start Among Us and host a lobby. The first start takes a few
+minutes while BepInEx sets itself up (a black console window appears).
+
+To switch to a different code later (say, from preliminaries to the tournament), copy the
+new code and type `!setup` in the lobby chat. Without a code, the mod uses the settings file
+`BepInEx/config/com.ljbutton.tournamenttracker.cfg` instead (see *Configuration*).
 
 <details><summary>Installing by hand instead</summary>
 
@@ -54,7 +58,89 @@ To uninstall, delete `BepInEx`, `dotnet`, `winhttp.dll`, `doorstop_config.ini` a
 `BUILT-AGAINST.txt` in the ZIP names the Among Us version the DLL was compiled for. After
 Among Us updates, rebuild against the new version (see *Building*).
 
-## Discord setup
+## Running a tournament (organiser)
+
+The organiser sets up Discord once and hands each host a **setup code**. Hosts never touch
+Discord developer settings or the config file.
+
+### 1. Discord channels
+
+* **Preliminary channel(s):** preliminary reports land here. Make a webhook for it.
+* **Results channel:** tournament game reports and standings for players. Make a webhook.
+* **Private results channel:** staff only. The hosts' mods post each game's data here,
+  referees type point adjustments here, and `!resetleaderboard` here starts standings over.
+
+### 2. Bots (tournament hosts only)
+
+Create one bot per tournament lobby that runs at the same time, at
+<https://discord.com/developers/applications> (New Application → Bot → Reset Token). For
+each: turn on **Message Content Intent** (Bot → Privileged Gateway Intents), and invite it
+with this link (put in the application ID):
+`https://discord.com/oauth2/authorize?client_id=APP_ID&scope=bot&permissions=12700736`
+(view channels, send messages, embed links, attach files, read history, add reactions,
+mute and deafen members). Preliminary hosts don't need a bot.
+
+### 3. Setup codes
+
+Open `docs/setup-codes.html` (the setup code generator) in a browser and fill it in:
+
+* **Preliminary code:** the tournament name, the preliminary server's name and the
+  preliminary channel's webhook. Make one per preliminary server (the server name is what
+  server standings use). Safe to hand out.
+* **Tournament host code:** the tournament name, the results channel webhook, your server
+  ID, one bot's token, the private results channel and the preliminary channels. It
+  contains the bot token, so send it privately.
+
+Both carry the point values, so every host scores the same. Codes are only encoded, not
+encrypted: anyone holding one can read what's in it.
+
+### 4. The combined preliminary leaderboard
+
+Preliminary hosts have no bot, so a scheduled GitHub job builds one leaderboard per
+preliminary, across all its lobbies, every 10 minutes. In the GitHub repository: Settings →
+Secrets and variables → Actions → add the secret `DISCORD_BOT_TOKEN` (one of your bots,
+invited to the server with the preliminary channels) and the variable `PRELIM_CHANNEL_IDS`
+(comma separated). Optionally set `PRELIM_LEADERBOARD_CHANNEL` to post every leaderboard
+in one channel. Scheduled runs only happen on the repository's default branch, so merge
+this branch into it first. Actions → *Preliminary leaderboards* → Run workflow updates it
+right away.
+
+### Modes
+
+| | Preliminary code | Tournament host code |
+| --- | --- | --- |
+| After each game | Report plus the game's data in your preliminary channel; a summary in the host's chat | Report in the results channel; the lobby's round standings |
+| Leaderboard | The scheduled job's combined board per preliminary | Per lobby per round, with the cut line, plus a running total |
+| Automute | Only if the host adds their own bot (most should use AutoMuteUs) | Yes, with your bot |
+| Live status, referee tools | No | Yes |
+
+### During the tournament
+
+* **Rounds:** the host types `!r1`, `!r2`, `!r3`… in the lobby before each round's first game,
+  for as many rounds as you need. Points restart each round, and a running total across all
+  rounds is kept alongside. After every game the lobby's standings for the round are
+  posted with a line under the top players who move on (5 by default). `!leaderboard` also
+  shows every lobby in the round together.
+* **Referee adjustments:** in the private results channel, type
+  `!adjust LJ red -2 meta call` (the lobby name, the player's colour or name, the points,
+  the reason). You can type it during the game; it lands on the game that lobby was playing
+  at that moment. For a specific game use its name: `!adjust LJ-3 red -2 …`. The lobby's
+  bot reacts ✅ when it's applied, or ❓ if the player couldn't be found. It shows in the
+  points breakdown as "Referee: meta call −2".
+* **Server standings:** `!servers` (and each new round) posts servers ranked by their
+  players' total points, with each server's furthest player. A player's server is the one
+  they played the most preliminaries in. Unofficial.
+
+### Referee ghost slot (experimental)
+
+For an 11-player lobby that plays like 10 while a referee watches: the host types
+`!refslot on` in the lobby to become the ghost referee, or `!refslot <player>` to pick
+someone else, and sets the lobby to 11 players. At the start of every game that player
+becomes a ghost: never an impostor, no tasks, not in stats, points or automute (they can
+always talk). A ghost with the mod installed can zoom out with the **mouse wheel** or
+**+ / −** to see the whole map. `!refslot off` turns it off; the choice is remembered.
+
+## Discord setup (without a setup code)
 
 ### Stats (webhook, no bot needed)
 
@@ -186,6 +272,10 @@ brings the old standings back.
 | `!refresh` | host | Post a fresh live status message at the bottom of the channel |
 | `!leaderboard` | host | Post the leaderboard to Discord now (combined across lobbies if set up) |
 | `!resetleaderboard` | host | Start the combined leaderboard over for every lobby |
+| `!r1`, `!r2`… or `!round 3` | host | Start a tournament round (points restart; running total kept) |
+| `!servers` | host | Post the server standings |
+| `!refslot on\|off\|<player>` | host | Referee ghost slot (experimental) |
+| `!setup` | host | Apply the setup code on the clipboard (`!setup clear` to stop using one) |
 | `!resetstats confirm` | host | Archive the stats file and start a new leaderboard |
 
 \* unless `AllowSelfLink = false`.
