@@ -21,6 +21,7 @@ namespace TournamentTracker.Plugin
         private static readonly Queue<string> PublicQueue = new Queue<string>();
         private static bool _loggedError;
         private static float _nextLockCheck;
+        private static bool _loggedReplay;
 
         /// <summary>Set once a game has ended, until the lobby returns, so the start fallback can't reopen it.</summary>
         private static bool _roundOver;
@@ -59,6 +60,9 @@ namespace TournamentTracker.Plugin
                     session.UnmuteEveryone();
                     Game.LocalChat("Everyone unmuted; automute is OFF. Type !automute on to resume.");
                 }
+
+                try { ReplayCapture.Update(); }
+                catch (Exception e) { if (!_loggedReplay) TournamentPlugin.Logger.Error("Replay recording failed: " + e); _loggedReplay = true; }
 
                 if (Time.unscaledTime < _nextTick) return;
                 _nextTick = Time.unscaledTime + TickSeconds;
@@ -112,6 +116,7 @@ namespace TournamentTracker.Plugin
             session.GameStarted(Game.LobbyCode(), Game.MapName(), players);
             try { session.CheckSettings(LobbyLock.Read()); }
             catch (Exception e) { TournamentPlugin.Logger.Error("Settings check failed: " + e); }
+            ReplayCapture.CaptureMap();
             try { RefSlot.MakeGhost(); }
             catch (Exception e) { TournamentPlugin.Logger.Error("Referee ghost failed: " + e); }
         }

@@ -159,6 +159,7 @@ namespace TournamentTracker
             game.Round = Round;
             game.Id = $"{(label.Length > 0 ? FileSafe(label) + "-" : "")}{game.GameNumber}-{game.StartedUtc:yyyyMMdd-HHmmss}";
             _log.Info($"Tracking game {game.Name} on {map} with {players.Count} players");
+            StartReplay(game);
             if (_settings.Mode == TrackerMode.Tournament && Round == 0)
                 Reply($"No round set, so this game counts as round 0. Type {_settings.CommandPrefix}r1 in the lobby before the next game.", false);
             else if (_settings.Mode == TrackerMode.Tournament && _settings.GamesPerRound > 0 && GamesThisRound >= _settings.GamesPerRound)
@@ -227,6 +228,7 @@ namespace TournamentTracker
             Store.NoteFinished(game);
             TrySave(() => Store.Save(_statsPath), "stats");
             TrySave(() => SaveGameFile(game), "game record");
+            FinishReplay(game);
 
             _log.Info($"Game {game.Name} over: {game.Winner ?? "no result"} ({reason})");
             var report = ReportFormatter.GameReport(game);

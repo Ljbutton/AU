@@ -43,6 +43,9 @@ namespace TournamentTracker
         /// <summary>Port for the stream overlay (!overlay on), on this computer only.</summary>
         public int OverlayPort { get; set; } = 8765;
 
+        /// <summary>Record a replay of every game (positions ~10 times a second, about 0.5 MB a game).</summary>
+        public bool RecordReplays { get; set; } = true;
+
         /// <summary>Tournament: the organiser's preliminary channels, read for server standings.</summary>
         public List<string> PrelimChannelIds { get; set; } = new List<string>();
 

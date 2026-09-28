@@ -79,6 +79,7 @@ namespace TournamentTracker.Stats
                 : string.Equals(game.Tournament, tournamentName, StringComparison.OrdinalIgnoreCase);
 
         public string ChannelId => _channelId;
+        public string Token => _token;
 
         /// <summary>A plain message from the bot, e.g. a note for the referees.</summary>
         public async Task<bool> PostNoteAsync(string text)

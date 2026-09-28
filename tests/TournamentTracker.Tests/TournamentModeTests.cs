@@ -443,6 +443,38 @@ public class TournamentModeTests : IDisposable
     }
 
     [Fact]
+    public async Task Games_are_recorded_for_the_replay_viewer_and_sent_to_the_referees()
+    {
+        var s = Session(TournamentCode());
+        var lobby = Lobby();
+        s.HandleChat(lobby[3], true, "!r1");
+        s.GameStarted("ABCDEF", "Polus", lobby);
+        s.ReplayMapLoaded(new ReplayMap { Walls = { new[] { 0f, 0f, 5f, 0f } }, Rooms = { new ReplayRoom { Name = "Office", Area = new[] { 0f, 0f, 1f, 0f, 1f, 1f } } } });
+        for (int i = 0; i < 30; i++)
+        {
+            _clock.Advance(0.1);
+            s.RecordPositions(lobby.Select(p => new ReplayPosition(p.PlayerId, p.PlayerId + i * 0.1f, 2f, false, p.PlayerId == 0 && i > 20, false)));
+        }
+        s.Kill(0, 2);
+        s.GameEnded("ImpostorByKill", lobby);
+        await s.PendingPosts;
+
+        var post = _discord.Messages.Single(m => m.File != null && m.File.StartsWith("tt-replay-"));
+        Assert.Equal("results", post.Channel);
+        Assert.StartsWith("Replay of game LJ-1", post.Content);
+        string saved = Directory.GetFiles(_dir.Path, "tt-replay-*.json.gz", SearchOption.AllDirectories).Single();
+        using var gz = new System.IO.Compression.GZipStream(File.OpenRead(saved), System.IO.Compression.CompressionMode.Decompress);
+        var replay = JsonDocument.Parse(gz).RootElement;
+        Assert.Equal("LJ-1", replay.GetProperty("name").GetString());
+        Assert.Equal(30, replay.GetProperty("frames").GetArrayLength());
+        var last = replay.GetProperty("frames")[29];
+        Assert.Equal(1 + 3 * 6, last.GetArrayLength());
+        Assert.Equal(2, last[3].GetDouble());                      // Alice in a vent
+        Assert.Equal("Office", replay.GetProperty("geometry").GetProperty("rooms")[0].GetProperty("name").GetString());
+        Assert.Contains(replay.GetProperty("events").EnumerateArray(), e => e.GetProperty("kind").GetString() == "kill");
+    }
+
+    [Fact]
     public void Void_messages_are_read_carefully()
     {
         var v = RefereeVoid.TryParse("!void LJ-3 lobby restarted", "1", DateTime.UtcNow)!;
