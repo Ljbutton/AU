@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Everything that does not touch the game lives here: stat tracking, scoring,
+    Discord webhooks, the automute planner and dispatcher, and chat commands.
+    The plugin compiles these sources straight into its own DLL, so hosts only
+    install one file; this project exists so the logic can be unit-tested
+    without Among Us installed.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <RootNamespace>TournamentTracker</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="TournamentTracker.Tests" />
+  </ItemGroup>
+</Project>
