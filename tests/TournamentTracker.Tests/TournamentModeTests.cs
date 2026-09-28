@@ -276,7 +276,7 @@ public class TournamentModeTests : IDisposable
 
         var alice = s.Combined!.GameRecords.Single().Players.Single(p => p.Name == "Alice");
         Assert.Contains(alice.PointBreakdown, l => l.Rule == "Referee: meta call in meeting" && l.Points == -2);
-        Assert.Equal(3 - 2, alice.Points);                                                // kill win, referee −2
+        Assert.Equal(4 - 2, alice.Points);                                                // kill win, referee −2
         string red = _discord.Messages.Single(m => m.Content.Contains(" red ")).Id;
         string nobody = _discord.Messages.Single(m => m.Content.Contains("nobody")).Id;
         Assert.Contains(("results", red, "✅"), _discord.Reactions);

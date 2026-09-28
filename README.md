@@ -325,10 +325,10 @@ allowed, penalties are negative, and 0 switches a rule off.
 | --- | --- | --- |
 | Kill | +1 each | `Kill` |
 | First blood (on top of the kill) | +1 | `FirstBlood` |
-| Voted for a crewmate who got ejected | +1 each | `VotedCrewmateOut` |
+| Voted for a crewmate who got ejected | +2 each | `VotedCrewmateOut` |
 | Win by sabotage | +5 | `ImpostorSabotageWin` |
-| Win by vote | +3 | `ImpostorVoteWin` |
-| Win by kills | +3 | `ImpostorKillWin` |
+| Win by vote | +4 | `ImpostorVoteWin` |
+| Win by kills | +4 | `ImpostorKillWin` |
 | Lose to tasks | −3 | `ImpostorTaskLoss` |
 | Lose to vote | −2 | `ImpostorVoteLoss` |
 | First impostor voted out | −2 | `VotedOutFirst` |

@@ -144,12 +144,12 @@ namespace TournamentTracker
         // Impostor, during the game
         public double Kill { get; set; } = 1;
         public double FirstBlood { get; set; } = 1;
-        public double VotedCrewmateOut { get; set; } = 1;
+        public double VotedCrewmateOut { get; set; } = 2;
 
         // Impostor, by how the game ended
         public double ImpostorSabotageWin { get; set; } = 5;
-        public double ImpostorVoteWin { get; set; } = 3;
-        public double ImpostorKillWin { get; set; } = 3;
+        public double ImpostorVoteWin { get; set; } = 4;
+        public double ImpostorKillWin { get; set; } = 4;
         public double ImpostorTaskLoss { get; set; } = -3;
         public double ImpostorVoteLoss { get; set; } = -2;
 

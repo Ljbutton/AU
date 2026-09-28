@@ -52,8 +52,8 @@ public class ScoringTests
         Eject(3, (0, 3), (1, 3), (2, 3), (4, 0), (5, 3));           // Pink (crew) ejected
         var g = End("ImpostorByVote");
 
-        Assert.Equal(1 + 3, Pts(g, 0));           // voted a crewmate out, vote win
-        Assert.Equal(1 + 3, Pts(g, 1));
+        Assert.Equal(2 + 4, Pts(g, 0));           // voted a crewmate out, vote win
+        Assert.Equal(2 + 4, Pts(g, 1));
         Assert.Equal(-2 - 1, Pts(g, 2));          // incorrect vote out, lost
         Assert.Equal(-1, Pts(g, 3));              // ejected crewmate: just the loss
         Assert.Equal(-1, Pts(g, 4));              // voted Red, who stayed in: no points either way
@@ -98,7 +98,7 @@ public class ScoringTests
         _t.Disconnected(4, _clock.Now);
         var g = End("ImpostorByKill");
         Assert.Equal(0, Pts(g, 4));
-        Assert.Equal(1 + 1 + 3, Pts(g, 0));
+        Assert.Equal(1 + 1 + 4, Pts(g, 0));
     }
 
     [Fact]

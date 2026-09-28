@@ -66,8 +66,8 @@ public class GameTrackerTests
         Assert.Equal(30, game.ById(2)!.DiedAtSeconds);
 
         // The tournament point sheet:
-        Assert.Equal(1 + 1 - 2 + 3, alice.Points);      // kill, first blood, voted out first, kill win
-        Assert.Equal(2 + 3, bob.Points);                // two kills, kill win
+        Assert.Equal(1 + 1 - 2 + 4, alice.Points);      // kill, first blood, voted out first, kill win
+        Assert.Equal(2 + 4, bob.Points);                // two kills, kill win
         Assert.Equal(1 - 1, game.ById(2)!.Points);      // died first, lost
         // correct vote out, caught killer, got killed, lost, 100% vote accuracy
         Assert.Equal(2 + 1 + 0.5 - 1 + 2, dana.Points);
