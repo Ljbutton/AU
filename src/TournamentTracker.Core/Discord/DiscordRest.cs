@@ -397,6 +397,7 @@ namespace TournamentTracker.Discord
     public sealed class ChannelMessage
     {
         public string Id { get; set; } = "";
+        public string ChannelId { get; set; } = "";
         public string Content { get; set; } = "";
         public string AuthorId { get; set; } = "";
         public bool AuthorIsBot { get; set; }
@@ -411,6 +412,7 @@ namespace TournamentTracker.Discord
             var m = new ChannelMessage
             {
                 Id = e.GetProperty("id").GetString() ?? "",
+                ChannelId = e.TryGetProperty("channel_id", out var ch) && ch.ValueKind == JsonValueKind.String ? ch.GetString() ?? "" : "",
                 Content = e.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() ?? "" : "",
                 Embeds = e.TryGetProperty("embeds", out var em) && em.ValueKind == JsonValueKind.Array ? em.GetArrayLength() : 0,
             };
@@ -451,6 +453,8 @@ namespace TournamentTracker.Discord
     public sealed class AllowedMentions
     {
         [JsonPropertyName("parse")] public List<string> Parse { get; set; } = new List<string>();
+        /// <summary>The only users this message may ping.</summary>
+        [JsonPropertyName("users")] public List<string>? Users { get; set; }
     }
 
     public sealed class Embed

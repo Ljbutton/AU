@@ -48,6 +48,9 @@ namespace TournamentTracker.Discord
         public bool Connected { get; set; }
         public string? BotUserId { get; private set; }
 
+        /// <summary>A message was posted in a channel the bot can see (only with the message intents).</summary>
+        public event Action<ChannelMessage>? MessageCreated;
+
         public IReadOnlyList<VoiceMember> Members
         {
             get { lock (_lock) return _members.Values.ToList(); }
@@ -85,6 +88,10 @@ namespace TournamentTracker.Discord
                             }
                         }
                     }
+                    break;
+
+                case "MESSAGE_CREATE":
+                    MessageCreated?.Invoke(ChannelMessage.Parse(data));
                     break;
 
                 case "VOICE_STATE_UPDATE":
@@ -136,7 +143,10 @@ namespace TournamentTracker.Discord
     public sealed class VoiceGateway : IVoicePresence, IDisposable
     {
         public const string DefaultUrl = "wss://gateway.discord.gg/?v=10&encoding=json";
-        private const int Intents = (1 << 0) | (1 << 7);
+        private const int BaseIntents = (1 << 0) | (1 << 7);
+        /// <summary>GUILD_MESSAGES and MESSAGE_CONTENT (privileged: turned on for the bot in the developer portal).</summary>
+        private const int MessageIntents = (1 << 9) | (1 << 15);
+        private int _intents = BaseIntents;
 
         private readonly string _token;
         private readonly Uri _url;
@@ -145,8 +155,9 @@ namespace TournamentTracker.Discord
         private Task? _run;
         private int? _sequence;
 
-        public VoiceGateway(string token, string guildId, ILog log, string url = DefaultUrl)
+        public VoiceGateway(string token, string guildId, ILog log, string url = DefaultUrl, bool listenToMessages = false)
         {
+            if (listenToMessages) _intents |= MessageIntents;
             _token = token;
             _url = new Uri(url);
             _log = log;
@@ -242,7 +253,7 @@ namespace TournamentTracker.Discord
                                 d = new
                                 {
                                     token = _token,
-                                    intents = Intents,
+                                    intents = _intents,
                                     properties = new { os = "windows", browser = "TournamentTracker", device = "TournamentTracker" },
                                 },
                             }).ConfigureAwait(false);
@@ -269,6 +280,13 @@ namespace TournamentTracker.Discord
                 connection.Cancel();
                 if (heartbeat != null) { try { await heartbeat.ConfigureAwait(false); } catch (OperationCanceledException) { } }
                 var closeStatus = socket.CloseStatus;
+                if (closeStatus.HasValue && (int)closeStatus.Value == 4014 && (_intents & MessageIntents) != 0)
+                {
+                    // The Message Content intent isn't turned on: keep voice working without channel commands.
+                    _intents = BaseIntents;
+                    _log.Warn("The bot's Message Content Intent is off, so results-channel commands (!lobbies, !start…) won't be heard. Voice features carry on.");
+                    throw new IOException("reconnecting without message intents");
+                }
                 if (closeStatus.HasValue && IsFatal((int)closeStatus.Value))
                     throw new FatalGatewayException($"close code {(int)closeStatus.Value} {socket.CloseStatusDescription}");
             }

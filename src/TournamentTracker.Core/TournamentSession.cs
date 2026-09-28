@@ -84,12 +84,15 @@ namespace TournamentTracker
                 // Spectator muting and auto-link need to see who is in voice; that only
                 // comes over the gateway, which uses the first bot token.
                 Presence = presence;
-                if (Presence == null && (mute.MuteSpectators || mute.AutoLinkByName))
+                bool listen = settings.ResultsChannelId.Length > 0 && settings.Mode == TrackerMode.Tournament;
+                if (Presence == null && (mute.MuteSpectators || mute.AutoLinkByName || listen))
                 {
-                    _gateway = new VoiceGateway(mute.BotTokens[0], mute.GuildId, log);
+                    _gateway = new VoiceGateway(mute.BotTokens[0], mute.GuildId, log, listenToMessages: listen);
                     _gateway.Start();
                     Presence = _gateway;
                 }
+                var state = presence as VoicePresenceState ?? _gateway?.State;
+                if (state != null) state.MessageCreated += OnChannelMessage;
             }
             else if (mute.Enabled)
             {
@@ -206,6 +209,11 @@ namespace TournamentTracker
             var game = Tracker.End(reason, winner, players, _clock());
             if (game == null) return null;
             LastGame = game;
+            foreach (var p in game.Players)
+            {
+                string? linked = Links.Find(p.Key)?.DiscordUserId;
+                p.DiscordId = string.IsNullOrEmpty(linked) ? null : linked;
+            }
             if (game.Counted)
             {
                 CountRoundGame(game, 1);
@@ -256,6 +264,7 @@ namespace TournamentTracker
             }
             // Move the live status below the report so it stays at the bottom of the channel.
             RepostStatus();
+            ApplyPendingRound();
             return game;
         }
 

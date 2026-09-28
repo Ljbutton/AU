@@ -66,6 +66,8 @@ namespace TournamentTracker.Stats
         public byte PlayerId { get; set; }
         public string Key { get; set; } = "";
         public string Name { get; set; } = "";
+        /// <summary>The player's linked Discord account, if the host had them linked (for round-start pings).</summary>
+        public string? DiscordId { get; set; }
         public int ColorId { get; set; }
         public string Role { get; set; } = "";
         public bool IsImpostor { get; set; }

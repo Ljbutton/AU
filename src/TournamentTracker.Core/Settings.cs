@@ -37,6 +37,9 @@ namespace TournamentTracker
         /// <summary>Spread impostor turns evenly within a round (see Rotation). Off unless the setup code turns it on.</summary>
         public bool ImpostorRotation { get; set; }
 
+        /// <summary>This host's mod answers the organiser's commands in the results channel (!lobbies, !start…).</summary>
+        public bool Lead { get; set; }
+
         /// <summary>Tournament: the organiser's preliminary channels, read for server standings.</summary>
         public List<string> PrelimChannelIds { get; set; } = new List<string>();
 

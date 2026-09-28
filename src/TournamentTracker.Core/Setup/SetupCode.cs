@@ -51,6 +51,9 @@ namespace TournamentTracker.Setup
 
         /// <summary>Fair impostor rotation within each round.</summary>
         [JsonPropertyName("rot")] public bool? ImpostorRotation { get; set; }
+
+        /// <summary>Tournament host codes: this host's mod answers the results-channel commands. Give it to one host (you).</summary>
+        [JsonPropertyName("lead")] public bool? Lead { get; set; }
         [JsonPropertyName("ref")] public List<string>? RefereeUserIds { get; set; }
 
         /// <summary>Point values, so every host scores the same way. Missing: the defaults.</summary>
@@ -131,6 +134,7 @@ namespace TournamentTracker.Setup
                 if (AdvanceCount.HasValue) s.AdvanceCount = AdvanceCount.Value;
                 if (GamesPerRound.HasValue) s.GamesPerRound = GamesPerRound.Value;
                 if (RefereeUserIds != null) s.AutoMute.RefereeUserIds = RefereeUserIds.ToList();
+                s.Lead = Lead == true;
             }
             else
             {

@@ -382,6 +382,66 @@ public class TournamentModeTests : IDisposable
         Assert.Contains(_discord.Messages, m => m.Channel == "results" && m.Content == "Disconnect · LJ-1: Eve (crewmate) left at 1:12, before the first meeting.");
     }
 
+    private static ChannelMessage Typed(string text, string channel = "results") =>
+        new() { Id = "9" + Math.Abs(text.GetHashCode()), ChannelId = channel, Content = text };
+
+    [Fact]
+    public async Task The_organiser_builds_next_round_lobbies_and_starts_the_round_from_the_results_channel()
+    {
+        foreach (var g in LobbyPlanTests.RoundOne(3)) { g.TournamentId = "fall-cup"; g.Tournament = "Fall Cup"; g.StartedUtc = _clock.Now.AddHours(-1); _discord.AddGame("results", g); }
+        var code = TournamentCode();
+        code.Lead = true;
+        var lead = Session(code);
+        var other = Session(TournamentCode());
+        var delays = new List<TimeSpan>();
+        lead.Delay = t => { delays.Add(t); return Task.CompletedTask; };
+
+        foreach (var s in new[] { lead, other }) s.HandleChannelMessage(Typed("!lobbies 2"));
+        await lead.PendingPosts;
+        lead.Pump();
+        Assert.Null(other.Plan);                                   // only the lead answers
+        var plan = lead.Plan!;
+        Assert.Equal(6, plan.Lobbies[0].Players.Count);            // top 2 of 3 lobbies: one final lobby
+        var posted = _discord.Messages.Last(m => m.Content.StartsWith("Round 2 lobbies"));
+        Assert.Contains("**Final**", posted.Content);
+
+        lead.HandleChannelMessage(Typed("!host final LJ"));
+        await lead.PendingPosts;
+        Assert.Equal("LJ", lead.Plan!.Lobbies[0].Host);
+
+        foreach (var s in new[] { lead, other }) s.HandleChannelMessage(Typed("!start 2 in 10"));
+        await lead.PendingPosts;
+        await Task.Delay(50);
+        await lead.PendingPosts;
+        Assert.Equal(2, lead.Round);
+        Assert.Equal(2, other.Round);                              // every lobby switches round
+        var pings = _discord.Webhooks.Where(w => w.Payload.TryGetProperty("content", out var c) && c.GetString()!.Contains("Round 2")).ToList();
+        Assert.Equal(2, pings.Count);                              // the call, then "starting now" after the wait
+        Assert.StartsWith("**Round 2 starts in 10 minutes!**", pings[0].Payload.GetProperty("content").GetString());
+        Assert.Contains("<@100>", pings[0].Payload.GetProperty("content").GetString());
+        Assert.Contains("100", pings[0].Payload.GetProperty("allowed_mentions").GetProperty("users").EnumerateArray().Select(u => u.GetString()));
+        Assert.StartsWith("**Round 2 is starting now!**", pings[1].Payload.GetProperty("content").GetString());
+        Assert.Equal(new[] { TimeSpan.FromMinutes(10) }, delays);
+    }
+
+    [Fact]
+    public async Task Lead_passes_to_whoever_types_lead_in_game()
+    {
+        var code = TournamentCode();
+        code.Lead = true;
+        var first = Session(code);
+        var second = Session(TournamentCode());
+        Assert.True(first.IsLead);
+        second.VoiceTick(VoicePhase.Lobby, Lobby("Sam"), "ABCDEF", "Polus");
+        second.HandleChat(Lobby("Sam")[3], true, "!lead");
+        await second.PendingPosts;
+        var note = _discord.Messages.Last();
+        Assert.StartsWith("Lead · Sam answers channel commands", note.Content);
+        first.HandleChannelMessage(new ChannelMessage { Id = note.Id, ChannelId = "results", Content = note.Content, AuthorIsBot = true });
+        Assert.False(first.IsLead);
+        Assert.True(second.IsLead);
+    }
+
     [Fact]
     public void Void_messages_are_read_carefully()
     {
