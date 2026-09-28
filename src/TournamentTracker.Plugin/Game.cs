@@ -54,14 +54,20 @@ namespace TournamentTracker.Plugin
         {
             var role = p.Role;
             bool impostor = role != null && role.IsImpostor;
-            int done = 0, total = 0;
+            int done = 0, total = 0, longDone = 0, longTotal = 0;
             var tasks = p.Tasks;
             if (!impostor && tasks != null)
             {
                 for (int i = 0; i < tasks.Count; i++)
                 {
+                    bool isLong = IsLongTask(tasks[i].TypeId);
                     total++;
-                    if (tasks[i].Complete) done++;
+                    if (isLong) longTotal++;
+                    if (tasks[i].Complete)
+                    {
+                        done++;
+                        if (isLong) longDone++;
+                    }
                 }
             }
 
@@ -80,7 +86,20 @@ namespace TournamentTracker.Plugin
                 Disconnected = p.Disconnected,
                 TasksCompleted = done,
                 TasksTotal = total,
+                LongTasksCompleted = longDone,
+                LongTasksTotal = longTotal,
             };
+        }
+
+        /// <summary>A player's task, by its type ID, is one of the map's long tasks.</summary>
+        private static bool IsLongTask(byte typeId)
+        {
+            var ship = ShipStatus.Instance;
+            var longTasks = ship != null ? ship.LongTasks : null;
+            if (longTasks == null) return false;
+            for (int i = 0; i < longTasks.Length; i++)
+                if (longTasks[i] != null && longTasks[i].Index == typeId) return true;
+            return false;
         }
 
         public static PlayerControl? Player(byte playerId)

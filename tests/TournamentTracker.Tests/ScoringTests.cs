@@ -1,3 +1,4 @@
+using System.Linq;
 using TournamentTracker.Stats;
 using Xunit;
 
@@ -8,7 +9,7 @@ public class ScoringTests
 {
     private readonly FakeClock _clock = new();
     // The sheet's own rules; the percentage bonuses have their own tests below.
-    private readonly GameTracker _t = new(new ScoringRules { VoteAccuracyBonus = 0, TaskPercentBonus = 0 });
+    private readonly GameTracker _t = new(new ScoringRules { ReadVoteBonus = 0, TaskPercentBonus = 0, DiedFirstShareOfCrewAverage = 0 });
 
     private void Start() => _t.Start(1, "Cup", "X", "Polus", Players.Lobby(), _clock.Now);
 
@@ -70,8 +71,8 @@ public class ScoringTests
 
         Assert.Equal(1 + 1 + 5, Pts(g, 0));       // kill, first blood, sabotage win
         Assert.Equal(1 + 5, Pts(g, 1));
-        Assert.Equal(1 - 1, Pts(g, 2));           // died first, dead so "other loss"
-        Assert.Equal(0.5 - 1, Pts(g, 3));         // got killed, other loss
+        Assert.Equal(-1, Pts(g, 2));              // dead, so just the ordinary loss
+        Assert.Equal(-1, Pts(g, 3));
         Assert.Equal(-5, Pts(g, 4));              // alive at a sabotage loss
     }
 
@@ -86,7 +87,7 @@ public class ScoringTests
         Assert.Equal(1 + 1 - 3, Pts(g, 0));       // kill, first blood, lost to tasks
         Assert.Equal(-3, Pts(g, 1));
         Assert.Equal(5, Pts(g, 4));               // task win (finishing tasks is scored by the % bonus, off here)
-        Assert.Equal(1 + 5, Pts(g, 5));           // died first still wins with the team
+        Assert.Equal(5, Pts(g, 5));               // died first still wins with the team
         Assert.Equal(5, Pts(g, 2));
     }
 
@@ -104,7 +105,7 @@ public class ScoringTests
     [Fact]
     public void Rules_can_be_changed()
     {
-        var t = new GameTracker(new ScoringRules { Kill = 2, ImpostorKillWin = 10, GotKilled = 0, DiedFirst = 0 });
+        var t = new GameTracker(new ScoringRules { Kill = 2, ImpostorKillWin = 10, GotKilled = 0, DiedFirstShareOfCrewAverage = 0 });
         t.Start(1, "Cup", "X", "Polus", Players.Lobby(), _clock.Now);
         t.Kill(0, 2, _clock.Now);
         var g = t.End("ImpostorByKill", Outcome.Impostors, Players.Lobby(), _clock.Now)!;
@@ -115,10 +116,10 @@ public class ScoringTests
     [Fact]
     public void Percentage_bonuses_scale_with_vote_accuracy_and_tasks()
     {
-        var t = new GameTracker(new ScoringRules());   // defaults: 2 max each, halves
+        var t = new GameTracker(new ScoringRules());   // defaults: reads 1 each up to 4, tasks 3, halves
         var lobby = Players.Lobby();                    // crewmates have 4 tasks
         t.Start(1, "Cup", "X", "Polus", lobby, _clock.Now);
-        // Green votes an impostor twice and a crewmate once: 67% -> 1.33 -> 1.5.
+        // Nobody is ejected, so every vote is a read. Green: 2 of 3 on impostors -> 2 x 67% = 1.33 -> 1.5.
         t.VotingComplete(new[] { new VoteCast(2, 0), new VoteCast(3, 1) }, null, false, _clock.Now);
         t.VotingComplete(new[] { new VoteCast(2, 1), new VoteCast(3, VoteCast.SkippedVote) }, null, false, _clock.Now);
         t.VotingComplete(new[] { new VoteCast(2, 4) }, null, false, _clock.Now);
@@ -128,17 +129,76 @@ public class ScoringTests
         var g = t.End("HumansByTask", Outcome.Crewmates, final, _clock.Now)!;
 
         var green = g.ById(2)!;
-        Assert.Contains(green.PointBreakdown, l => l.Rule == "Vote accuracy 67%" && l.Points == 1.5);
+        Assert.Contains(green.PointBreakdown, l => l.Rule == "Reads 2/3 on impostors" && l.Points == 1.5);
         Assert.Contains(green.PointBreakdown, l => l.Rule == "Tasks 75%" && l.Points == 2.5);
         Assert.Equal(1.5 + 2.5 + 5, green.Points);
 
-        var pink = g.ById(3)!;                          // one vote on an impostor, one skip: 100%
-        Assert.Contains(pink.PointBreakdown, l => l.Rule == "Vote accuracy 100%" && l.Points == 2);
+        var pink = g.ById(3)!;                          // one read on an impostor, one skip: 1 x 100%
+        Assert.Contains(pink.PointBreakdown, l => l.Rule == "Reads 1/1 on impostors" && l.Points == 1);
         Assert.Contains(pink.PointBreakdown, l => l.Rule == "Tasks 25%" && l.Points == 1);
 
         var orange = g.ById(4)!;                        // never voted: no vote bonus at all
-        Assert.DoesNotContain(orange.PointBreakdown, l => l.Rule.StartsWith("Vote accuracy"));
+        Assert.DoesNotContain(orange.PointBreakdown, l => l.Rule.StartsWith("Reads"));
         Assert.DoesNotContain(g.ById(0)!.PointBreakdown, l => l.Rule.StartsWith("Tasks"));   // impostors don't get them
+    }
+
+    [Theory]
+    [InlineData(1, 0, 1)]     // one right read
+    [InlineData(4, 0, 4)]     // right at four meetings: the full bonus
+    [InlineData(6, 0, 4)]     // capped
+    [InlineData(4, 4, 2)]     // voting at everything: half right, half the bonus
+    [InlineData(1, 3, 0.5)]   // 1 x 25% = 0.25 -> 0.5
+    [InlineData(0, 3, 0)]
+    public void Reads_reward_how_often_and_how_accurately(int correct, int incorrect, double expected) =>
+        Assert.Equal(expected, Scoring.ReadBonus(correct, incorrect, new ScoringRules()));
+
+    [Fact]
+    public void A_vote_that_ejects_someone_is_not_a_read()
+    {
+        var t = new GameTracker(new ScoringRules());
+        t.Start(1, "Cup", "X", "Polus", Players.Lobby(), _clock.Now);
+        // Meeting 1: Green and Pink vote Red out (vote out, not a read); Orange votes Blue (a read).
+        t.VotingComplete(new[] { new VoteCast(2, 0), new VoteCast(3, 0), new VoteCast(4, 1) }, 0, false, _clock.Now);
+        // Meeting 2: nobody ejected; Green votes Blue (a read), Pink votes Orange (a wrong read).
+        t.VotingComplete(new[] { new VoteCast(2, 1), new VoteCast(3, 4) }, null, false, _clock.Now);
+        var g = t.End("HumansByVote", Outcome.Crewmates, Players.Lobby(), _clock.Now)!;
+
+        Assert.Equal((1, 0), (g.ById(2)!.ReadVotesCorrect, g.ById(2)!.ReadVotesIncorrect));
+        Assert.Equal((0, 1), (g.ById(3)!.ReadVotesCorrect, g.ById(3)!.ReadVotesIncorrect));
+        Assert.Equal((1, 0), (g.ById(4)!.ReadVotesCorrect, g.ById(4)!.ReadVotesIncorrect));
+        Assert.Equal(1, g.ById(2)!.EjectVotesOnImpostor);
+        Assert.DoesNotContain(g.ById(3)!.PointBreakdown, l => l.Rule.StartsWith("Reads"));
+    }
+
+    [Fact]
+    public void Long_tasks_weigh_double_in_the_task_bonus()
+    {
+        // 2 common + 3 long + 5 short. Done: all 5 short and 1 common, no long ones.
+        var p = new GamePlayer { TasksTotal = 10, TasksCompleted = 6, LongTasksTotal = 3, LongTasksCompleted = 0 };
+        Assert.Equal(6.0 / 13, Scoring.TaskEffort(p, 2), 3);   // 46%, where a plain count says 60%
+        Assert.Equal(0.6, Scoring.TaskEffort(p, 1), 3);
+        p.LongTasksCompleted = 3; p.TasksCompleted = 9;       // everything but one short task
+        Assert.Equal(12.0 / 13, Scoring.TaskEffort(p, 2), 3);
+    }
+
+    [Fact]
+    public void First_crewmate_killed_gets_90_percent_of_the_crew_average()
+    {
+        var t = new GameTracker(new ScoringRules { ReadVoteBonus = 0, TaskPercentBonus = 0 });
+        t.Start(1, "Cup", "X", "Polus", Players.Lobby(), _clock.Now);
+        t.Kill(0, 2, _clock.Now);                                   // Green dies first
+        t.VotingComplete(new[] { new VoteCast(3, 0), new VoteCast(4, 0) }, 0, false, _clock.Now);
+        t.VotingComplete(new[] { new VoteCast(3, 1), new VoteCast(5, 1) }, 1, false, _clock.Now);
+        var final = Players.Lobby();
+        final[2].IsDead = true;
+        var g = t.End("HumansByVote", Outcome.Crewmates, final, _clock.Now)!;
+
+        var crew = g.Players.Where(p => !p.IsImpostor && p.PlayerId != 2).ToList();
+        double average = crew.Average(p => p.Points);
+        var green = g.ById(2)!;
+        Assert.Equal(Scoring.Round(0.9 * average, 0.5), green.Points);
+        Assert.Contains(green.PointBreakdown, l => l.Rule.StartsWith("Died first: 90% of crew average"));
+        Assert.Equal(green.Points, green.PointBreakdown.Sum(l => l.Points));
     }
 
     [Theory]

@@ -16,6 +16,8 @@ namespace TournamentTracker
         public bool Disconnected { get; set; }
         public int TasksCompleted { get; set; }
         public int TasksTotal { get; set; }
+        public int LongTasksCompleted { get; set; }
+        public int LongTasksTotal { get; set; }
 
         /// <summary>This is the host (the player running the mod).</summary>
         public bool IsHost { get; set; }

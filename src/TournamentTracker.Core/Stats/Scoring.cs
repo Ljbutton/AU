@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 
 namespace TournamentTracker.Stats
@@ -10,6 +11,32 @@ namespace TournamentTracker.Stats
     /// </summary>
     public static class Scoring
     {
+        /// <summary>Scores every player, then lifts or lowers the first crewmate killed to their share of the crew average.</summary>
+        public static void ScoreGame(GameRecord game, ScoringRules r)
+        {
+            foreach (var p in game.Players)
+            {
+                p.PointBreakdown = game.Winner != null ? Breakdown(p, game, r) : new List<PointLine>();
+                p.Points = Total(p.PointBreakdown);
+            }
+            if (game.Winner == null || r.DiedFirstShareOfCrewAverage <= 0) return;
+
+            var first = game.Players.FirstOrDefault(p => !p.IsImpostor && p.DiedFirst && p.DeathCause == "Killed");
+            if (first == null) return;
+            var teammates = game.Players.Where(p => !p.IsImpostor && p != first && p.DeathCause != "Disconnected").ToList();
+            if (teammates.Count == 0) return;
+
+            double average = teammates.Average(p => p.Points);
+            double target = Round(r.DiedFirstShareOfCrewAverage * average, r.BonusRounding);
+            double change = target - first.Points;
+            if (change != 0)
+            {
+                first.PointBreakdown.Add(new PointLine(
+                    $"Died first: {Percent(r.DiedFirstShareOfCrewAverage)} of crew average {average.ToString("0.#", CultureInfo.InvariantCulture)}", change));
+                first.Points = target;
+            }
+        }
+
         public static List<PointLine> Breakdown(GamePlayer p, GameRecord game, ScoringRules r)
         {
             var lines = new List<PointLine>();
@@ -57,15 +84,17 @@ namespace TournamentTracker.Stats
                 if (p.AllTasksDone) Add("Completed tasks", r.CompletedTasks);
                 Add("Correct vote out", r.CorrectVoteOut, p.EjectVotesOnImpostor);
                 Add("Caught and voted out killer", r.CaughtKiller, p.CaughtKiller);
-                if (p.DiedFirst) Add("Died first", r.DiedFirst);
-                else if (p.DeathCause == "Killed") Add("Got killed", r.GotKilled);
+                if (p.DeathCause == "Killed") Add("Got killed", r.GotKilled);
                 Add("Incorrect vote out", r.IncorrectVoteOut, p.EjectVotesOnCrewmate);
 
-                int graded = p.CorrectVotes + p.IncorrectVotes;
-                if (graded > 0)
-                    Add($"Vote accuracy {Percent(p.CorrectVotes, graded)}%", Scaled(r.VoteAccuracyBonus, (double)p.CorrectVotes / graded, r.BonusRounding));
+                int reads = p.ReadVotesCorrect + p.ReadVotesIncorrect;
+                if (p.ReadVotesCorrect > 0)
+                    Add($"Reads {p.ReadVotesCorrect}/{reads} on impostors", ReadBonus(p.ReadVotesCorrect, p.ReadVotesIncorrect, r));
                 if (p.TasksTotal > 0)
-                    Add($"Tasks {Percent(p.TasksCompleted, p.TasksTotal)}%", Scaled(r.TaskPercentBonus, (double)p.TasksCompleted / p.TasksTotal, r.BonusRounding));
+                {
+                    double effort = TaskEffort(p, r.LongTaskWeight);
+                    Add($"Tasks {Percent(effort)}", Scaled(r.TaskPercentBonus, effort, r.BonusRounding));
+                }
 
                 if (!left && game.Winner != null)
                 {
@@ -91,14 +120,37 @@ namespace TournamentTracker.Stats
             return lines;
         }
 
+        /// <summary>
+        /// One <see cref="ScoringRules.ReadVotePoints"/> per read on an impostor, capped at
+        /// <see cref="ScoringRules.ReadVoteBonus"/>, times the share of reads that were right.
+        /// </summary>
+        public static double ReadBonus(int correct, int incorrect, ScoringRules r)
+        {
+            if (correct <= 0) return 0;
+            double earned = Math.Min(r.ReadVoteBonus, r.ReadVotePoints * correct);
+            return Round(earned * correct / (correct + incorrect), r.BonusRounding);
+        }
+
+        /// <summary>Share of the task work done, a long task counting <paramref name="longWeight"/> times a short one.</summary>
+        public static double TaskEffort(GamePlayer p, double longWeight)
+        {
+            if (p.TasksTotal <= 0) return 0;
+            double extra = Math.Max(0, longWeight - 1);
+            double total = p.TasksTotal + extra * p.LongTasksTotal;
+            return total <= 0 ? 0 : Math.Clamp((p.TasksCompleted + extra * p.LongTasksCompleted) / total, 0, 1);
+        }
+
         /// <summary><paramref name="max"/> scaled by <paramref name="share"/> (0 to 1), rounded to a multiple of <paramref name="step"/>.</summary>
         public static double Scaled(double max, double share, double step)
         {
-            double value = max * Math.Clamp(share, 0, 1);
-            return step > 0 ? Math.Round(value / step, MidpointRounding.AwayFromZero) * step : value;
+            return Round(max * Math.Clamp(share, 0, 1), step);
         }
 
-        private static int Percent(int part, int whole) => (int)Math.Round(100.0 * part / whole, MidpointRounding.AwayFromZero);
+        /// <summary>Rounds to a multiple of <paramref name="step"/>, halves away from zero; 0 keeps the exact value.</summary>
+        public static double Round(double value, double step) =>
+            step > 0 ? Math.Round(value / step, MidpointRounding.AwayFromZero) * step : value;
+
+        private static string Percent(double share) => (int)Math.Round(100 * share, MidpointRounding.AwayFromZero) + "%";
 
         public static double Total(IEnumerable<PointLine> lines) => lines.Sum(l => l.Points);
     }

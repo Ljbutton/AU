@@ -53,6 +53,8 @@ namespace TournamentTracker.Stats
                     IsImpostor = s.IsImpostor,
                     TasksTotal = s.IsImpostor ? 0 : s.TasksTotal,
                     TasksCompleted = s.IsImpostor ? 0 : s.TasksCompleted,
+                    LongTasksTotal = s.IsImpostor ? 0 : s.LongTasksTotal,
+                    LongTasksCompleted = s.IsImpostor ? 0 : s.LongTasksCompleted,
                 });
             }
 
@@ -154,6 +156,17 @@ namespace TournamentTracker.Stats
             var exiled = exiledId.HasValue ? _game.ById(exiledId.Value) : null;
             string tally = string.Join(", ", meeting.Votes.Select(DescribeVote));
 
+            // Crewmate votes on someone who stayed in are reads; a vote that ejected someone scores as a vote out instead.
+            foreach (var v in meeting.Votes)
+            {
+                if (v.TargetKey == null || v.TargetKey == exiled?.Key) continue;
+                var voter = _game.ByKey(v.VoterKey);
+                var target = _game.ByKey(v.TargetKey);
+                if (voter == null || target == null || voter.IsImpostor) continue;
+                if (target.IsImpostor) voter.ReadVotesCorrect++;
+                else voter.ReadVotesIncorrect++;
+            }
+
             if (exiled != null)
             {
                 // Votes only score when they put someone out: see Scoring.
@@ -239,6 +252,8 @@ namespace TournamentTracker.Stats
                     p.TasksTotal = s.TasksTotal;
                     p.TasksCompleted = Math.Max(p.TasksCompleted, s.TasksCompleted);
                     p.TasksCompleted = Math.Min(p.TasksCompleted, p.TasksTotal);
+                    p.LongTasksTotal = Math.Min(s.LongTasksTotal, p.TasksTotal);
+                    p.LongTasksCompleted = Math.Min(s.LongTasksCompleted, p.LongTasksTotal);
                 }
                 if (p.DeathCause == null && s.IsDead)
                 {
@@ -256,9 +271,8 @@ namespace TournamentTracker.Stats
             {
                 p.Survived = p.DeathCause == null;
                 p.Won = winner != null && p.IsImpostor == (winner == Outcome.Impostors) && p.DeathCause != "Disconnected";
-                p.PointBreakdown = winner != null ? Scoring.Breakdown(p, game, _rules) : new List<PointLine>();
-                p.Points = Scoring.Total(p.PointBreakdown);
             }
+            Scoring.ScoreGame(game, _rules);
 
             Add(nowUtc, "end", winner != null
                 ? $"{winner} win ({Outcome.Describe(reason)})"

@@ -161,8 +161,14 @@ namespace TournamentTracker
         public double CompletedTasks { get; set; } = 0;
         public double CorrectVoteOut { get; set; } = 2;
         public double CaughtKiller { get; set; } = 1;
-        public double DiedFirst { get; set; } = 1;
-        public double GotKilled { get; set; } = 0.5;
+        public double GotKilled { get; set; } = 0;
+
+        /// <summary>
+        /// The first crewmate killed ends the game on this share of their crew teammates' average
+        /// points (0.9 = 90%), whatever they scored themselves: dying first is often luck, but
+        /// shouldn't put anyone in the top half. 0 turns it off.
+        /// </summary>
+        public double DiedFirstShareOfCrewAverage { get; set; } = 0.9;
 
         // Crewmate, by how the game ended
         public double CrewTaskWin { get; set; } = 5;
@@ -170,11 +176,21 @@ namespace TournamentTracker
         public double CrewSabotageLossAlive { get; set; } = -5;
         public double CrewOtherLoss { get; set; } = -1;
 
-        // Crewmate bonuses scaled by percentage: the full amount at 100%, half at 50%, and so on.
-        /// <summary>Share of the crewmate's votes that were on impostors (whether or not they got ejected).</summary>
-        public double VoteAccuracyBonus { get; set; } = 2;
-        /// <summary>Share of the crewmate's tasks they finished.</summary>
+        // Crewmate bonuses
+        /// <summary>
+        /// Reads: votes for someone who was not ejected that meeting (a vote that ejected someone
+        /// already scores as a correct or incorrect vote out). Each read on an impostor is worth
+        /// <see cref="ReadVotePoints"/>, up to this cap, then scaled by the share of reads that
+        /// were on impostors. So 4 right out of 4 beats 1 right out of 1, and guessing at every
+        /// meeting doesn't pay.
+        /// </summary>
+        public double ReadVoteBonus { get; set; } = 4;
+        public double ReadVotePoints { get; set; } = 1;
+
+        /// <summary>Scaled by the share of the crewmate's task effort they finished: the full amount at 100%.</summary>
         public double TaskPercentBonus { get; set; } = 3;
+        /// <summary>How many short or common tasks one long task is worth in that share.</summary>
+        public double LongTaskWeight { get; set; } = 2;
         /// <summary>Percentage bonuses round to the nearest multiple of this (0.5 = halves). 0 keeps exact values.</summary>
         public double BonusRounding { get; set; } = 0.5;
 

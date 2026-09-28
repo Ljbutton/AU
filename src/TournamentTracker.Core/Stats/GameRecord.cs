@@ -41,7 +41,14 @@ namespace TournamentTracker.Stats
         public List<MeetingRecord> Meetings { get; set; } = new List<MeetingRecord>();
         public List<TimelineEvent> Timeline { get; set; } = new List<TimelineEvent>();
 
-        public bool Counted => Winner != null;
+        /// <summary>
+        /// Thrown out by the host or a referee (a restarted game): kept for the record, but it
+        /// scores nothing and doesn't count toward any leaderboard or round.
+        /// </summary>
+        public bool Voided { get; set; }
+        public string VoidReason { get; set; } = "";
+
+        public bool Counted => Winner != null && !Voided;
 
         public double DurationSeconds => ((EndedUtc ?? StartedUtc) - StartedUtc).TotalSeconds;
 
@@ -69,12 +76,18 @@ namespace TournamentTracker.Stats
 
         public int TasksCompleted { get; set; }
         public int TasksTotal { get; set; }
+        /// <summary>The long tasks among those (a long task weighs more in the task bonus).</summary>
+        public int LongTasksCompleted { get; set; }
+        public int LongTasksTotal { get; set; }
 
         public int MeetingsCalled { get; set; }
         public int BodiesReported { get; set; }
         public int VotesCast { get; set; }
         public int CorrectVotes { get; set; }
         public int IncorrectVotes { get; set; }
+        /// <summary>Crewmate votes for someone who wasn't ejected that meeting, split by what they were.</summary>
+        public int ReadVotesCorrect { get; set; }
+        public int ReadVotesIncorrect { get; set; }
         public int Skips { get; set; }
         public int MissedVotes { get; set; }
         public int VotesReceived { get; set; }

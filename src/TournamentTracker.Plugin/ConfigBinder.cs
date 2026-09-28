@@ -98,11 +98,13 @@ namespace TournamentTracker.Plugin
             p.CompletedTasks = Rule("CompletedTasks", p.CompletedTasks, "Crewmate: finished every task.");
             p.CorrectVoteOut = Rule("CorrectVoteOut", p.CorrectVoteOut, "Crewmate: per vote for an impostor who then got ejected.");
             p.CaughtKiller = Rule("CaughtKiller", p.CaughtKiller, "Crewmate: called the meeting (report or button) where an impostor got ejected.");
-            p.DiedFirst = Rule("DiedFirst", p.DiedFirst, "Crewmate: first player killed (instead of GotKilled).");
-            p.GotKilled = Rule("GotKilled", p.GotKilled, "Crewmate: killed, other than first.");
+            p.GotKilled = Rule("GotKilled", p.GotKilled, "Crewmate: killed.");
+            p.DiedFirstShareOfCrewAverage = Rule("DiedFirstShareOfCrewAverage", p.DiedFirstShareOfCrewAverage, "Crewmate: the first player killed ends on this share of their crew teammates' average points (0.9 = 90%). 0 turns it off.");
             p.IncorrectVoteOut = Rule("IncorrectVoteOut", p.IncorrectVoteOut, "Crewmate: per vote for a crewmate who then got ejected.");
-            p.VoteAccuracyBonus = Rule("VoteAccuracyBonus", p.VoteAccuracyBonus, "Crewmate: bonus scaled by the share of their votes that were on impostors (full amount at 100%). Counts every vote, ejected or not; skips don't count.");
-            p.TaskPercentBonus = Rule("TaskPercentBonus", p.TaskPercentBonus, "Crewmate: bonus scaled by the share of their tasks they finished (full amount at 100%).");
+            p.ReadVoteBonus = Rule("ReadVoteBonus", p.ReadVoteBonus, "Crewmate: most a player can earn for reads (votes for someone who wasn't ejected that meeting).");
+            p.ReadVotePoints = Rule("ReadVotePoints", p.ReadVotePoints, "Crewmate: per read on an impostor, up to ReadVoteBonus, then scaled by the share of their reads that were on impostors.");
+            p.TaskPercentBonus = Rule("TaskPercentBonus", p.TaskPercentBonus, "Crewmate: bonus scaled by the share of their task effort they finished (full amount at 100%).");
+            p.LongTaskWeight = Rule("LongTaskWeight", p.LongTaskWeight, "Crewmate: how many short or common tasks one long task counts as in the task bonus.");
             p.BonusRounding = Rule("BonusRounding", p.BonusRounding, "Round the two percentage bonuses to a multiple of this (0.5 = halves, 0 = exact).");
             p.CrewTaskWin = Rule("CrewTaskWin", p.CrewTaskWin, "Crewmate: team won on tasks.");
             p.CrewVoteWin = Rule("CrewVoteWin", p.CrewVoteWin, "Crewmate: team won by voting the impostors out.");
