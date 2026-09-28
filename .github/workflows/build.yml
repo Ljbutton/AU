@@ -47,7 +47,7 @@ jobs:
           cp README.md LICENSE "$root/"
           grep -E 'AmongUs.GameLibs|BepInEx' versions.txt > "$root/BUILT-AGAINST.txt" || true
           (cd dist && zip -qr "$name.zip" "$name")
-          echo "ZIP=dist/$name.zip" >> "$GITHUB_ENV"
+          echo "PKG_ZIP=dist/$name.zip" >> "$GITHUB_ENV"
           echo "NAME=$name" >> "$GITHUB_ENV"
 
       - name: Test the installer
@@ -84,7 +84,7 @@ jobs:
         with:
           name: ${{ env.NAME }}
           path: |
-            ${{ env.ZIP }}
+            ${{ env.PKG_ZIP }}
             dist/TournamentTracker-Full.zip
             dist/Install-TournamentTracker.bat
 
@@ -93,5 +93,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
-          gh release create "$GITHUB_REF_NAME" "$ZIP" dist/TournamentTracker-Full.zip dist/Install-TournamentTracker.bat
+          gh release create "$GITHUB_REF_NAME" "$PKG_ZIP" dist/TournamentTracker-Full.zip dist/Install-TournamentTracker.bat
           --title "$GITHUB_REF_NAME" --notes-file dist/*/BUILT-AGAINST.txt
