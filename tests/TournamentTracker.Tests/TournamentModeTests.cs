@@ -254,7 +254,7 @@ public class TournamentModeTests : IDisposable
         await s.PendingPosts;
 
         var standings = _discord.Webhooks.Last(w => FakeDiscord.Title(w.Payload).Contains("standings"));
-        Assert.Equal("LJ — Round 2 standings", FakeDiscord.Title(standings.Payload));
+        Assert.Equal("LJ — Round 2 standings · after game 1 of 3", FakeDiscord.Title(standings.Payload));
         string table = FakeDiscord.Description(standings.Payload);
         Assert.Contains("── top 2 move on ──", table);
         var carl = table.Split('\n').Single(l => l.Contains("Carl"));

@@ -102,6 +102,31 @@ namespace TournamentTracker.Stats
         public bool Advancing { get; set; }
     }
 
+    /// <summary>
+    /// A tie across the cut line in a finished lobby round. Settled by impostor wins, then vote
+    /// %, then task %, over the round's games; the players it moves above the line get
+    /// <see cref="Standings.TiebreakBump"/> added to their total, which isn't shown in any
+    /// game's breakdown. Unsettled when they're level on all three: a referee decides.
+    /// </summary>
+    public sealed class CutTiebreak
+    {
+        public int Round { get; set; }
+        public string Host { get; set; } = "";
+        public double Points { get; set; }
+        public List<string> Tied { get; set; } = new List<string>();
+        public List<string> Bumped { get; set; } = new List<string>();
+        public List<string> BumpedKeys { get; set; } = new List<string>();
+        /// <summary>What separated them ("impostor wins", "vote %", "task %"); empty when unsettled.</summary>
+        public string DecidedBy { get; set; } = "";
+        public bool Settled => DecidedBy.Length > 0;
+
+        public string Describe() => Settled
+            ? $"Round {Round} · {Host}: {string.Join(", ", Tied)} tied on {Fmt(Points)} at the cut. {string.Join(", ", Bumped)} move{(Bumped.Count == 1 ? "s" : "")} on by {DecidedBy}: +{Fmt(Standings.TiebreakBump)} added to the round total, not shown publicly."
+            : $"Round {Round} · {Host}: {string.Join(", ", Tied)} tied on {Fmt(Points)} at the cut and level on impostor wins, vote % and task %. A referee needs to decide (e.g. !adjust {Host}-<game> <player> +0.25 tiebreak).";
+
+        private static string Fmt(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+    }
+
     public sealed class ServerStanding
     {
         public string Server { get; set; } = "";
@@ -189,32 +214,102 @@ namespace TournamentTracker.Stats
             return store;
         }
 
+        public const double TiebreakBump = 0.25;
+
+        /// <summary>Counted games a lobby has played in a round.</summary>
+        public static int GamesPlayed(IEnumerable<GameRecord> games, string host, int round) =>
+            games.Count(g => g.Counted && g.Round == round && string.Equals(g.Host, host, StringComparison.OrdinalIgnoreCase));
+
         /// <summary>
         /// One lobby's standings for a round: its players ranked by this round's points, the
         /// first <paramref name="advance"/> marked as moving on, each with their running total
-        /// across every round.
+        /// across every round. Once the lobby has played <paramref name="gamesPerRound"/> games,
+        /// a tie across the cut line is broken (see <see cref="CutTiebreak"/>).
         /// </summary>
-        public static List<StandingRow> Lobby(IReadOnlyList<GameRecord> games, string host, int round, int advance)
+        public static List<StandingRow> Lobby(IReadOnlyList<GameRecord> games, string host, int round, int advance, int gamesPerRound = 0)
         {
+            var bumps = Bumps(games, advance, gamesPerRound);
             var roundGames = games.Where(g => g.Round == round && string.Equals(g.Host, host, StringComparison.OrdinalIgnoreCase)).ToList();
-            return Ranked(roundGames, games, advance);
+            return Ranked(roundGames, games, advance, bumps, b => b.Round == round && string.Equals(b.Host, host, StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>Every lobby together for a round (no cut line: players advance per lobby).</summary>
-        public static List<StandingRow> Round(IReadOnlyList<GameRecord> games, int round) =>
-            Ranked(games.Where(g => g.Round == round).ToList(), games, 0);
+        public static List<StandingRow> Round(IReadOnlyList<GameRecord> games, int round, int advance = 0, int gamesPerRound = 0) =>
+            Ranked(games.Where(g => g.Round == round).ToList(), games, 0, Bumps(games, advance, gamesPerRound), b => b.Round == round);
 
-        private static List<StandingRow> Ranked(List<GameRecord> scope, IReadOnlyList<GameRecord> all, int advance)
+        private static List<StandingRow> Ranked(List<GameRecord> scope, IReadOnlyList<GameRecord> all, int advance,
+            List<CutTiebreak> bumps, Func<CutTiebreak, bool> inScope)
         {
             var totals = Build(all, "").Players;
-            return Build(scope, "").Leaderboard()
-                .Select((t, i) => new StandingRow
-                {
-                    Stats = t,
-                    Total = totals.TryGetValue(t.Key, out var total) ? total.Points : t.Points,
-                    Advancing = i < advance,
-                })
+            var rows = Build(scope, "").Leaderboard()
+                .Select(t => new StandingRow { Stats = t, Total = totals.TryGetValue(t.Key, out var total) ? total.Points : t.Points })
                 .ToList();
+            foreach (var b in bumps)
+                foreach (var key in b.BumpedKeys)
+                {
+                    var row = rows.FirstOrDefault(r => r.Stats.Key == key);
+                    if (row == null) continue;
+                    row.Total += TiebreakBump;
+                    if (inScope(b)) row.Stats.Points += TiebreakBump;
+                }
+            rows = rows.OrderByDescending(r => r.Stats.Points).ThenByDescending(r => r.Stats.Wins).ThenByDescending(r => r.Stats.Kills)
+                .ThenBy(r => r.Stats.Name, StringComparer.OrdinalIgnoreCase).ToList();
+            for (int i = 0; i < rows.Count; i++) rows[i].Advancing = i < advance;
+            return rows;
+        }
+
+        /// <summary>Every cut-line tie in lobby rounds that have finished (all their games played).</summary>
+        public static List<CutTiebreak> Tiebreaks(IReadOnlyList<GameRecord> games, int advance, int gamesPerRound) =>
+            Bumps(games, advance, gamesPerRound);
+
+        private static List<CutTiebreak> Bumps(IReadOnlyList<GameRecord> games, int advance, int gamesPerRound)
+        {
+            var result = new List<CutTiebreak>();
+            if (advance <= 0 || gamesPerRound <= 0) return result;
+            foreach (var lobby in games.Where(g => g.Counted && g.Round > 0).GroupBy(g => (g.Round, Host: g.Host.ToLowerInvariant())))
+            {
+                var played = lobby.ToList();
+                if (played.Count < gamesPerRound) continue;
+                var tie = CutTie(Build(played, "").Leaderboard(), advance);
+                if (tie == null) continue;
+                tie.Round = lobby.Key.Round;
+                tie.Host = played[0].Host;
+                result.Add(tie);
+            }
+            return result;
+        }
+
+        private static readonly (string Name, Func<PlayerTotals, double> Value)[] TiebreakOrder =
+        {
+            ("impostor wins", t => t.ImpostorWins),
+            ("vote %", t => t.VoteAccuracy),
+            ("task %", t => t.TaskCompletion),
+        };
+
+        private static CutTiebreak? CutTie(IReadOnlyList<PlayerTotals> ranked, int advance)
+        {
+            if (ranked.Count <= advance) return null;
+            double line = ranked[advance - 1].Points;
+            if (Math.Abs(ranked[advance].Points - line) > 1e-9) return null;
+            var tied = ranked.Where(t => Math.Abs(t.Points - line) < 1e-9).ToList();
+            int above = advance - ranked.Count(t => t.Points > line + 1e-9);
+
+            var order = tied.OrderByDescending(t => TiebreakOrder[0].Value(t))
+                            .ThenByDescending(t => TiebreakOrder[1].Value(t))
+                            .ThenByDescending(t => TiebreakOrder[2].Value(t))
+                            .ToList();
+            var tie = new CutTiebreak { Points = line, Tied = tied.Select(t => t.Name).ToList() };
+            PlayerTotals last = order[above - 1], first = order[above];
+            foreach (var (name, value) in TiebreakOrder)
+            {
+                if (Math.Abs(value(last) - value(first)) < 1e-9) continue;
+                tie.DecidedBy = name;
+                break;
+            }
+            if (!tie.Settled) return tie;
+            tie.Bumped = order.Take(above).Select(t => t.Name).ToList();
+            tie.BumpedKeys = order.Take(above).Select(t => t.Key).ToList();
+            return tie;
         }
 
         /// <summary>

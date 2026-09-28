@@ -19,8 +19,11 @@ namespace TournamentTracker
             if (Combined == null) return;
             await AcknowledgeAdjustmentsAsync(Combined).ConfigureAwait(false);
             string lobby = LobbyLabel();
-            var rows = Stats.Standings.Lobby(Combined.GameRecords, lobby, Round, _settings.AdvanceCount);
-            await PostNowAsync(StandingsFormatter.Lobby(_settings.TournamentName, lobby.Length > 0 ? lobby : "This lobby", Round, rows, _settings.AdvanceCount)).ConfigureAwait(false);
+            var rows = Stats.Standings.Lobby(Combined.GameRecords, lobby, Round, _settings.AdvanceCount, _settings.GamesPerRound);
+            int played = Stats.Standings.GamesPlayed(Combined.GameRecords, lobby, Round);
+            await PostNowAsync(StandingsFormatter.Lobby(_settings.TournamentName, lobby.Length > 0 ? lobby : "This lobby", Round, rows,
+                _settings.AdvanceCount, played, _settings.GamesPerRound)).ConfigureAwait(false);
+            await NoteTiebreaksAsync(Combined).ConfigureAwait(false);
         }
 
         /// <summary>Everyone in the current round across every lobby.</summary>
@@ -28,9 +31,13 @@ namespace TournamentTracker
         {
             await RefreshCombinedAsync().ConfigureAwait(false);
             if (Combined == null) return;
-            var rows = Stats.Standings.Round(Combined.GameRecords, Round);
-            int lobbies = Combined.GameRecords.Where(g => g.Round == Round).Select(g => g.Host).Distinct().Count();
-            await PostNowAsync(StandingsFormatter.Round(_settings.TournamentName, Round, rows, lobbies)).ConfigureAwait(false);
+            var rows = Stats.Standings.Round(Combined.GameRecords, Round, _settings.AdvanceCount, _settings.GamesPerRound);
+            var progress = Combined.GameRecords.Where(g => g.Round == Round && g.Counted)
+                .GroupBy(g => g.Host, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(g => (g.Key, g.Count()))
+                .ToList();
+            await PostNowAsync(StandingsFormatter.Round(_settings.TournamentName, Round, rows, progress, _settings.GamesPerRound)).ConfigureAwait(false);
         }
 
         /// <summary>Servers ranked by their players' total points; home servers come from the preliminary channels.</summary>
@@ -62,6 +69,23 @@ namespace TournamentTracker
                 if (r.Game == null || !string.Equals(r.Game.Host, lobby, StringComparison.OrdinalIgnoreCase)) continue;
                 if (!_acknowledged.Add(r.Adjustment.MessageId)) continue;
                 await Shared.ReactAsync(r.Adjustment.MessageId, r.Applied ? "✅" : "❓").ConfigureAwait(false);
+            }
+        }
+
+        private readonly HashSet<string> _notedTiebreaks = new HashSet<string>();
+
+        /// <summary>Tells the referees, in the private results channel, about cut-line ties in this lobby's finished rounds.</summary>
+        private async Task NoteTiebreaksAsync(SharedLoad load)
+        {
+            if (Shared == null) return;
+            string lobby = LobbyLabel();
+            foreach (var tie in Stats.Standings.Tiebreaks(load.GameRecords, _settings.AdvanceCount, _settings.GamesPerRound))
+            {
+                if (!string.Equals(tie.Host, lobby, StringComparison.OrdinalIgnoreCase)) continue;
+                string text = "Tiebreak · " + tie.Describe();
+                if (!_notedTiebreaks.Add(text)) continue;
+                if (load.Notes.Contains(text)) continue;   // already posted before a restart
+                await Shared.PostNoteAsync(text).ConfigureAwait(false);
             }
         }
 

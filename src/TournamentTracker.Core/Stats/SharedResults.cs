@@ -24,6 +24,9 @@ namespace TournamentTracker.Stats
         public List<AdjustmentResult> Adjustments { get; set; } = new List<AdjustmentResult>();
         public List<VoidResult> Voids { get; set; } = new List<VoidResult>();
 
+        /// <summary>What the bots have written in the channel (e.g. tiebreak notes), so nothing is posted twice.</summary>
+        public HashSet<string> Notes { get; set; } = new HashSet<string>();
+
         /// <summary>Games a !void or !unvoid changed that haven't been reposted yet: game ID to the file to post.</summary>
         public Dictionary<string, byte[]> Unsettled { get; set; } = new Dictionary<string, byte[]>();
     }
@@ -35,6 +38,7 @@ namespace TournamentTracker.Stats
         public List<GameRecord> Games { get; set; } = new List<GameRecord>();
         public List<RefereeAdjustment> Adjustments { get; set; } = new List<RefereeAdjustment>();
         public List<RefereeVoid> Voids { get; set; } = new List<RefereeVoid>();
+        public HashSet<string> Notes { get; set; } = new HashSet<string>();
         public bool SinceReset { get; set; }
         public bool MissingContentIntent { get; set; }
     }
@@ -76,6 +80,14 @@ namespace TournamentTracker.Stats
 
         public string ChannelId => _channelId;
 
+        /// <summary>A plain message from the bot, e.g. a note for the referees.</summary>
+        public async Task<bool> PostNoteAsync(string text)
+        {
+            var result = await _rest.PostMessageAsync(_token, _channelId, text).ConfigureAwait(false);
+            if (!result.Ok) _log.Error("Could not post to the results channel: " + result);
+            return result.Ok;
+        }
+
         /// <summary>Marks a referee's message so they can see it was picked up (✅) or couldn't be matched (❓).</summary>
         public Task ReactAsync(string messageId, string emoji) => _rest.AddReactionAsync(_token, _channelId, messageId, emoji);
 
@@ -113,6 +125,7 @@ namespace TournamentTracker.Stats
                 SinceReset = data.SinceReset,
                 MissingContentIntent = data.MissingContentIntent,
                 GameRecords = games,
+                Notes = data.Notes,
                 Voids = Standings.ApplyVoids(games, data.Voids),
             };
             load.Unsettled = UnsettledFiles(load.Voids);
@@ -144,6 +157,7 @@ namespace TournamentTracker.Stats
                     }
                     var adjustment = RefereeAdjustment.TryParse(m.Content, m.Id, RefereeAdjustment.TimeOfSnowflake(m.Id));
                     if (adjustment != null) data.Adjustments.Add(adjustment);
+                    if (m.AuthorIsBot && m.Content.Length > 0 && m.Attachments.Count == 0) data.Notes.Add(m.Content);
                     var voiding = RefereeVoid.TryParse(m.Content, m.Id, RefereeAdjustment.TimeOfSnowflake(m.Id));
                     if (voiding != null) data.Voids.Add(voiding);
                     foreach (var (name, url) in m.Attachments)

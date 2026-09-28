@@ -11,24 +11,36 @@ namespace TournamentTracker.Discord
         private const int ServerColor = 0x14B8A6;
 
         /// <summary>One lobby's round standings with the cut line under the players who move on.</summary>
-        public static WebhookMessage Lobby(string tournament, string lobby, int round, IReadOnlyList<StandingRow> rows, int advance) =>
+        public static WebhookMessage Lobby(string tournament, string lobby, int round, IReadOnlyList<StandingRow> rows, int advance,
+            int played = 0, int gamesPerRound = 0) =>
             Message(new Embed
             {
-                Title = ReportFormatter.Clip($"{lobby} — Round {round} standings", Embed.TitleLimit),
+                Title = ReportFormatter.Clip($"{lobby} — Round {round} standings{Progress(played, gamesPerRound)}", Embed.TitleLimit),
                 Color = RoundColor,
                 Description = Table(rows, advance),
                 Footer = new EmbedFooter { Text = $"{tournament} · top {advance} move on · Total = every round so far" },
             });
 
-        /// <summary>Every lobby's players in one table for a round.</summary>
-        public static WebhookMessage Round(string tournament, int round, IReadOnlyList<StandingRow> rows, int lobbies) =>
-            Message(new Embed
+        /// <summary>" · game 2 of 3", " · final" when the round is played out, or "" when games per round isn't set.</summary>
+        public static string Progress(int played, int gamesPerRound) =>
+            gamesPerRound <= 0 || played <= 0 ? ""
+            : played == gamesPerRound ? $" · final (game {played} of {gamesPerRound})"
+            : $" · after game {played} of {gamesPerRound}";
+
+        /// <summary>Every lobby's players in one table for a round, with how far each lobby has got.</summary>
+        public static WebhookMessage Round(string tournament, int round, IReadOnlyList<StandingRow> rows,
+            IReadOnlyList<(string Lobby, int Played)> progress, int gamesPerRound)
+        {
+            string lobbies = string.Join(" · ", progress.Select(p =>
+                $"{p.Lobby} {p.Played}{(gamesPerRound > 0 ? "/" + gamesPerRound : "")}{(gamesPerRound > 0 && p.Played >= gamesPerRound ? " ✓" : "")}"));
+            return Message(new Embed
             {
                 Title = ReportFormatter.Clip($"{tournament} — Round {round}, all lobbies", Embed.TitleLimit),
                 Color = RoundColor,
-                Description = Table(rows.Take(25).ToList(), 0),
-                Footer = new EmbedFooter { Text = $"{lobbies} lobb{(lobbies == 1 ? "y" : "ies")} · Total = every round so far" },
+                Description = ReportFormatter.Clip((lobbies.Length > 0 ? "Games played: " + lobbies + "\n" : "") + Table(rows.Take(25).ToList(), 0), Embed.DescriptionLimit),
+                Footer = new EmbedFooter { Text = $"{progress.Count} lobb{(progress.Count == 1 ? "y" : "ies")} · Total = every round so far" },
             });
+        }
 
 
         public static string Table(IReadOnlyList<StandingRow> rows, int advance)

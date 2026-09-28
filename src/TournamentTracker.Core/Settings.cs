@@ -28,6 +28,9 @@ namespace TournamentTracker
         /// <summary>Tournament: how many players from each lobby move on to the next round (the cut line).</summary>
         public int AdvanceCount { get; set; } = 5;
 
+        /// <summary>Games each lobby plays per round; the cut-line tiebreak applies once they're played.</summary>
+        public int GamesPerRound { get; set; } = 3;
+
         /// <summary>Tournament: the organiser's preliminary channels, read for server standings.</summary>
         public List<string> PrelimChannelIds { get; set; } = new List<string>();
 

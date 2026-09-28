@@ -44,6 +44,7 @@ namespace TournamentTracker.Setup
         [JsonPropertyName("rc")] public string? ResultsChannelId { get; set; }
         [JsonPropertyName("pc")] public List<string>? PrelimChannelIds { get; set; }
         [JsonPropertyName("adv")] public int? AdvanceCount { get; set; }
+        [JsonPropertyName("gpr")] public int? GamesPerRound { get; set; }
         [JsonPropertyName("ref")] public List<string>? RefereeUserIds { get; set; }
 
         /// <summary>Point values, so every host scores the same way. Missing: the defaults.</summary>
@@ -120,6 +121,7 @@ namespace TournamentTracker.Setup
                 if (ResultsChannelId != null) s.ResultsChannelId = ResultsChannelId;
                 if (PrelimChannelIds != null) s.PrelimChannelIds = PrelimChannelIds.ToList();
                 if (AdvanceCount.HasValue) s.AdvanceCount = AdvanceCount.Value;
+                if (GamesPerRound.HasValue) s.GamesPerRound = GamesPerRound.Value;
                 if (RefereeUserIds != null) s.AutoMute.RefereeUserIds = RefereeUserIds.ToList();
             }
             else

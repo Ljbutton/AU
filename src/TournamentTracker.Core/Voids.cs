@@ -51,10 +51,10 @@ namespace TournamentTracker
                 return;
             }
 
-            if (makeVoid) Store.Remove(game);
+            if (makeVoid && game.Counted) { Store.Remove(game); CountRoundGame(game, -1); }
             game.Voided = makeVoid;
             game.VoidReason = makeVoid ? reason : "";
-            if (!makeVoid) Store.Apply(game);
+            if (!makeVoid && game.Counted) { Store.Apply(game); CountRoundGame(game, 1); }
             TrySave(() => Store.Save(_statsPath), "stats");
             TrySave(() => SaveGameFile(game), "game record");
 
@@ -134,10 +134,10 @@ namespace TournamentTracker
                 TrySave(() => SaveGameFile(game), "game record");
                 return;
             }
-            if (voided) Store.Remove(game);
+            if (voided && game.Counted) { Store.Remove(game); CountRoundGame(game, -1); }
             game.Voided = voided;
             game.VoidReason = voided ? reason : "";
-            if (!voided) Store.Apply(game);
+            if (!voided && game.Counted) { Store.Apply(game); CountRoundGame(game, 1); }
             TrySave(() => Store.Save(_statsPath), "stats");
             TrySave(() => SaveGameFile(game), "game record");
             Reply(voided ? $"A referee voided game {game.Name}." : $"A referee brought back game {game.Name}.", false);

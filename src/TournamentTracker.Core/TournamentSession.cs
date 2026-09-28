@@ -157,6 +157,9 @@ namespace TournamentTracker
             _log.Info($"Tracking game {game.Name} on {map} with {players.Count} players");
             if (_settings.Mode == TrackerMode.Tournament && Round == 0)
                 Reply($"No round set, so this game counts as round 0. Type {_settings.CommandPrefix}r1 in the lobby before the next game.", false);
+            else if (_settings.Mode == TrackerMode.Tournament && _settings.GamesPerRound > 0 && GamesThisRound >= _settings.GamesPerRound)
+                Reply($"This lobby has already played {GamesThisRound} of {_settings.GamesPerRound} games in round {Round}, so this one is extra. " +
+                      $"If it shouldn't count, type {_settings.CommandPrefix}void. If a new round has started, type {_settings.CommandPrefix}r{Round + 1} before the next game.", false);
         }
 
         public void Kill(byte killerId, byte victimId) => Tracker.Kill(killerId, victimId, _clock());
@@ -180,6 +183,12 @@ namespace TournamentTracker
             var game = Tracker.End(reason, winner, players, _clock());
             if (game == null) return null;
             LastGame = game;
+            if (game.Counted)
+            {
+                CountRoundGame(game, 1);
+                if (_settings.Mode == TrackerMode.Tournament && _settings.GamesPerRound > 0 && GamesThisRound == _settings.GamesPerRound && game.Round == Round)
+                    Reply($"That was game {GamesThisRound} of {_settings.GamesPerRound}: round {Round} is done for this lobby.", false);
+            }
 
             Store.Apply(game);
             Store.NoteFinished(game);

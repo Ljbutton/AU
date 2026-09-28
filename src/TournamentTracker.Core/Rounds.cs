@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using TournamentTracker.Setup;
+using TournamentTracker.Stats;
 
 namespace TournamentTracker
 {
@@ -16,6 +18,20 @@ namespace TournamentTracker
         {
             public int Round { get; set; }
             public string? RefSlotKey { get; set; }
+            public Dictionary<int, int> RoundGames { get; set; } = new Dictionary<int, int>();
+        }
+
+        /// <summary>Counted games this lobby has played per round.</summary>
+        private Dictionary<int, int> _roundGames = new Dictionary<int, int>();
+
+        public int GamesThisRound => _roundGames.TryGetValue(Round, out var n) ? n : 0;
+
+        /// <summary>A counted game was added to (+1) or taken out of (-1) its round.</summary>
+        private void CountRoundGame(GameRecord game, int change)
+        {
+            if (_settings.Mode != TrackerMode.Tournament || game.Round <= 0) return;
+            _roundGames[game.Round] = Math.Max(0, (_roundGames.TryGetValue(game.Round, out var n) ? n : 0) + change);
+            SaveState();
         }
 
         /// <summary>The current round (1, 2, 3…); 0 until the host sets one. Saved per tournament.</summary>
@@ -32,6 +48,7 @@ namespace TournamentTracker
                     var state = JsonSerializer.Deserialize<SavedState>(File.ReadAllText(StatePath));
                     Round = state?.Round ?? 0;
                     RefSlotKey = state?.RefSlotKey;
+                    _roundGames = state?.RoundGames ?? new Dictionary<int, int>();
                 }
             }
             catch (Exception e)
@@ -49,7 +66,7 @@ namespace TournamentTracker
         private void SaveState() => TrySave(() =>
         {
             Directory.CreateDirectory(_dataDir);
-            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey }));
+            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames }));
         }, "state");
 
         /// <summary>!r3 or !round 3 sets the round; !round on its own says which it is.</summary>
