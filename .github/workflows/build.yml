@@ -11,6 +11,9 @@ on:
       game_libs_version:
         description: 'AmongUs.GameLibs.Steam version to build against (blank = latest)'
         required: false
+      release_tag:
+        description: 'Publish a GitHub release with this tag, e.g. v2.0.0 (blank = just build)'
+        required: false
 
 permissions:
   contents: write
@@ -89,9 +92,20 @@ jobs:
             dist/Install-TournamentTracker.bat
 
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >
-          gh release create "$GITHUB_REF_NAME" "$PKG_ZIP" dist/TournamentTracker-Full.zip dist/Install-TournamentTracker.bat
-          --title "$GITHUB_REF_NAME" --notes-file dist/*/BUILT-AGAINST.txt
+          TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Install"
+            echo "Download **Install-TournamentTracker.bat** below and double-click it (host only)."
+            echo "If Windows says it protected your PC, click More info, then Run anyway."
+            echo
+            echo "Built from commit $GITHUB_SHA against:"
+            cat dist/*/BUILT-AGAINST.txt
+          } > notes.md
+          # Creates the tag on GitHub at this commit if it doesn't exist yet.
+          gh release create "$TAG" "$PKG_ZIP" dist/TournamentTracker-Full.zip dist/Install-TournamentTracker.bat \
+            --target "$GITHUB_SHA" --title "Tournament Tracker $TAG" --notes-file notes.md --latest
