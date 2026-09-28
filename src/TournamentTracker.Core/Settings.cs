@@ -13,12 +13,6 @@ namespace TournamentTracker
         /// <summary>Optional webhook for a live play-by-play (kills, meetings, ejections). Keep it in a staff-only channel.</summary>
         public string LiveFeedWebhookUrl { get; set; } = "";
 
-        /// <summary>Web app URL of the Apps Script in sheets/TournamentSheet.gs. Empty = no Google Sheets.</summary>
-        public string GoogleSheetsUrl { get; set; } = "";
-
-        /// <summary>Must match SECRET in the Apps Script, so nobody else can write to the sheet.</summary>
-        public string GoogleSheetsSecret { get; set; } = "";
-
         public bool PostLeaderboardAfterEachGame { get; set; } = true;
         public int LeaderboardSize { get; set; } = 15;
 

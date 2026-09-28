@@ -28,11 +28,6 @@ namespace TournamentTracker.Plugin
             s.LeaderboardSize = config.Bind("Discord", "LeaderboardSize", d.LeaderboardSize,
                 "How many players the leaderboard shows.").Value;
 
-            s.GoogleSheetsUrl = config.Bind("GoogleSheets", "WebAppUrl", "",
-                "Web app URL from deploying sheets/TournamentSheet.gs in your Google Sheet (ends in /exec). Leave empty to skip Google Sheets.").Value.Trim();
-            s.GoogleSheetsSecret = config.Bind("GoogleSheets", "Secret", "",
-                "The same secret you set in the script's SECRET line. Stops anyone else who finds the URL from writing to your sheet.").Value.Trim();
-
             var m = s.AutoMute;
             m.Enabled = config.Bind("AutoMute", "Enabled", false,
                 "Server-mute players in Discord voice: alive players during tasks, dead players during meetings.").Value;

@@ -56,9 +56,6 @@ namespace TournamentTracker
                 case "lb" when fromHost:
                     LeaderboardCommand();
                     return true;
-                case "sheetsync" when fromHost:
-                    SheetSyncCommand();
-                    return true;
                 case "resetstats" when fromHost:
                     ResetStatsCommand(args);
                     return true;
@@ -74,7 +71,7 @@ namespace TournamentTracker
             if (fromHost)
             {
                 Reply($"Host: {p}link <player> <discord> · {p}unlink <player> · {p}links · {p}automute on|off · " +
-                      $"{p}unmuteall · {p}leaderboard · {p}sheetsync · {p}resetstats confirm", false);
+                      $"{p}unmuteall · {p}leaderboard · {p}resetstats confirm", false);
             }
         }
 
@@ -245,34 +242,6 @@ namespace TournamentTracker
 
             var top = Store.Leaderboard().Take(5).Select((t, i) => $"{i + 1}. {t.Name} {ReportFormatter.Pts(t.Points)}");
             Reply(Store.GamesRecorded == 0 ? "No games recorded yet." : string.Join(" · ", top), false);
-        }
-
-        /// <summary>Sends every saved game of this tournament to the sheet again. Rows are replaced, not duplicated.</summary>
-        private void SheetSyncCommand()
-        {
-            if (Sheets == null)
-            {
-                Reply("Google Sheets isn't set up: add GoogleSheetsUrl and GoogleSheetsSecret to the config.", false);
-                return;
-            }
-            var games = new List<GameRecord>();
-            if (Directory.Exists(_gamesDir))
-            {
-                foreach (var file in Directory.GetFiles(_gamesDir, "game-*.json").OrderBy(f => f, StringComparer.Ordinal))
-                {
-                    try
-                    {
-                        var game = System.Text.Json.JsonSerializer.Deserialize<GameRecord>(File.ReadAllText(file));
-                        if (game != null) games.Add(game);
-                    }
-                    catch (Exception e)
-                    {
-                        _log.Warn($"Skipping {Path.GetFileName(file)}: {e.Message}");
-                    }
-                }
-            }
-            foreach (var game in games) Sheets.Enqueue(game);
-            Reply(games.Count == 0 ? "No saved games to send yet." : $"Sending {games.Count} game{(games.Count == 1 ? "" : "s")} to Google Sheets.", false);
         }
 
         private void ResetStatsCommand(string[] args)
