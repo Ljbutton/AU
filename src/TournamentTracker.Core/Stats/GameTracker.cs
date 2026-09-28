@@ -229,7 +229,11 @@ namespace TournamentTracker.Stats
         {
             var p = _game?.ById(playerId);
             if (p == null || p.DeathCause == "Disconnected") return;
-            if (p.DeathCause == null) p.DiedAtSeconds = Elapsed(nowUtc);
+            if (p.DeathCause == null)
+            {
+                p.DiedAtSeconds = Elapsed(nowUtc);
+                p.LeftAlive = true;
+            }
             p.DeathCause = "Disconnected";
             Add(nowUtc, "disconnect", $"{p.Label} disconnected");
         }
@@ -260,7 +264,11 @@ namespace TournamentTracker.Stats
                     p.DeathCause = "Killed";
                     p.DiedAtSeconds = Elapsed(nowUtc);
                 }
-                if (p.DeathCause == null && s.Disconnected) p.DeathCause = "Disconnected";
+                if (p.DeathCause == null && s.Disconnected)
+                {
+                    p.DeathCause = "Disconnected";
+                    p.LeftAlive = true;
+                }
             }
 
             game.EndedUtc = nowUtc;

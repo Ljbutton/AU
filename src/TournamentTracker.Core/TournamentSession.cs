@@ -168,7 +168,30 @@ namespace TournamentTracker
         public void MeetingClosed() => Tracker.MeetingClosed();
         public void TaskCompleted(byte playerId) => Tracker.TaskCompleted(playerId, _clock());
         public void Sabotage(byte playerId, string system) => Tracker.Sabotage(playerId, system, _clock());
-        public void PlayerLeft(byte playerId) => Tracker.Disconnected(playerId, _clock());
+        /// <summary>A player left mid-game: recorded, and the host is told what their options are.</summary>
+        public void PlayerLeft(byte playerId)
+        {
+            var game = Tracker.Current;
+            var p = game?.ById(playerId);
+            if (game == null || p == null || p.DeathCause == "Disconnected") return;
+            Tracker.Disconnected(playerId, _clock());
+
+            string at = TimeSpan.FromSeconds(p.DiedAtSeconds ?? 0).ToString(@"m\:ss");
+            string prefix = _settings.CommandPrefix;
+            if (game.Meetings.Count == 0)
+            {
+                Reply($"{p.Name} left at {at}, before the first meeting. To restart, type {prefix}void {p.Name} left, then start a new game.", false);
+            }
+            else
+            {
+                Reply($"{p.Name} left at {at}. The game plays on: they keep the points they'd earned and take the loss if their team loses. ({prefix}void to throw the game out instead.)", false);
+            }
+            if (Shared != null && _settings.Mode == TrackerMode.Tournament)
+            {
+                string note = $"Disconnect · {game.Name}: {p.Name} ({(p.IsImpostor ? "impostor" : "crewmate")}) left at {at}{(game.Meetings.Count == 0 ? ", before the first meeting" : "")}.";
+                Chain(() => Shared.PostNoteAsync(note));
+            }
+        }
 
         /// <summary>The game ended normally. <paramref name="reason"/> is the GameOverReason name.</summary>
         public GameRecord? GameEnded(string reason, IReadOnlyList<PlayerSnapshot> players) =>

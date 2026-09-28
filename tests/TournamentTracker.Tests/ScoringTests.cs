@@ -92,14 +92,26 @@ public class ScoringTests
     }
 
     [Fact]
-    public void Disconnected_players_get_no_win_or_loss_points()
+    public void Leaving_takes_the_loss_but_never_shares_a_win()
     {
         Start();
         _t.Kill(0, 2, _clock.Now);
-        _t.Disconnected(4, _clock.Now);
+        _t.Disconnected(4, _clock.Now);                             // crewmate leaves, crew loses
+        _t.Disconnected(1, _clock.Now);                             // impostor leaves, impostors win
         var g = End("ImpostorByKill");
-        Assert.Equal(0, Pts(g, 4));
+        Assert.Equal(-1, Pts(g, 4));
+        Assert.Contains(g.ById(4)!.PointBreakdown, l => l.Rule == "Lost (left the game)");
+        Assert.Equal(0, Pts(g, 1));
         Assert.Equal(1 + 1 + 4, Pts(g, 0));
+    }
+
+    [Fact]
+    public void Leaving_alive_doesnt_dodge_the_sabotage_penalty()
+    {
+        Start();
+        _t.Disconnected(4, _clock.Now);
+        var g = End("ImpostorBySabotage");
+        Assert.Equal(-5, Pts(g, 4));
     }
 
     [Fact]

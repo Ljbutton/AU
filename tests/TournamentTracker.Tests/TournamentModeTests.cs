@@ -364,6 +364,25 @@ public class TournamentModeTests : IDisposable
     }
 
     [Fact]
+    public async Task A_disconnect_prompts_the_host_and_notes_it_for_referees()
+    {
+        var s = Session(TournamentCode());
+        var lobby = Lobby();
+        s.HandleChat(lobby[3], true, "!r1");
+        s.GameStarted("ABCDEF", "Polus", lobby);
+        _clock.Advance(72);
+        s.PlayerLeft(4);
+        Assert.Contains(s.Pump(), r => !r.Public && r.Text.StartsWith("Eve left at 1:12, before the first meeting. To restart, type !void"));
+        s.MeetingCalled(0, null);
+        s.PlayerLeft(5);
+        Assert.Contains(s.Pump(), r => r.Text.StartsWith("Finn left at 1:12. The game plays on"));
+        s.PlayerLeft(5);                                            // reported twice by the game: once is enough
+        Assert.Empty(s.Pump());
+        await s.PendingPosts;
+        Assert.Contains(_discord.Messages, m => m.Channel == "results" && m.Content == "Disconnect · LJ-1: Eve (crewmate) left at 1:12, before the first meeting.");
+    }
+
+    [Fact]
     public void Void_messages_are_read_carefully()
     {
         var v = RefereeVoid.TryParse("!void LJ-3 lobby restarted", "1", DateTime.UtcNow)!;

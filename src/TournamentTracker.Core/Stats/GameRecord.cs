@@ -75,6 +75,8 @@ namespace TournamentTracker.Stats
         /// <summary>"Killed", "Ejected" or "Disconnected"; null while alive.</summary>
         public string? DeathCause { get; set; }
         public double? DiedAtSeconds { get; set; }
+        /// <summary>Disconnected while still alive (so, e.g., still counts as alive at a sabotage loss).</summary>
+        public bool LeftAlive { get; set; }
 
         public int TasksCompleted { get; set; }
         public int TasksTotal { get; set; }

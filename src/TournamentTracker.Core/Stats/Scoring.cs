@@ -57,7 +57,8 @@ namespace TournamentTracker.Stats
                 if (p.ImpostorEjectOrder == 1) Add("Voted out first", r.VotedOutFirst);
                 else if (p.ImpostorEjectOrder > 1) Add("Voted out last", r.VotedOutLast);
 
-                if (!left && game.Winner != null)
+                // Leaving doesn't dodge a loss, but a player who left doesn't share the win.
+                if (game.Winner != null && (!left || !won))
                 {
                     if (won)
                     {
@@ -73,8 +74,8 @@ namespace TournamentTracker.Stats
                     {
                         switch (kind)
                         {
-                            case "Tasks": Add("Lost to tasks", r.ImpostorTaskLoss); break;
-                            case "Vote": Add("Lost to vote", r.ImpostorVoteLoss); break;
+                            case "Tasks": Add("Lost to tasks" + Left(left), r.ImpostorTaskLoss); break;
+                            case "Vote": Add("Lost to vote" + Left(left), r.ImpostorVoteLoss); break;
                         }
                     }
                 }
@@ -96,7 +97,7 @@ namespace TournamentTracker.Stats
                     Add($"Tasks {Percent(effort)}", Scaled(r.TaskPercentBonus, effort, r.BonusRounding));
                 }
 
-                if (!left && game.Winner != null)
+                if (game.Winner != null && (!left || !won))
                 {
                     if (won)
                     {
@@ -107,13 +108,13 @@ namespace TournamentTracker.Stats
                             case "Disconnect": Add("Win by disconnect", r.DisconnectWin); break;
                         }
                     }
-                    else if (kind == "Sabotage" && p.DeathCause == null)
+                    else if (kind == "Sabotage" && (p.DeathCause == null || p.LeftAlive))
                     {
                         Add("Lost to sabotage while alive", r.CrewSabotageLossAlive);
                     }
                     else if (kind != "Disconnect")
                     {
-                        Add("Lost", r.CrewOtherLoss);
+                        Add("Lost" + Left(left), r.CrewOtherLoss);
                     }
                 }
             }
@@ -149,6 +150,8 @@ namespace TournamentTracker.Stats
         /// <summary>Rounds to a multiple of <paramref name="step"/>, halves away from zero; 0 keeps the exact value.</summary>
         public static double Round(double value, double step) =>
             step > 0 ? Math.Round(value / step, MidpointRounding.AwayFromZero) * step : value;
+
+        private static string Left(bool left) => left ? " (left the game)" : "";
 
         private static string OneDecimal(double value)
         {

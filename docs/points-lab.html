@@ -247,7 +247,7 @@ function track(game) {
       id: s.id, name: s.name, imp: !!s.imp, kills: 0, firstBlood: false, diedFirst: false, death: null,
       tasksTotal: total, tasksDone: s.imp ? 0 : Math.min(s.tasksDone, total),
       longTotal, longDone: s.imp ? 0 : Math.min(s.longDone, longTotal),
-      ejImp: 0, ejCrew: 0, caught: 0, order: null, readsRight: 0, readsWrong: 0,
+      ejImp: 0, ejCrew: 0, caught: 0, order: null, readsRight: 0, readsWrong: 0, leftAlive: false,
     });
   }
   for (const e of game.events) {
@@ -257,6 +257,11 @@ function track(game) {
       const first = [...P.values()].every(p => p.death !== 'Killed');
       victim.death = 'Killed'; victim.diedFirst = first;
       if (killer) { killer.kills++; if (first) killer.firstBlood = true; }
+    } else if (e.left != null) {
+      const p = P.get(e.left);
+      if (!p || p.death === 'Disconnected') continue;
+      if (!p.death) p.leftAlive = true;
+      p.death = 'Disconnected';
     } else if (e.meeting) {
       const m = e.meeting, exiled = m.ejected == null ? null : P.get(m.ejected);
       const votes = m.votes.filter(([v, t]) => P.has(v) && (t === -1 || P.has(t)));
@@ -307,15 +312,15 @@ function breakdown(p, winner, kind, r) {
     add('Voted a crewmate out', r.votedCrewmateOut, p.ejCrew);
     if (p.order === 1) add('Voted out first', r.votedOutFirst);
     else if (p.order > 1) add('Voted out last', r.votedOutLast);
-    if (!left && winner != null) {
+    if (winner != null && (!left || !won)) {
       if (won) {
         if (kind === 'Sabotage') add('Sabotage win', r.impostorSabotageWin);
         else if (kind === 'Vote') add('Vote win', r.impostorVoteWin);
         else if (kind === 'Kill') add('Kill win', r.impostorKillWin);
         else if (kind === 'Disconnect') add('Win by disconnect', r.disconnectWin);
       } else {
-        if (kind === 'Tasks') add('Lost to tasks', r.impostorTaskLoss);
-        else if (kind === 'Vote') add('Lost to vote', r.impostorVoteLoss);
+        if (kind === 'Tasks') add('Lost to tasks' + (left ? ' (left the game)' : ''), r.impostorTaskLoss);
+        else if (kind === 'Vote') add('Lost to vote' + (left ? ' (left the game)' : ''), r.impostorVoteLoss);
       }
     }
   } else {
@@ -329,13 +334,13 @@ function breakdown(p, winner, kind, r) {
       const effort = taskEffort(p, r.longTaskWeight);
       add(`Tasks ${pct(effort)}`, roundStep(r.taskPercentBonus * clamp01(effort), r.bonusRounding));
     }
-    if (!left && winner != null) {
+    if (winner != null && (!left || !won)) {
       if (won) {
         if (kind === 'Tasks') add('Task win', r.crewTaskWin);
         else if (kind === 'Vote') add('Vote win', r.crewVoteWin);
         else if (kind === 'Disconnect') add('Win by disconnect', r.disconnectWin);
-      } else if (kind === 'Sabotage' && p.death == null) add('Lost to sabotage while alive', r.crewSabotageLossAlive);
-      else if (kind !== 'Disconnect') add('Lost', r.crewOtherLoss);
+      } else if (kind === 'Sabotage' && (p.death == null || p.leftAlive)) add('Lost to sabotage while alive', r.crewSabotageLossAlive);
+      else if (kind !== 'Disconnect') add('Lost' + (left ? ' (left the game)' : ''), r.crewOtherLoss);
     }
   }
   return lines;
