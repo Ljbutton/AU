@@ -15,6 +15,7 @@ namespace TournamentTracker
         private sealed class SavedState
         {
             public int Round { get; set; }
+            public string? RefSlotKey { get; set; }
         }
 
         /// <summary>The current round (1, 2, 3…); 0 until the host sets one. Saved per tournament.</summary>
@@ -27,7 +28,11 @@ namespace TournamentTracker
             try
             {
                 if (File.Exists(StatePath))
-                    Round = JsonSerializer.Deserialize<SavedState>(File.ReadAllText(StatePath))?.Round ?? 0;
+                {
+                    var state = JsonSerializer.Deserialize<SavedState>(File.ReadAllText(StatePath));
+                    Round = state?.Round ?? 0;
+                    RefSlotKey = state?.RefSlotKey;
+                }
             }
             catch (Exception e)
             {
@@ -38,12 +43,14 @@ namespace TournamentTracker
         public void SetRound(int round)
         {
             Round = Math.Max(0, round);
-            TrySave(() =>
-            {
-                Directory.CreateDirectory(_dataDir);
-                File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round }));
-            }, "round");
+            SaveState();
         }
+
+        private void SaveState() => TrySave(() =>
+        {
+            Directory.CreateDirectory(_dataDir);
+            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey }));
+        }, "state");
 
         /// <summary>!r3 or !round 3 sets the round; !round on its own says which it is.</summary>
         private bool TryRoundCommand(string command, string[] args)

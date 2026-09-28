@@ -37,6 +37,10 @@ namespace TournamentTracker
 
             var channel = GameVoiceChannel(players);
             var spectators = channel == null ? null : Spectators(channel, players);
+            // The referee ghost is never muted: take them out of the players and the spectators.
+            string? referee = RefSlotKey == null ? null : Links.Find(RefSlotKey)?.DiscordUserId;
+            if (referee != null) spectators?.Remove(referee);
+            var playing = WithoutReferee(players);
 
             if (phase == VoicePhase.Lobby && _settings.AutoMute.AutoLinkByName) AutoLink(players, channel);
 
@@ -46,7 +50,7 @@ namespace TournamentTracker
                 AutoMute.StopRefereeMode();
                 Reply("Referee mode ended because the game started.", false);
             }
-            AutoMute?.Update(phase, players, spectators);
+            AutoMute?.Update(phase, playing, spectators);
             UpdateStatus(phase, players, lobbyCode, map, spectators?.Count ?? 0);
             _lastPhase = phase;
         }
@@ -169,7 +173,8 @@ namespace TournamentTracker
                 SpectatorsMuted = AutoMute != null && AutoMute.Enabled && _settings.AutoMute.MuteSpectators,
                 RefereeMode = AutoMute != null && AutoMute.Enabled && AutoMute.RefereeMode,
                 CommandPrefix = _settings.CommandPrefix,
-                Players = players.Where(p => !p.Disconnected).Select(p => new StatusPlayer
+                Referee = RefSlotKey == null ? null : players.FirstOrDefault(p => p.Key == RefSlotKey),
+                Players = WithoutReferee(players).Where(p => !p.Disconnected).Select(p => new StatusPlayer
                 {
                     Player = p,
                     DiscordUserId = Links.Find(p.Key)?.DiscordUserId,

@@ -83,6 +83,14 @@ namespace TournamentTracker.Plugin
             };
         }
 
+        public static PlayerControl? Player(byte playerId)
+        {
+            var all = PlayerControl.AllPlayerControls;
+            for (int i = 0; i < all.Count; i++)
+                if (all[i] != null && all[i].PlayerId == playerId) return all[i];
+            return null;
+        }
+
         public static string LobbyCode()
         {
             var client = AmongUsClient.Instance;

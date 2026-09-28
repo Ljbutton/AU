@@ -34,6 +34,9 @@ namespace TournamentTracker.Plugin
                 RestartRequested = false;
                 Restart();
             }
+            try { GhostZoom.Update(); }
+            catch (Exception e) { if (!_loggedError) TournamentPlugin.Logger.Error("Zoom failed: " + e); _loggedError = true; }
+
             var session = TournamentPlugin.Session;
             if (session == null) return;
             try
@@ -100,6 +103,8 @@ namespace TournamentTracker.Plugin
             // Before roles are handed out everyone reads as a crewmate; wait for the real teams.
             if (!players.Exists(p => p.IsImpostor)) return;
             session.GameStarted(Game.LobbyCode(), Game.MapName(), players);
+            try { RefSlot.MakeGhost(); }
+            catch (Exception e) { TournamentPlugin.Logger.Error("Referee ghost failed: " + e); }
         }
 
         public static void EndGame(string reason)

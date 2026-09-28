@@ -26,6 +26,9 @@ namespace TournamentTracker.Discord
         public int Spectators { get; set; }
         public bool SpectatorsMuted { get; set; }
         public bool RefereeMode { get; set; }
+
+        /// <summary>The referee ghost slot's player, shown apart from the players.</summary>
+        public PlayerSnapshot? Referee { get; set; }
         public string CommandPrefix { get; set; } = "!";
     }
 
@@ -61,6 +64,9 @@ namespace TournamentTracker.Discord
                     sb.Append(who).Append(" · ").AppendLine(discord);
                 }
             }
+
+            if (s.Referee != null && s.Phase != VoicePhase.Menu)
+                sb.AppendLine().AppendLine($"🎥 Referee (ghost): **{Colors.Name(s.Referee.ColorId)}** {Escape(s.Referee.Name)}");
 
             if (s.Spectators > 0)
             {

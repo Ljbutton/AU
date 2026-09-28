@@ -146,6 +146,7 @@ namespace TournamentTracker
             if (Tracker.InGame) return;
             Players = players;
             string label = LobbyLabel(players);
+            players = WithoutReferee(players);
             var game = Tracker.Start(Store.NextGameNumber(label), _settings.TournamentName, lobbyCode, map, players, _clock());
             game.Host = label;
             game.TournamentId = _settings.EffectiveTournamentId;
@@ -175,6 +176,7 @@ namespace TournamentTracker
 
         private GameRecord? Finish(string reason, string? winner, IReadOnlyList<PlayerSnapshot> players)
         {
+            players = WithoutReferee(players);
             var game = Tracker.End(reason, winner, players, _clock());
             if (game == null) return null;
 

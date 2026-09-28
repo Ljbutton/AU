@@ -34,6 +34,20 @@ namespace TournamentTracker.Plugin.Patches
         public static void Prefix() => Hook.Run("Game start", Driver.StartGame);
     }
 
+    // Referee ghost slot: fix the referee's role once roles are chosen, clear their tasks once
+    // tasks are handed out. (They become a ghost in Driver.StartGame, as the intro begins.)
+    [HarmonyPatch(typeof(RoleManager), nameof(RoleManager.SelectRoles))]
+    internal static class RefereeRolePatch
+    {
+        public static void Postfix() => Hook.Run("Referee role", RefSlot.KeepCrewmate);
+    }
+
+    [HarmonyPatch(typeof(ShipStatus), nameof(ShipStatus.Begin))]
+    internal static class RefereeTasksPatch
+    {
+        public static void Postfix() => Hook.Run("Referee tasks", RefSlot.ClearTasks);
+    }
+
     [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.MurderPlayer))]
     internal static class KillPatch
     {

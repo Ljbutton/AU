@@ -32,6 +32,9 @@ namespace TournamentTracker
 
             switch (command)
             {
+                case "refslot" when fromHost:
+                    RefSlotCommand(sender, args);
+                    return true;
                 case "setup" when fromHost:
                     SetupCommand(args);
                     return true;
@@ -98,7 +101,7 @@ namespace TournamentTracker
             if (fromHost)
             {
                 Reply($"Host: {p}link <player> <discord> · {p}unlink <player> · {p}links · {p}automute on|off · " +
-                      $"{p}unmuteall · {p}ref on|off · {p}spectators on|off · {p}refresh · {p}r1 {p}r2… · {p}servers · {p}setup · {p}leaderboard · {p}resetleaderboard · {p}resetstats confirm", false);
+                      $"{p}unmuteall · {p}ref on|off · {p}refslot on|off|<player> · {p}spectators on|off · {p}refresh · {p}r1 {p}r2… · {p}servers · {p}setup · {p}leaderboard · {p}resetleaderboard · {p}resetstats confirm", false);
             }
         }
 
