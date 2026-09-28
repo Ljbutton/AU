@@ -50,13 +50,48 @@ jobs:
           echo "ZIP=dist/$name.zip" >> "$GITHUB_ENV"
           echo "NAME=$name" >> "$GITHUB_ENV"
 
+      - name: Test the installer
+        shell: pwsh
+        run: ./installer/test/installer.tests.ps1
+
+      - name: Build the one-click installer and the full bundle
+        run: |
+          set -euo pipefail
+          # BepInEx be.735, the build Among Us mods use, straight from BepInEx's build server.
+          href=$(curl -fsSL https://builds.bepinex.dev/projects/bepinex_be \
+            | grep -oE 'href="[^"]*BepInEx-Unity\.IL2CPP-win-x64-6\.0\.0-be\.735[^"]*\.zip"' | head -1 | sed -E 's/^href="//; s/"$//') || true
+          case "$href" in
+            http*) url="$href" ;;
+            /*) url="https://builds.bepinex.dev$href" ;;
+            "") url="https://builds.bepinex.dev/projects/bepinex_be/735/BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.735%2B5fef357.zip" ;;
+            *) url="https://builds.bepinex.dev/projects/bepinex_be/$href" ;;
+          esac
+          echo "BepInEx from $url"
+          curl -fsSL "$url" -o bepinex.zip
+          full=dist/full
+          mkdir -p "$full"
+          unzip -q bepinex.zip -d "$full"
+          test -f "$full/winhttp.dll"
+          mkdir -p "$full/BepInEx/plugins"
+          cp src/TournamentTracker.Plugin/bin/Release/net6.0/TournamentTracker.dll "$full/BepInEx/plugins/"
+          (cd "$full" && zip -qr ../TournamentTracker-Full.zip .)
+          # The installer: a .bat that runs the PowerShell stored after its #PS-START line.
+          { cat installer/Install-TournamentTracker.header.bat; echo '#PS-START'; cat installer/install.ps1; } \
+            | sed 's/$/\r/' > dist/Install-TournamentTracker.bat
+          ls -la dist
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.NAME }}
-          path: ${{ env.ZIP }}
+          path: |
+            ${{ env.ZIP }}
+            dist/TournamentTracker-Full.zip
+            dist/Install-TournamentTracker.bat
 
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "$ZIP" --title "$GITHUB_REF_NAME" --notes-file dist/*/BUILT-AGAINST.txt
+        run: >
+          gh release create "$GITHUB_REF_NAME" "$ZIP" dist/TournamentTracker-Full.zip dist/Install-TournamentTracker.bat
+          --title "$GITHUB_REF_NAME" --notes-file dist/*/BUILT-AGAINST.txt

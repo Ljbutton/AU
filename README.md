@@ -26,15 +26,30 @@ host needs the mod.
 
 ## Install (host only)
 
-1. Install **BepInEx 6 bleeding-edge build 735 (IL2CPP)**, the build Among Us mods use:
-   download `BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.735` from
-   <https://builds.bepinex.dev/projects/bepinex_be>, extract it into the Among Us folder, and
-   start the game once so BepInEx sets itself up.
-2. Download `TournamentTracker-*.zip` from this repo's Releases (or from the latest
-   **Build** run under Actions). Extract it into the Among Us folder so
-   `BepInEx/plugins/TournamentTracker.dll` lands in place.
-3. Start the game once, then close it. It creates
-   `BepInEx/config/com.ljbutton.tournamenttracker.cfg`; fill that in (see below).
+**One click:** download **`Install-TournamentTracker.bat`** from the
+[latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
+Windows shows "Windows protected your PC", click **More info → Run anyway**.
+
+It finds Among Us (Steam or Epic Games, including Steam games on other drives), downloads
+the mod together with the mod loader it needs (BepInEx 6 build 735), and installs both. If
+it can't find the game it asks you to pick the folder. Run it again any time to update;
+your settings, links and stats are kept.
+
+Then start Among Us once. The first start takes a few minutes while BepInEx sets itself
+up (a black console window appears). Close the game, fill in
+`BepInEx/config/com.ljbutton.tournamenttracker.cfg`, and you're ready.
+
+<details><summary>Installing by hand instead</summary>
+
+1. Download `TournamentTracker-Full.zip` from the latest release and extract everything
+   into the Among Us folder (the one with `Among Us.exe`). It contains BepInEx and the mod.
+2. Or, if you already have **BepInEx 6 bleeding-edge build 735 (IL2CPP)**, only
+   `TournamentTracker-*.zip` is needed: it puts `BepInEx/plugins/TournamentTracker.dll` in
+   place.
+
+To uninstall, delete `BepInEx`, `dotnet`, `winhttp.dll`, `doorstop_config.ini` and
+`.doorstop_version` from the Among Us folder.
+</details>
 
 `BUILT-AGAINST.txt` in the ZIP names the Among Us version the DLL was compiled for. After
 Among Us updates, rebuild against the new version (see *Building*).
