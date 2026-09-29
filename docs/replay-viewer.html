@@ -89,7 +89,7 @@ kbd{font:11px var(--mono);border:1px solid var(--line);border-radius:4px;padding
         <span class="time" id="time">0:00 / 0:00</span>
         <select id="speed" aria-label="Speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select>
         <span class="spacer"></span>
-        <button id="roles" class="on">Roles</button><button id="ghosts">Ghosts</button><button id="trails" class="on">Trails</button><button id="fit">Fit map</button>
+        <button id="roles" class="on">Roles</button><button id="ghosts">Ghosts</button><button id="trails" class="on">Trails</button><button id="outline" class="on">Outline</button><button id="fit">Fit map</button>
       </div>
       <p class="keys"><kbd>Space</kbd> play · <kbd>←</kbd><kbd>→</kbd> 5 s · click a player to follow them · scroll to zoom, drag to move</p>
     </div>
@@ -111,7 +111,7 @@ const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 let R = null, t = 0, playing = false, speed = 1, follow = null;
-let showRoles = true, showGhosts = false, showTrails = true;
+let showRoles = true, showGhosts = false, showTrails = true, showOutline = true;
 let view = { x: 0, y: 0, scale: 20 };      // world -> screen: (wx - x) * scale, flipped y
 let bodies = [];
 
@@ -139,6 +139,11 @@ function load(replay) {
   $('title').textContent = `Game ${R.name}`;
   $('meta').textContent = [R.tournament, R.round ? 'Round ' + R.round : '', R.map, R.winner ? R.winner + ' win' : 'no result', R.voided ? 'VOID' : ''].filter(Boolean).join(' · ');
   findBodies();
+  R.bgImg = null;
+  const bg = R.geometry && R.geometry.background;
+  if (bg && bg.image) { const img = new Image(); img.onload = () => { R.bgImg = img; render(); }; img.src = bg.image; }
+  showOutline = !bg;
+  $('outline').classList.toggle('on', showOutline);
   t = 0; follow = null; fit(); buildLists(); buildMarks(); render();
 }
 
@@ -185,6 +190,8 @@ function bounds() {
   let xs = [], ys = [];
   const add = arr => { for (let j = 0; j + 1 < arr.length; j += 2) { xs.push(arr[j]); ys.push(arr[j + 1]); } };
   (R.geometry?.walls || []).forEach(add);
+  const bg = R.geometry && R.geometry.background;
+  if (bg) add([bg.x0, bg.y0, bg.x1, bg.y1]);
   if (!xs.length) R.frames.forEach(f => R.players.forEach((_, i) => { if (!(f[3 + 3 * i] & 12)) { xs.push(f[1 + 3 * i]); ys.push(f[2 + 3 * i]); } }));
   if (!xs.length) return { x0: -10, x1: 10, y0: -10, y1: 10 };
   return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
@@ -224,17 +231,21 @@ function render() {
   const pos = positions(t);
   if (follow != null && pos[R.byId[follow].i]) { const p = pos[R.byId[follow].i]; view.x += (p.x - view.x) * 0.25; view.y += (p.y - view.y) * 0.25; }
 
+  // The real map, as the host's game photographed it.
+  const bg = R.geometry && R.geometry.background;
+  if (R.bgImg && bg) ctx.drawImage(R.bgImg, sx(bg.x0), sy(bg.y1), (bg.x1 - bg.x0) * view.scale, (bg.y1 - bg.y0) * view.scale);
+
   // Rooms and walls.
   ctx.font = `600 ${Math.max(10, Math.min(14, view.scale * 0.45))}px ${css('--sans')}`;
   ctx.textAlign = 'center';
   for (const room of R.geometry?.rooms || []) {
-    line(room.area, true); ctx.fillStyle = css('--room'); ctx.fill();
+    if (showOutline) { line(room.area, true); ctx.fillStyle = css('--room'); ctx.fill(); }
     let cx = 0, cy = 0, n = 0; for (let j = 0; j + 1 < room.area.length; j += 2) { cx += room.area[j]; cy += room.area[j + 1]; n++; }
-    ctx.fillStyle = 'rgba(140,154,165,.55)';
+    ctx.fillStyle = R.bgImg ? 'rgba(255,255,255,.75)' : 'rgba(140,154,165,.55)';
     ctx.fillText(room.name.replace(/([a-z])([A-Z])/g, '$1 $2'), sx(cx / n), sy(cy / n));
   }
   ctx.strokeStyle = css('--wall'); ctx.lineWidth = 1.6;
-  for (const wall of R.geometry?.walls || []) { line(wall, false); ctx.stroke(); }
+  if (showOutline) for (const wall of R.geometry?.walls || []) { line(wall, false); ctx.stroke(); }
   ctx.fillStyle = 'rgba(111,135,149,.5)';
   for (const [vx, vy] of R.geometry?.vents || []) { ctx.fillRect(sx(vx) - 5, sy(vy) - 3, 10, 6); }
 
@@ -318,7 +329,7 @@ $('fwd').addEventListener('click', () => seek(t + 5));
 $('speed').addEventListener('change', e => speed = +e.target.value);
 $('seek').addEventListener('input', e => { if (R) seek(+e.target.value / 1000 * R.duration); });
 $('fit').addEventListener('click', () => { follow = null; fit(); render(); });
-for (const [id, set] of [['roles', v => showRoles = v], ['ghosts', v => showGhosts = v], ['trails', v => showTrails = v]])
+for (const [id, set] of [['roles', v => showRoles = v], ['ghosts', v => showGhosts = v], ['trails', v => showTrails = v], ['outline', v => showOutline = v]])
   $(id).addEventListener('click', e => { const on = !e.currentTarget.classList.contains('on'); e.currentTarget.classList.toggle('on', on); set(on); render(); });
 document.addEventListener('keydown', e => {
   if (!R || e.target.tagName === 'INPUT' && e.target.type !== 'range' || e.target.tagName === 'SELECT') return;

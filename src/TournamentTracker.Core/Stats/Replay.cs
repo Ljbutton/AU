@@ -31,6 +31,19 @@ namespace TournamentTracker.Stats
         [JsonPropertyName("walls")] public List<float[]> Walls { get; set; } = new List<float[]>();
         [JsonPropertyName("rooms")] public List<ReplayRoom> Rooms { get; set; } = new List<ReplayRoom>();
         [JsonPropertyName("vents")] public List<float[]> Vents { get; set; } = new List<float[]>();
+
+        /// <summary>A picture of the real map, taken from the host's game, placed by its world bounds.</summary>
+        [JsonPropertyName("background")] public ReplayBackground? Background { get; set; }
+    }
+
+    public sealed class ReplayBackground
+    {
+        /// <summary>A data URI (data:image/jpeg;base64,…).</summary>
+        [JsonPropertyName("image")] public string Image { get; set; } = "";
+        [JsonPropertyName("x0")] public float X0 { get; set; }
+        [JsonPropertyName("y0")] public float Y0 { get; set; }
+        [JsonPropertyName("x1")] public float X1 { get; set; }
+        [JsonPropertyName("y1")] public float Y1 { get; set; }
     }
 
     /// <summary>A player's cosmetics, so the in-game replay can dress them as they were.</summary>

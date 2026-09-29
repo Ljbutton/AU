@@ -66,6 +66,13 @@ namespace TournamentTracker.Plugin
             }
             try { CaptureDetails(session); }
             catch (Exception e) { TournamentPlugin.Logger.Warn("Replay: couldn't read the outfits (" + e.Message + ")."); }
+            try
+            {
+                var map = session.ReplayMapInUse;
+                int mapId = GameOptionsManager.Instance?.CurrentGameOptions?.MapId ?? -1;
+                if (map != null) map.Background = MapPhoto.For(mapId, map);
+            }
+            catch (Exception e) { TournamentPlugin.Logger.Warn("Replay: no map picture (" + e.Message + ")."); }
         }
 
         /// <summary>The map number and everyone's cosmetics, so the in-game replay can dress them.</summary>

@@ -20,6 +20,9 @@ namespace TournamentTracker
 
         private void StartReplay(GameRecord game) => _replay = _settings.RecordReplays ? new ReplayRecorder(game) : null;
 
+        /// <summary>The map being recorded, so the plugin can add its picture.</summary>
+        public ReplayMap? ReplayMapInUse => _replay?.Map;
+
         public void ReplayMapLoaded(ReplayMap map)
         {
             if (_replay != null) _replay.Map = map;
