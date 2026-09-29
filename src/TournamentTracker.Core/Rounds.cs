@@ -24,10 +24,15 @@ namespace TournamentTracker
             public bool OverlayOn { get; set; }
             /// <summary>Where the host asked (with /new) for the live lobby message to go.</summary>
             public string? StatusChannel { get; set; }
+            /// <summary>The host switched automute off (remembered, so AutoMuteUs can be used instead).</summary>
+            public bool AutoMuteOff { get; set; }
         }
 
         /// <summary>Counted games this lobby has played per round.</summary>
         private Dictionary<int, int> _roundGames = new Dictionary<int, int>();
+
+        /// <summary>Automute switched off by the host, remembered between sessions.</summary>
+        private bool _autoMuteOff;
 
         public int GamesThisRound => _roundGames.TryGetValue(Round, out var n) ? n : 0;
 
@@ -58,6 +63,7 @@ namespace TournamentTracker
                     Plan = state?.Plan;
                     _overlayOn = state?.OverlayOn ?? false;
                     _statusChosen = state?.StatusChannel;
+                    _autoMuteOff = state?.AutoMuteOff ?? false;
                 }
             }
             catch (Exception e)
@@ -75,7 +81,7 @@ namespace TournamentTracker
         private void SaveState() => TrySave(() =>
         {
             Directory.CreateDirectory(_dataDir);
-            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames, ImpostorGames = _impostorGames, Plan = Plan, OverlayOn = _overlayOn, StatusChannel = _statusChosen }));
+            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames, ImpostorGames = _impostorGames, Plan = Plan, OverlayOn = _overlayOn, StatusChannel = _statusChosen, AutoMuteOff = _autoMuteOff }));
         }, "state");
 
         /// <summary>!r3 or !round 3 sets the round; !round on its own says which it is.</summary>

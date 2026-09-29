@@ -60,7 +60,7 @@ table{border-collapse:collapse;width:100%}
 td{padding:6px 4px;border-bottom:1px solid var(--line)}
 tr:last-child td{border-bottom:0}
 .empty{padding:26px;text-align:center;color:var(--muted)}
-.toggle{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0}
+.toggle{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:3px 0}
 .toggle b{font-weight:400}.toggle span{display:block;color:var(--muted);font-size:12px}
 .pill{font-size:12px;padding:1px 8px;border-radius:99px;background:var(--sunk);color:var(--muted);white-space:nowrap}
 #toast{position:fixed;right:18px;bottom:18px;max-width:420px;background:var(--panel-solid);color:var(--fg);border:2px solid var(--edge);padding:10px 14px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.4);opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;z-index:5}
@@ -74,15 +74,23 @@ tr:last-child td{border-bottom:0}
 .fact .v{font:700 30px/1 var(--hand);letter-spacing:.05em}
 .home-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(290px,1fr);gap:14px;align-items:start}
 @media (max-width:980px){.home-grid{grid-template-columns:minmax(0,1fr)}}
-.players{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 10px}
+.players{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 10px}
 @media (max-width:700px){.players{grid-template-columns:minmax(0,1fr)}}
-.pl{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:8px;align-items:center;min-height:38px;padding:3px 8px 3px 5px;border-radius:10px;background:var(--sunk)}
+.pl{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:8px;align-items:center;min-height:35px;padding:2px 8px 2px 5px;border-radius:10px;background:var(--sunk)}
 .pl img{width:32px;height:32px}
 .pl .nm{font:15px/1.2 var(--round);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl .dc{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl .dc.none{color:var(--warn)}
 .pl.dead{opacity:.55}
 .left,.side{display:grid;gap:12px;align-content:start}
+.notices{display:grid;gap:6px;margin-bottom:6px}
+.notice{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:5px 10px 5px 12px;border-radius:10px;background:var(--warn-soft);border:1.5px solid var(--warn);color:var(--fg);font-size:13.5px}
+.notice .when{color:var(--warn);font-size:12px;white-space:nowrap;padding-top:1px}
+.notice button{all:unset;cursor:pointer;color:var(--muted);font-size:16px;line-height:1;padding:0 4px}
+.notice button:hover{color:var(--fg)}
+.notice .txt{min-width:0}
+.notices:not(.open) .notice .txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.notice .more{all:unset;cursor:pointer;color:var(--warn);font-size:12px;white-space:nowrap}
 .pl .voice{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#0b1320;border:2px solid #36507d}
 .pl .voice svg{width:14px;height:14px}
 .pl .voice.muted{border-color:#ff6b6b;background:#3a1016}
@@ -156,11 +164,12 @@ tr:last-child td{border-bottom:0}
     <button class="b primary" id="wait-fix" data-go="settings" hidden style="margin-top:16px">Open Settings</button>
   </div>
   <div id="home-live" hidden>
+    <div id="notices" class="notices" hidden></div>
     <div class="lobby-head">
       <h1 id="phase-title">Lobby</h1>
       <div class="facts" id="facts"></div>
     </div>
-    <div class="home-grid" style="margin-top:12px">
+    <div class="home-grid" style="margin-top:8px">
       <div class="left">
       <div class="card">
         <div class="row" style="justify-content:space-between;align-items:baseline"><h2>Players</h2><span class="muted" style="font-size:12.5px">Players link themselves in Discord: <b>/link</b> and their name or colour</span></div>
@@ -251,6 +260,13 @@ tr:last-child td{border-bottom:0}
   <div id="setup-view"></div>
   <div class="settings-grid">
     <div class="card">
+      <h2>The Button</h2>
+      <p class="muted" id="app-line" style="margin:0 0 8px"></p>
+      <div class="toggle"><div><b>Update automatically</b><span>New versions download by themselves and are used from the next start.</span></div><button class="b" id="app-auto"></button></div>
+      <p id="app-error" class="note bad" hidden style="margin-top:8px"></p>
+      <div class="row" style="margin-top:8px"><button class="b primary" id="app-restart" hidden>Restart to update</button><button class="b" id="app-update" hidden>Update now</button></div>
+    </div>
+    <div class="card">
       <h2>Files</h2>
       <div class="row"><button class="b" data-open="data">Data folder</button><button class="b" data-open="config">Config file</button><button class="b" data-open="log">Log</button></div>
     </div>
@@ -324,6 +340,9 @@ function renderAlerts() {
   else if (m.needsRepair) list.push(['bad', 'Mod needs repair']);
   if (m.installing) list.push(['', m.installing]);
   else if (m.updateAvailable) list.push(['', `New version available (${m.latest})`]);
+  const u = S.appUpdate || {};
+  if (u.ready) list.push(['', `The Button ${u.ready} is ready: restart`]);
+  else if (u.available && !u.auto) list.push(['', `The Button ${u.available} is out`]);
   if (!S.setup) list.push(['', 'No setup code installed']);
   else if (S.setup.error) list.push(['bad', 'Setup code damaged']);
   const a = S.status && S.status.autoMute;
@@ -373,6 +392,7 @@ function renderHome() {
   $('t-lead').onclick = () => cmd('lead');
 
   renderAutomute(st);
+  renderNotices(st);
 
   // Rebuild the player cards only when they change.
   const key = JSON.stringify(st.players.map(p => [p.name, p.color, p.dead, p.disconnected, p.discordId, p.discordName, p.isHost, p.referee, p.voice]));
@@ -384,6 +404,33 @@ function renderHome() {
         <div class="dc${p.discordId ? '' : ' none'}">${p.discordId ? '@' + esc(p.discordName || p.discordId) : 'not linked yet'}</div></div>
       ${p.voice ? `<span class="voice ${p.voice}" title="${p.voice}">${VOICE[p.voice]}</span>` : '<span></span>'}</div>`).join('')
     : '<p class="empty">Nobody in the lobby yet.</p>';
+}
+
+// ---- Warnings from the game (a player left, extra game, settings put back…) --------------------
+let dismissedNotice = 0;
+try { dismissedNotice = +localStorage.getItem('notice-dismissed') || 0; } catch (e) { }
+function dismissNotices(upTo) {
+  dismissedNotice = Math.max(dismissedNotice, upTo);
+  try { localStorage.setItem('notice-dismissed', String(dismissedNotice)); } catch (e) { }
+  noticesKey = ''; renderNotices(S.status);
+}
+let noticesKey = '', noticesOpen = false;
+function renderNotices(st) {
+  // One line with the newest; "N more" opens the rest. Keeps Home on one screen.
+  const all = (st && st.notices || []).filter(n => n.id > dismissedNotice).reverse();
+  const key = JSON.stringify([all.map(n => n.id), noticesOpen]);
+  if (key === noticesKey) return;
+  noticesKey = key;
+  if (!all.length) noticesOpen = false;
+  const shown = noticesOpen ? all : all.slice(0, 1);
+  const when = n => new Date(n.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  $('notices').hidden = !all.length;
+  $('notices').classList.toggle('open', noticesOpen);
+  $('notices').innerHTML = shown.map((n, i) => `<div class="notice"><span class="when">${when(n)}</span><span class="txt" title="${esc(n.text)}">${esc(n.text)}</span>`
+    + (i === 0 && all.length > 1 ? `<button class="more" data-more>${noticesOpen ? 'Show less' : `${all.length - 1} more`}</button>` : '<span></span>')
+    + `<button title="${i === 0 && all.length > 1 ? 'Dismiss all' : 'Dismiss'}" data-dismiss="${i === 0 ? all[0].id : n.id}">✕</button></div>`).join('');
+  $('notices').querySelectorAll('[data-dismiss]').forEach(b => b.onclick = () => dismissNotices(+b.dataset.dismiss));
+  $('notices').querySelectorAll('[data-more]').forEach(b => b.onclick = () => { noticesOpen = !noticesOpen; noticesKey = ''; renderNotices(S.status); });
 }
 
 // ---- Automute (on Home) --------------------------------------------------------------------
@@ -400,6 +447,7 @@ function renderAutomute(st) {
   $('mute-problem').textContent = a.voiceProblem || a.liveProblem || a.voiceWarning || '';
   $('mute-say').textContent = !a.configured ? 'Off: it needs a bot, which comes with a tournament host code.'
     : a.voiceProblem ? 'Not working: see below.'
+    : !a.enabled ? 'Off: the bot won\'t touch anyone\'s voice (players can use AutoMuteUs). Stays off until you turn it on.'
     : !a.voiceConnected ? 'Connecting to Discord voice…'
     : a.refereeMode ? 'Referee mode: only referees can talk.'
     : `${linked} of ${st.players.length} linked${linked < st.players.length ? ' · the rest type /link in Discord' : ''}`;
@@ -462,7 +510,20 @@ function renderSettings() {
   $('mod-result').className = 'note ' + (/^Installed/.test(m.installResult) ? 'good' : 'bad');
   $('conn-line').textContent = S.status ? `Connected to the mod in Among Us (mod ${S.status.version}).` : 'Among Us isn\'t running with the mod right now.';
   renderSetup();
+  renderAppUpdate();
 }
+function renderAppUpdate() {
+  const u = S.appUpdate || {};
+  $('app-line').textContent = `Version ${S.app || '?'}.` + (u.ready ? ` ${u.ready} is installed: restart to use it.` : u.busy ? ' Downloading the new version…' : u.available ? ` ${u.available} is out.` : ' Up to date.');
+  const auto = $('app-auto'); auto.textContent = u.auto ? 'On' : 'Off'; auto.classList.toggle('on', !!u.auto); auto.disabled = !u.supported;
+  auto.onclick = async () => { const r = await api('POST', '/app/autoupdate', { on: String(!u.auto) }); toast(r.message); refresh(); };
+  $('app-restart').hidden = !u.ready;
+  $('app-update').hidden = !(u.available && !u.ready && !u.busy);
+  $('app-error').hidden = !u.error; $('app-error').textContent = u.error || '';
+}
+$('app-restart').addEventListener('click', async () => { const r = await api('POST', '/app/restart'); toast(r.message); });
+$('app-update').addEventListener('click', async () => { const r = await api('POST', '/app/update'); toast(r.message); refresh(); });
+
 function yesNo(v) { return v ? 'On' : 'Off'; }
 const SETTINGS = [['impostors','Impostors'],['killCooldown','Kill cooldown (s)'],['killDistance','Kill distance',v => ['Short','Medium','Long'][v] ?? v],['playerSpeed','Player speed'],['crewmateVision','Crewmate vision'],['impostorVision','Impostor vision'],
   ['emergencyMeetings','Emergency meetings'],['emergencyCooldown','Emergency cooldown (s)'],['discussionTime','Discussion (s)'],['votingTime','Voting (s)'],['confirmEjects','Confirm ejects',yesNo],['anonymousVotes','Anonymous votes',yesNo],['visualTasks','Visual tasks',yesNo],
@@ -475,7 +536,7 @@ function renderSetup() {
   if (!s) { $('setup-view').innerHTML = ''; return; }
   if (s.error) { $('setup-view').innerHTML = `<p class="note bad">${esc(s.error)}</p>`; return; }
   const info = [['Kind', s.kind], ['Tournament', s.tournamentName], ['Tournament ID', s.tournamentId], s.server && ['Server', s.server],
-    ['Automute', s.bots ? 'On (organiser\'s bot)' : s.kind === 'Preliminary' ? 'Off (players can use AutoMuteUs)' : 'Off'], s.advanceCount && ['Move on per lobby', s.advanceCount],
+    ['Automute', s.bots ? `On (${s.bots} bot${s.bots > 1 ? 's' : ''})` : 'No bot (players can use AutoMuteUs)'], s.advanceCount && ['Move on per lobby', s.advanceCount],
     s.gamesPerRound && ['Games per round', s.gamesPerRound], ['Impostor rotation', yesNo(s.rotation)], s.kind !== 'Preliminary' && ['Lead lobby', s.lead ? 'Yes' : 'No']].filter(Boolean);
   const settings = s.settings ? SETTINGS.filter(([k]) => s.settings[k] != null).map(([k, l, f]) => `<tr><td>${l}</td><td style="text-align:right">${esc(f ? f(s.settings[k]) : s.settings[k])}</td></tr>`).join('') : '';
   $('setup-view').innerHTML = `<div class="settings-grid">

@@ -132,6 +132,7 @@ namespace TournamentTracker
         private void StartRoundFromChannel(int round)
         {
             if (round == Round) return;
+            PostWhereToGo(round);
             if (Tracker.InGame)
             {
                 _pendingRound = round;
@@ -139,6 +140,27 @@ namespace TournamentTracker
                 return;
             }
             ApplyRound(round);
+        }
+
+        /// <summary>
+        /// With a round start (!start), each lobby says where its players go: its voice channel
+        /// and lobby code. The lead lobby's message has already pinged everyone with their lobby.
+        /// </summary>
+        private void PostWhereToGo(int round)
+        {
+            if (string.IsNullOrWhiteSpace(_settings.StatsWebhookUrl)) return;
+            string? voice = GameVoiceChannel(Players);
+            string label = LobbyLabel();
+            if (voice == null && _lobbyCode.Length == 0) return;          // nothing useful to say yet
+            var parts = new List<string>();
+            if (voice != null) parts.Add($"voice <#{voice}>");
+            if (_lobbyCode.Length > 0) parts.Add($"lobby code `{_lobbyCode}`");
+            if (_map.Length > 0) parts.Add(_map);
+            Post(_settings.StatsWebhookUrl, new WebhookMessage
+            {
+                Username = ReportFormatter.BotName,
+                Content = $"**Round {round} · {(label.Length > 0 ? label + "'s lobby" : "Lobby")}:** join " + string.Join(" · ", parts),
+            });
         }
 
         private void ApplyRound(int round)

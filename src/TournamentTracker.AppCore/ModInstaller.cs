@@ -23,6 +23,8 @@ namespace TournamentTracker.App
     {
         public string Tag { get; set; } = "";
         public string BundleUrl { get; set; } = "";
+        /// <summary>The Button itself (TheButton.exe) in this release, if it has one.</summary>
+        public string? AppUrl { get; set; }
     }
 
     /// <summary>Installs and updates the mod (with its BepInEx loader) in the Among Us folder.</summary>
@@ -30,6 +32,7 @@ namespace TournamentTracker.App
     {
         public const string Repo = "Ljbutton/AU";
         public const string BundleName = "TournamentTracker-Full.zip";
+        public const string AppName = "TheButton.exe";
         private const string Marker = "installed.json";
         private readonly HttpClient _http;
 
@@ -81,7 +84,13 @@ namespace TournamentTracker.App
                 var asset = json.GetProperty("assets").EnumerateArray()
                     .FirstOrDefault(a => a.GetProperty("name").GetString() == BundleName);
                 if (asset.ValueKind != JsonValueKind.Object) return null;
-                return new Release { Tag = json.GetProperty("tag_name").GetString() ?? "", BundleUrl = asset.GetProperty("browser_download_url").GetString() ?? "" };
+                var app = json.GetProperty("assets").EnumerateArray().FirstOrDefault(a => a.GetProperty("name").GetString() == AppName);
+                return new Release
+                {
+                    Tag = json.GetProperty("tag_name").GetString() ?? "",
+                    BundleUrl = asset.GetProperty("browser_download_url").GetString() ?? "",
+                    AppUrl = app.ValueKind == JsonValueKind.Object ? app.GetProperty("browser_download_url").GetString() : null,
+                };
             }
             catch (Exception) { return null; }
         }

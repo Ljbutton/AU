@@ -162,6 +162,18 @@ public class SessionTests : IDisposable
     }
 
     [Fact]
+    public void Switching_automute_off_is_remembered()
+    {
+        var s = Session();
+        s.RunCommand("automute off");
+        Assert.False(s.AutoMute!.Enabled);
+        var again = Session();
+        Assert.False(again.AutoMute!.Enabled);                   // still off after a restart
+        again.RunCommand("automute on");
+        Assert.True(Session().AutoMute!.Enabled);
+    }
+
+    [Fact]
     public async Task Unmuteall_releases_everyone_and_switches_automute_off()
     {
         var s = Session();

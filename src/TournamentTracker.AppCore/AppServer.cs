@@ -23,6 +23,9 @@ namespace TournamentTracker.App
     {
         public string? GamePath { get; set; }
 
+        /// <summary>Download and install new versions of The Button by itself.</summary>
+        public bool AutoUpdateApp { get; set; } = true;
+
         public static AppSettings Load(string file)
         {
             try { if (File.Exists(file)) return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(file)) ?? new AppSettings(); }
@@ -48,6 +51,12 @@ namespace TournamentTracker.App
         /// <summary>Opens a folder, file or web link with Windows.</summary>
         public Action<string> Open { get; set; } = _ => { };
         public string Version { get; set; } = "";
+
+        /// <summary>The running TheButton.exe, so it can update itself. Null: no self-update (tests, other platforms).</summary>
+        public string? ExePath { get; set; }
+
+        /// <summary>Starts the new version and closes this one.</summary>
+        public Action Restart { get; set; } = () => { };
     }
 
     /// <summary>
@@ -65,7 +74,33 @@ namespace TournamentTracker.App
         private readonly AppSettings _settings;
         private readonly ModInstaller _installer;
         private readonly ModClient _mod;
+        private readonly HttpClient _http;
         private Release? _latest;
+
+        // The Button updating itself: the new exe is put in place next to the running one
+        // (Windows lets a running program be renamed, not overwritten) and used from the next start.
+        private volatile string? _appReady;
+        private volatile bool _appUpdating;
+        private volatile string? _appUpdateError;
+
+        private bool AppUpdateAvailable =>
+            _env.ExePath != null && _latest?.AppUrl != null && _appReady == null && Newer(_latest.Tag, _env.Version);
+
+        private async Task UpdateAppAsync()
+        {
+            var release = _latest;
+            string? exe = _env.ExePath;
+            if (_appUpdating || release?.AppUrl == null || exe == null) return;
+            _appUpdating = true;
+            _appUpdateError = null;
+            try
+            {
+                string error = await AppUpdater.InstallAsync(_http, release.AppUrl, exe).ConfigureAwait(false);
+                if (error.Length > 0) _appUpdateError = error;
+                else _appReady = release.Tag;
+            }
+            finally { _appUpdating = false; }
+        }
         private DateTime _latestChecked = DateTime.MinValue;
         private string _installing = "";
         private string _installResult = "";
@@ -77,6 +112,7 @@ namespace TournamentTracker.App
         public AppServer(AppEnvironment env, HttpClient http)
         {
             _env = env;
+            _http = http;
             _settings = AppSettings.Load(env.SettingsFile);
             _installer = new ModInstaller(http);
             _mod = new ModClient(http);
@@ -189,6 +225,19 @@ namespace TournamentTracker.App
                     return file == null || !ReplayName.IsMatch(name) ? Text(404, "text/plain", "Not found") : (200, "application/octet-stream", File.ReadAllBytes(file.FullName));
                 }
                 case ("POST", "/app/open"): return Ok(Open(Arg("what")));
+                case ("POST", "/app/update"):
+                    if (!AppUpdateAvailable) return Ok(new { ok = false, message = "The Button is up to date." });
+                    _ = Task.Run(UpdateAppAsync);
+                    return Ok(new { ok = true, message = "Downloading the new version of The Button…" });
+                case ("POST", "/app/restart"):
+                    if (_appReady == null) return Ok(new { ok = false, message = "No update is waiting." });
+                    _ = Task.Run(async () => { await Task.Delay(300).ConfigureAwait(false); _env.Restart(); });
+                    return Ok(new { ok = true, message = "Restarting…" });
+                case ("POST", "/app/autoupdate"):
+                    _settings.AutoUpdateApp = Arg("on") == "true";
+                    TrySave();
+                    if (_settings.AutoUpdateApp && AppUpdateAvailable) _ = Task.Run(UpdateAppAsync);
+                    return Ok(new { ok = true, message = _settings.AutoUpdateApp ? "The Button updates itself." : "Automatic updates are off: Settings shows when a new version is out." });
                 default: return Text(404, "application/json", "{\"error\":\"not found\"}");
             }
         }
@@ -200,7 +249,11 @@ namespace TournamentTracker.App
             if (DateTime.UtcNow - _latestChecked > TimeSpan.FromMinutes(20))
             {
                 _latestChecked = DateTime.UtcNow;
-                _ = Task.Run(async () => _latest = await _installer.LatestAsync().ConfigureAwait(false) ?? _latest);
+                _ = Task.Run(async () =>
+                {
+                    _latest = await _installer.LatestAsync().ConfigureAwait(false) ?? _latest;
+                    if (_settings.AutoUpdateApp && AppUpdateAvailable) await UpdateAppAsync().ConfigureAwait(false);
+                });
             }
             var mod = ModInstaller.State(GamePath);
             string? status = mod.Installed && GamePath != null ? await _mod.StatusAsync(GamePath).ConfigureAwait(false) : null;
@@ -217,6 +270,15 @@ namespace TournamentTracker.App
                     InstallResult = _installResult,
                 },
                 Setup = SetupView(),
+                AppUpdate = new
+                {
+                    Supported = _env.ExePath != null,
+                    Auto = _settings.AutoUpdateApp,
+                    Available = AppUpdateAvailable ? _latest!.Tag : null,
+                    Ready = _appReady,
+                    Busy = _appUpdating,
+                    Error = _appUpdateError,
+                },
                 Connected = status != null,
                 Status = status == null ? (JsonElement?)null : JsonDocument.Parse(status).RootElement,
             };

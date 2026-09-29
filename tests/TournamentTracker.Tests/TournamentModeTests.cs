@@ -449,6 +449,21 @@ public class TournamentModeTests : IDisposable
     }
 
     [Fact]
+    public async Task At_a_round_start_each_lobby_says_where_to_go()
+    {
+        var settings = new TrackerSettings { LiveStatus = false, ChatCommands = true, ControlPort = -1 };
+        settings.AutoMute.VoiceChannelId = "vc55";
+        var presence = new VoicePresenceState("g1") { Connected = true };
+        var s = new TournamentSession(settings, _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now, new FakeVoiceApi(), presence, TournamentCode());
+        _sessions.Add(s);
+        s.VoiceTick(VoicePhase.Lobby, Lobby("LJ"), "QWERTY", "Polus");
+        s.HandleChannelMessage(Typed("!start 3"));
+        await s.PendingPosts;
+        var join = _discord.Webhooks.Select(w => w.Payload.TryGetProperty("content", out var c) ? c.GetString() : null).Last(c => c != null && c.Contains("join"));
+        Assert.Equal("**Round 3 · LJ's lobby:** join voice <#vc55> · lobby code `QWERTY` · Polus", join);
+    }
+
+    [Fact]
     public async Task Lead_passes_to_whoever_types_lead_in_game()
     {
         var code = TournamentCode();

@@ -103,16 +103,26 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <div class="field"><label for="p-guild">Server ID</label><input type="text" id="p-guild" class="mono" inputmode="numeric" placeholder="1180000000000000000"><span class="bad" id="p-guild-bad" hidden></span></div>
       <div class="field"><label for="p-token">Bot token</label><input type="password" id="p-token" class="mono" placeholder="MTIz…"><span class="hint">Your bot, invited to this preliminary's server with the link in the README.</span></div>
     </div>
+    <div class="row">
+      <div class="field"><label for="p-token2">Second bot token (optional)</label><input type="password" id="p-token2" class="mono" placeholder="MTIz…"></div>
+      <div class="field"><label for="p-token3">Third bot token (optional)</label><input type="password" id="p-token3" class="mono" placeholder="MTIz…"></div>
+    </div>
     <div class="field"><label for="p-status">Live lobby channel webhook (optional)</label><input type="text" id="p-status" class="mono" placeholder="https://discord.com/api/webhooks/…"><span class="hint">A channel where the lobby's live message goes, with the "Select your in-game colour" menu. Without it, players link with <code>/link</code>.</span><span class="bad" id="p-status-bad" hidden></span></div>
   </fieldset>
 
   <fieldset class="tournament-only" hidden>
-    <legend>Your bot</legend>
+    <legend>Your bot (optional)</legend>
+    <p class="hint" style="margin:0">Without a bot, games are still tracked, scored and reported, and the host still has the app. The bot adds automute, <b>/link</b>, <b>/new</b> and the colour menu, the combined standings across lobbies, and the referee commands in the private results channel.</p>
     <div class="row">
       <div class="field"><label for="guild">Server ID</label><input type="text" id="guild" class="mono" inputmode="numeric" placeholder="1180000000000000000"><span class="bad" id="guild-bad" hidden></span></div>
       <div class="field"><label for="results">Private results channel ID</label><input type="text" id="results" class="mono" inputmode="numeric" placeholder="1290000000000000000"><span class="bad" id="results-bad" hidden></span></div>
     </div>
-    <div class="field"><label for="token">Bot token</label><input type="password" id="token" class="mono" placeholder="MTIz…"><span class="hint">One bot per lobby that runs at the same time is fastest. Invite it with the link in the README (it adds the <b>/link</b> command players use to link themselves). The token never leaves this page except inside the code.</span></div>
+    <div class="field"><label for="token">Bot token</label><input type="password" id="token" class="mono" placeholder="MTIz…"><span class="hint">Invite it with the link in the README. The token never leaves this page except inside the code.</span></div>
+    <div class="row">
+      <div class="field"><label for="token2">Second bot token (optional)</label><input type="password" id="token2" class="mono" placeholder="MTIz…"></div>
+      <div class="field"><label for="token3">Third bot token (optional)</label><input type="password" id="token3" class="mono" placeholder="MTIz…"></div>
+    </div>
+    <p class="hint" style="margin:-6px 0 0">Discord limits how fast one bot can mute people, so 2 or 3 bots mute a full lobby noticeably faster: the work is shared between them. Each extra bot needs inviting to the server too. Give every lobby its own bots.</p>
     <div class="field"><label for="prelims">Preliminary channel IDs</label><input type="text" id="prelims" class="mono" placeholder="1290000000000000001, 1290000000000000002"><span class="hint">Where preliminary reports went; used for server standings. Comma separated.</span><span class="bad" id="prelims-bad" hidden></span></div>
     <div class="row">
       <div class="field"><label for="advance">Players who move on per lobby</label><input type="number" id="advance" min="1" max="10" value="5"></div>
@@ -262,10 +272,11 @@ function build() {
     const psOk = /^https:\/\/(ptb\.|canary\.)?discord(app)?\.com\/api\/webhooks\/\d+\/[\w-]+/.test(ps);
     show('p-guild-bad', pg && !snowflake(pg) ? 'Server IDs are long numbers (right-click the server → Copy Server ID).' : '');
     show('p-status-bad', ps && !psOk ? "That isn't a Discord webhook URL." : '');
-    if (pg || pt) {
-      if (!snowflake(pg)) problems.push('Automute: add the server ID (or clear the bot token).');
-      if (pt.split('.').length < 3) problems.push('Automute: add the bot token (or clear the server ID).');
-      code.g = pg; code.bt = [pt];
+    const pts = [pt, $('p-token2').value.trim(), $('p-token3').value.trim()].filter(Boolean);
+    if (pg || pts.length) {
+      if (!snowflake(pg)) problems.push('Automute: add the server ID (or clear the bot tokens).');
+      if (!pts.length || pts.some(t => t.split('.').length < 3)) problems.push('Automute: a bot token looks wrong (or clear the server ID).');
+      code.g = pg; code.bt = pts;
       if (psOk) code.sw = ps;
     }
   } else {
@@ -273,10 +284,16 @@ function build() {
     show('guild-bad', guild && !snowflake(guild) ? 'Server IDs are long numbers (right-click the server → Copy Server ID).' : '');
     show('results-bad', results && !snowflake(results) ? 'Channel IDs are long numbers (right-click the channel → Copy Channel ID).' : '');
     show('prelims-bad', prelims.some(p => !snowflake(p)) ? 'Each channel ID is a long number.' : '');
-    if (!snowflake(guild)) problems.push('Add your server ID.');
-    if (token.split('.').length < 3) problems.push('Add the bot token.');
-    if (!snowflake(results)) problems.push('Add the private results channel ID.');
-    code.g = guild; code.bt = [token]; code.rc = results;
+    const tokens = [token, $('token2').value.trim(), $('token3').value.trim()].filter(Boolean);
+    if (tokens.length) {
+      if (!snowflake(guild)) problems.push('Add your server ID (the bot needs it).');
+      if (tokens.some(t => t.split('.').length < 3)) problems.push("A bot token looks wrong: copy it again from the Developer Portal.");
+      code.g = guild; code.bt = tokens;
+      if (results) { if (!snowflake(results)) problems.push('The private results channel ID should be a long number.'); else code.rc = results; }
+    } else if (guild || results) {
+      if (snowflake(guild)) code.g = guild;
+      if (results) problems.push('The private results channel needs a bot: add a bot token, or clear the channel ID.');
+    }
     if (prelims.length) code.pc = prelims;
     code.adv = Math.max(1, Math.min(10, parseInt($('advance').value, 10) || 5));
     const refs = ids($('refs').value); if (refs.length) code.ref = refs;
@@ -308,7 +325,8 @@ function build() {
   const st = $('status');
   st.className = 'status ' + (ready ? 'ok' : 'no');
   st.textContent = ready
-    ? (k === 'prelim' ? `Ready: ${name}, preliminary in ${code.srv || 'an unnamed server'}${code.bt ? ', with automute' : ''}.` : `Ready: ${name}, tournament host with automute.`)
+    ? (k === 'prelim' ? `Ready: ${name}, preliminary in ${code.srv || 'an unnamed server'}${code.bt ? ', with automute' : ''}.`
+       : `Ready: ${name}, tournament host${code.bt ? ` with ${code.bt.length} bot${code.bt.length > 1 ? 's' : ''}` : ', no bot (no automute or combined standings)'}.`)
     : problems[0];
   $('toast').textContent = '';
 }
@@ -341,8 +359,11 @@ $('load-btn').addEventListener('click', () => {
     $(c.m === 'tournament' ? 'kind-tournament' : 'kind-prelim').checked = true;
     $('name').value = c.n || ''; $('server').value = c.srv || ''; $('tid').value = c.id || ''; idEdited = !!c.id;
     $('webhook').value = c.wh || ''; $('guild').value = c.g || ''; $('results').value = c.rc || '';
-    $('token').value = (c.bt || [])[0] || ''; $('prelims').value = (c.pc || []).join(', ');
-    $('p-guild').value = c.m === 'tournament' ? '' : c.g || ''; $('p-token').value = c.m === 'tournament' ? '' : (c.bt || [])[0] || ''; $('p-status').value = c.sw || '';
+    const bt = c.bt || [], tour = c.m === 'tournament';
+    $('token').value = tour ? bt[0] || '' : ''; $('token2').value = tour ? bt[1] || '' : ''; $('token3').value = tour ? bt[2] || '' : '';
+    $('prelims').value = (c.pc || []).join(', ');
+    $('p-guild').value = tour ? '' : c.g || ''; $('p-token').value = tour ? '' : bt[0] || ''; $('p-token2').value = tour ? '' : bt[1] || ''; $('p-token3').value = tour ? '' : bt[2] || '';
+    $('p-status').value = c.sw || '';
     $('advance').value = c.adv || 5; $('refs').value = (c.ref || []).join(', ');
     $('gpr').value = c.gpr || 3; $('lead').checked = !!c.lead; $('rot').checked = !!c.rot; $('lock').checked = !!c.set;
     if (c.set) for (const [k, v] of Object.entries(c.set)) { const el = $('s-' + k); if (!el) continue; if (el.type === 'checkbox') el.checked = !!v; else el.value = v; }

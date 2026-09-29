@@ -23,6 +23,28 @@ namespace TournamentTracker
         private volatile string _statusJson = "{}";
         private DateTime _nextStatusJson;
         private ControlServer? _control;
+
+        // Warnings and news for the host (a player left, extra game, settings put back…), shown on Home.
+        private readonly List<(long Seq, DateTime At, string Text)> _notices = new List<(long, DateTime, string)>();
+        private long _noticeSeq;
+        private bool _answeringApp;
+        private static readonly TimeSpan NoticeLife = TimeSpan.FromMinutes(20);
+
+        private void AddNotice(string text)
+        {
+            lock (_activityLock)
+            {
+                _notices.Add((++_noticeSeq, _clock(), text));
+                if (_notices.Count > 8) _notices.RemoveAt(0);
+            }
+        }
+
+        private List<object> NoticesForApp()
+        {
+            var now = _clock();
+            lock (_activityLock)
+                return _notices.Where(n => now - n.At < NoticeLife).Select(n => (object)new { id = n.Seq, at = n.At.ToString("o"), text = n.Text }).ToList();
+        }
         private VoicePhase _phase = VoicePhase.Menu;
         private string _lobbyCode = "", _map = "";
 
@@ -69,8 +91,10 @@ namespace TournamentTracker
             lock (_activityLock) before = _activitySeq;
             _mainThread.Enqueue(() =>
             {
+                _answeringApp = true;
                 try { RunCommand(command); }
                 catch (Exception e) { Log("That didn't work: " + e.Message); }
+                finally { _answeringApp = false; }
                 RefreshStatus();
                 done.TrySetResult(0);
             });
@@ -147,6 +171,7 @@ namespace TournamentTracker
                 Shared = Shared != null,
                 LastGame = last == null ? null : new { last.Name, last.Winner, last.Voided, last.Counted },
                 Points = PointsForApp(),
+                Notices = NoticesForApp(),
             }, ApiJson);
         }
 

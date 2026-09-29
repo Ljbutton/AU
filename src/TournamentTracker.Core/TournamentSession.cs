@@ -80,6 +80,8 @@ namespace TournamentTracker
             {
                 _dispatcher = new MuteDispatcher(voiceApi ?? new DiscordVoiceApi(_rest, mute.GuildId), mute.BotTokens, log);
                 AutoMute = new AutoMuteController(mute, Links, _dispatcher, _clock);
+                // Switched off by the host before: stays off (the bot never touches voice).
+                if (_autoMuteOff) AutoMute.Enabled = false;
                 _log.Info($"Automute ready with {mute.BotTokens.Count} bot token(s)");
 
                 // Spectator muting and auto-link need to see who is in voice; that only
@@ -347,6 +349,8 @@ namespace TournamentTracker
         private void Reply(string text, bool isPublic, bool lobbyChat)
         {
             Log(text);
+            // Something the game said on its own (not an answer to a button): Home shows it.
+            if (!_answeringApp) AddNotice(text);
             _outbox.Add(new ChatReply(text, isPublic && (_settings.PublicChat || (lobbyChat && _phase == VoicePhase.Lobby))));
         }
 

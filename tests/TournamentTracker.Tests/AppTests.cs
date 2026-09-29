@@ -231,3 +231,36 @@ public class AppVersionTests
     public void Offers_an_update_only_for_a_newer_release(string latest, string? installed, bool newer) =>
         Assert.Equal(newer, AppServer.Newer(latest, installed));
 }
+public class AppUpdaterTests : IDisposable
+{
+    private readonly TempDir _dir = new();
+    public void Dispose() => _dir.Dispose();
+
+    [Fact]
+    public async Task A_new_version_replaces_the_running_one_and_the_old_one_is_cleaned_up_later()
+    {
+        string exe = Path.Combine(_dir.Path, "TheButton.exe");
+        File.WriteAllText(exe, "old version");
+        var newExe = new byte[2 * 1024 * 1024]; newExe[0] = (byte)'M'; newExe[1] = (byte)'Z';
+        var http = new HttpClient(new FakeHttp { Default = _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(newExe) } });
+
+        Assert.Equal("", await AppUpdater.InstallAsync(http, "https://github.com/x/TheButton.exe", exe));
+        Assert.Equal(newExe.Length, new FileInfo(exe).Length);
+        Assert.Equal("old version", File.ReadAllText(AppUpdater.OldPath(exe)));   // kept until the next start
+        AppUpdater.CleanUp(exe);
+        Assert.False(File.Exists(AppUpdater.OldPath(exe)));
+    }
+
+    [Fact]
+    public async Task A_bad_download_leaves_the_app_alone()
+    {
+        string exe = Path.Combine(_dir.Path, "TheButton.exe");
+        File.WriteAllText(exe, "old version");
+        var http = new HttpClient(new FakeHttp { Default = _ => FakeHttp.Json(HttpStatusCode.OK, "<html>not a program</html>") });
+        Assert.StartsWith("The download wasn't a complete copy", await AppUpdater.InstallAsync(http, "https://github.com/x/TheButton.exe", exe));
+        Assert.Equal("old version", File.ReadAllText(exe));
+        Assert.False(File.Exists(exe + ".download"));
+        var down = new HttpClient(new FakeHttp { Default = _ => FakeHttp.Json(HttpStatusCode.NotFound, "{}") });
+        Assert.Contains("404", await AppUpdater.InstallAsync(down, "https://github.com/x/TheButton.exe", exe));
+    }
+}

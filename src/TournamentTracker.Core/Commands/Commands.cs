@@ -254,8 +254,13 @@ namespace TournamentTracker
                 return;
             }
             string arg = args.FirstOrDefault()?.ToLowerInvariant() ?? "";
-            if (arg == "on" || arg == "off") AutoMute.Enabled = arg == "on";
-            Reply($"Automute is {(AutoMute.Enabled ? "ON" : "OFF")}.", false);
+            if (arg == "on" || arg == "off")
+            {
+                AutoMute.Enabled = arg == "on";
+                _autoMuteOff = !AutoMute.Enabled;
+                SaveState();
+            }
+            Reply(AutoMute.Enabled ? "Automute is ON." : "Automute is OFF: the bot won't touch anyone's voice (you can use AutoMuteUs instead). It stays off until you turn it on.", false);
         }
 
         private void RefereeCommand(PlayerSnapshot sender, string[] args)

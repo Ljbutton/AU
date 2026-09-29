@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.7**, a beta.
+The current release is **v0.1.8**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -49,9 +49,15 @@ found", "Setup code damaged", "Discord bot refused" (the bot's token was reset: 
 needs a new code) or "Referee commands not heard" (the bot's Message Content Intent is off).
 Click one to go where it's fixed.
 
+**The Button updates itself.** When a new version is out it downloads it and uses it from
+the next start (Settings → The Button: "Restart to update"). Turn **Update automatically**
+off there to update only when you choose.
+
 While you play, the app's pages run the lobby:
 
-* **Home:** the whole lobby on one page, up to 15 players: code, map, round, each player
+* **Home:** a line at the top with the game's latest warnings (a player left and whether to
+  void, an extra game, settings put back…; "N more" opens the rest, ✕ dismisses), and the
+  whole lobby on one page, up to 15 players: code, map, round, each player
   as their crewmate with their Discord link and whether automute has them muted or deafened;
   the automute buttons (automute on/off, referee mode, spectator muting, unmute everyone);
   start the next round; void or unvoid a game; the settings lock, referee ghost slot,
@@ -117,9 +123,13 @@ Open `docs/setup-codes.html` (the setup code generator) in a browser and fill it
     host's game then mutes Discord itself, and players link with `/link` or the menu. Leave
     it empty and the preliminary works exactly as before (players can use AutoMuteUs). A
     code with a bot token in it must be sent privately.
-* **Tournament host code:** the tournament name, the results channel webhook, your server
-  ID, one bot's token, the private results channel and the preliminary channels. It
-  contains the bot token, so send it privately.
+* **Tournament host code:** the tournament name, the results channel webhook, and
+  optionally your server ID, up to 3 bot tokens, the private results channel and the
+  preliminary channels. The bot is optional: without one, games are still tracked, scored
+  and reported, and the host has the whole app, but there's no automute, no `/link`, `/new`
+  or colour menu, no combined standings and no referee commands. 2 or 3 bots mute a full
+  lobby faster (Discord limits each bot's speed; the work is shared). A code with a bot
+  token in it must be sent privately.
 
 Both carry the point values, so every host scores the same, and the game settings (below).
 Tournament host codes also carry the games per round and, for one host only (you), the
@@ -192,6 +202,10 @@ private results channel.
   if it's before the first meeting; the referees get a note. A player who leaves keeps
   the points they'd earned and takes their team's loss (and the sabotage penalty if they
   left alive), but doesn't share a win.
+* **Automute on or off:** the host can switch automute off on Home (the Automute button);
+  it stays off, even after restarting, until they switch it on again. While it's off the bot
+  never touches anyone's voice, so AutoMuteUs can be used instead; linking, the live
+  message and the results channel still work.
 * **Next round's lobbies** (from the private results channel, any device; answered by the
   lead lobby's mod):
   * `!lobbies 3` puts everyone who moved on from round 2 into lobbies of 10, snake-seeded
@@ -202,6 +216,8 @@ private results channel.
   * `!start 3 in 10` switches every lobby's mod to round 3 (after the current game if one
     is running) and pings each lobby's linked players in the tournament channel with their
     lobby and host, then again when it starts. `!start 3` on its own says it's starting now.
+    Each lobby's own game then posts where to go: "**Round 3 · LJ's lobby:** join voice
+    #lobby-1 · lobby code `QWERTY` · Polus" (its voice channel is the one its host is in).
   * **Take over** (Lead lobby, on Home) makes that host's mod the one that answers from then on.
   This needs the bot's Message Content Intent (already needed for the results channel).
 * **Server standings:** **Servers** on Home (and each new round) posts servers ranked by their
