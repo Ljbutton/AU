@@ -36,7 +36,7 @@ namespace TournamentTracker
         /// <summary>The settings the tournament uses today.</summary>
         public static LobbySettings TournamentDefaults() => new LobbySettings
         {
-            Impostors = 2, ConfirmEjects = false, EmergencyMeetings = 1, AnonymousVotes = false, EmergencyCooldown = 20,
+            Impostors = 2, ConfirmEjects = false, EmergencyMeetings = 1, AnonymousVotes = true, EmergencyCooldown = 20,
             DiscussionTime = 15, VotingTime = 150, PlayerSpeed = 1.25f, CrewmateVision = 0.25f, ImpostorVision = 1f,
             KillCooldown = 25f, KillDistance = 0, VisualTasks = false, CommonTasks = 2, LongTasks = 3, ShortTasks = 5, RolesOff = true,
         };
