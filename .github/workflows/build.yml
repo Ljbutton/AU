@@ -85,12 +85,13 @@ jobs:
         run: |
           set -euo pipefail
           # BepInEx be.735, the build Among Us mods use, straight from BepInEx's build server.
+          # Among Us is a 32-bit game, so it must be the win-x86 build: the x64 one never loads.
           href=$(curl -fsSL https://builds.bepinex.dev/projects/bepinex_be \
-            | grep -oE 'href="[^"]*BepInEx-Unity\.IL2CPP-win-x64-6\.0\.0-be\.735[^"]*\.zip"' | head -1 | sed -E 's/^href="//; s/"$//') || true
+            | grep -oE 'href="[^"]*BepInEx-Unity\.IL2CPP-win-x86-6\.0\.0-be\.735[^"]*\.zip"' | head -1 | sed -E 's/^href="//; s/"$//') || true
           case "$href" in
             http*) url="$href" ;;
             /*) url="https://builds.bepinex.dev$href" ;;
-            "") url="https://builds.bepinex.dev/projects/bepinex_be/735/BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.735%2B5fef357.zip" ;;
+            "") url="https://builds.bepinex.dev/projects/bepinex_be/735/BepInEx-Unity.IL2CPP-win-x86-6.0.0-be.735%2B5fef357.zip" ;;
             *) url="https://builds.bepinex.dev/projects/bepinex_be/$href" ;;
           esac
           echo "BepInEx from $url"
@@ -99,6 +100,9 @@ jobs:
           mkdir -p "$full"
           unzip -q bepinex.zip -d "$full"
           test -f "$full/winhttp.dll"
+          # Refuse to ship a 64-bit loader: "PE32 executable ... Intel 80386" is 32-bit, "PE32+ ... x86-64" is not.
+          file "$full/winhttp.dll"
+          file "$full/winhttp.dll" | grep -q 'Intel 80386' || { echo "::error::BepInEx loader is not 32-bit"; exit 1; }
           mkdir -p "$full/BepInEx/plugins"
           cp src/TournamentTracker.Plugin/bin/Release/net6.0/TournamentTracker.dll "$full/BepInEx/plugins/"
           (cd "$full" && zip -qr ../TournamentTracker-Full.zip .)

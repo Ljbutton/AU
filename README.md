@@ -33,7 +33,8 @@ Windows shows "Windows protected your PC", click **More info → Run anyway**.
 It finds Among Us (Steam or Epic Games, including Steam games on other drives), downloads
 the mod together with the mod loader it needs (BepInEx 6 build 735), and installs both. If
 it can't find the game it asks you to pick the folder. Run it again any time to update;
-your settings, links and stats are kept.
+your settings, links and stats are kept. (If you installed before v1.1.0, run it again: those
+releases shipped the 64-bit BepInEx, which Among Us can't load.)
 
 At the end it asks for your **setup code**: paste the code the organiser gave you. That's
 all the setup there is. Then start Among Us and host a lobby. The first start takes a few
@@ -47,7 +48,7 @@ new code and type `!setup` in the lobby chat. Without a code, the mod uses the s
 
 1. Download `TournamentTracker-Full.zip` from the latest release and extract everything
    into the Among Us folder (the one with `Among Us.exe`). It contains BepInEx and the mod.
-2. Or, if you already have **BepInEx 6 bleeding-edge build 735 (IL2CPP)**, only
+2. Or, if you already have **BepInEx 6 bleeding-edge build 735 (IL2CPP, the win-x86 build: Among Us is 32-bit)**, only
    `TournamentTracker-*.zip` is needed: it puts `BepInEx/plugins/TournamentTracker.dll` in
    place.
 
