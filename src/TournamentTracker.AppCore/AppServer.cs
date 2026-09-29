@@ -148,6 +148,7 @@ namespace TournamentTracker.App
                     + Resource("ui/viewer-body.html") + "</body></html>");
             if (method == "GET" && route == "/fonts/amatic-sc-700.woff2")
                 return (200, "font/woff2", ResourceBytes("ui/fonts/amatic-sc-700.woff2"));
+            if (method == "GET" && route == "/logo.png") return (200, "image/png", ResourceBytes("ui/logo.png"));
             var crew = Regex.Match(route, @"^/crew/(\d{1,2})\.png$");
             if (method == "GET" && crew.Success)
             {
