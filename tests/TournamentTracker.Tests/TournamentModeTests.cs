@@ -150,6 +150,30 @@ public class SetupCodeTests
     }
 
     [Fact]
+    public void Automute_is_optional_in_preliminaries()
+    {
+        // Without a bot: exactly as before, automute stays whatever the host's config says (off).
+        var plain = new TrackerSettings();
+        new SetupCode { TournamentId = "p", TournamentName = "Prelims", Server = "S", Webhook = "https://discord.com/api/webhooks/2/y" }.ApplyTo(plain);
+        Assert.False(plain.AutoMute.IsConfigured);
+        Assert.False(plain.LiveStatus);
+
+        // With the organiser's bot (and a channel for the live lobby message): automute and the colour menu.
+        var code = new SetupCode { TournamentId = "p", TournamentName = "Prelims", Server = "S", Webhook = "https://discord.com/api/webhooks/2/y",
+            GuildId = "118", BotTokens = new() { "a.b.c" }, StatusWebhook = "https://discord.com/api/webhooks/3/z" };
+        Assert.True(SetupCode.TryParse(code.Encode(), out var read, out _));
+        var withBot = new TrackerSettings();
+        read.ApplyTo(withBot);
+        Assert.Equal(TrackerMode.Preliminary, withBot.Mode);
+        Assert.True(withBot.AutoMute.IsConfigured);
+        Assert.True(withBot.LiveStatus);
+        Assert.Equal("https://discord.com/api/webhooks/3/z", withBot.StatusWebhookUrl);
+        Assert.Equal("https://discord.com/api/webhooks/2/y", withBot.StatsWebhookUrl);   // reports still go to the preliminary channel
+        Assert.Equal("", withBot.ResultsChannelId);
+        Assert.Equal("Prelims (preliminary in S, automute on)", read.Describe());
+    }
+
+    [Fact]
     public void A_preliminary_code_switches_to_preliminary_mode()
     {
         var settings = new TrackerSettings { LiveStatus = true, ResultsChannelId = "x", PostLeaderboardAfterEachGame = true };

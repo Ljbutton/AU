@@ -114,8 +114,8 @@ namespace TournamentTracker.Discord
             s.Emojis != null && s.Emojis.TryGetValue(colorId, out var id) && id.Length > 0 ? id : null;
 
         /// <summary>
-        /// A menu of the lobby's colours, like AutoMuteUs: picking one links whoever clicked to
-        /// that player. The last option unlinks them.
+        /// A menu of the colours in the lobby right now, like AutoMuteUs: picking one links
+        /// whoever clicked to that player (replacing anyone linked to it before).
         /// </summary>
         private static List<object> LinkMenu(StatusInfo s)
         {
@@ -131,7 +131,6 @@ namespace TournamentTracker.Discord
                 if (EmojiId(s, p.Player.ColorId) is string emoji) option["emoji"] = new { id = emoji, name = EmojiName(p.Player.ColorId) };
                 return (object)option;
             }).ToList();
-            options.Add(new Dictionary<string, object> { ["label"] = "Unlink me", ["value"] = "unlink", ["description"] = "Remove your link in this lobby", ["emoji"] = new { name = "✖️" } });
             return new List<object>
             {
                 new

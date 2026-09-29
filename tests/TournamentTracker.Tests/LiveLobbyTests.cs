@@ -243,7 +243,9 @@ public class LiveLobbyTests : IDisposable
         Assert.StartsWith("Linked you to Pink (Dana)", s.HandleSlashCommand(Slash("link", "100", "someone", "pink")));
         Assert.Equal("100", s.Links.Find(_lobby[3].Key)?.DiscordUserId);
         Assert.StartsWith("Linked you to Blue (Bob)", s.HandleSlashCommand(Slash("link", "101", "other", "bob")));
-        Assert.Contains("already linked", s.HandleSlashCommand(Slash("link", "101", "other", "pink")));
+        Assert.Contains("(replacing @someone)", s.HandleSlashCommand(Slash("link", "101", "other", "pink")));
+        Assert.Equal("101", s.Links.Find(_lobby[3].Key)?.DiscordUserId);
+        Assert.StartsWith("Linked you to Pink (Dana)", s.HandleSlashCommand(Slash("link", "100", "someone", "pink")));
         Assert.Contains("No one in", s.HandleSlashCommand(Slash("link", "100", "someone", "Zed")));
 
         Assert.Equal("Unlinked you from Dana.", s.HandleSlashCommand(Slash("unlink", "100", "someone")));
@@ -433,10 +435,9 @@ public class LiveLobbyTests : IDisposable
         var menu = JsonDocument.Parse(post.Body).RootElement.GetProperty("components")[0].GetProperty("components")[0];
         Assert.Equal(s.LinkMenuId, menu.GetProperty("custom_id").GetString());
         var options = menu.GetProperty("options");
-        Assert.Equal(7, options.GetArrayLength());                                   // 6 colours and "Unlink me"
+        Assert.Equal(6, options.GetArrayLength());                                   // only the colours in the lobby
         Assert.Equal("Red", options[0].GetProperty("label").GetString());
         Assert.Equal("Alice", options[0].GetProperty("description").GetString());
-        Assert.Equal("unlink", options[6].GetProperty("value").GetString());
 
         var pick = new Interaction { Command = "menu", CustomId = s.LinkMenuId, UserId = "300", UserName = "carl.au" };
         pick.Values.Add("2");
@@ -446,13 +447,12 @@ public class LiveLobbyTests : IDisposable
 
         var steal = new Interaction { Command = "menu", CustomId = s.LinkMenuId, UserId = "301", UserName = "someone" };
         steal.Values.Add("2");
-        Assert.StartsWith("Green (Carl) is already linked to @carl.au", s.HandleLinkMenu(steal));
+        Assert.Equal("Linked you to Green (Carl) (replacing @carl.au). Automute will follow you from now on.", s.HandleLinkMenu(steal));
+        Assert.Equal("301", s.Links.Find(_lobby[2].Key)?.DiscordUserId);          // the newest pick wins
+        Assert.Null(s.Links.FindByDiscordId("300"));
         var gone = new Interaction { Command = "menu", CustomId = s.LinkMenuId, UserId = "301", UserName = "someone" };
         gone.Values.Add("12");
         Assert.StartsWith("Nobody is Maroon in the lobby now", s.HandleLinkMenu(gone));
-        var unlink = new Interaction { Command = "menu", CustomId = s.LinkMenuId, UserId = "300", UserName = "carl.au" };
-        unlink.Values.Add("unlink");
-        Assert.Equal("Unlinked you from Carl.", s.HandleLinkMenu(unlink));
     }
 
     [Fact]

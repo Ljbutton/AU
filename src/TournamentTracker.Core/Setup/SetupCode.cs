@@ -41,6 +41,9 @@ namespace TournamentTracker.Setup
         // Tournament host codes only.
         [JsonPropertyName("g")] public string? GuildId { get; set; }
         [JsonPropertyName("bt")] public List<string>? BotTokens { get; set; }
+
+        /// <summary>Preliminaries with automute: where the live lobby message (with the colour menu) goes. Optional.</summary>
+        [JsonPropertyName("sw")] public string? StatusWebhook { get; set; }
         [JsonPropertyName("rc")] public string? ResultsChannelId { get; set; }
         [JsonPropertyName("pc")] public List<string>? PrelimChannelIds { get; set; }
         [JsonPropertyName("adv")] public int? AdvanceCount { get; set; }
@@ -64,7 +67,7 @@ namespace TournamentTracker.Setup
         public string Describe() =>
             IsTournament
                 ? $"{TournamentName} (tournament host{(BotTokens?.Count > 0 ? ", automute on" : "")})"
-                : $"{TournamentName} (preliminary{(string.IsNullOrWhiteSpace(Server) ? "" : " in " + Server)})";
+                : $"{TournamentName} (preliminary{(string.IsNullOrWhiteSpace(Server) ? "" : " in " + Server)}{(BotTokens?.Count > 0 ? ", automute on" : "")})";
 
         public string Encode()
         {
@@ -147,6 +150,22 @@ namespace TournamentTracker.Setup
                 s.LiveFeedWebhookUrl = "";
                 s.PostLeaderboardAfterEachGame = false;
                 s.ResultsChannelId = "";
+
+                // Automute is optional in preliminaries: only when the organiser put a bot in the
+                // code. Everything else works the same without it (players can use AutoMuteUs).
+                if (BotTokens?.Count > 0 && !string.IsNullOrWhiteSpace(GuildId))
+                {
+                    s.AutoMute.GuildId = GuildId!;
+                    s.AutoMute.BotTokens = BotTokens.ToList();
+                    s.AutoMute.Enabled = true;
+                    if (RefereeUserIds != null) s.AutoMute.RefereeUserIds = RefereeUserIds.ToList();
+                    // A channel for the live lobby message, so players can pick their colour to link.
+                    if (StatusWebhook != null && StatusWebhook.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    {
+                        s.StatusWebhookUrl = StatusWebhook;
+                        s.LiveStatus = true;
+                    }
+                }
             }
         }
 

@@ -96,6 +96,16 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <div class="field"><label for="webhook">Report channel webhook</label><input type="text" id="webhook" class="mono" placeholder="https://discord.com/api/webhooks/…"><span class="hint">Channel settings → Integrations → Webhooks → Copy URL. Preliminaries: your preliminary channel. Tournament: your results channel for players.</span><span class="bad" id="webhook-bad" hidden></span></div>
   </fieldset>
 
+  <fieldset class="prelim-only">
+    <legend>Automute (optional)</legend>
+    <p class="hint" style="margin:0">Leave these empty and the preliminary works as before: players use AutoMuteUs if they want it. Fill them in to have this host's game mute Discord itself, and to let players link by picking their colour.</p>
+    <div class="row">
+      <div class="field"><label for="p-guild">Server ID</label><input type="text" id="p-guild" class="mono" inputmode="numeric" placeholder="1180000000000000000"><span class="bad" id="p-guild-bad" hidden></span></div>
+      <div class="field"><label for="p-token">Bot token</label><input type="password" id="p-token" class="mono" placeholder="MTIz…"><span class="hint">Your bot, invited to this preliminary's server with the link in the README.</span></div>
+    </div>
+    <div class="field"><label for="p-status">Live lobby channel webhook (optional)</label><input type="text" id="p-status" class="mono" placeholder="https://discord.com/api/webhooks/…"><span class="hint">A channel where the lobby's live message goes, with the "Select your in-game colour" menu. Without it, players link with <code>/link</code>.</span><span class="bad" id="p-status-bad" hidden></span></div>
+  </fieldset>
+
   <fieldset class="tournament-only" hidden>
     <legend>Your bot</legend>
     <div class="row">
@@ -248,6 +258,16 @@ function build() {
   const code = { m: k, id: $('tid').value.trim() || slug(name), n: name, wh };
   if (k === 'prelim') {
     if ($('server').value.trim()) code.srv = $('server').value.trim();
+    const pg = $('p-guild').value.trim(), pt = $('p-token').value.trim(), ps = $('p-status').value.trim();
+    const psOk = /^https:\/\/(ptb\.|canary\.)?discord(app)?\.com\/api\/webhooks\/\d+\/[\w-]+/.test(ps);
+    show('p-guild-bad', pg && !snowflake(pg) ? 'Server IDs are long numbers (right-click the server → Copy Server ID).' : '');
+    show('p-status-bad', ps && !psOk ? "That isn't a Discord webhook URL." : '');
+    if (pg || pt) {
+      if (!snowflake(pg)) problems.push('Automute: add the server ID (or clear the bot token).');
+      if (pt.split('.').length < 3) problems.push('Automute: add the bot token (or clear the server ID).');
+      code.g = pg; code.bt = [pt];
+      if (psOk) code.sw = ps;
+    }
   } else {
     const guild = $('guild').value.trim(), results = $('results').value.trim(), token = $('token').value.trim(), prelims = ids($('prelims').value);
     show('guild-bad', guild && !snowflake(guild) ? 'Server IDs are long numbers (right-click the server → Copy Server ID).' : '');
@@ -284,11 +304,11 @@ function build() {
   const ready = problems.length === 0;
   $('code').value = ready ? encodeCode(code) : '';
   $('copy').disabled = !ready;
-  $('secret').hidden = !(ready && k === 'tournament');
+  $('secret').hidden = !(ready && code.bt);
   const st = $('status');
   st.className = 'status ' + (ready ? 'ok' : 'no');
   st.textContent = ready
-    ? (k === 'prelim' ? `Ready: ${name}, preliminary in ${code.srv || 'an unnamed server'}.` : `Ready: ${name}, tournament host with automute.`)
+    ? (k === 'prelim' ? `Ready: ${name}, preliminary in ${code.srv || 'an unnamed server'}${code.bt ? ', with automute' : ''}.` : `Ready: ${name}, tournament host with automute.`)
     : problems[0];
   $('toast').textContent = '';
 }
@@ -322,6 +342,7 @@ $('load-btn').addEventListener('click', () => {
     $('name').value = c.n || ''; $('server').value = c.srv || ''; $('tid').value = c.id || ''; idEdited = !!c.id;
     $('webhook').value = c.wh || ''; $('guild').value = c.g || ''; $('results').value = c.rc || '';
     $('token').value = (c.bt || [])[0] || ''; $('prelims').value = (c.pc || []).join(', ');
+    $('p-guild').value = c.m === 'tournament' ? '' : c.g || ''; $('p-token').value = c.m === 'tournament' ? '' : (c.bt || [])[0] || ''; $('p-status').value = c.sw || '';
     $('advance').value = c.adv || 5; $('refs').value = (c.ref || []).join(', ');
     $('gpr').value = c.gpr || 3; $('lead').checked = !!c.lead; $('rot').checked = !!c.rot; $('lock').checked = !!c.set;
     if (c.set) for (const [k, v] of Object.entries(c.set)) { const el = $('s-' + k); if (!el) continue; if (el.type === 'checkbox') el.checked = !!v; else el.value = v; }

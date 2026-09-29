@@ -98,32 +98,23 @@ namespace TournamentTracker
         }
 
         /// <summary>
-        /// Someone picked a colour (or "Unlink me") in this lobby's live status. Public for tests;
+        /// Someone picked a colour in this lobby's live status. Public for tests;
         /// normally fed by the gateway.
         /// </summary>
         public string HandleLinkMenu(Interaction i)
         {
             string value = i.Values.FirstOrDefault() ?? "";
-            if (value == "unlink")
-            {
-                var link = Links.FindByDiscordId(i.UserId);
-                if (link == null) return "You aren't linked.";
-                Links.Unlink(link.PlayerKey);
-                BlockAutoLink(link.PlayerKey);
-                RefreshStatus(force: true);
-                return $"Unlinked you from {link.PlayerName}.";
-            }
             if (!int.TryParse(value, out int color)) return "That didn't work. Pick your colour again.";
             var player = WithoutReferee(Players).FirstOrDefault(p => p.ColorId == color && !p.Disconnected);
             if (player == null) return $"Nobody is {Colors.Name(color)} in the lobby now. Check your colour in Among Us and pick again.";
             var taken = Links.Find(player.Key);
             if (taken != null && taken.DiscordUserId == i.UserId) return $"You're already linked to {player}.";
-            if (taken != null && !i.IsStaff)
-                return $"{player} is already linked to @{taken.DiscordName}. If that's wrong, ask a referee.";
+            // The newest pick wins: whoever had this colour before is unlinked.
+            string was = taken != null ? $" (replacing @{taken.DiscordName})" : "";
             Links.Link(player.Key, player.Name, i.UserId, i.UserName);
             RefreshStatus(force: true);
-            Reply($"Linked {player} to @{i.UserName}.", true, _settings.AnnounceLinks);
-            return $"Linked you to {player}. Automute will follow you from now on.";
+            Reply($"Linked {player} to @{i.UserName}{was}.", true, _settings.AnnounceLinks);
+            return $"Linked you to {player}{was}. Automute will follow you from now on.";
         }
 
         /// <summary>The answer when no open lobby could handle the command.</summary>
@@ -185,14 +176,13 @@ namespace TournamentTracker
                 string who = string.Join(", ", Players.Select(p => p.ToString()));
                 return $"No one in {lobbyName} matches \"{text}\". Use your in-game name or colour: {who}.";
             }
+            // The newest link wins: whoever had this player before is unlinked.
             var taken = Links.Find(player.Key);
-            if (taken != null && taken.DiscordUserId != userId && other == null && !i.IsStaff)
-                return $"{player} is already linked to @{taken.DiscordName}. If that's wrong, ask a referee.";
-
+            string was = taken != null && taken.DiscordUserId != userId ? $" (replacing @{taken.DiscordName})" : "";
             Links.Link(player.Key, player.Name, userId, userName);
             RefreshStatus(force: true);
-            Reply($"Linked {player} to @{userName}.", true, _settings.AnnounceLinks);
-            return $"Linked {(other != null ? "@" + userName : "you")} to {player} in {lobbyName}. Automute will follow {(other != null ? "them" : "you")} from now on.";
+            Reply($"Linked {player} to @{userName}{was}.", true, _settings.AnnounceLinks);
+            return $"Linked {(other != null ? "@" + userName : "you")} to {player} in {lobbyName}{was}. Automute will follow {(other != null ? "them" : "you")} from now on.";
         }
     }
 }

@@ -474,7 +474,7 @@ function renderSetup() {
   if (!s) { $('setup-view').innerHTML = ''; return; }
   if (s.error) { $('setup-view').innerHTML = `<p class="note bad">${esc(s.error)}</p>`; return; }
   const info = [['Kind', s.kind], ['Tournament', s.tournamentName], ['Tournament ID', s.tournamentId], s.server && ['Server', s.server],
-    s.kind !== 'Preliminary' && ['Automute', s.bots ? 'On (organiser\'s bot)' : 'Off'], s.advanceCount && ['Move on per lobby', s.advanceCount],
+    ['Automute', s.bots ? 'On (organiser\'s bot)' : s.kind === 'Preliminary' ? 'Off (players can use AutoMuteUs)' : 'Off'], s.advanceCount && ['Move on per lobby', s.advanceCount],
     s.gamesPerRound && ['Games per round', s.gamesPerRound], ['Impostor rotation', yesNo(s.rotation)], s.kind !== 'Preliminary' && ['Lead lobby', s.lead ? 'Yes' : 'No']].filter(Boolean);
   const settings = s.settings ? SETTINGS.filter(([k]) => s.settings[k] != null).map(([k, l, f]) => `<tr><td>${l}</td><td style="text-align:right">${esc(f ? f(s.settings[k]) : s.settings[k])}</td></tr>`).join('') : '';
   $('setup-view').innerHTML = `<div class="settings-grid">

@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.5**, a beta.
+The current release is **v0.1.6**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -102,7 +102,8 @@ with this link (put in the application ID):
 `https://discord.com/oauth2/authorize?client_id=APP_ID&scope=bot+applications.commands&permissions=12700736`
 (view channels, send messages, embed links, attach files, read history, add reactions,
 mute and deafen members, and the `/link` and `/unlink` commands, which appear in the server
-the first time a host opens Among Us with the code). Preliminary hosts don't need a bot.
+the first time a host opens Among Us with the code). Preliminary hosts don't need a bot,
+but can have one for automute (see below).
 
 ### 3. Setup codes
 
@@ -110,7 +111,12 @@ Open `docs/setup-codes.html` (the setup code generator) in a browser and fill it
 
 * **Preliminary code:** the tournament name, the preliminary server's name and the
   preliminary channel's webhook. Make one per preliminary server (the server name is what
-  server standings use). Safe to hand out.
+  server standings use). Safe to hand out, unless you add automute:
+  * **Automute (optional):** fill in your server ID and a bot's token (and, if you like, a
+    webhook for a live lobby channel, which gets the message with the colour menu). The
+    host's game then mutes Discord itself, and players link with `/link` or the menu. Leave
+    it empty and the preliminary works exactly as before (players can use AutoMuteUs). A
+    code with a bot token in it must be sent privately.
 * **Tournament host code:** the tournament name, the results channel webhook, your server
   ID, one bot's token, the private results channel and the preliminary channels. It
   contains the bot token, so send it privately.
@@ -147,7 +153,7 @@ right away.
 | --- | --- | --- |
 | After each game | Report plus the game's data in your preliminary channel; a summary in the host's chat | Report in the results channel; the lobby's round standings |
 | Leaderboard | The scheduled job's combined board per preliminary | Per lobby per round, with the cut line, plus a running total |
-| Automute | Only if the host adds their own bot (most should use AutoMuteUs) | Yes, with your bot |
+| Automute | Optional: add a bot to the code (otherwise players can use AutoMuteUs) | Yes, with your bot |
 | Live status, referee tools | No | Yes |
 
 ### During the tournament
@@ -331,11 +337,15 @@ colour changes, and they're saved in `BepInEx/config/TournamentTracker/links.jso
   or colour (`/link Red`, `/link Soggy Dingus`). Only they see the answer. A colour works
   when they're in the lobby's voice channel; a name works from anywhere. With several
   lobbies running, the lobby that has that player (or that voice channel) answers.
+* **The newest link wins:** if a colour is already linked to someone, linking it again
+  (menu or `/link`) moves it to the new person and unlinks the old one. The lobby chat says
+  so ("Linked Pink (Millie) to @millie_b (replacing @someone)"), so a mistake is easy to spot.
 * **`/unlink`** removes their link (and stops auto-link from linking them again that session).
 * **The colour menu:** when the host has a bot (every tournament host code does), the bot
   posts the live status message itself, with each player's crewmate head and a
-  "Select your in-game colour" menu under it, like AutoMuteUs. Picking a colour links whoever
-  picked it (only they see the answer); "Unlink me" at the bottom undoes it. The crewmate
+  "Select your in-game colour" menu under it, like AutoMuteUs. The menu lists only the
+  colours in the lobby right now. Picking one links whoever picked it (only they see the
+  answer). The crewmate
   heads are uploaded as the bot's own emojis the first time it connects. The bot needs Send
   Messages in the status channel; without it the status stays a webhook message without the
   menu. `LinkMenu = false` turns the menu off.
