@@ -30,19 +30,29 @@ host needs the mod.
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
 Windows shows "Windows protected your PC", click **More info → Run anyway**.
 
-It finds Among Us (Steam or Epic Games, including Steam games on other drives), downloads
-the mod together with the mod loader it needs (BepInEx 6 build 735), and installs both. If
-it can't find the game it asks you to pick the folder. Run it again any time to update;
-your settings, links and stats are kept. (If you installed before v1.1.0, run it again: those
-releases shipped the 64-bit BepInEx, which Among Us can't load.)
+It installs the **Tournament Tracker app** (for your Windows user, no admin needed) with
+Start menu and desktop shortcuts, and opens it. Everything is done from the app; nothing
+is typed in the game chat, so there's nothing for Among Us's anti-cheat to trip on.
 
-At the end it asks for your **setup code**: paste the code the organiser gave you. That's
-all the setup there is. Then start Among Us and host a lobby. The first start takes a few
-minutes while BepInEx sets itself up (a black console window appears).
+1. **Home:** the app finds Among Us (Steam or Epic, any drive; or paste the folder) and
+   installs the mod with the mod loader it needs (BepInEx 6 build 735, 32-bit). It offers
+   updates when a new release is out, and repairs an install that has the wrong loader.
+2. **Setup code:** paste the code the organiser gave you. The page then shows everything in
+   it: the tournament, the locked lobby settings and every point value.
+3. **Start Among Us** and host a lobby. The first start takes a few minutes while BepInEx
+   sets itself up (a black console window appears). The app connects on its own.
 
-To switch to a different code later (say, from preliminaries to the tournament), copy the
-new code and type `!setup` in the lobby chat. Without a code, the mod uses the settings file
-`BepInEx/config/com.ljbutton.tournamenttracker.cfg` instead (see *Configuration*).
+While you play, the app's pages run the lobby:
+
+* **Lobby:** lobby code, map and round; start the next round; void or unvoid a game;
+  link players to Discord; post standings; the settings lock, referee ghost slot, stream
+  overlay and lead-lobby switches.
+* **Automute:** on/off, referee mode, spectator muting, and an emergency "unmute everyone".
+* **Replays:** every recorded game (and any downloaded from Discord); watch one in the app.
+* **Activity:** everything the mod reports, as it happens.
+
+The app talks to the mod over a private connection on your computer only (port 8766, with a
+random key the mod writes in its data folder).
 
 <details><summary>Installing by hand instead</summary>
 
@@ -128,6 +138,9 @@ right away.
 | Live status, referee tools | No | Yes |
 
 ### During the tournament
+
+Hosts do all of this from the Tournament Tracker app's Lobby page (the `!` commands below
+are what its buttons run); referees and the organiser use the private results channel.
 
 * **Rounds:** the host types `!r1`, `!r2`, `!r3`… in the lobby before each round's first game,
   for as many rounds as you need. Points restart each round, and a running total across all
@@ -340,7 +353,11 @@ the log warns about it.
 message count. The older game files stay in the channel, so deleting the reset message
 brings the old standings back.
 
-## Chat commands
+## Chat commands (off by default)
+
+The app does all of this. Typing commands in the lobby chat is off unless you set
+`ChatCommands = true` in the config (and `PublicChat = true` to send the mod's announcements
+to everyone's chat). The commands, for reference; the app runs the same ones:
 
 | Command | Who | What |
 | --- | --- | --- |
@@ -385,6 +402,9 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | General | `RecordReplays` | true | Record a replay of every game |
 | General | `OverlayPort` | 8765 | Stream overlay port (this computer only) |
 | General | `GamesPerRound` | 3 | Tournament rounds; a setup code overrides it |
+| General | `ChatCommands` | false | Accept commands typed in the lobby chat (the app is the normal way) |
+| General | `PublicChat` | false | Send announcements to everyone's chat |
+| General | `ControlPort` | 8766 | The app's private connection; -1 turns it off |
 | Discord | `StatsWebhookUrl` | | Game reports and leaderboard |
 | Discord | `LiveFeedWebhookUrl` | | Optional play-by-play |
 | Discord | `PostLeaderboardAfterEachGame` | true | |
