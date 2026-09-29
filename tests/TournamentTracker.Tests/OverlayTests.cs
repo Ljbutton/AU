@@ -13,7 +13,7 @@ public class OverlayTests : IDisposable
     public void Dispose() => _dir.Dispose();
 
     private TournamentSession Session(int port = 0) =>
-        new(new TrackerSettings { LiveStatus = false, OverlayPort = port, TournamentName = "Cup" }, _dir.Path, NullLog.Instance,
+        new(new TrackerSettings { LiveStatus = false, ChatCommands = true, PublicChat = true, ControlPort = -1, OverlayPort = port, TournamentName = "Cup" }, _dir.Path, NullLog.Instance,
             new HttpClient(new FakeHttp()), () => _clock.Now, new FakeVoiceApi(), new VoicePresenceState("g1"));
 
     private static JsonElement Json(object state) => JsonDocument.Parse(JsonSerializer.Serialize(state, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })).RootElement;

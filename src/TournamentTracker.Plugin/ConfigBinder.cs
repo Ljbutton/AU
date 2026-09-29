@@ -16,6 +16,12 @@ namespace TournamentTracker.Plugin
                 "Stats are kept per tournament. Change the name to start a fresh leaderboard (the old one is kept).").Value;
             s.LobbyLabel = config.Bind("General", "LobbyLabel", "",
                 "Names this host's lobby in Discord and in game numbers (\"Game LJ-3\"). Leave empty to use the host's in-game name. All hosts can then share one TournamentName.").Value.Trim();
+            s.ChatCommands = config.Bind("General", "ChatCommands", d.ChatCommands,
+                "Accept commands typed in the lobby chat (!r2, !void…). Off: use the Tournament Tracker app instead, so nothing is typed in chat.").Value;
+            s.PublicChat = config.Bind("General", "PublicChat", d.PublicChat,
+                "Send announcements to everyone's chat. Off: only you (and the app) see them.").Value;
+            s.ControlPort = config.Bind("General", "ControlPort", d.ControlPort,
+                "Port the Tournament Tracker app connects on (this computer only). -1 turns the connection off.").Value;
             s.RecordReplays = config.Bind("General", "RecordReplays", d.RecordReplays,
                 "Record a replay of every game for the replay viewer (about 0.5 MB each, saved with the game).").Value;
             s.OverlayPort = config.Bind("General", "OverlayPort", d.OverlayPort,

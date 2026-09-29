@@ -193,7 +193,7 @@ public class TournamentModeTests : IDisposable
 
     private TournamentSession Session(SetupCode code)
     {
-        var s = new TournamentSession(new TrackerSettings { LiveStatus = false }, _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now,
+        var s = new TournamentSession(new TrackerSettings { LiveStatus = false, ChatCommands = true, PublicChat = true, ControlPort = -1 }, _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now,
             new FakeVoiceApi(), new VoicePresenceState("g1"), code);
         _sessions.Add(s);
         return s;

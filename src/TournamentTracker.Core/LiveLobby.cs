@@ -31,7 +31,11 @@ namespace TournamentTracker
         /// <summary>Called a few times a second with the current phase and players.</summary>
         public void VoiceTick(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, string lobbyCode = "", string map = "")
         {
+            bool changed = phase != _phase || lobbyCode != _lobbyCode || players.Count != Players.Count;
             Players = players;
+            _phase = phase;
+            _lobbyCode = lobbyCode;
+            _map = map;
             foreach (var p in players) Links.Touch(p.Key, p.Name);
             TrackKnownDeaths(phase, players);
 
@@ -53,6 +57,7 @@ namespace TournamentTracker
             AutoMute?.Update(phase, playing, spectators);
             UpdateStatus(phase, players, lobbyCode, map, spectators?.Count ?? 0);
             UpdateOverlay(phase, players, map);
+            RefreshStatus(force: changed);
             _lastPhase = phase;
         }
 

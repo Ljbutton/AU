@@ -33,7 +33,7 @@ public class MultiHostTests : IDisposable
 
     private TournamentSession Session(Action<TrackerSettings>? configure = null, string? dir = null)
     {
-        var settings = new TrackerSettings { TournamentName = "Fall Cup", StatsWebhookUrl = Webhook, LiveStatus = false };
+        var settings = new TrackerSettings { TournamentName = "Fall Cup", StatsWebhookUrl = Webhook, LiveStatus = false, ChatCommands = true, PublicChat = true, ControlPort = -1 };
         settings.AutoMute.Enabled = true;
         settings.AutoMute.GuildId = "g1";
         settings.AutoMute.BotTokens.Add("tok");
@@ -89,7 +89,7 @@ public class MultiHostTests : IDisposable
     public async Task The_game_channel_is_the_one_the_host_is_in()
     {
         var voice = new FakeVoiceApi();
-        var settings = new TrackerSettings { TournamentName = "Cup", LiveStatus = false };
+        var settings = new TrackerSettings { TournamentName = "Cup", LiveStatus = false, ChatCommands = true, PublicChat = true, ControlPort = -1 };
         settings.AutoMute.Enabled = true;
         settings.AutoMute.GuildId = "g1";
         settings.AutoMute.BotTokens.Add("tok");

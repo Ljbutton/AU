@@ -17,7 +17,10 @@ namespace TournamentTracker
         /// Handles a chat line if it is a command. Returns false for ordinary chat.
         /// Replies to players are public so they see them; host-only commands answer privately.
         /// </summary>
-        public bool HandleChat(PlayerSnapshot sender, bool fromHost, string text)
+        public bool HandleChat(PlayerSnapshot sender, bool fromHost, string text) =>
+            _settings.ChatCommands && HandleCommand(sender, fromHost, text);
+
+        private bool HandleCommand(PlayerSnapshot sender, bool fromHost, string text)
         {
             string prefix = _settings.CommandPrefix;
             text = text.Trim();

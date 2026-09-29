@@ -15,7 +15,7 @@ public class SettingsLockTests : IDisposable
     public void Dispose() => _dir.Dispose();
 
     private TournamentSession Session(SetupCode? code) =>
-        new(new TrackerSettings { LiveStatus = false }, _dir.Path, NullLog.Instance, new HttpClient(new FakeHttp()), () => _clock.Now,
+        new(new TrackerSettings { LiveStatus = false, ChatCommands = true, PublicChat = true, ControlPort = -1 }, _dir.Path, NullLog.Instance, new HttpClient(new FakeHttp()), () => _clock.Now,
             new FakeVoiceApi(), new VoicePresenceState("g1"), code);
 
     private static SetupCode Prelim(LobbySettings? set) =>
@@ -108,7 +108,7 @@ public class RotationTests : IDisposable
     public void Rotation_is_off_unless_the_code_turns_it_on_and_counts_per_round()
     {
         var clock = new FakeClock();
-        TournamentSession Make(bool rot) => new(new TrackerSettings { LiveStatus = false }, _dir.Path, NullLog.Instance, new HttpClient(new FakeHttp()), () => clock.Now,
+        TournamentSession Make(bool rot) => new(new TrackerSettings { LiveStatus = false, ChatCommands = true, PublicChat = true, ControlPort = -1 }, _dir.Path, NullLog.Instance, new HttpClient(new FakeHttp()), () => clock.Now,
             new FakeVoiceApi(), new TournamentTracker.Discord.VoicePresenceState("g1"),
             new TournamentTracker.Setup.SetupCode { TournamentId = "t", TournamentName = "T", Webhook = "https://discord.com/api/webhooks/1/a", ImpostorRotation = rot });
 

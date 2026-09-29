@@ -20,7 +20,7 @@ public class RefSlotTests : IDisposable
 
     private TournamentSession Session()
     {
-        var settings = new TrackerSettings { TournamentName = "Cup", LiveStatus = false };
+        var settings = new TrackerSettings { TournamentName = "Cup", LiveStatus = false, ChatCommands = true, PublicChat = true, ControlPort = -1 };
         settings.AutoMute.Enabled = true;
         settings.AutoMute.GuildId = "g1";
         settings.AutoMute.BotTokens.Add("tok");

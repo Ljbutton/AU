@@ -116,6 +116,7 @@ namespace TournamentTracker
 
             if (string.IsNullOrWhiteSpace(settings.StatsWebhookUrl))
                 _log.Warn("StatsWebhookUrl is empty: games are saved locally but not posted to Discord.");
+            StartControl();
         }
 
         public StatsStore Store { get; private set; }
@@ -323,7 +324,11 @@ namespace TournamentTracker
             return replies;
         }
 
-        private void Reply(string text, bool isPublic) => _outbox.Add(new ChatReply(text, isPublic));
+        private void Reply(string text, bool isPublic)
+        {
+            Log(text);
+            _outbox.Add(new ChatReply(text, isPublic && _settings.PublicChat));
+        }
 
         private void OnTimelineEvent(TimelineEvent e)
         {
@@ -409,6 +414,7 @@ namespace TournamentTracker
             _dispatcher?.Dispose();
             _gateway?.Dispose();
             _overlay?.Dispose();
+            _control?.Dispose();
         }
     }
 }

@@ -135,6 +135,14 @@ namespace TournamentTracker
                 RestartRequested?.Invoke();
                 return;
             }
+            if (arg == "reload")
+            {
+                // The app saved a new code into the data folder.
+                var saved = SetupCode.Load(_dataDir, _log);
+                Reply(saved != null ? $"Setup applied: {saved.Describe()}. Restarting the tracker…" : "No setup code saved: back to the settings file. Restarting the tracker…", false);
+                RestartRequested?.Invoke();
+                return;
+            }
             string? text = Clipboard?.Invoke();
             if (!SetupCode.TryParse(text, out var code, out var error))
             {

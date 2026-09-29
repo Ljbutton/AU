@@ -46,6 +46,18 @@ namespace TournamentTracker
         /// <summary>Record a replay of every game (positions ~10 times a second, about 0.5 MB a game).</summary>
         public bool RecordReplays { get; set; } = true;
 
+        /// <summary>
+        /// Chat commands (!r2, !void…). Off: everything is done from the Tournament Tracker app,
+        /// so nothing is typed in the lobby chat.
+        /// </summary>
+        public bool ChatCommands { get; set; }
+
+        /// <summary>Send announcements to the whole lobby's chat. Off: only the host sees them (and the app).</summary>
+        public bool PublicChat { get; set; }
+
+        /// <summary>Port for the app's private connection (this computer only); -1 turns it off.</summary>
+        public int ControlPort { get; set; } = 8766;
+
         /// <summary>Tournament: the organiser's preliminary channels, read for server standings.</summary>
         public List<string> PrelimChannelIds { get; set; } = new List<string>();
 
