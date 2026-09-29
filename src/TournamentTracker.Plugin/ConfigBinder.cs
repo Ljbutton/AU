@@ -20,6 +20,10 @@ namespace TournamentTracker.Plugin
                 "Accept commands typed in the lobby chat (!r2, !void…). Off: use the Tournament Tracker app instead, so nothing is typed in chat.").Value;
             s.PublicChat = config.Bind("General", "PublicChat", d.PublicChat,
                 "Send announcements to everyone's chat. Off: only you (and the app) see them.").Value;
+            s.StatsCommand = config.Bind("General", "StatsCommand", d.StatsCommand,
+                "Players can type !stats (or !stats <player>) in the lobby chat and the host's game answers there, even with ChatCommands off.").Value;
+            s.AnnounceLinks = config.Bind("General", "AnnounceLinks", d.AnnounceLinks,
+                "Say in the lobby chat when a player is linked to Discord (by name automatically, or with /link).").Value;
             s.ControlPort = config.Bind("General", "ControlPort", d.ControlPort,
                 "Port the Tournament Tracker app connects on (this computer only). -1 turns the connection off.").Value;
             s.RecordReplays = config.Bind("General", "RecordReplays", d.RecordReplays,

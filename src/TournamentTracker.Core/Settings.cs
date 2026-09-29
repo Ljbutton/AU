@@ -55,6 +55,12 @@ namespace TournamentTracker
         /// <summary>Send announcements to the whole lobby's chat. Off: only the host sees them (and the app).</summary>
         public bool PublicChat { get; set; }
 
+        /// <summary>Players can type !stats in the lobby chat; the answer goes to the lobby chat. Works with chat commands off.</summary>
+        public bool StatsCommand { get; set; } = true;
+
+        /// <summary>Say in the lobby chat when a player is linked to Discord (auto-link or /link).</summary>
+        public bool AnnounceLinks { get; set; } = true;
+
         /// <summary>Port for the app's private connection (this computer only); -1 turns it off.</summary>
         public int ControlPort { get; set; } = 8766;
 

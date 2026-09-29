@@ -76,11 +76,21 @@ namespace TournamentTracker.Discord
             new
             {
                 name = "link",
-                description = "Link your Discord account to your Among Us player so automute knows you",
+                description = "Link your Discord to your Among Us player (join the lobby first)",
                 options = new object[]
                 {
                     new { type = 3, name = "player", description = "Your in-game name or colour (for example Red)", required = true },
                     new { type = 6, name = "user", description = "Referees: link someone else", required = false },
+                },
+            },
+            new
+            {
+                name = "stats",
+                description = "Tournament stats: yours, or another player's",
+                options = new object[]
+                {
+                    new { type = 3, name = "player", description = "An in-game name", required = false },
+                    new { type = 6, name = "user", description = "A Discord user", required = false },
                 },
             },
             new

@@ -248,6 +248,32 @@ public class LiveLobbyTests : IDisposable
     }
 
     [Fact]
+    public void Links_are_announced_in_the_lobby_chat_even_with_public_chat_off()
+    {
+        var s = Session(c => { c.PublicChat = false; c.AutoMute.VoiceChannelId = "vc"; });
+        InVoice("vc", ("100", "alice"), ("101", "someone"));
+        s.VoiceTick(VoicePhase.Lobby, _lobby);
+        Assert.Contains(s.Pump(), r => r.Public && r.Text.StartsWith("Auto-linked Red (Alice) to @alice"));
+
+        s.HandleSlashCommand(Slash("link", "101", "someone", "bob"));
+        Assert.Contains(s.Pump(), r => r.Public && r.Text == "Linked Blue (Bob) to @someone.");
+
+        var quiet = Session(c => { c.PublicChat = false; c.AnnounceLinks = false; });
+        InVoice("vc", ("100", "alice"));
+        quiet.VoiceTick(VoicePhase.Lobby, _lobby);
+        Assert.DoesNotContain(quiet.Pump(), r => r.Public);
+    }
+
+    [Fact]
+    public void Nobody_answering_gets_a_reason_instead_of_silence()
+    {
+        Assert.Contains("voice channel", TournamentSession.SlashFallback(Slash("link", "1", "x", "red")));
+        Assert.Contains("join the lobby first", TournamentSession.SlashFallback(Slash("link", "1", "x", "Zed")));
+        Assert.Contains("aren't linked", TournamentSession.SlashFallback(Slash("unlink", "1", "x")));
+        Assert.Contains("No tournament stats for you", TournamentSession.SlashFallback(Slash("stats", "1", "x")));
+    }
+
+    [Fact]
     public void Slash_commands_are_read_from_the_gateway()
     {
         var state = new VoicePresenceState("g1");

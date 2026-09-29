@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using TournamentTracker.Discord;
+using TournamentTracker.Stats;
 
 namespace TournamentTracker
 {
@@ -30,19 +32,109 @@ namespace TournamentTracker
             });
         }
 
+        /// <summary>How long a lobby that can't answer waits before saying so, giving the right lobby time to answer first.</summary>
+        private static readonly TimeSpan FallbackDelay = TimeSpan.FromSeconds(1.6);
+
         private void OnInteraction(Interaction i)
         {
-            if (i.Command != "link" && i.Command != "unlink") return;
+            if (i.Command != "link" && i.Command != "unlink" && i.Command != "stats") return;
             _mainThread.Enqueue(() =>
             {
                 try
                 {
-                    string? answer = HandleSlashCommand(i);
+                    string? answer = i.Command == "stats" ? HandleStatsSlash(i) : HandleSlashCommand(i);
                     // Discord wants an answer within 3 seconds, so this doesn't wait behind other posts.
-                    if (answer != null) Task.Run(() => _rest.RespondToInteractionAsync(i.Id, i.Token, answer));
+                    if (answer != null)
+                    {
+                        Task.Run(() => _rest.RespondToInteractionAsync(i.Id, i.Token, answer, onlyThem: i.Command != "stats"));
+                        return;
+                    }
+                    // Not this lobby's to answer. If no lobby has answered in a moment, say why, so the
+                    // player doesn't just see "the application did not respond". Once another lobby
+                    // has answered, Discord turns this one down, which is fine.
+                    string fallback = SlashFallback(i);
+                    Task.Run(async () =>
+                    {
+                        await Task.Delay(FallbackDelay).ConfigureAwait(false);
+                        await _rest.RespondToInteractionAsync(i.Id, i.Token, fallback).ConfigureAwait(false);
+                    });
                 }
                 catch (Exception e) { _log.Error("/" + i.Command + " failed: " + e.Message); }
             });
+        }
+
+        /// <summary>The answer when no open lobby could handle the command.</summary>
+        public static string SlashFallback(Interaction i)
+        {
+            string? player = i.Option("player");
+            switch (i.Command)
+            {
+                case "link":
+                    bool colour = player != null && Colors.Parse(player).HasValue;
+                    return $"Couldn't find \"{player}\" in any open lobby. /link works once you're in the Among Us lobby: " +
+                           (colour
+                               ? "a colour only works while you're in that lobby's voice channel, so join it or use your in-game name instead."
+                               : "join the lobby first, then use your in-game name exactly as it shows (or your colour, from the lobby's voice channel).");
+                case "unlink":
+                    return "You aren't linked in any open lobby. Links are made per lobby, so /unlink while you're in the Among Us lobby.";
+                default:
+                    return player != null
+                        ? $"No tournament stats for \"{player}\". Check the in-game name (the start of it is enough), or try /stats user:@them."
+                        : "No tournament stats for you yet. Play a counted game, and /link in the lobby so /stats knows which player is you.";
+            }
+        }
+
+        /// <summary>
+        /// /stats: a player's tournament totals and where they stand this round. Null when this
+        /// lobby doesn't know the player. Public for tests; normally fed by the gateway.
+        /// </summary>
+        public string? HandleStatsSlash(Interaction i)
+        {
+            var store = Standings;
+            PlayerTotals? t = null;
+            string? name = i.Option("player");
+            if (name != null)
+            {
+                var inLobby = FindPlayer(name);
+                t = inLobby != null ? store.Find(inLobby.Key) : null;
+                if (t == null)
+                {
+                    var all = store.Players.Values.Where(p => p.Games > 0).ToList();
+                    var exact = all.Where(p => string.Equals(p.Name, name.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+                    var prefix = all.Where(p => p.Name.StartsWith(name.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+                    t = exact.Count == 1 ? exact[0] : prefix.Count == 1 ? prefix[0] : null;
+                }
+            }
+            else
+            {
+                string id = i.Option("user") ?? i.UserId;
+                string? key = Links.FindByDiscordId(id)?.PlayerKey
+                    ?? Combined?.GameRecords.OrderByDescending(g => g.StartedUtc).SelectMany(g => g.Players).FirstOrDefault(p => p.DiscordId == id)?.Key;
+                t = key != null ? store.Find(key) : null;
+            }
+            if (t == null || t.Games == 0) return null;
+
+            var board = store.Leaderboard().ToList();
+            int rank = board.FindIndex(x => x.Key == t.Key) + 1;
+            var lines = new List<string>
+            {
+                $"**{t.Name}** · {_settings.TournamentName}",
+                $"{(rank > 0 ? $"#{rank} of {board.Count} · " : "")}**{ReportFormatter.Pts(t.Points)} pts** · {t.Wins}W-{t.Losses}L in {t.Games} game{(t.Games == 1 ? "" : "s")}",
+                $"Impostor: {t.ImpostorWins}/{t.ImpostorGames} wins, {t.Kills} kills · Crew: {t.CrewWins}/{t.CrewGames} wins, votes {t.CorrectVotes}✓ {t.IncorrectVotes}✗, tasks {Math.Round(100 * t.TaskCompletion)}%",
+            };
+            if (Combined != null && Round > 0)
+            {
+                string? host = Combined.GameRecords.Where(g => g.Round == Round && g.Counted && g.Players.Any(p => p.Key == t.Key))
+                    .Select(g => g.Host).FirstOrDefault();
+                if (host != null)
+                {
+                    var rows = Stats.Standings.Lobby(Combined.GameRecords, host, Round, _settings.AdvanceCount, _settings.GamesPerRound);
+                    int at = rows.FindIndex(r => r.Stats.Key == t.Key);
+                    if (at >= 0)
+                        lines.Add($"Round {Round}, {host}'s lobby: #{at + 1} with {ReportFormatter.Pts(rows[at].Stats.Points)} pts{(rows[at].Advancing ? ", above the cut line" : "")}");
+                }
+            }
+            return string.Join("\n", lines);
         }
 
         /// <summary>
@@ -93,6 +185,7 @@ namespace TournamentTracker
 
             Links.Link(player.Key, player.Name, userId, userName);
             RefreshStatus(force: true);
+            Reply($"Linked {player} to @{userName}.", true, _settings.AnnounceLinks);
             return $"Linked {(other != null ? "@" + userName : "you")} to {player} in {lobbyName}. Automute will follow {(other != null ? "them" : "you")} from now on.";
         }
     }

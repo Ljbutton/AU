@@ -291,13 +291,13 @@ namespace TournamentTracker.Discord
             }, "commands:" + applicationId + ":" + guildId, ct);
         }
 
-        /// <summary>Answers a slash command with a message only the person who used it sees.</summary>
-        public Task<DiscordResult> RespondToInteractionAsync(string interactionId, string interactionToken, string content, CancellationToken ct = default)
+        /// <summary>Answers a slash command; with <paramref name="onlyThem"/>, only the person who used it sees the answer.</summary>
+        public Task<DiscordResult> RespondToInteractionAsync(string interactionId, string interactionToken, string content, bool onlyThem = true, CancellationToken ct = default)
         {
             string json = JsonSerializer.Serialize(new
             {
                 type = 4,
-                data = new { content, flags = 64, allowed_mentions = new { parse = Array.Empty<string>() } },
+                data = new { content, flags = onlyThem ? 64 : 0, allowed_mentions = new { parse = Array.Empty<string>() } },
             });
             return SendAsync(() => new HttpRequestMessage(HttpMethod.Post, $"{_apiBase}/interactions/{interactionId}/{interactionToken}/callback")
             {

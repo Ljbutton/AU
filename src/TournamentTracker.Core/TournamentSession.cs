@@ -330,10 +330,16 @@ namespace TournamentTracker
             return replies;
         }
 
-        private void Reply(string text, bool isPublic)
+        private void Reply(string text, bool isPublic) => Reply(text, isPublic, false);
+
+        /// <summary>
+        /// <paramref name="lobbyChat"/>: goes to everyone's chat even with PublicChat off. Only in
+        /// the lobby, where the host talking in chat is normal (never while the host is playing).
+        /// </summary>
+        private void Reply(string text, bool isPublic, bool lobbyChat)
         {
             Log(text);
-            _outbox.Add(new ChatReply(text, isPublic && _settings.PublicChat));
+            _outbox.Add(new ChatReply(text, isPublic && (_settings.PublicChat || (lobbyChat && _phase == VoicePhase.Lobby))));
         }
 
         private void OnTimelineEvent(TimelineEvent e)

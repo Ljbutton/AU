@@ -197,6 +197,49 @@ public class SessionTests : IDisposable
     }
 
     [Fact]
+    public void Players_can_ask_for_stats_in_the_lobby_with_chat_commands_off()
+    {
+        var s = Session(configure: c => { c.ChatCommands = false; c.PublicChat = false; });
+        var lobby = Players.Lobby();
+        s.GameStarted("X", "Polus", lobby);
+        s.Kill(0, 2);
+        s.GameEnded("ImpostorByKill", lobby);
+
+        s.VoiceTick(VoicePhase.Tasks, lobby);
+        Assert.False(s.HandleChat(lobby[3], false, "!stats"));    // never while a game is on
+        s.VoiceTick(VoicePhase.Lobby, lobby);
+        s.Pump();
+        Assert.True(s.HandleChat(lobby[3], false, "!stats red"));
+        var lines = s.Pump();
+        Assert.True(lines[0].Public);                               // to the whole lobby
+        Assert.Equal("Alice: #1, 6 pts, 1W-0L, 1 kills", lines[0].Text);
+
+        Assert.True(s.HandleChat(lobby[3], false, "!stats"));       // too soon: ignored
+        Assert.Empty(s.Pump());
+        Assert.False(s.HandleChat(lobby[3], false, "!void"));       // other commands stay off
+    }
+
+    [Fact]
+    public void Stats_slash_command_finds_players_by_name_or_discord_link()
+    {
+        var s = Session();
+        var lobby = Players.Lobby();
+        s.Links.Link(lobby[0].Key, "Alice", "900", "alice");
+        s.GameStarted("X", "Polus", lobby);
+        s.Kill(0, 2);
+        s.GameEnded("ImpostorByKill", lobby);
+        s.VoiceTick(VoicePhase.Lobby, lobby);
+
+        var mine = s.HandleStatsSlash(new Interaction { Command = "stats", UserId = "900" });
+        Assert.StartsWith("**Alice**", mine);
+        Assert.Contains("#1 of 6 · **6 pts** · 1W-0L in 1 game", mine);
+        var byName = new Interaction { Command = "stats", UserId = "1" };
+        byName.Options["player"] = "ali";
+        Assert.StartsWith("**Alice**", s.HandleStatsSlash(byName));
+        Assert.Null(s.HandleStatsSlash(new Interaction { Command = "stats", UserId = "1" }));   // not linked: another lobby may know them
+    }
+
+    [Fact]
     public void Resetstats_needs_confirmation_and_archives()
     {
         var s = Session();

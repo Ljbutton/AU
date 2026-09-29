@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.1**, a beta.
+The current release is **v0.1.2**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -326,11 +326,17 @@ colour changes, and they're saved in `BepInEx/config/TournamentTracker/links.jso
   when they're in the lobby's voice channel; a name works from anywhere. With several
   lobbies running, the lobby that has that player (or that voice channel) answers.
 * **`/unlink`** removes their link (and stops auto-link from linking them again that session).
+* If no open lobby can match the name (the player isn't in the Among Us lobby yet, or used a
+  colour from outside the lobby's voice channel), they're told why instead of getting no
+  answer. `/link` only works while a host has Among Us open, since the host's game is the bot.
+* Every new link is announced in the lobby chat ("Linked Red (Soggy) to @soggy"), so a
+  wrong one gets noticed. `AnnounceLinks = false` turns that off.
 * **Referees** (anyone who can mute members in the server) link someone else by adding
   `user`: `/link player:Red user:@Soggy`, `/unlink user:@Soggy`. The host can too, once linked.
 * **Automatically:** in the lobby, a player whose in-game name matches exactly one person in
   the voice channel (their server nickname, display name or username, ignoring capitals,
-  spaces and symbols) is linked for them. A wrong match is fixed with `/unlink`. Turn it off
+  spaces and symbols) is linked for them, and the lobby chat says so. A wrong match is fixed
+  with `/unlink`. Turn it off
   with `AutoLinkByName = false`.
 * Or fill in `links.json` before the event (see `links.example.json`). A player's key is their
   friend code in lower case, e.g. `coolbean#1234`.
@@ -368,6 +374,17 @@ the log warns about it.
 message count. The older game files stay in the channel, so deleting the reset message
 brings the old standings back.
 
+## Stats for players
+
+* **`/stats`** in Discord shows your tournament totals (rank, points, wins and losses,
+  impostor and crew records, votes, tasks) and where you stand in your lobby this round, with
+  the cut line. `/stats player:Soggy` or `/stats user:@Soggy` shows someone else's. Everyone
+  in the channel sees the answer.
+* **`!stats`** typed in the Among Us lobby chat still works (`!stats red`, `!stats Soggy` for
+  someone else): the host's game answers in the lobby chat. It only answers in the lobby
+  (never during a game), at most once every 20 seconds per player, even though the other chat
+  commands are off. `StatsCommand = false` turns it off.
+
 ## Chat commands (off by default)
 
 The app does all of this. Typing commands in the lobby chat is off unless you set
@@ -378,7 +395,7 @@ to everyone's chat). The commands, for reference; the app runs the same ones:
 | --- | --- | --- |
 | `!link <discord>` | anyone* | Link your Discord account (normally `/link` in Discord) |
 | `!unlink` | anyone | Remove your link |
-| `!stats [player]` | anyone | Show tournament totals in chat |
+| `!stats [player]` | anyone | Show tournament totals in chat (works with chat commands off; see *Stats for players*) |
 | `!help` | anyone | List commands |
 | `!link <player> <discord>` | host | Link someone else (player = colour or name) |
 | `!unlink <player>` | host | Unlink someone |
@@ -419,6 +436,8 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | General | `GamesPerRound` | 3 | Tournament rounds; a setup code overrides it |
 | General | `ChatCommands` | false | Accept commands typed in the lobby chat (the app is the normal way) |
 | General | `PublicChat` | false | Send announcements to everyone's chat |
+| General | `StatsCommand` | true | Players' `!stats` in the lobby chat, even with chat commands off |
+| General | `AnnounceLinks` | true | Say in the lobby chat when a player is linked to Discord |
 | General | `ControlPort` | 8766 | The app's private connection; -1 turns it off |
 | Discord | `StatsWebhookUrl` | | Game reports and leaderboard |
 | Discord | `LiveFeedWebhookUrl` | | Optional play-by-play |
