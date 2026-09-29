@@ -473,6 +473,46 @@ public class LiveLobbyTests : IDisposable
         Assert.Contains("Type /link", hook.Body);
     }
 
+    private static Interaction NewCmd(string userId, string name, string channel, string? code = null, bool staff = false)
+    {
+        var i = new Interaction { Id = "n", Token = "t", GuildId = "g1", Command = "new", UserId = userId, UserName = name, ChannelId = channel, Permissions = staff ? Interaction.MuteMembers : 0 };
+        if (code != null) i.Options["code"] = code;
+        return i;
+    }
+
+    [Fact]
+    public async Task New_moves_the_hosts_live_message_to_that_channel()
+    {
+        _http.Default = r => r.Method == HttpMethod.Post ? FakeHttp.Json(HttpStatusCode.OK, """{"id":"555"}""") : FakeHttp.Json(HttpStatusCode.OK, "{}");
+        // The status webhook's channel can't be looked up, so it starts as a plain webhook message.
+        var s = Session(c => { c.LiveStatus = true; c.AutoMute.AutoLinkByName = false; });
+        _lobby[0].IsHost = true;
+        s.VoiceTick(VoicePhase.Lobby, _lobby, "ABCDEF", "Polus");
+        await s.PendingPosts;
+        Assert.StartsWith(Webhook, _http.Requests.Last().Url);                       // the usual webhook message first
+
+        // Someone who isn't this lobby's host: another lobby's business.
+        Assert.Null(s.HandleNewCommand(NewCmd("999", "stranger", "c1")));
+        // The host isn't linked yet: the lobby code proves it's theirs, and links them as the host.
+        Assert.StartsWith("Alice's lobby message is in this channel now", s.HandleNewCommand(NewCmd("100", "alice", "c1", code: "abcdef")));
+        Assert.Equal("100", s.Links.Find(_lobby[0].Key)?.DiscordUserId);
+        await s.PendingPosts;
+        s.VoiceTick(VoicePhase.Lobby, _lobby, "ABCDEF", "Polus");
+        await s.PendingPosts;
+        Assert.Contains(_http.Requests, r => r.Method == HttpMethod.Delete && r.Url == Webhook + "/messages/555");   // old one gone
+        var moved = _http.Requests.Last(r => r.Method == HttpMethod.Post);
+        Assert.Equal("https://discord.com/api/v10/channels/c1/messages", moved.Url);
+        Assert.Contains("components", moved.Body);                                      // posted by the bot, with the colour menu
+
+        // Later, /new on its own from the host moves it again; others with the code can't unless they referee.
+        Assert.StartsWith("Only this lobby's host (@alice)", s.HandleNewCommand(NewCmd("101", "bob", "c2", code: "ABCDEF")));
+        Assert.NotNull(s.HandleNewCommand(NewCmd("100", "alice", "c2")));
+        await s.PendingPosts;
+        Assert.Contains(_http.Requests, r => r.Method == HttpMethod.Delete && r.Url == "https://discord.com/api/v10/channels/c1/messages/555");
+        Assert.Equal("https://discord.com/api/v10/channels/c2/messages", _http.Requests.Last(r => r.Method == HttpMethod.Post).Url);
+        Assert.Contains("Open your lobby", TournamentSession.SlashFallback(NewCmd("1", "x", "c")));
+    }
+
     [Fact]
     public void Menu_picks_are_read_from_the_gateway()
     {

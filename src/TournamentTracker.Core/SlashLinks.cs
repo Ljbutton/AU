@@ -71,12 +71,12 @@ namespace TournamentTracker
                 });
                 return;
             }
-            if (i.Command != "link" && i.Command != "unlink") return;
+            if (i.Command != "link" && i.Command != "unlink" && i.Command != "new") return;
             _mainThread.Enqueue(() =>
             {
                 try
                 {
-                    string? answer = HandleSlashCommand(i);
+                    string? answer = i.Command == "new" ? HandleNewCommand(i) : HandleSlashCommand(i);
                     // Discord wants an answer within 3 seconds, so this doesn't wait behind other posts.
                     if (answer != null)
                     {
@@ -117,6 +117,45 @@ namespace TournamentTracker
             return $"Linked you to {player}{was}. Automute will follow you from now on.";
         }
 
+        /// <summary>A problem with the live message the host should see in the app (e.g. the bot can't post where /new asked).</summary>
+        public string? StatusProblem { get; private set; }
+
+        /// <summary>
+        /// /new: the host moves their lobby's live message (with the colour menu) to the channel
+        /// they typed it in. This lobby answers when the host's Discord account is linked to the
+        /// person typing, or when they give this lobby's code (which also links them as the host).
+        /// Null when it's another lobby's. Public for tests; normally fed by the gateway.
+        /// </summary>
+        public string? HandleNewCommand(Interaction i)
+        {
+            if (!_settings.AutoMute.IsConfigured || Players.Count == 0) return null;
+            var host = Players.FirstOrDefault(p => p.IsHost);
+            if (host == null) return null;
+            var hostLink = Links.Find(host.Key);
+            string? code = i.Option("code")?.Trim();
+            bool byCode = code != null && _lobbyCode.Length > 0 && string.Equals(code, _lobbyCode, StringComparison.OrdinalIgnoreCase);
+            bool isHost = hostLink != null && hostLink.DiscordUserId == i.UserId;
+            if (!isHost && !byCode) return null;
+            if (!isHost && hostLink != null && !i.IsStaff)
+                return $"Only this lobby's host (@{hostLink.DiscordName}) or a referee can move its message.";
+            if (i.ChannelId.Length == 0) return "Use /new in the text channel you want the lobby's message in.";
+
+            string linked = "";
+            if (hostLink == null)
+            {
+                Links.Link(host.Key, host.Name, i.UserId, i.UserName);
+                linked = $" You're linked to {host} now, so next time /new on its own is enough.";
+            }
+            _statusChosen = i.ChannelId;
+            StatusProblem = null;
+            SaveState();
+            lock (_postLock) _statusSentJson = "";
+            if (_statusDesired != null) ScheduleStatusFlush();
+            RefreshStatus(force: true);
+            string lobby = LobbyLabel();
+            return $"{(lobby.Length > 0 ? lobby + "'s lobby" : "Your lobby")} message is in this channel now (the old one is removed). Players pick their colour under it to link.{linked}";
+        }
+
         /// <summary>The answer when no open lobby could handle the command.</summary>
         public static string SlashFallback(Interaction i)
         {
@@ -129,6 +168,8 @@ namespace TournamentTracker
                            (colour
                                ? "a colour only works while you're in that lobby's voice channel, so join it or use your in-game name instead."
                                : "join the lobby first, then use your in-game name exactly as it shows (or your colour, from the lobby's voice channel).");
+                case "new":
+                    return "No open lobby is yours. Open your lobby in Among Us first. If you haven't linked yourself yet, use /new code: with your lobby code (it's on the lobby screen).";
                 default:
                     return "You aren't linked in any open lobby. Links are made per lobby, so /unlink while you're in the Among Us lobby.";
             }

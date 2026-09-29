@@ -33,13 +33,22 @@ namespace TournamentTracker
         private bool? _statusByBot;
         private string? _statusChannel;
         private bool _statusIdByBot;
+
+        /// <summary>The channel the host picked with /new (the bot posts there); null = the status webhook's channel.</summary>
+        private string? _statusChosen;
+
+        /// <summary>The channel the current live message is in (null: the webhook's).</summary>
+        private string? _statusMessageChannel;
         private readonly string _linkMenuId = "tt-link:" + Guid.NewGuid().ToString("N").Substring(0, 12);
         private readonly System.Collections.Concurrent.ConcurrentDictionary<int, string> _crewEmojis = new System.Collections.Concurrent.ConcurrentDictionary<int, string>();
 
         /// <summary>The ID of this lobby's colour menu in the live status.</summary>
         public string LinkMenuId => _linkMenuId;
 
-        private bool LinkMenuWanted => _settings.AutoMute.IsConfigured && _settings.AutoMute.LinkMenu && _statusByBot != false;
+        private bool LinkMenuWanted => _settings.AutoMute.IsConfigured && _settings.AutoMute.LinkMenu && (_statusChosen != null || _statusByBot != false);
+
+        /// <summary>A live message is kept: turned on in the settings with a channel for it, or a channel picked with /new.</summary>
+        private bool LiveStatusOn => (_settings.LiveStatus && !string.IsNullOrWhiteSpace(StatusWebhook)) || (_statusChosen != null && _settings.AutoMute.IsConfigured);
 
         /// <summary>Called a few times a second with the current phase and players.</summary>
         public void VoiceTick(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, string lobbyCode = "", string map = "")
@@ -162,7 +171,7 @@ namespace TournamentTracker
 
         private void UpdateStatus(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, string lobbyCode, string map, int spectators)
         {
-            if (!_settings.LiveStatus || string.IsNullOrWhiteSpace(StatusWebhook)) return;
+            if (!LiveStatusOn) return;
             if (phase == VoicePhase.Menu)
             {
                 // Not hosting any more: one last update saying so, then stop.
@@ -208,13 +217,13 @@ namespace TournamentTracker
         /// <summary>Posts the status as a fresh message at the bottom of the channel (after a game, or !refresh).</summary>
         public void RepostStatus()
         {
-            if (!_settings.LiveStatus || _statusClosed) return;
+            if (!LiveStatusOn || _statusClosed) return;
             ScheduleStatusFlush(repost: true);
         }
 
         private void CloseStatus()
         {
-            if (_statusClosed || !_settings.LiveStatus) return;
+            if (_statusClosed || !LiveStatusOn) return;
             _statusClosed = true;
             SetStatus(StatusFormatter.Build(new StatusInfo { Phase = VoicePhase.Menu, Label = LobbyLabel() }));
         }
@@ -267,7 +276,12 @@ namespace TournamentTracker
                     {
                         string? token = _settings.AutoMute.BotTokens.FirstOrDefault();
                         bool byBot = false;
-                        if (token != null && _settings.AutoMute.IsConfigured && _settings.AutoMute.LinkMenu && _statusByBot != false)
+                        string? chosen = _statusChosen;
+                        if (token != null && _settings.AutoMute.IsConfigured && chosen != null)
+                        {
+                            byBot = true;          // the host picked this channel with /new
+                        }
+                        else if (token != null && _settings.AutoMute.IsConfigured && _settings.AutoMute.LinkMenu && _statusByBot != false && url.Length > 0)
                         {
                             if (_statusByBot == null)
                             {
@@ -277,11 +291,20 @@ namespace TournamentTracker
                             }
                             byBot = _statusByBot == true;
                         }
-                        if (id != null && _statusIdByBot != byBot) id = null;   // switched senders: start a new message
+                        string? channelNow = byBot ? chosen ?? _statusChannel : null;
+                        if (id != null && (_statusIdByBot != byBot || _statusMessageChannel != channelNow))
+                        {
+                            // The message is somewhere else now (/new, or a switch of sender): remove the old one.
+                            if (_statusIdByBot && _statusMessageChannel != null && token != null)
+                                await _rest.DeleteMessageAsync(token, _statusMessageChannel, id).ConfigureAwait(false);
+                            else if (!_statusIdByBot && url.Length > 0)
+                                await _rest.DeleteWebhookMessageAsync(url, id).ConfigureAwait(false);
+                            id = null;
+                        }
 
                         if (byBot)
                         {
-                            string channel = _statusChannel!;
+                            string channel = channelNow!;
                             if (repost && id != null)
                             {
                                 await _rest.DeleteMessageAsync(token!, channel, id).ConfigureAwait(false);
@@ -301,13 +324,18 @@ namespace TournamentTracker
                                 {
                                     // The bot can't post there: back to the webhook, without the menu.
                                     _log.Warn("The bot can't post in the live status channel, so the colour menu is off. Give it Send Messages there to turn it on.");
+                                    if (chosen != null)
+                                    {
+                                        StatusProblem = "The bot isn't allowed to post in the channel you picked with /new. Give it View Channel and Send Messages there, then /new again.";
+                                        _statusChosen = null;
+                                    }
                                     _statusByBot = false;
                                     byBot = false;          // the next tick rebuilds the status without the menu
                                 }
                                 else _log.Warn("Could not post the live status: " + created);
                             }
                         }
-                        if (!byBot)
+                        if (!byBot && url.Length > 0)
                         {
                             var plain = message.Components == null ? message : new WebhookMessage { Username = message.Username, Content = message.Content, Embeds = message.Embeds, AllowedMentions = message.AllowedMentions };
                             if (repost && id != null)
@@ -329,6 +357,7 @@ namespace TournamentTracker
                             }
                         }
                         _statusIdByBot = byBot;
+                        _statusMessageChannel = byBot ? channelNow : null;
                     }
                     finally
                     {

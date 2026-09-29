@@ -22,6 +22,8 @@ namespace TournamentTracker
             public Dictionary<int, Dictionary<string, int>> ImpostorGames { get; set; } = new Dictionary<int, Dictionary<string, int>>();
             public LobbyPlan? Plan { get; set; }
             public bool OverlayOn { get; set; }
+            /// <summary>Where the host asked (with /new) for the live lobby message to go.</summary>
+            public string? StatusChannel { get; set; }
         }
 
         /// <summary>Counted games this lobby has played per round.</summary>
@@ -55,6 +57,7 @@ namespace TournamentTracker
                     _impostorGames = state?.ImpostorGames ?? new Dictionary<int, Dictionary<string, int>>();
                     Plan = state?.Plan;
                     _overlayOn = state?.OverlayOn ?? false;
+                    _statusChosen = state?.StatusChannel;
                 }
             }
             catch (Exception e)
@@ -72,7 +75,7 @@ namespace TournamentTracker
         private void SaveState() => TrySave(() =>
         {
             Directory.CreateDirectory(_dataDir);
-            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames, ImpostorGames = _impostorGames, Plan = Plan, OverlayOn = _overlayOn }));
+            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames, ImpostorGames = _impostorGames, Plan = Plan, OverlayOn = _overlayOn, StatusChannel = _statusChosen }));
         }, "state");
 
         /// <summary>!r3 or !round 3 sets the round; !round on its own says which it is.</summary>

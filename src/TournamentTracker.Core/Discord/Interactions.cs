@@ -11,6 +11,8 @@ namespace TournamentTracker.Discord
         public string Id { get; set; } = "";
         public string Token { get; set; } = "";
         public string GuildId { get; set; } = "";
+        /// <summary>The channel it was used in.</summary>
+        public string ChannelId { get; set; } = "";
         public string Command { get; set; } = "";
         public string UserId { get; set; } = "";
         public string UserName { get; set; } = "";
@@ -46,6 +48,7 @@ namespace TournamentTracker.Discord
                 Id = Str(d, "id") ?? "",
                 Token = Str(d, "token") ?? "",
                 GuildId = Str(d, "guild_id") ?? "",
+                ChannelId = Str(d, "channel_id") ?? "",
                 Command = type == 3 ? "menu" : (Str(data, "name") ?? "").ToLowerInvariant(),
                 CustomId = type == 3 ? Str(data, "custom_id") ?? "" : "",
                 UserId = Str(user, "id") ?? "",
@@ -92,6 +95,15 @@ namespace TournamentTracker.Discord
                 {
                     new { type = 3, name = "player", description = "Your in-game name or colour (for example Red)", required = true },
                     new { type = 6, name = "user", description = "Referees: link someone else", required = false },
+                },
+            },
+            new
+            {
+                name = "new",
+                description = "Hosts: show your lobby's live message (with the colour menu) in this channel",
+                options = new object[]
+                {
+                    new { type = 3, name = "code", description = "Your lobby code, if you haven't linked yourself yet", required = false },
                 },
             },
             new

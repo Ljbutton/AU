@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.6**, a beta.
+The current release is **v0.1.7**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -337,6 +337,14 @@ colour changes, and they're saved in `BepInEx/config/TournamentTracker/links.jso
   or colour (`/link Red`, `/link Soggy Dingus`). Only they see the answer. A colour works
   when they're in the lobby's voice channel; a name works from anywhere. With several
   lobbies running, the lobby that has that player (or that voice channel) answers.
+* **`/new`** (hosts): picks where your lobby's live message goes. Type `/new` in the text
+  channel you want (for example each lobby's own channel when several games run at once):
+  your game moves the message there, removes the old one, and the bot posts it with the
+  colour menu. The choice is remembered. It answers the host whose Discord is linked to the
+  lobby's host player; if you haven't linked yourself yet, use `/new code:QWERTY` with your
+  lobby code (that links you too). Referees can move any lobby's message with its code.
+  Without `/new`, the message goes to the status channel as before. The bot needs View
+  Channel and Send Messages in the channel you pick; if it can't post, The Button says so.
 * **The newest link wins:** if a colour is already linked to someone, linking it again
   (menu or `/link`) moves it to the new person and unlinks the old one. The lobby chat says
   so ("Linked Pink (Millie) to @millie_b (replacing @someone)"), so a mistake is easy to spot.

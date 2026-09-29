@@ -329,6 +329,7 @@ function renderAlerts() {
   const a = S.status && S.status.autoMute;
   if (a && a.voiceProblem) list.push(['bad', 'Discord bot refused', 'home']);
   else if (a && a.voiceWarning) list.push(['', 'Referee commands not heard', 'home']);
+  if (a && a.liveProblem) list.push(['', 'Live message can\'t post', 'home']);
   $('alerts').innerHTML = list.map(([k, t, page]) => `<button class="alert ${k}" data-go="${page || 'settings'}">${esc(t)}</button>`).join('');
 }
 
@@ -394,9 +395,9 @@ const VOICE = {
 function roundBtn(el, on, command) { el.classList.toggle('on', on); el.onclick = () => cmd(`${command} ${on ? 'off' : 'on'}`); }
 function renderAutomute(st) {
   const a = st.autoMute, linked = st.players.filter(p => p.discordId).length;
-  $('mute-problem').hidden = !a.voiceProblem && !a.voiceWarning;
+  $('mute-problem').hidden = !a.voiceProblem && !a.voiceWarning && !a.liveProblem;
   $('mute-problem').className = 'note ' + (a.voiceProblem ? 'bad' : 'warn');
-  $('mute-problem').textContent = a.voiceProblem || a.voiceWarning || '';
+  $('mute-problem').textContent = a.voiceProblem || a.liveProblem || a.voiceWarning || '';
   $('mute-say').textContent = !a.configured ? 'Off: it needs a bot, which comes with a tournament host code.'
     : a.voiceProblem ? 'Not working: see below.'
     : !a.voiceConnected ? 'Connecting to Discord voice…'
