@@ -79,7 +79,7 @@ namespace TournamentTracker.Discord
             var footer = new List<string>();
             if (s.AutoMuteOn.HasValue) footer.Add($"Automute {(s.AutoMuteOn.Value ? "on" : "OFF")}");
             if (s.Players.Count > 0) footer.Add($"{linked}/{s.Players.Count} linked");
-            if (s.Phase != VoicePhase.Menu && linked < s.Players.Count) footer.Add($"Link with {s.CommandPrefix}link <discord name> in the lobby chat");
+            if (s.Phase != VoicePhase.Menu && linked < s.Players.Count) footer.Add("Not linked? Type /link and your in-game name or colour");
 
             return new WebhookMessage
             {

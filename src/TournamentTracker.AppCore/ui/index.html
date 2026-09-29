@@ -1,35 +1,25 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Button</title>
 <link rel="icon" href="/logo.png">
-<script>
-  // Space (dark) unless the host picked light in Settings.
-  try { document.documentElement.dataset.theme = localStorage.getItem('theme') === 'light' ? 'light' : 'dark'; } catch (e) { }
-</script>
 <style>
 @font-face{font-family:"Amatic SC";font-weight:700;font-display:swap;src:url(/fonts/amatic-sc-700.woff2) format("woff2")}
 @font-face{font-family:"Varela Round";font-weight:400;font-display:swap;src:url(/fonts/varela-round.woff2) format("woff2")}
-:root,[data-theme="dark"]{
+:root{
   --bg:#000;--panel:rgba(14,17,24,.78);--panel-solid:#0e1118;--sunk:rgba(255,255,255,.07);--fg:#f2f4f7;--muted:#9aa4b2;--line:rgba(255,255,255,.16);--edge:rgba(255,255,255,.75);
   --accent:#2fb350;--accent-fg:#04120a;--good:#46c28b;--good-soft:rgba(70,194,139,.16);--warn:#ffc15a;--warn-soft:rgba(255,193,90,.14);
-  --danger:#ff6b61;--danger-soft:rgba(255,107,97,.15);--stars:1;color-scheme:dark;
-}
-[data-theme="light"]{
-  --bg:#e9edf3;--panel:rgba(255,255,255,.92);--panel-solid:#fff;--sunk:rgba(0,0,0,.05);--fg:#141820;--muted:#5b6574;--line:rgba(0,0,0,.14);--edge:#141820;
-  --accent:#177f2d;--accent-fg:#fff;--good:#1f8a57;--good-soft:#dcf1e6;--warn:#8a5200;--warn-soft:#fdf0d8;
-  --danger:#c0362c;--danger-soft:#fbe4e1;--stars:0;color-scheme:light;
+  --danger:#ff6b61;--danger-soft:rgba(255,107,97,.15);color-scheme:dark;
 }
 :root{--hand:"Amatic SC","Segoe Print",cursive;--round:"Varela Round","Segoe UI",system-ui,sans-serif;--mono:"Cascadia Mono",Consolas,ui-monospace,monospace}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--round);display:grid;grid-template-columns:172px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);overflow:hidden}
-#space{position:fixed;inset:0;width:100%;height:100%;z-index:0;opacity:var(--stars);pointer-events:none}
+#space{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
 header,nav,main{position:relative;z-index:1}
 header{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:8px 18px;border-bottom:1px solid var(--line);background:rgba(0,0,0,.35);backdrop-filter:blur(2px)}
-[data-theme="light"] header{background:rgba(255,255,255,.7)}
 .brand{font:700 34px/1 var(--hand);letter-spacing:.04em;display:flex;align-items:center;gap:10px}
 .logo{width:40px;height:40px;object-fit:contain}
 .alerts{display:flex;flex-wrap:wrap;gap:8px;margin-left:8px}
@@ -37,7 +27,6 @@ header{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:8px 18p
 .alert.bad{border-color:var(--danger);color:var(--danger);background:var(--danger-soft)}
 .alert:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 nav{padding:14px 10px;display:flex;flex-direction:column;gap:4px;border-right:1px solid var(--line);background:rgba(0,0,0,.25)}
-[data-theme="light"] nav{background:rgba(255,255,255,.55)}
 nav button{all:unset;cursor:pointer;padding:6px 14px;border-radius:10px;font:700 27px/1.15 var(--hand);letter-spacing:.05em;color:var(--muted);border:2px solid transparent}
 nav button:hover{color:var(--fg)}
 nav button.on{color:var(--fg);border-color:var(--edge)}
@@ -71,9 +60,6 @@ table{border-collapse:collapse;width:100%}
 td{padding:6px 4px;border-bottom:1px solid var(--line)}
 tr:last-child td{border-bottom:0}
 .empty{padding:26px;text-align:center;color:var(--muted)}
-.seg{display:inline-flex;border:2px solid var(--edge);border-radius:10px;overflow:hidden}
-.seg button{all:unset;cursor:pointer;padding:5px 16px 4px;font:700 21px/1 var(--hand);letter-spacing:.05em;color:var(--muted)}
-.seg button.on{background:var(--fg);color:var(--bg)}
 .toggle{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0}
 .toggle b{font-weight:400}.toggle span{display:block;color:var(--muted);font-size:12px}
 .pill{font-size:12px;padding:1px 8px;border-radius:99px;background:var(--sunk);color:var(--muted);white-space:nowrap}
@@ -88,16 +74,14 @@ tr:last-child td{border-bottom:0}
 .fact .v{font:700 30px/1 var(--hand);letter-spacing:.05em}
 .home-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(290px,1fr);gap:14px;align-items:start}
 @media (max-width:980px){.home-grid{grid-template-columns:minmax(0,1fr)}}
-.players{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px}
+.players{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 10px}
 @media (max-width:700px){.players{grid-template-columns:minmax(0,1fr)}}
-.pl{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:8px;align-items:center;min-height:44px;padding:3px 6px;border-radius:10px;background:var(--sunk)}
-.pl img{width:36px;height:36px}
-.pl .nm{font:700 22px/1 var(--hand);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl{display:grid;grid-template-columns:32px minmax(0,1fr);gap:8px;align-items:center;min-height:38px;padding:3px 8px 3px 5px;border-radius:10px;background:var(--sunk)}
+.pl img{width:32px;height:32px}
+.pl .nm{font:15px/1.2 var(--round);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl .dc{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl .dc.none{color:var(--warn)}
 .pl.dead{opacity:.55}
-.pl input{display:block;width:100%;margin-top:3px;padding:2px 8px;font-size:12px;border-color:var(--warn)}
-.pl button.b{font-size:18px;padding:4px 10px 3px}
 .side{display:grid;gap:12px}
 .side .card{padding:10px 14px}
 .side h2{font-size:25px;margin-bottom:6px}
@@ -106,18 +90,18 @@ tr:last-child td{border-bottom:0}
 .stage{display:flex;flex-direction:column;align-items:center;text-align:center;padding:10px 10px 0;min-height:calc(100vh - 110px)}
 .stage h1{font-size:clamp(46px,6vw,70px);text-shadow:0 2px 14px rgba(0,0,0,.6)}
 .stage .where{font:700 28px/1.1 var(--hand);letter-spacing:.08em;color:#9fc3ff;min-height:30px}
-[data-theme="light"] .stage .where{color:#2356a8}
 .loader{display:flex;gap:10px;margin:24px 0 6px;height:26px;align-items:flex-end}
 .loader i{width:10px;height:10px;border-radius:50%;background:#7fa7ff;animation:hop 1.2s ease-in-out infinite}
 .loader i:nth-child(2){animation-delay:.12s}.loader i:nth-child(3){animation-delay:.24s}.loader i:nth-child(4){animation-delay:.36s}.loader i:nth-child(5){animation-delay:.48s}
 @keyframes hop{0%,60%,100%{transform:translateY(0);opacity:.55}30%{transform:translateY(-14px);opacity:1}}
 .stage .say{max-width:54ch;color:var(--muted);margin:10px 0 0}
-.crew{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:16px 12px;width:100%;max-width:780px;margin:22px 0 8px}
+.crew{display:grid;grid-template-columns:repeat(var(--cols,5),104px);justify-content:center;gap:14px 10px;width:100%;margin:18px 0 8px}
+@media (max-width:900px){.crew{grid-template-columns:repeat(auto-fill,104px)}}
 .mate{display:grid;justify-items:center;gap:3px}
-.mate img.head{width:84px;height:84px;display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5));user-select:none}
-.mate svg.x{position:absolute;inset:14px;width:56px;height:56px;stroke:#ff4d4d;stroke-width:1.1;stroke-linecap:round;opacity:.85}
-.mate .nm{font:700 23px/1 var(--hand);letter-spacing:.04em;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mate .dc{font-size:11.5px;color:var(--muted);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mate img.head{width:80px;height:80px;display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5));user-select:none}
+.mate svg.x{position:absolute;inset:13px;width:54px;height:54px;stroke:#ff4d4d;stroke-width:1.1;stroke-linecap:round;opacity:.85}
+.mate .nm{font:15px/1.2 var(--round);max-width:104px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mate .dc{font-size:11.5px;color:var(--muted);max-width:104px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mate .dc.none{color:var(--warn)}
 .mate.dead img.head{opacity:.35;filter:grayscale(.4)}
 .mate.dead .nm{opacity:.55}
@@ -168,7 +152,7 @@ tr:last-child td{border-bottom:0}
     </div>
     <div class="home-grid" style="margin-top:12px">
       <div class="card">
-        <h2>Players</h2>
+        <div class="row" style="justify-content:space-between;align-items:baseline"><h2>Players</h2><span class="muted" style="font-size:12.5px">Players link themselves in Discord: <b>/link</b> and their name or colour</span></div>
         <div class="players" id="players"></div>
       </div>
       <div class="side">
@@ -257,10 +241,6 @@ tr:last-child td{border-bottom:0}
   <div id="setup-view"></div>
   <div class="settings-grid">
     <div class="card">
-      <h2>Look</h2>
-      <div class="toggle"><b>Theme</b><div class="seg" role="group" aria-label="Theme"><button data-theme-pick="dark">Space</button><button data-theme-pick="light">Light</button></div></div>
-    </div>
-    <div class="card">
       <h2>Files</h2>
       <div class="row"><button class="b" data-open="data">Data folder</button><button class="b" data-open="config">Config file</button><button class="b" data-open="log">Log</button></div>
     </div>
@@ -313,7 +293,7 @@ async function cmd(command) {
   size(); requestAnimationFrame(draw);
 })();
 
-// ---- Navigation and theme ----------------------------------------------------------------
+// ---- Navigation ----------------------------------------------------------------------
 function go(page) {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.page === page));
   document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === page));
@@ -324,14 +304,7 @@ document.addEventListener('click', e => {
   const c = e.target.closest('[data-cmd]'); if (c) { cmd(c.dataset.cmd); if (c.dataset.cmd === 'resetleaderboard') $('reset-confirm').hidden = true; }
   const o = e.target.closest('[data-open]'); if (o) api('POST', '/app/open', { what: o.dataset.open });
   const g = e.target.closest('[data-go]'); if (g) go(g.dataset.go);
-  const t = e.target.closest('[data-theme-pick]'); if (t) setTheme(t.dataset.themePick);
 });
-function setTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-  try { localStorage.setItem('theme', theme); } catch (e) { }
-  document.querySelectorAll('[data-theme-pick]').forEach(b => b.classList.toggle('on', b.dataset.themePick === theme));
-}
-setTheme(document.documentElement.dataset.theme);
 
 // ---- Top bar: only what needs attention ----------------------------------------------------
 function renderAlerts() {
@@ -378,22 +351,15 @@ function renderHome() {
   $('t-lead').textContent = st.lead ? 'Yes' : 'Take over'; $('t-lead').classList.toggle('on', st.lead); $('t-lead').disabled = st.lead || !st.shared;
   $('t-lead').onclick = () => cmd('lead');
 
-  // Rebuild the player cards only when they change, so typing in a link box isn't interrupted.
+  // Rebuild the player cards only when they change.
   const key = JSON.stringify(st.players.map(p => [p.name, p.color, p.dead, p.disconnected, p.discordId, p.discordName, p.isHost, p.referee]));
   if (key === playersKey) return;
   playersKey = key;
   $('players').innerHTML = st.players.length ? st.players.map(p => `<div class="pl${p.dead || p.disconnected ? ' dead' : ''}">
       <img src="${head(p.color)}" alt="">
       <div style="min-width:0"><div class="nm">${esc(p.name)}${p.isHost ? ' <span class="pill">you</span>' : ''}${p.referee ? ' <span class="pill">ref</span>' : ''}${p.disconnected ? ' <span class="pill">left</span>' : ''}</div>
-        ${p.discordId ? `<div class="dc">@${esc(p.discordName || p.discordId)}</div>` : `<input data-link-input="${esc(p.colorName)}" placeholder="Link Discord name">`}</div>
-      ${p.discordId
-        ? `<button class="b" data-unlink="${esc(p.colorName)}">Unlink</button>`
-        : `<button class="b" data-link="${esc(p.colorName)}">Link</button>`}</div>`).join('')
+        <div class="dc${p.discordId ? '' : ' none'}">${p.discordId ? '@' + esc(p.discordName || p.discordId) : 'not linked yet'}</div></div></div>`).join('')
     : '<p class="empty">Nobody in the lobby yet.</p>';
-  $('players').querySelectorAll('[data-link]').forEach(b => b.onclick = () => {
-    const v = $('players').querySelector(`[data-link-input="${b.dataset.link}"]`).value.trim(); if (v) cmd(`link ${b.dataset.link} ${v}`);
-  });
-  $('players').querySelectorAll('[data-unlink]').forEach(b => b.onclick = () => cmd(`unlink ${b.dataset.unlink}`));
 }
 
 // ---- Automute ------------------------------------------------------------------------------
@@ -415,7 +381,7 @@ function renderMute() {
   $('mute-say').textContent = !st ? (S.mod.installed ? 'Start Among Us and host a lobby.' : 'Install the mod in Settings first.')
     : !a.configured ? 'Automute needs a bot: it comes with a tournament host code, or add one in the mod\'s config file.'
     : !a.voiceConnected ? 'Connecting to Discord voice…'
-    : `${st.players.filter(p => p.discordId).length} of ${st.players.length} players linked to Discord${a.refereeMode ? ' · referee mode: only referees can talk' : ''}.`;
+    : `${st.players.filter(p => p.discordId).length} of ${st.players.length} players linked to Discord${st.players.some(p => !p.discordId) ? ' · the rest type /link in Discord' : ''}${a.refereeMode ? ' · referee mode: only referees can talk' : ''}.`;
   $('mute-controls').hidden = !st || !a.configured;
   if (st && a.configured) {
     roundBtn($('m-enabled'), a.enabled, 'automute');
@@ -426,6 +392,8 @@ function renderMute() {
   const key = JSON.stringify(players.map(p => [p.name, p.color, p.dead, p.discordId, p.discordName, p.voice]));
   if (key === crewKey) return;
   crewKey = key;
+  // One row up to 6; after that two even rows (15 players: 8 and 7).
+  $('crew').style.setProperty('--cols', players.length <= 6 ? Math.max(players.length, 1) : Math.ceil(players.length / 2));
   $('crew').innerHTML = players.map(p => `<div class="mate${p.dead ? ' dead' : ''}">
       <span class="wrap">${crewmate(p.color, p.dead)}${p.voice ? `<span class="voice ${p.voice}" title="${p.voice}">${VOICE[p.voice]}</span>` : ''}</span>
       <span class="nm">${esc(p.name)}</span>
@@ -487,7 +455,7 @@ function renderSetup() {
 // ---- Replays -------------------------------------------------------------------------------
 async function loadReplays() {
   const list = await api('GET', '/app/replays');
-  $('replay-list').innerHTML = list.length ? list.map(r => `<tr><td><span style="font:700 24px/1 var(--hand);letter-spacing:.04em">Game ${esc(r.label)}</span>${r.downloaded ? ' <span class="pill">downloaded</span>' : ''}</td>
+  $('replay-list').innerHTML = list.length ? list.map(r => `<tr><td><span style="font-size:15px">Game ${esc(r.label)}</span>${r.downloaded ? ' <span class="pill">downloaded</span>' : ''}</td>
     <td class="muted">${new Date(r.when).toLocaleString()}</td><td class="muted">${(r.size / 1048576).toFixed(1)} MB</td>
     <td style="text-align:right"><button class="b primary" data-watch="${esc(r.name)}">Watch</button></td></tr>`).join('')
     : '<tr><td class="empty">No replays yet. They appear after the first recorded game.</td></tr>';

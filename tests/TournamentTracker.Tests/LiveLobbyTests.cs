@@ -145,7 +145,7 @@ public class LiveLobbyTests : IDisposable
         Assert.Equal("102", s.Links.Find(_lobby[2].Key)?.DiscordUserId);
         Assert.Null(s.Links.Find(_lobby[3].Key));             // "Dana" matches neither exactly
         var replies = s.Pump();
-        Assert.Contains(replies, r => r.Public && r.Text == "Auto-linked Red (Alice) to @alice. Wrong? Type !unlink");
+        Assert.Contains(replies, r => r.Public && r.Text == "Auto-linked Red (Alice) to @alice. Wrong? Use /unlink in Discord.");
     }
 
     [Fact]
@@ -191,6 +191,79 @@ public class LiveLobbyTests : IDisposable
     [InlineData("ÉLAN_99", "élan99")]
     public void Names_are_compared_ignoring_case_spaces_and_symbols(string raw, string normal) =>
         Assert.Equal(normal, TournamentSession.NormalizeName(raw));
+
+    // ---- /link and /unlink in Discord ----
+
+    private static Interaction Slash(string command, string userId, string name, string? player = null, string? user = null, bool staff = false)
+    {
+        var i = new Interaction { Id = "i1", Token = "t1", GuildId = "g1", Command = command, UserId = userId, UserName = name, Permissions = staff ? Interaction.MuteMembers : 0 };
+        if (player != null) i.Options["player"] = player;
+        if (user != null) { i.Options["user"] = user; i.ResolvedNames[user] = "Target"; }
+        return i;
+    }
+
+    private TournamentSession SlashSession()
+    {
+        var s = Session(c => { c.AutoMute.AutoLinkByName = false; c.AutoMute.VoiceChannelId = "vc"; });
+        InVoice("vc", ("100", "someone"), ("101", "other"));
+        s.VoiceTick(VoicePhase.Lobby, _lobby);
+        return s;
+    }
+
+    [Fact]
+    public void Link_by_colour_or_name_from_the_lobby_voice_channel()
+    {
+        var s = SlashSession();
+        Assert.StartsWith("Linked you to Pink (Dana)", s.HandleSlashCommand(Slash("link", "100", "someone", "pink")));
+        Assert.Equal("100", s.Links.Find(_lobby[3].Key)?.DiscordUserId);
+        Assert.StartsWith("Linked you to Blue (Bob)", s.HandleSlashCommand(Slash("link", "101", "other", "bob")));
+        Assert.Contains("already linked", s.HandleSlashCommand(Slash("link", "101", "other", "pink")));
+        Assert.Contains("No one in", s.HandleSlashCommand(Slash("link", "100", "someone", "Zed")));
+
+        Assert.Equal("Unlinked you from Dana.", s.HandleSlashCommand(Slash("unlink", "100", "someone")));
+        Assert.Null(s.Links.Find(_lobby[3].Key));
+    }
+
+    [Fact]
+    public void Other_lobbies_stay_quiet_unless_the_name_is_theirs()
+    {
+        var s = SlashSession();
+        // Not in this lobby's voice channel: a colour could be anyone's, so another lobby answers.
+        Assert.Null(s.HandleSlashCommand(Slash("link", "900", "elsewhere", "red")));
+        Assert.Null(s.HandleSlashCommand(Slash("link", "900", "elsewhere", "Zed")));
+        Assert.Null(s.HandleSlashCommand(Slash("unlink", "900", "elsewhere")));
+        // A name that's in this lobby is enough.
+        Assert.StartsWith("Linked you to Green (Carl)", s.HandleSlashCommand(Slash("link", "900", "elsewhere", "Carl")));
+    }
+
+    [Fact]
+    public void Only_referees_link_someone_else()
+    {
+        var s = SlashSession();
+        Assert.StartsWith("Only referees", s.HandleSlashCommand(Slash("link", "100", "someone", "eve", user: "555")));
+        Assert.Null(s.Links.Find(_lobby[4].Key));
+        Assert.StartsWith("Linked @Target to Orange (Eve)", s.HandleSlashCommand(Slash("link", "100", "someone", "eve", user: "555", staff: true)));
+        Assert.Equal("555", s.Links.Find(_lobby[4].Key)?.DiscordUserId);
+        Assert.Equal("Unlinked @Target from Eve.", s.HandleSlashCommand(Slash("unlink", "100", "someone", user: "555", staff: true)));
+    }
+
+    [Fact]
+    public void Slash_commands_are_read_from_the_gateway()
+    {
+        var state = new VoicePresenceState("g1");
+        Interaction? got = null;
+        state.InteractionCreated += i => got = i;
+        state.Dispatch("READY", JsonDocument.Parse("""{"user":{"id":"bot"},"application":{"id":"app1"}}""").RootElement);
+        state.Dispatch("INTERACTION_CREATE", JsonDocument.Parse("""
+            {"id":"5","token":"tok","type":2,"guild_id":"g1",
+             "member":{"nick":"Dee","permissions":"4194304","user":{"id":"77","username":"dee"}},
+             "data":{"name":"link","options":[{"name":"player","type":3,"value":"Red"},{"name":"user","type":6,"value":"88"}],
+                     "resolved":{"users":{"88":{"id":"88","username":"eight"}}}}}
+            """).RootElement);
+        Assert.Equal("app1", state.ApplicationId);
+        Assert.NotNull(got);
+        Assert.Equal(("link", "77", "Dee", "Red", "88", "eight", true), (got!.Command, got.UserId, got.UserName, got.Option("player"), got.Option("user"), got.ResolvedNames["88"], got.IsStaff));
+    }
 
     // ---- Spectators ----
 

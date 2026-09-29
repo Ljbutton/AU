@@ -86,14 +86,20 @@ namespace TournamentTracker
                 // comes over the gateway, which uses the first bot token.
                 Presence = presence;
                 bool listen = settings.ResultsChannelId.Length > 0 && settings.Mode == TrackerMode.Tournament;
-                if (Presence == null && (mute.MuteSpectators || mute.AutoLinkByName || listen))
+                // The gateway also carries /link and /unlink, so it always runs.
+                if (Presence == null)
                 {
                     _gateway = new VoiceGateway(mute.BotTokens[0], mute.GuildId, log, listenToMessages: listen);
                     _gateway.Start();
                     Presence = _gateway;
                 }
                 var state = presence as VoicePresenceState ?? _gateway?.State;
-                if (state != null) state.MessageCreated += OnChannelMessage;
+                if (state != null)
+                {
+                    state.MessageCreated += OnChannelMessage;
+                    state.InteractionCreated += OnInteraction;
+                    state.Ready += OnGatewayReady;
+                }
             }
             else if (mute.Enabled)
             {

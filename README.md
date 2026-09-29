@@ -1,7 +1,8 @@
-# Among Us Tournament Tracker
+# The Button: Among Us tournaments
 
-A **host-only** Among Us mod for running tournaments. Only the host installs it; players
-use the normal game. It:
+**The Button** is a Windows app plus a **host-only** Among Us mod (the Tournament Tracker)
+for running tournaments. Only the host installs it; players use the normal game, and link
+their Discord account with **/link** in the Discord server. It:
 
 * **Tracks stats** for every game: kills, deaths, ejections, meetings, body reports, votes
   (correct, wrong, skipped, missed), tasks, sabotages, disconnects, wins and losses by team.
@@ -11,8 +12,8 @@ use the normal game. It:
   leaderboard. You can also turn on a live play-by-play.
 * **Automutes Discord voice**: alive players are muted (and deafened) during tasks, everyone
   alive can talk in meetings, and dead players talk among themselves during tasks, with a
-  short delay at each change. It can also mute spectators and link players by name
-  automatically. It works like AutoMuteUs, but the host's game drives it directly, so no
+  short delay at each change. It can also mute spectators. Players link themselves with
+  `/link` in Discord, or are linked automatically when their name matches. It works like AutoMuteUs, but the host's game drives it directly, so no
   capture app is needed.
 
 **Platforms:** the host plays the Windows PC version from Steam or Epic Games (the Xbox app /
@@ -26,20 +27,19 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.0**, a beta.
+The current release is **v0.1.1**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
 Windows shows "Windows protected your PC", click **More info → Run anyway**.
 
-It installs **The Button**, the Tournament Tracker app (for your Windows user, no admin
-needed), with Start menu and desktop shortcuts, and opens it. Everything is done from the app; nothing
+It installs **The Button** (for your Windows user, no admin needed), with Start menu and desktop shortcuts, and opens it. Everything is done from the app; nothing
 is typed in the game chat, so there's nothing for Among Us's anti-cheat to trip on.
 
 1. **Settings:** the app finds Among Us (Steam or Epic, any drive; or pick the folder) and
    installs the mod with the mod loader it needs (BepInEx 6 build 735, 32-bit). Paste the
    setup code the organiser gave you; the page then shows the tournament and the locked
-   lobby settings (point values stay with the organiser). Space (dark, the default) or light.
+   lobby settings (point values stay with the organiser).
 2. **Start Among Us** and host a lobby. The first start takes a few minutes while BepInEx
    sets itself up (a black console window appears). The app connects on its own.
 
@@ -49,11 +49,11 @@ to go to Settings and fix it.
 
 While you play, the app's pages run the lobby:
 
-* **Home:** the whole lobby on one page: code, map, round and players; link players to
-  Discord; start the next round; void or unvoid a game; the settings lock, referee ghost
-  slot, stream overlay and lead-lobby switches; post standings.
+* **Home:** the whole lobby on one page, up to 15 players: code, map, round, each player
+  and their Discord link; start the next round; void or unvoid a game; the settings lock,
+  referee ghost slot, stream overlay and lead-lobby switches; post standings.
 * **Automute:** in the style of the AutoMuteUs capture window: the game's state, every
-  player as a crewmate in their colour with their Discord name and whether they're muted,
+  player (up to 15) as a crewmate in their colour with their Discord name and whether they're muted,
   and buttons for automute on/off, referee mode, spectator muting and "unmute everyone".
 * **Replays:** every recorded game (and any downloaded from Discord); watch one in the app.
 
@@ -65,7 +65,7 @@ random key the mod writes in its data folder).
 1. Download `TournamentTracker-Full.zip` from the latest release and extract everything
    into the Among Us folder (the one with `Among Us.exe`). It contains BepInEx and the mod.
 2. Or, if you already have **BepInEx 6 bleeding-edge build 735 (IL2CPP, the win-x86 build: Among Us is 32-bit)**, only
-   `TournamentTracker-*.zip` is needed: it puts `BepInEx/plugins/TournamentTracker.dll` in
+   `TournamentTracker-Mod-*.zip` is needed: it puts `BepInEx/plugins/TournamentTracker.dll` in
    place.
 
 To uninstall, delete `BepInEx`, `dotnet`, `winhttp.dll`, `doorstop_config.ini` and
@@ -93,9 +93,10 @@ Create one bot per tournament lobby that runs at the same time, at
 <https://discord.com/developers/applications> (New Application → Bot → Reset Token). For
 each: turn on **Message Content Intent** (Bot → Privileged Gateway Intents), and invite it
 with this link (put in the application ID):
-`https://discord.com/oauth2/authorize?client_id=APP_ID&scope=bot&permissions=12700736`
+`https://discord.com/oauth2/authorize?client_id=APP_ID&scope=bot+applications.commands&permissions=12700736`
 (view channels, send messages, embed links, attach files, read history, add reactions,
-mute and deafen members). Preliminary hosts don't need a bot.
+mute and deafen members, and the `/link` and `/unlink` commands, which appear in the server
+the first time a host opens Among Us with the code). Preliminary hosts don't need a bot.
 
 ### 3. Setup codes
 
@@ -117,8 +118,8 @@ are only encoded, not encrypted: anyone holding one can read what's in it.
   is in use, the host's lobby is kept on the tournament's settings (impostors, cooldowns,
   vision, kill distance, tasks, special roles off…). Anything changed in the lobby is put
   back and the host is told. A game that still starts on the wrong settings says so in its
-  report (and to the referees). For a casual game the host types `!lock off` (until they
-  restart Among Us); without a code nothing is ever touched.
+  report (and to the referees). For a casual game the host turns **Settings lock** off on
+  The Button's Home page (until they restart Among Us); without a code nothing is ever touched.
 * **Fair impostor rotation** (off unless ticked): within a round nobody is impostor a
   second time until everyone has been once, still drawn at random. The mod swaps the
   roles the game handed out, and announces it when a round starts.
@@ -145,26 +146,26 @@ right away.
 
 ### During the tournament
 
-Hosts do all of this from the The Button's Home page (the `!` commands below
-are what its buttons run); referees and the organiser use the private results channel.
+Hosts do all of this from The Button's Home page; referees and the organiser use the
+private results channel.
 
-* **Rounds:** the host types `!r1`, `!r2`, `!r3`… in the lobby before each round's first game,
-  for as many rounds as you need. Points restart each round, and a running total across all
+* **Rounds:** the host presses **Next round** (or sets a number) on Home before each round's
+  first game, for as many rounds as you need. Points restart each round, and a running total across all
   rounds is kept alongside. After every game the lobby's standings for the round are
-  posted with a line under the top players who move on (5 by default). `!leaderboard` also
-  shows every lobby in the round together.
+  posted with a line under the top players who move on (5 by default). **Post** under
+  Standings also shows every lobby in the round together.
 * **Referee adjustments:** in the private results channel, type
   `!adjust LJ red -2 meta call` (the lobby name, the player's colour or name, the points,
   the reason). You can type it during the game; it lands on the game that lobby was playing
   at that moment. For a specific game use its name: `!adjust LJ-3 red -2 …`. The lobby's
   bot reacts ✅ when it's applied, or ❓ if the player couldn't be found. It shows in the
   points breakdown as "Referee: meta call −2".
-* **Restarted games:** if a game has to stop and restart, the host types `!void [reason]`
+* **Restarted games:** if a game has to stop and restart, the host presses **Void** on Home
   during it (or straight after it, for the last game), or a referee types
   `!void LJ-3 reason` in the results channel (`!void LJ` means the game that lobby is
   playing). A void game is kept for the record and its report says VOID, but it scores
   nothing and doesn't count toward the round, so the replacement game is the one that counts.
-  Only `!unvoid` (in-game, or `!unvoid LJ-3` in the channel) brings it back: once the
+  Only **Unvoid** (on Home, or `!unvoid LJ-3` in the channel) brings it back: once the
   lobby's bot has seen a void it reacts ✅ and reposts the game with it built in, so deleting
   the `!void` message changes nothing. Preliminary channels work the same way (the scheduled
   job applies them), so the organiser's bot needs Add Reactions and Attach Files there.
@@ -175,7 +176,7 @@ are what its buttons run); referees and the organiser use the private results ch
   round). The players it moves above the line get +0.25 on their total; it isn't shown in
   any public breakdown, but the referees get a note in the results channel saying who,
   why and by how much. A tie that's level on all three is left to a referee (use `!adjust`).
-* **Disconnects:** when a player leaves mid-game the host is told, and pointed to `!void`
+* **Disconnects:** when a player leaves mid-game the host is told, and pointed to **Void**
   if it's before the first meeting; the referees get a note. A player who leaves keeps
   the points they'd earned and takes their team's loss (and the sabotage penalty if they
   left alive), but doesn't share a win.
@@ -189,22 +190,25 @@ are what its buttons run); referees and the organiser use the private results ch
   * `!start 3 in 10` switches every lobby's mod to round 3 (after the current game if one
     is running) and pings each lobby's linked players in the tournament channel with their
     lobby and host, then again when it starts. `!start 3` on its own says it's starting now.
-  * `!lead` typed in-game by a host makes their mod the one that answers from then on.
+  * **Take over** (Lead lobby, on Home) makes that host's mod the one that answers from then on.
   This needs the bot's Message Content Intent (already needed for the results channel).
-* **Server standings:** `!servers` (and each new round) posts servers ranked by their
+* **Server standings:** **Servers** on Home (and each new round) posts servers ranked by their
   players' total points, with each server's furthest player. A player's server is the one
   they played the most preliminaries in. Unofficial.
 
 ### Stream overlay
 
-`!overlay on` (host) starts an overlay for OBS on the host's computer: add a **Browser
-source** with `http://localhost:8765/` (size 360×900). It shows the lobby, round and game
+**Stream overlay** (Home → Tools) starts an overlay for OBS on the host's computer: add a
+**Browser source** with `http://localhost:8765/` (size 380×720). With more than 8 players
+the list goes into two columns, so a full 15-player lobby still fits. It shows the lobby, round and game
 number, the players, the round standings with the cut line, and the latest meetings and
 ejections. It only shows what the players in the game already know (a death appears once a
 meeting reveals it). `http://localhost:8765/?full=1` adds roles, kills and task bars: only
 for a stream on a delay, since anyone watching live could see who the impostors are. Add
-`&show=players` (or `standings`, `feed`, comma separated) to show some panels only.
-`!overlay off` stops it; the choice is remembered.
+`&show=players` (or `standings`, `feed`, comma separated) to show some panels only, for
+example the players on one side of the screen and the standings on the other. Standings
+and the feed stay hidden until there's something in them. Turning the switch off stops it;
+the choice is remembered.
 
 ### Replays
 
@@ -239,11 +243,11 @@ so everyone appears without cosmetics.
 
 ### Referee ghost slot (experimental)
 
-For an 11-player lobby that plays like 10 while the host referees: the host types
-`!refslot on` in the lobby and sets the lobby to 11 players. Only the host can be the ghost
+For an 11-player lobby that plays like 10 while the host referees: the host turns on
+**Referee ghost slot** (Home → Tools) and sets the lobby to 11 players. Only the host can be the ghost
 referee. At the start of every game the host becomes a ghost: never an impostor, no tasks, not in stats, points or automute (they can
 always talk). The host can zoom out with the **mouse wheel** or **+ / −** to see the
-whole map (for refereeing and streaming). `!refslot off` turns it off; the choice is remembered.
+whole map (for refereeing and streaming). The same switch turns it off; the choice is remembered.
 
 ## Discord setup (without a setup code)
 
@@ -256,8 +260,8 @@ The same channel gets a **live status message**: the lobby code, map, phase, and
 player's colour, name and Discord link. It updates as people join, link and play, and moves
 below each game report so it stays at the bottom. Deaths only appear once the game has
 revealed them (at a meeting or the end), so it never gives away a kill. Give it its own
-channel with `StatusWebhookUrl`, or turn it off with `LiveStatus = false`. `!refresh` posts a
-fresh copy.
+channel with `StatusWebhookUrl`, or turn it off with `LiveStatus = false`. **Status** on
+The Button's Home posts a fresh copy.
 
 If you want a live feed of kills and meetings, make a second webhook in a
 **staff-only** channel (the feed reveals the impostors) and use it for `LiveFeedWebhookUrl`.
@@ -266,8 +270,9 @@ If you want a live feed of kills and meetings, make a second webhook in a
 
 1. Create an application at <https://discord.com/developers/applications>. Under **Bot**,
    reset the token and copy it. The bot needs no privileged intents.
-2. Invite the bot with the View Channels, Mute Members and Deafen Members permissions:
-   `https://discord.com/oauth2/authorize?client_id=YOUR_APP_ID&scope=bot&permissions=12583936`
+2. Invite the bot with the View Channels, Mute Members and Deafen Members permissions and
+   its slash commands:
+   `https://discord.com/oauth2/authorize?client_id=YOUR_APP_ID&scope=bot+applications.commands&permissions=12583936`
 3. Turn on Developer Mode in Discord, right-click your server → **Copy Server ID**.
 4. In the config, set `[AutoMute] Enabled = true`, `BotTokens = <token>` and `GuildId = <server id>`.
 
@@ -291,20 +296,20 @@ Voice switches a moment after the game does, so nobody gets cut off mid-word:
 | Game ends → everyone unmuted | 3 s | `DelayGameEnd` |
 | Meeting called → alive players unmuted | 0 s, so nobody misses the start of the discussion | `DelayMeetingStart` |
 
-A death applies at once, and `!unmuteall` / **F9** never wait.
+A death applies at once, and **Unmute all** (Automute page) / **F9** never wait.
 
 #### Referee mode
 
-Type `!ref on` in the lobby to explain the rules: everyone in the voice channel (players and
+Press **Referee** on the Automute page to explain the rules: everyone in the voice channel (players and
 spectators) is muted, but can still hear, except you and anyone in `RefereeUserIds`
-(co-referees, casters). `!ref off` gives everyone their voice back. It only ever turns on
+(co-referees, casters). Pressing it again gives everyone their voice back. It only ever turns on
 by hand, and it ends by itself when a game starts, so a forgotten toggle can't silence a
 meeting. You need to be linked to Discord yourself to be the one talking. The live status
 message shows when the referee is speaking.
 
 #### Spectators
 
-With `MuteSpectators = true` (or `!spectators on`), anyone in the game's voice channel who
+With **Spectators** on (Automute page, or `MuteSpectators = true`), anyone in the game's voice channel who
 isn't playing is muted while a game is running and unmuted in the lobby. The game's voice
 channel is the one the host is in (once the host is linked), otherwise the one most linked
 players are in; set `VoiceChannelId` to pin it. Put casters
@@ -312,22 +317,26 @@ and referees in `SpectatorExemptUserIds` so they're never muted. Off by default.
 
 ### Linking players to Discord
 
-Automute only touches players linked to a Discord account. Links are keyed by friend code,
-so a link survives name and colour changes, and they're saved in
-`BepInEx/config/TournamentTracker/links.json`.
+Automute only touches players linked to a Discord account. Linking happens in Discord, not
+in the app or the game chat. Links are keyed by friend code, so a link survives name and
+colour changes, and they're saved in `BepInEx/config/TournamentTracker/links.json`.
 
-* Players type **`!link their_discord_username`** (or their numeric user ID, or
-  `<@id>`) in the lobby chat.
-* The host can link anyone: **`!link red coolbean`** or **`!link CoolBean 1234…`**.
+* **`/link`**: in any channel of the server, a player types `/link` and their in-game name
+  or colour (`/link Red`, `/link Soggy Dingus`). Only they see the answer. A colour works
+  when they're in the lobby's voice channel; a name works from anywhere. With several
+  lobbies running, the lobby that has that player (or that voice channel) answers.
+* **`/unlink`** removes their link (and stops auto-link from linking them again that session).
+* **Referees** (anyone who can mute members in the server) link someone else by adding
+  `user`: `/link player:Red user:@Soggy`, `/unlink user:@Soggy`. The host can too, once linked.
 * **Automatically:** in the lobby, a player whose in-game name matches exactly one person in
   the voice channel (their server nickname, display name or username, ignoring capitals,
-  spaces and symbols) is linked for them, and the lobby chat says so. A wrong match is fixed
-  with `!unlink`, and that player won't be auto-linked again that session. Turn it off with
-  `AutoLinkByName = false`.
+  spaces and symbols) is linked for them. A wrong match is fixed with `/unlink`. Turn it off
+  with `AutoLinkByName = false`.
 * Or fill in `links.json` before the event (see `links.example.json`). A player's key is their
   friend code in lower case, e.g. `coolbean#1234`.
 
-Unlinked players are never muted, and spectators only when `MuteSpectators` is on.
+The Home and Automute pages show who is linked. Unlinked players are never muted, and
+spectators only when spectator muting is on.
 
 ## Several lobbies at once
 
@@ -348,14 +357,14 @@ To have one leaderboard across every lobby, make a **private** text channel (e.g
 `#tournament-data`) that each host's bot can see, send messages and attach files in, and put
 its channel ID in every host's `ResultsChannelId`. After each game, the host's mod posts
 the game's record there as a small file, then reads every host's files back and posts the
-combined leaderboard. Each host's own `!stats` and `!leaderboard` show the combined numbers.
+combined leaderboard. Each host's **Post** (Standings) shows the combined numbers.
 
 In the Developer Portal, turn on **Message Content Intent** (Bot → Privileged Gateway
 Intents) for every host's bot. Without it a bot can't read the files other bots posted, and
 the log warns about it.
 
 **To reset it**, type `!resetleaderboard` in that channel yourself, from any device, or use
-`!resetleaderboard` in the game as a host. Only games posted after the newest reset
+**Reset…** under Standings on The Button's Home. Only games posted after the newest reset
 message count. The older game files stay in the channel, so deleting the reset message
 brings the old standings back.
 
@@ -367,7 +376,7 @@ to everyone's chat). The commands, for reference; the app runs the same ones:
 
 | Command | Who | What |
 | --- | --- | --- |
-| `!link <discord>` | anyone* | Link your Discord account |
+| `!link <discord>` | anyone* | Link your Discord account (normally `/link` in Discord) |
 | `!unlink` | anyone | Remove your link |
 | `!stats [player]` | anyone | Show tournament totals in chat |
 | `!help` | anyone | List commands |
@@ -521,13 +530,16 @@ The plugin builds against `AmongUs.GameLibs.Steam` from the BepInEx NuGet feed, 
 uses the newest game version (currently 2026.8.18); pass `GameLibsVersion` to match your
 game. BepInEx is pinned to be.735, because newer builds use an Il2CppInterop version the
 interop generator can't run. On GitHub, run the
-**Build** workflow by hand to choose the version, or push a `v*` tag to publish a release ZIP.
+**Build** workflow by hand (Actions → Build → Run workflow) to choose the version; give it a
+`release_tag` (e.g. `v0.1.1`) to publish a release, and `delete_tags` to remove old ones.
 
 Layout:
 
 * `src/TournamentTracker.Core` has everything that doesn't touch the game: the stat tracker,
   scoring, leaderboard, Discord REST and webhooks, the automute planner and dispatcher, and
   chat commands. It is unit-tested.
+* `src/TournamentTracker.AppCore` is The Button's engine and pages (cross-platform, tested);
+  `src/TournamentTracker.App` is the Windows window around it (WebView2), built in CI.
 * `src/TournamentTracker.Plugin` is the BepInEx plugin: Harmony hooks on the game, and a
   per-frame driver that reads the game phase for automute. It compiles the core in, so the
   build is a single DLL.

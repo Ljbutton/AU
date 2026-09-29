@@ -276,6 +276,35 @@ namespace TournamentTracker.Discord
                 return req;
             }, "reaction:" + botToken.GetHashCode() + ":" + channelId, ct);
 
+        /// <summary>Replaces the bot's slash commands in one server with <paramref name="commands"/>.</summary>
+        public Task<DiscordResult> PutGuildCommandsAsync(string botToken, string applicationId, string guildId, object[] commands, CancellationToken ct = default)
+        {
+            string json = JsonSerializer.Serialize(commands);
+            return SendAsync(() =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Put, $"{_apiBase}/applications/{applicationId}/guilds/{guildId}/commands")
+                {
+                    Content = new StringContent(json, Encoding.UTF8, "application/json"),
+                };
+                Authorize(req, botToken);
+                return req;
+            }, "commands:" + applicationId + ":" + guildId, ct);
+        }
+
+        /// <summary>Answers a slash command with a message only the person who used it sees.</summary>
+        public Task<DiscordResult> RespondToInteractionAsync(string interactionId, string interactionToken, string content, CancellationToken ct = default)
+        {
+            string json = JsonSerializer.Serialize(new
+            {
+                type = 4,
+                data = new { content, flags = 64, allowed_mentions = new { parse = Array.Empty<string>() } },
+            });
+            return SendAsync(() => new HttpRequestMessage(HttpMethod.Post, $"{_apiBase}/interactions/{interactionId}/{interactionToken}/callback")
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+            }, "interaction:" + interactionId, ct);
+        }
+
         private static void Authorize(HttpRequestMessage req, string botToken) =>
             req.Headers.TryAddWithoutValidation("Authorization", "Bot " + botToken);
 

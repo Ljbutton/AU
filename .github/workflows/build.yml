@@ -70,9 +70,11 @@ jobs:
         run: dotnet list src/TournamentTracker.Plugin package | tee versions.txt
 
       - name: Package
+        env:
+          REF: ${{ inputs.release_tag || github.ref_name }}
         run: |
           set -euo pipefail
-          name="TournamentTracker-${GITHUB_REF_NAME//\//-}"
+          name="TournamentTracker-Mod-${REF//\//-}"
           root="dist/$name"
           mkdir -p "$root/BepInEx/plugins" "$root/BepInEx/config/TournamentTracker"
           cp src/TournamentTracker.Plugin/bin/Release/net6.0/TournamentTracker.dll "$root/BepInEx/plugins/"

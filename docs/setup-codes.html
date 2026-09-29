@@ -76,7 +76,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 
 <div class="wrap">
 <h1>Tournament setup codes</h1>
-<p class="lede">Make the code a host pastes into the installer (or copies before typing <code>!setup</code> in the lobby). A preliminary code only points games at your Discord. A tournament host code also carries your bot, so give those out privately.</p>
+<p class="lede">Make the code a host pastes into The Button (Settings → Setup code). A preliminary code only points games at your Discord. A tournament host code also carries your bot, so give those out privately.</p>
 
 <div class="grid">
 <form id="form" autocomplete="off">
@@ -102,7 +102,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <div class="field"><label for="guild">Server ID</label><input type="text" id="guild" class="mono" inputmode="numeric" placeholder="1180000000000000000"><span class="bad" id="guild-bad" hidden></span></div>
       <div class="field"><label for="results">Private results channel ID</label><input type="text" id="results" class="mono" inputmode="numeric" placeholder="1290000000000000000"><span class="bad" id="results-bad" hidden></span></div>
     </div>
-    <div class="field"><label for="token">Bot token</label><input type="password" id="token" class="mono" placeholder="MTIz…"><span class="hint">One bot per lobby that runs at the same time is fastest. The token never leaves this page except inside the code.</span></div>
+    <div class="field"><label for="token">Bot token</label><input type="password" id="token" class="mono" placeholder="MTIz…"><span class="hint">One bot per lobby that runs at the same time is fastest. Invite it with the link in the README (it adds the <b>/link</b> command players use to link themselves). The token never leaves this page except inside the code.</span></div>
     <div class="field"><label for="prelims">Preliminary channel IDs</label><input type="text" id="prelims" class="mono" placeholder="1290000000000000001, 1290000000000000002"><span class="hint">Where preliminary reports went; used for server standings. Comma separated.</span><span class="bad" id="prelims-bad" hidden></span></div>
     <div class="row">
       <div class="field"><label for="advance">Players who move on per lobby</label><input type="number" id="advance" min="1" max="10" value="5"></div>

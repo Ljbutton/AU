@@ -47,6 +47,13 @@ namespace TournamentTracker.Discord
 
         public bool Connected { get; set; }
         public string? BotUserId { get; private set; }
+        public string? ApplicationId { get; private set; }
+
+        /// <summary>The gateway said hello: the bot's user and application are known.</summary>
+        public event Action? Ready;
+
+        /// <summary>Someone used one of the bot's slash commands.</summary>
+        public event Action<Interaction>? InteractionCreated;
 
         /// <summary>A message was posted in a channel the bot can see (only with the message intents).</summary>
         public event Action<ChannelMessage>? MessageCreated;
@@ -63,6 +70,13 @@ namespace TournamentTracker.Discord
             {
                 case "READY":
                     if (data.TryGetProperty("user", out var me)) BotUserId = Str(me, "id");
+                    if (data.TryGetProperty("application", out var app)) ApplicationId = Str(app, "id");
+                    Ready?.Invoke();
+                    break;
+
+                case "INTERACTION_CREATE":
+                    if (Interaction.Parse(data) is Interaction interaction && interaction.GuildId == _guildId)
+                        InteractionCreated?.Invoke(interaction);
                     break;
 
                 case "GUILD_CREATE":
