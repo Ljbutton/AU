@@ -49,6 +49,8 @@ namespace TournamentTracker
                 ["map"] = map,
                 ["code"] = lobbyCode,
                 ["game"] = game?.Name,
+                // The host's game video (VDO.Ninja "id:password"), while they're sending it.
+                ["vdo"] = FeedForLive,
                 ["st"] = standings.Select(s => JsonSerializer.SerializeToElement(s, OverlayJson)).Select(e => new[] { e.GetProperty("name").GetString(), e.GetProperty("points").GetString() }).ToList(),
                 // name, colour, dead as players know it, really dead, impostor, tasks done, tasks total
                 ["p"] = WithoutReferee(players).Select(p => new object[]

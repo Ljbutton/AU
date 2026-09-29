@@ -261,6 +261,7 @@ namespace TournamentTracker.App
                     return file == null || !ReplayName.IsMatch(name) ? Text(404, "text/plain", "Not found") : (200, "application/octet-stream", File.ReadAllBytes(file.FullName));
                 }
                 case ("POST", "/app/open"): return Ok(Open(Arg("what")));
+                case ("POST", "/app/feed"): return Ok(await FeedAsync(Arg("on") == "true").ConfigureAwait(false));
                 case ("POST", "/app/admin/code"): return Ok(SetAdminCode(Arg("code")));
                 case ("GET", "/app/admin"): return _organizer == null ? Text(404, "application/json", "{\"error\":\"locked\"}") : Ok(_organizer.State());
                 case ("POST", "/app/admin/cast"):
@@ -414,6 +415,28 @@ namespace TournamentTracker.App
             SetupCode.Clear(ModInstaller.DataDir(GamePath));
             await _mod.CommandAsync(GamePath, "setup reload").ConfigureAwait(false);
             return new { ok = true, message = "Setup code removed: the mod uses its settings file." };
+        }
+
+        /// <summary>
+        /// "Send my game to the caster": switches it in the mod, then opens the private VDO.Ninja
+        /// page in the host's browser, where they pick the Among Us window.
+        /// </summary>
+        private async Task<object> FeedAsync(bool on)
+        {
+            if (GamePath == null) return new { ok = false, replies = new[] { "Find Among Us first." } };
+            string? answer = await _mod.CommandAsync(GamePath, on ? "feed on" : "feed off").ConfigureAwait(false);
+            if (answer == null) return new { ok = false, replies = new[] { "Among Us isn't running with the mod, so that can't be done right now." } };
+            if (on)
+            {
+                string? status = await _mod.StatusAsync(GamePath).ConfigureAwait(false);
+                string? url = null;
+                if (status != null && JsonDocument.Parse(status).RootElement.TryGetProperty("feed", out var feed)
+                    && feed.TryGetProperty("pushUrl", out var push) && push.ValueKind == JsonValueKind.String)
+                    url = push.GetString();
+                if (url != null && url.StartsWith(TournamentSession.VdoNinja, StringComparison.Ordinal))
+                    try { _env.Open(url); } catch (Exception) { }
+            }
+            return JsonDocument.Parse(answer).RootElement;
         }
 
         private async Task<object> CommandAsync(string command)

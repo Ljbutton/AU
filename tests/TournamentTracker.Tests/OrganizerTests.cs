@@ -96,6 +96,66 @@ public class OrganizerTests : IDisposable
     }
 
     [Fact]
+    public async Task A_host_sends_their_game_and_the_caster_pages_show_it_with_whats_happening()
+    {
+        var lj = Host("LJ");
+        var mal = Host("MAL");
+        var lobby = Players.Lobby();
+        Assert.True(lj.RunCommand("feed on"));
+        string push = lj.FeedPushUrl;
+        Assert.StartsWith("https://vdo.ninja/?push=tt", push);
+        Assert.Contains("&screenshare", push);
+        lj.VoiceTick(VoicePhase.Lobby, lobby, "QWERTY", "Polus");
+        mal.VoiceTick(VoicePhase.Lobby, Players.Lobby(), "ZZZZZZ", "The Skeld");
+        await Wait.Until(() => HasLive("LJ") && HasLive("MAL"), 5000);
+
+        var org = Organiser();
+        await org.PollLiveAsync();
+        org.Cast("LJ");
+        var feeds = JsonDocument.Parse(org.FeedsJson()).RootElement;
+        Assert.Equal("LJ", feeds.GetProperty("cast").GetString());
+        var ljFeed = feeds.GetProperty("lobbies")[0];
+        string video = ljFeed.GetProperty("video").GetString()!;
+        // The same private link the host shares, as a viewer.
+        var id = System.Text.RegularExpressions.Regex.Match(push, "push=([a-z0-9]+)&password=([a-z0-9]+)");
+        Assert.Equal($"https://vdo.ninja/?view={id.Groups[1].Value}&password={id.Groups[2].Value}&noaudio&cleanoutput", video);
+        Assert.Equal(JsonValueKind.Null, feeds.GetProperty("lobbies")[1].GetProperty("video").ValueKind);   // MAL isn't sending
+        Assert.Equal(JsonValueKind.Null, ljFeed.GetProperty("hot").ValueKind);                              // old news isn't news
+
+        using var http = new HttpClient();
+        string url = org.CasterUrl!;
+        Assert.Contains("/feeds", await http.GetStringAsync(url + "video"));
+        Assert.Contains("/feeds", await http.GetStringAsync(url + "multiview"));
+        Assert.Contains("\"cast\":\"LJ\"", await http.GetStringAsync(url + "feeds"));
+
+        // A kill: marked for the organiser, but not on stream until a meeting finds it.
+        _clock.Advance(5);
+        lj.GameStarted("QWERTY", "Polus", lobby);
+        lj.Kill(0, 2);
+        lobby[2].IsDead = true;
+        lj.VoiceTick(VoicePhase.Tasks, lobby, "QWERTY", "Polus");
+        await Wait.Until(async () => { await org.PollLiveAsync(); return org.Hot("LJ", full: true) == "Kill"; }, 10000);
+        Assert.Null(org.Hot("LJ", full: false));
+        Assert.Null(org.Hot("MAL", full: true));
+
+        // Turned off: the video goes from the caster's pages.
+        lj.RunCommand("feed off");
+        _clock.Advance(5);
+        lj.VoiceTick(VoicePhase.Tasks, lobby, "QWERTY", "Polus");
+        await Wait.Until(async () => { await org.PollLiveAsync(); return JsonDocument.Parse(org.FeedsJson()).RootElement.GetProperty("lobbies")[0].GetProperty("video").ValueKind == JsonValueKind.Null; }, 10000);
+    }
+
+    [Fact]
+    public void Only_a_well_formed_video_link_is_used()
+    {
+        JsonElement D(string vdo) => JsonDocument.Parse(JsonSerializer.Serialize(new { vdo })).RootElement;
+        Assert.NotNull(Organizer.VideoUrl(D("ttabc:key123")));
+        Assert.Null(Organizer.VideoUrl(D("tt&x=1:key")));
+        Assert.Null(Organizer.VideoUrl(D("nocolon")));
+        Assert.Null(Organizer.VideoUrl(JsonDocument.Parse("{}").RootElement));
+    }
+
+    [Fact]
     public async Task Referee_commands_from_the_organiser_are_posted_and_the_hosts_act_on_them()
     {
         var lj = Host("LJ");

@@ -111,6 +111,12 @@ tr:last-child td{border-bottom:0}
 .lob{display:grid;gap:6px;border:1.5px solid var(--line);border-radius:14px;padding:10px 12px;background:var(--panel)}
 .lob.casting{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
 .lob.quiet{opacity:.55}
+.lob.hot{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger) inset}
+.lob .badges{display:flex;gap:6px;flex-wrap:wrap;font-size:12px}
+.lob .badges span{padding:1px 8px;border-radius:99px;background:var(--sunk);color:var(--muted)}
+.lob .badges .vid{background:var(--good-soft);color:var(--good)}
+.lob .badges .hot{background:var(--danger);color:#fff}
+.cast-urls{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12.5px}
 .lob .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .lob .top b{font:700 26px/1 var(--hand);letter-spacing:.05em}
 .lob .meta{font-size:12.5px;color:var(--muted)}
@@ -225,6 +231,7 @@ select{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5p
           <div class="toggle"><b>Settings lock</b><button class="b" id="t-lock"></button></div>
           <div class="toggle"><b>Referee ghost slot</b><button class="b" id="t-refslot"></button></div>
           <div class="toggle"><div><b>Stream overlay</b><span class="mono" id="overlay-url"></span></div><button class="b" id="t-overlay"></button></div>
+          <div class="toggle" id="feed-row"><div><b>Send my game to the caster</b><span id="feed-line">Opens a private VDO.Ninja page in your browser: pick the Among Us window and leave the tab open.</span></div><div class="row" style="flex-wrap:nowrap"><button class="b" id="feed-again" hidden>Open again</button><button class="b" id="t-feed"></button></div></div>
           <div class="toggle"><b>Lead lobby</b><button class="b" id="t-lead"></button></div>
         </div>
         <div class="card">
@@ -246,9 +253,9 @@ select{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5p
   <div class="org-head">
     <div><h1>Organiser</h1><p class="sub" id="org-sub"></p></div>
     <div class="card cast-card">
-      <div><b>Caster overlay</b> <span class="muted" id="org-casting"></span></div>
-      <div class="mono" id="org-cast-url"></div>
-      <div class="muted" style="font-size:12px">OBS Browser source, 380×720. It follows the lobby you pick below (keys 1–9 switch). Add <span class="mono">?full=1</span> on a delayed stream for roles, kills and tasks.</div>
+      <div><b>Caster</b> <span class="muted" id="org-casting"></span></div>
+      <div class="cast-urls" id="org-cast-url"></div>
+      <div class="muted" style="font-size:12px">OBS Browser sources. Video and overlay follow the lobby you pick below (keys 1–9 switch). Overlay 380×720, add <span class="mono">?full=1</span> on a delayed stream for roles and kills. Video and multiview 1920×1080: hosts turn on "Send my game to the caster" in their Button.</div>
     </div>
   </div>
   <p id="org-problem" class="note bad" hidden></p>
@@ -413,6 +420,13 @@ function renderAlerts() {
 
 // ---- Home: the lobby ----------------------------------------------------------------------
 function onOff(el, on, command) { el.textContent = on ? 'On' : 'Off'; el.classList.toggle('on', on); el.onclick = () => cmd(`${command} ${on ? 'off' : 'on'}`); }
+async function feed(on) {
+  const r = await api('POST', '/app/feed', { on: on ? 'true' : 'false' });
+  toast(r.replies && r.replies.length ? r.replies.join(' ') : 'Sent.');
+  refresh();
+}
+$('t-feed').addEventListener('click', () => feed(!(S.status && S.status.feed && S.status.feed.on)));
+$('feed-again').addEventListener('click', () => feed(true));
 $('round-next').addEventListener('click', () => cmd('r' + ((S.status?.round || 0) + 1)));
 $('round-set').addEventListener('click', () => { const n = parseInt($('round-input').value, 10); if (n > 0) cmd('r' + n); });
 $('void').addEventListener('click', () => cmd(('void ' + $('void-reason').value).trim()));
@@ -446,6 +460,10 @@ function renderHome() {
   onOff($('t-lock'), st.lock.on, 'lock'); $('t-lock').disabled = !st.lock.available;
   onOff($('t-refslot'), st.refSlot, 'refslot');
   onOff($('t-overlay'), st.overlay.on, 'overlay');
+  const feed = st.feed || {};
+  $('feed-row').hidden = !feed.available;
+  $('t-feed').textContent = feed.on ? 'On' : 'Off'; $('t-feed').classList.toggle('on', !!feed.on);
+  $('feed-again').hidden = !feed.on;
   $('overlay-url').textContent = st.overlay.on ? st.overlay.url : '';
   $('t-lead').textContent = st.lead ? 'Yes' : 'Take over'; $('t-lead').classList.toggle('on', st.lead); $('t-lead').disabled = st.lead || !st.shared;
   $('t-lead').onclick = () => cmd('lead');
@@ -571,14 +589,17 @@ function renderOrganiser() {
   orgKey = key;
   $('org-sub').textContent = `${ORG.tournament}${ORG.round ? ' · round ' + ORG.round : ''} · ${ORG.lobbies.filter(l => !l.quiet && l.data.phase !== 'Menu').length} lobbies live`;
   $('org-problem').hidden = !ORG.problem && !ORG.casterProblem; $('org-problem').textContent = ORG.problem || ORG.casterProblem || '';
-  $('org-cast-url').textContent = ORG.casterUrl || '';
+  const cu = ORG.casterUrl;
+  $('org-cast-url').innerHTML = cu ? [['Overlay', cu], ['Video', cu + 'video'], ['Multiview', cu + 'multiview']].map(([k, u]) => `<span class="muted">${k}</span><span class="mono">${esc(u)}</span>`).join('') : '';
   $('org-casting').textContent = ORG.cast ? `· now showing ${ORG.cast}` : '· waiting for a lobby';
   $('org-lobbies').innerHTML = ORG.lobbies.length ? ORG.lobbies.map((l, i) => {
     const d = l.data, ev = (d.f || []).filter(f => showRoles || ['meeting', 'eject', 'end'].includes(f[1])).slice(-2).reverse();
     const heads = (d.p || []).map(p => `<img src="${head(p[1])}" title="${esc(p[0])}" class="${(showRoles ? p[3] : p[2]) ? 'dead' : ''} ${showRoles && p[4] ? 'imp' : ''}" alt="">`).join('');
-    return `<div class="lob${l.label === ORG.cast ? ' casting' : ''}${l.quiet ? ' quiet' : ''}">
+    const hot = showRoles ? l.hotFull : l.hot, casting = l.label === ORG.cast;
+    return `<div class="lob${casting ? ' casting' : hot ? ' hot' : ''}${l.quiet ? ' quiet' : ''}">
       <div class="top"><b>${i < 9 ? `<span class="muted" style="font-size:18px">${i + 1}</span> ` : ''}${esc(l.label)}</b><span class="phase-pill ${esc(d.phase)}">${esc(l.quiet ? 'No news' : PHASE_NAMES[d.phase] || d.phase)}</span></div>
       <div class="meta">${d.round ? `Round ${d.round} · game ${Math.min(d.played + (d.phase === 'Tasks' || d.phase === 'Meeting' ? 1 : 0), d.per)} of ${d.per}` : 'No round'}${d.map ? ' · ' + esc(d.map) : ''}${d.code ? ' · ' + esc(d.code) : ''} · ${l.age < 60 ? l.age + 's ago' : Math.round(l.age / 60) + ' min ago'}</div>
+      <div class="badges">${l.video ? '<span class="vid">Video</span>' : '<span>No video</span>'}${hot ? `<span class="hot">${esc(hot)}</span>` : ''}</div>
       <div class="heads">${heads || '<span class="muted" style="font-size:12.5px">Nobody in the lobby</span>'}</div>
       <div class="ev">${ev.map(f => `<div><span>${esc(f[0])}</span>${esc(f[2])}</div>`).join('') || '<span>No events yet</span>'}</div>
       <div class="row"><button class="b${l.label === ORG.cast ? ' on' : ''}" data-cast="${esc(l.label)}">${l.label === ORG.cast ? 'Casting' : 'Cast'}</button></div>

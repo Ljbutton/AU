@@ -36,6 +36,10 @@ namespace TournamentTracker.App
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private readonly object _lock = new object();
         private readonly Dictionary<string, (JsonElement Data, DateTime SeenUtc, long Sent)> _lobbies = new Dictionary<string, (JsonElement, DateTime, long)>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Each lobby's newest event and when it was first seen here, for "something's happening" marks.</summary>
+        private readonly Dictionary<string, (string Key, string Kind, DateTime At)> _lastEvent = new Dictionary<string, (string, string, DateTime)>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>How long a kill, meeting or ejection keeps a lobby marked.</summary>
+        public static readonly TimeSpan HotFor = TimeSpan.FromSeconds(20);
         private SharedLoad? _load;
         private DateTime _loadedUtc = DateTime.MinValue;
         private string? _cast;
@@ -54,6 +58,7 @@ namespace TournamentTracker.App
                 // Something else has the usual port: take any free one (the page shows which).
                 try { _caster = new OverlayServer(0, NullLog.Instance); } catch (Exception e) { CasterProblem = "The caster overlay couldn't start: " + e.Message; }
             }
+            if (_caster != null) _caster.Extra = CasterPage;
             if (start) Task.Run(LoopAsync);
         }
 
@@ -112,8 +117,17 @@ namespace TournamentTracker.App
             if (lobby.Length == 0) return;
             lock (_lock)
             {
-                if (_lobbies.TryGetValue(lobby, out var have) && have.Sent >= sent) return;
+                bool known = _lobbies.TryGetValue(lobby, out var have);
+                if (known && have.Sent >= sent) return;
                 _lobbies[lobby] = (data, _clock(), sent);
+                if (data.TryGetProperty("f", out var f) && f.ValueKind == JsonValueKind.Array && f.GetArrayLength() > 0)
+                {
+                    var last = f[f.GetArrayLength() - 1];
+                    string key = last.GetRawText();
+                    // The first time a lobby is seen its old events aren't news.
+                    if (!_lastEvent.TryGetValue(lobby, out var was) || was.Key != key)
+                        _lastEvent[lobby] = (key, last[1].GetString() ?? "", known ? _clock() : DateTime.MinValue);
+                }
             }
         }
 
@@ -146,6 +160,82 @@ namespace TournamentTracker.App
             if (data == null) return;
             _caster.SafeJson = JsonSerializer.Serialize(OverlayState(data.Value, full: false), Camel);
             _caster.FullJson = JsonSerializer.Serialize(OverlayState(data.Value, full: true), Camel);
+        }
+
+        private static readonly Dictionary<string, string> HotNames = new Dictionary<string, string>
+        {
+            ["meeting"] = "Meeting", ["eject"] = "Ejection", ["end"] = "Game over",
+            ["kill"] = "Kill", ["sabotage"] = "Sabotage", ["disconnect"] = "Player left",
+        };
+
+        /// <summary>
+        /// Why a lobby is worth a look right now (a meeting, or an event in the last few seconds),
+        /// or null. Kills, sabotages and disconnects only with <paramref name="full"/>: they're
+        /// not public until a meeting.
+        /// </summary>
+        public string? Hot(string lobby, bool full)
+        {
+            lock (_lock)
+            {
+                if (!_lobbies.TryGetValue(lobby, out var l)) return null;
+                if (l.Data.TryGetProperty("phase", out var ph) && ph.GetString() == "Meeting") return "Meeting";
+                if (!_lastEvent.TryGetValue(lobby, out var e) || _clock() - e.At > HotFor) return null;
+                if (!full && !PublicEvents.Contains(e.Kind)) return null;
+                return HotNames.TryGetValue(e.Kind, out var name) ? name : null;
+            }
+        }
+
+        /// <summary>The VDO.Ninja page showing a host's game, or null when they aren't sending it. Public for tests.</summary>
+        public static string? VideoUrl(JsonElement d)
+        {
+            if (!d.TryGetProperty("vdo", out var v) || v.ValueKind != JsonValueKind.String) return null;
+            var parts = (v.GetString() ?? "").Split(':');
+            if (parts.Length != 2 || !System.Text.RegularExpressions.Regex.IsMatch(parts[0] + parts[1], "^[a-z0-9]+$")) return null;
+            return $"{TournamentSession.VdoNinja}?view={parts[0]}&password={parts[1]}&noaudio&cleanoutput";
+        }
+
+        /// <summary>What the caster's video pages read: the lobby being cast and every lobby's video. Public for tests.</summary>
+        public string FeedsJson()
+        {
+            List<(string Label, JsonElement Data)> lobbies;
+            string? cast;
+            lock (_lock)
+            {
+                lobbies = _lobbies.Where(kv => kv.Value.Data.GetProperty("phase").GetString() != "Menu")
+                    .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase).Select(kv => (kv.Key, kv.Value.Data)).ToList();
+                cast = _cast;
+            }
+            return JsonSerializer.Serialize(new
+            {
+                Cast = cast,
+                Lobbies = lobbies.Select(l =>
+                {
+                    var players = l.Data.TryGetProperty("p", out var p) ? p.EnumerateArray().ToList() : new List<JsonElement>();
+                    return new
+                    {
+                        l.Label,
+                        Video = VideoUrl(l.Data),
+                        Phase = l.Data.GetProperty("phase").GetString(),
+                        Alive = players.Count(x => x[2].GetInt32() == 0),
+                        Total = players.Count,
+                        // On stream: only what the players already know.
+                        Hot = Hot(l.Label, full: false),
+                    };
+                }).ToList(),
+            }, Camel);
+        }
+
+        private (string Type, byte[] Body)? CasterPage(string path)
+        {
+            string route = path.Split('?')[0];
+            static byte[] B(string s) => System.Text.Encoding.UTF8.GetBytes(s);
+            return route switch
+            {
+                "/feeds" => ("application/json", B(FeedsJson())),
+                "/video" => ("text/html; charset=utf-8", B(CasterPages.Video)),
+                "/multiview" => ("text/html; charset=utf-8", B(CasterPages.Multiview)),
+                _ => null,
+            };
         }
 
         /// <summary>A lobby's live data in the stream overlay's format. Public for tests.</summary>
@@ -216,6 +306,9 @@ namespace TournamentTracker.App
                             Label = l.Label,
                             Age = Math.Round(age),
                             Quiet = age > Stale.TotalSeconds,
+                            Video = VideoUrl(l.Data) != null,
+                            Hot = Hot(l.Label, full: false),
+                            HotFull = Hot(l.Label, full: true),
                             Data = l.Data,
                         };
                     }).ToList(),

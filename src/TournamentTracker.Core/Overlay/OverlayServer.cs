@@ -25,6 +25,9 @@ namespace TournamentTracker.Overlay
         public volatile string SafeJson = "{}";
         public volatile string FullJson = "{}";
 
+        /// <summary>More pages (for the caster's copy of The Button): path → content type and body, or null.</summary>
+        public Func<string, (string Type, byte[] Body)?>? Extra;
+
         public int Port { get; }
         public string Url => $"http://localhost:{Port}/";
 
@@ -83,6 +86,10 @@ namespace TournamentTracker.Overlay
                         bytes = png;
                         type = "image/png";
                         cache = "max-age=86400";
+                    }
+                    else if (Extra?.Invoke(path) is (string, byte[]) extra)
+                    {
+                        (type, bytes) = extra;
                     }
                     else
                     {

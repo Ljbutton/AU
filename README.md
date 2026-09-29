@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.10**, a beta.
+The current release is **v0.1.11**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -260,8 +260,23 @@ seconds after anything changes; the Organiser tab reads them all:
   lobby you pick with **Cast** (or the number keys 1-9 while the tab is open), switching
   live: players, round standings and the latest meetings and ejections for that game.
   `http://localhost:8767/?full=1` adds roles, kills and task bars (for a stream on a delay
-  only). It's data only: for the game video, capture each host's stream or Discord Go Live
-  and switch scenes alongside it.
+  only).
+* **Game video, RedZone style:** each host turns on **Send my game to the caster** (Home →
+  Tools). The Button opens a private VDO.Ninja page in their browser; they pick the Among Us
+  window and leave the tab open. The link is random, kept for the tournament, and only
+  written in the private results channel. In your OBS:
+  * `http://localhost:8767/video` (1920×1080): the lobby you're casting, full frame. Every
+    lobby stays connected in the background, so pressing Cast switches instantly. Put the
+    caster overlay on top of it.
+  * `http://localhost:8767/multiview` (1920×1080): every lobby at once, with its name,
+    phase and players alive, the one on air outlined, and a red mark on a lobby with a
+    meeting or an ejection happening.
+  * The Organiser tab marks lobbies with something happening too (with **show roles**,
+    kills and sabotages as well), so you know where to jump.
+  * The video has no game sound; commentate over it. Each host needs about 3-6 Mbps upload
+    spare, and you download every lobby at once, so use a wired connection.
+  * Put a delay on your public stream (OBS → Settings → Advanced → Stream Delay, 2-3
+    minutes) so players in other lobbies can't watch it for information.
 
 The administration bot needs View Channel, Read Message History and Send Messages in the
 private results channel, and its **Message Content Intent** turned on (Discord Developer

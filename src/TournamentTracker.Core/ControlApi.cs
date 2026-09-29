@@ -167,6 +167,7 @@ namespace TournamentTracker
                 Rotation = RotationOn,
                 RefSlot = RefSlotKey != null,
                 Overlay = new { On = _overlay != null, Url = _overlay?.Url },
+                Feed = new { Available = FeedAvailable, On = _feedOn && FeedAvailable, PushUrl = _feedOn && FeedAvailable ? FeedPushUrl : null },
                 Lead = IsLead,
                 Shared = Shared != null,
                 LastGame = last == null ? null : new { last.Name, last.Winner, last.Voided, last.Counted },

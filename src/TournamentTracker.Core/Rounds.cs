@@ -26,6 +26,10 @@ namespace TournamentTracker
             public string? StatusChannel { get; set; }
             /// <summary>The host switched automute off (remembered, so AutoMuteUs can be used instead).</summary>
             public bool AutoMuteOff { get; set; }
+            /// <summary>The private VDO.Ninja link for "Send my game to the caster", kept for the tournament.</summary>
+            public string? FeedId { get; set; }
+            public string? FeedKey { get; set; }
+            public bool FeedOn { get; set; }
         }
 
         /// <summary>Counted games this lobby has played per round.</summary>
@@ -64,6 +68,9 @@ namespace TournamentTracker
                     _overlayOn = state?.OverlayOn ?? false;
                     _statusChosen = state?.StatusChannel;
                     _autoMuteOff = state?.AutoMuteOff ?? false;
+                    _feedId = state?.FeedId;
+                    _feedKey = state?.FeedKey;
+                    _feedOn = state?.FeedOn ?? false;
                 }
             }
             catch (Exception e)
@@ -81,7 +88,7 @@ namespace TournamentTracker
         private void SaveState() => TrySave(() =>
         {
             Directory.CreateDirectory(_dataDir);
-            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames, ImpostorGames = _impostorGames, Plan = Plan, OverlayOn = _overlayOn, StatusChannel = _statusChosen, AutoMuteOff = _autoMuteOff }));
+            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames, ImpostorGames = _impostorGames, Plan = Plan, OverlayOn = _overlayOn, StatusChannel = _statusChosen, AutoMuteOff = _autoMuteOff, FeedId = _feedId, FeedKey = _feedKey, FeedOn = _feedOn }));
         }, "state");
 
         /// <summary>!r3 or !round 3 sets the round; !round on its own says which it is.</summary>

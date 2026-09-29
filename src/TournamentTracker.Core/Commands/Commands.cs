@@ -86,6 +86,9 @@ namespace TournamentTracker
                 case "overlay" when fromHost:
                     OverlayCommand(args);
                     return true;
+                case "feed" when fromHost:
+                    FeedCommand(args);
+                    return true;
                 case "lead" when fromHost:
                     LeadCommand();
                     return true;
