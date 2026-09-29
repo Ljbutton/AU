@@ -6,271 +6,264 @@
 <title>The Button</title>
 <link rel="icon" href="/logo.png">
 <script>
-  // Dark unless the host picked light in Settings.
+  // Space (dark) unless the host picked light in Settings.
   try { document.documentElement.dataset.theme = localStorage.getItem('theme') === 'light' ? 'light' : 'dark'; } catch (e) { }
 </script>
 <style>
 @font-face{font-family:"Amatic SC";font-weight:700;font-display:swap;src:url(/fonts/amatic-sc-700.woff2) format("woff2")}
+@font-face{font-family:"Varela Round";font-weight:400;font-display:swap;src:url(/fonts/varela-round.woff2) format("woff2")}
 :root,[data-theme="dark"]{
-  --bg:#12151b;--side:#0d1015;--panel:#1a1e25;--sunk:#222730;--fg:#e8ebef;--muted:#98a2ae;--line:#2a3039;
-  --accent:#2fb350;--accent-fg:#06140a;--accent-soft:#143a1f;--good:#46c28b;--good-soft:#143428;--warn:#e8a54a;--warn-soft:#3a2a12;
-  --danger:#f07166;--danger-soft:#3a1d1a;color-scheme:dark;
+  --bg:#000;--panel:rgba(14,17,24,.78);--panel-solid:#0e1118;--sunk:rgba(255,255,255,.07);--fg:#f2f4f7;--muted:#9aa4b2;--line:rgba(255,255,255,.16);--edge:rgba(255,255,255,.75);
+  --accent:#2fb350;--accent-fg:#04120a;--good:#46c28b;--good-soft:rgba(70,194,139,.16);--warn:#ffc15a;--warn-soft:rgba(255,193,90,.14);
+  --danger:#ff6b61;--danger-soft:rgba(255,107,97,.15);--stars:1;color-scheme:dark;
 }
 [data-theme="light"]{
-  --bg:#f3f4f7;--side:#e9ebf0;--panel:#ffffff;--sunk:#eff1f4;--fg:#15181e;--muted:#5d6672;--line:#dcdfe5;
-  --accent:#177f2d;--accent-fg:#ffffff;--accent-soft:#dcf1e1;--good:#1f8a57;--good-soft:#dcf3e8;--warn:#9a5a06;--warn-soft:#fcefd9;
-  --danger:#c0362c;--danger-soft:#fbe4e1;color-scheme:light;
+  --bg:#e9edf3;--panel:rgba(255,255,255,.92);--panel-solid:#fff;--sunk:rgba(0,0,0,.05);--fg:#141820;--muted:#5b6574;--line:rgba(0,0,0,.14);--edge:#141820;
+  --accent:#177f2d;--accent-fg:#fff;--good:#1f8a57;--good-soft:#dcf1e6;--warn:#8a5200;--warn-soft:#fdf0d8;
+  --danger:#c0362c;--danger-soft:#fbe4e1;--stars:0;color-scheme:light;
 }
-:root{--sans:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;--mono:"Cascadia Mono",Consolas,ui-monospace,monospace;--hand:"Amatic SC","Segoe Print",cursive}
+:root{--hand:"Amatic SC","Segoe Print",cursive;--round:"Varela Round","Segoe UI",system-ui,sans-serif;--mono:"Cascadia Mono",Consolas,ui-monospace,monospace}
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--sans);display:grid;grid-template-columns:200px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
-header{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
-.brand{font-weight:700;font-size:16px;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
-.logo{width:30px;height:30px;flex:none;object-fit:contain}
-.conn{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
-.dot.on{background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 25%,transparent)}
-nav{background:var(--side);border-right:1px solid var(--line);padding:12px 8px;display:flex;flex-direction:column;gap:2px;overflow:auto}
-nav button{all:unset;cursor:pointer;padding:9px 12px;border-radius:8px;font-weight:600;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
-nav button:hover{background:var(--sunk);color:var(--fg)}
-nav button.on{background:var(--panel);color:var(--fg);box-shadow:0 0 0 1px var(--line)}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--round);display:grid;grid-template-columns:172px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);overflow:hidden}
+#space{position:fixed;inset:0;width:100%;height:100%;z-index:0;opacity:var(--stars);pointer-events:none}
+header,nav,main{position:relative;z-index:1}
+header{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:8px 18px;border-bottom:1px solid var(--line);background:rgba(0,0,0,.35);backdrop-filter:blur(2px)}
+[data-theme="light"] header{background:rgba(255,255,255,.7)}
+.brand{font:700 34px/1 var(--hand);letter-spacing:.04em;display:flex;align-items:center;gap:10px}
+.logo{width:40px;height:40px;object-fit:contain}
+.alerts{display:flex;flex-wrap:wrap;gap:8px;margin-left:8px}
+.alert{all:unset;cursor:pointer;font:13px var(--round);padding:4px 11px;border-radius:99px;border:1.5px solid var(--warn);color:var(--warn);background:var(--warn-soft)}
+.alert.bad{border-color:var(--danger);color:var(--danger);background:var(--danger-soft)}
+.alert:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+nav{padding:14px 10px;display:flex;flex-direction:column;gap:4px;border-right:1px solid var(--line);background:rgba(0,0,0,.25)}
+[data-theme="light"] nav{background:rgba(255,255,255,.55)}
+nav button{all:unset;cursor:pointer;padding:6px 14px;border-radius:10px;font:700 27px/1.15 var(--hand);letter-spacing:.05em;color:var(--muted);border:2px solid transparent}
+nav button:hover{color:var(--fg)}
+nav button.on{color:var(--fg);border-color:var(--edge)}
 nav button:focus-visible{outline:2px solid var(--accent)}
-nav .badge{font:600 11px var(--mono);background:var(--warn-soft);color:var(--warn);border-radius:99px;padding:1px 7px}
-main{overflow:auto;padding:20px 24px 40px}
-section{display:none;max-width:1000px}
-section.on{display:grid;gap:16px}
-h1{font-size:21px;margin:0;letter-spacing:-.01em}
-h2{font-size:15px;margin:0 0 10px}
-.sub{color:var(--muted);margin:2px 0 0}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
-.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+main{overflow:auto;padding:16px 22px 22px}
+section{display:none}
+section.on{display:grid;gap:14px;align-content:start}
+h1,.title{font:700 44px/1 var(--hand);letter-spacing:.05em;margin:0}
+h2{font:700 27px/1 var(--hand);letter-spacing:.05em;margin:0 0 8px}
+.sub{color:var(--muted);margin:0}
+.card{background:var(--panel);border:1.5px solid var(--line);border-radius:14px;padding:12px 14px}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 14px;font-size:13.5px;margin:0}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:5px 14px;margin:0}
 .kv dt{color:var(--muted)}.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
-button.b{white-space:nowrap;font:600 13px var(--sans);padding:7px 13px;border-radius:8px;border:1px solid var(--line);background:var(--sunk);color:var(--fg);cursor:pointer}
-button.b:hover{border-color:var(--accent)}
+button.b{font:700 21px/1 var(--hand);letter-spacing:.05em;white-space:nowrap;padding:6px 14px 5px;border-radius:10px;border:2px solid var(--edge);background:transparent;color:var(--fg);cursor:pointer}
+button.b:hover{background:var(--sunk)}
 button.b.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
-button.b.danger{color:var(--danger)}
-button.b.on{background:var(--good-soft);border-color:var(--good);color:var(--fg)}
-button.b:disabled{opacity:.5;cursor:default}
-button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-input,textarea{font:14px var(--sans);color:var(--fg);background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
-textarea{width:100%;font-family:var(--mono);font-size:12px;resize:vertical}
-.note{padding:10px 12px;border-radius:9px;font-size:13.5px;margin:0}
+button.b.danger{border-color:var(--danger);color:var(--danger)}
+button.b.on{border-color:var(--good);color:var(--good);background:var(--good-soft)}
+button.b:disabled{opacity:.4;cursor:default}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,textarea{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5px solid var(--line);border-radius:9px;padding:6px 10px;min-width:0}
+textarea{width:100%;font:12px var(--mono);resize:vertical}
+.note{padding:9px 12px;border-radius:10px;margin:0}
 .note.warn{background:var(--warn-soft);color:var(--warn)}
 .note.bad{background:var(--danger-soft);color:var(--danger)}
 .note.good{background:var(--good-soft);color:var(--fg)}
 .muted{color:var(--muted)}
 .mono{font-family:var(--mono);font-size:12.5px}
-.big{font-size:26px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.stats{display:flex;flex-wrap:wrap;gap:24px}
-.stat .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
-table{border-collapse:collapse;width:100%;font-size:13.5px}
-th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line);font-weight:600}
-td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+table{border-collapse:collapse;width:100%}
+td{padding:6px 4px;border-bottom:1px solid var(--line)}
 tr:last-child td{border-bottom:0}
-.tablewrap{overflow-x:auto}
-.bean{display:inline-block;width:26px;height:26px;vertical-align:middle;margin:-4px 8px -4px 0}
-.pill{font-size:11.5px;padding:2px 8px;border-radius:99px;background:var(--sunk);color:var(--muted);white-space:nowrap}
-.pill.ok{background:var(--good-soft);color:var(--good)}
-.pill.bad{background:var(--danger-soft);color:var(--danger)}
-.toggle{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
-.toggle:last-child{border-bottom:0}
-.toggle b{display:block;font-size:14px}.toggle span{color:var(--muted);font-size:12.5px}
 .empty{padding:26px;text-align:center;color:var(--muted)}
-.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
-.seg button{all:unset;cursor:pointer;padding:7px 16px;font-weight:600;font-size:13px;color:var(--muted)}
-.seg button.on{background:var(--accent);color:var(--accent-fg)}
-.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
-#toast{position:fixed;right:18px;bottom:18px;max-width:420px;background:var(--fg);color:var(--bg);padding:10px 14px;border-radius:10px;font-size:13.5px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;z-index:5}
+.seg{display:inline-flex;border:2px solid var(--edge);border-radius:10px;overflow:hidden}
+.seg button{all:unset;cursor:pointer;padding:5px 16px 4px;font:700 21px/1 var(--hand);letter-spacing:.05em;color:var(--muted)}
+.seg button.on{background:var(--fg);color:var(--bg)}
+.toggle{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0}
+.toggle b{font-weight:400}.toggle span{display:block;color:var(--muted);font-size:12px}
+.pill{font-size:12px;padding:1px 8px;border-radius:99px;background:var(--sunk);color:var(--muted);white-space:nowrap}
+#toast{position:fixed;right:18px;bottom:18px;max-width:420px;background:var(--panel-solid);color:var(--fg);border:2px solid var(--edge);padding:10px 14px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.4);opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;z-index:5}
 #toast.show{opacity:1;transform:none}
 [hidden]{display:none!important}
 
-/* ---- Automute: in the style of the AutoMuteUs capture window (always the night sky) ---- */
-#mute.on{display:block;max-width:none}
-.sky{position:relative;min-height:calc(100vh - 110px);border-radius:14px;overflow:hidden;color:#eef3ff;
-  background:radial-gradient(ellipse at 50% 42%,#123b73 0%,#0a2350 34%,#06122c 70%,#040a1a 100%);
-  display:flex;flex-direction:column;align-items:center;padding:34px 20px 26px;text-align:center}
-.sky .stars{position:absolute;inset:0;pointer-events:none}
-.sky > *:not(.stars){position:relative}
-.sky h1.hand{font:700 clamp(40px,6vw,64px)/1 var(--hand);letter-spacing:.06em;margin:8px 0 4px;text-shadow:0 2px 12px rgba(0,0,0,.45)}
-.sky .where{font:700 26px/1.1 var(--hand);letter-spacing:.08em;color:#9fc3ff;min-height:28px}
-.loader{display:flex;gap:10px;margin:26px 0 8px;height:26px;align-items:flex-end}
+/* ---- Home (the lobby): everything on one screen ---- */
+.lobby-head{display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap}
+.facts{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:4px}
+.fact .k{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.fact .v{font:700 30px/1 var(--hand);letter-spacing:.05em}
+.home-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(290px,1fr);gap:14px;align-items:start}
+@media (max-width:980px){.home-grid{grid-template-columns:minmax(0,1fr)}}
+.players{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px}
+@media (max-width:700px){.players{grid-template-columns:minmax(0,1fr)}}
+.pl{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:8px;align-items:center;min-height:44px;padding:3px 6px;border-radius:10px;background:var(--sunk)}
+.pl img{width:36px;height:36px}
+.pl .nm{font:700 22px/1 var(--hand);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl .dc{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl .dc.none{color:var(--warn)}
+.pl.dead{opacity:.55}
+.pl input{display:block;width:100%;margin-top:3px;padding:2px 8px;font-size:12px;border-color:var(--warn)}
+.pl button.b{font-size:18px;padding:4px 10px 3px}
+.side{display:grid;gap:12px}
+.side .card{padding:10px 14px}
+.side h2{font-size:25px;margin-bottom:6px}
+
+/* ---- Waiting, and automute: the capture-window look on the same space background ---- */
+.stage{display:flex;flex-direction:column;align-items:center;text-align:center;padding:10px 10px 0;min-height:calc(100vh - 110px)}
+.stage h1{font-size:clamp(46px,6vw,70px);text-shadow:0 2px 14px rgba(0,0,0,.6)}
+.stage .where{font:700 28px/1.1 var(--hand);letter-spacing:.08em;color:#9fc3ff;min-height:30px}
+[data-theme="light"] .stage .where{color:#2356a8}
+.loader{display:flex;gap:10px;margin:24px 0 6px;height:26px;align-items:flex-end}
 .loader i{width:10px;height:10px;border-radius:50%;background:#7fa7ff;animation:hop 1.2s ease-in-out infinite}
 .loader i:nth-child(2){animation-delay:.12s}.loader i:nth-child(3){animation-delay:.24s}.loader i:nth-child(4){animation-delay:.36s}.loader i:nth-child(5){animation-delay:.48s}
 @keyframes hop{0%,60%,100%{transform:translateY(0);opacity:.55}30%{transform:translateY(-14px);opacity:1}}
-@media (prefers-reduced-motion:reduce){.loader i{animation:none;opacity:.8}}
-.crew{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:18px 12px;width:100%;max-width:760px;margin:26px 0 8px}
-.mate{display:grid;justify-items:center;gap:4px;font-size:13px}
-.mate img.head{width:84px;height:84px;display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,.45));user-select:none}
+.stage .say{max-width:54ch;color:var(--muted);margin:10px 0 0}
+.crew{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:16px 12px;width:100%;max-width:780px;margin:22px 0 8px}
+.mate{display:grid;justify-items:center;gap:3px}
+.mate img.head{width:84px;height:84px;display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5));user-select:none}
 .mate svg.x{position:absolute;inset:14px;width:56px;height:56px;stroke:#ff4d4d;stroke-width:1.1;stroke-linecap:round;opacity:.85}
-.mate .nm{font:700 22px/1 var(--hand);letter-spacing:.04em;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mate .dc{font-size:11.5px;color:#9fb4d8;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mate .dc.none{color:#ffb86b}
+.mate .nm{font:700 23px/1 var(--hand);letter-spacing:.04em;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mate .dc{font-size:11.5px;color:var(--muted);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mate .dc.none{color:var(--warn)}
 .mate.dead img.head{opacity:.35;filter:grayscale(.4)}
 .mate.dead .nm{opacity:.55}
-.mate .voice{position:absolute;top:-2px;right:-8px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#0b1730;border:2px solid #36507d}
-.mate .voice svg{width:15px;height:15px;filter:none}
+.mate > span.wrap{position:relative;display:block}
+.mate .voice{position:absolute;top:-2px;right:-8px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#0b1320;border:2px solid #36507d}
+.mate .voice svg{width:15px;height:15px}
 .mate .voice.muted{border-color:#ff6b6b;background:#3a1016}
 .mate .voice.deafened{border-color:#ff9f43;background:#3a2410}
 .mate .voice.open{border-color:#46c28b;background:#0d2c21}
-.mate > span.wrap{position:relative;display:block}
-.sky .say{max-width:52ch;color:#b9c9e6;font-size:14px;margin:12px 0 0}
-.sky .spacer{flex:1}
-.controls{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;margin-top:26px}
-.round{all:unset;cursor:pointer;display:grid;justify-items:center;gap:7px;font:700 18px/1 var(--hand);letter-spacing:.06em;color:#dfe8ff}
-.round span.ring{width:52px;height:52px;border-radius:50%;border:2px solid rgba(223,232,255,.55);display:grid;place-items:center;background:rgba(10,24,52,.55);transition:.15s}
-.round:hover span.ring{border-color:#fff;background:rgba(30,60,120,.55)}
-.round.on span.ring{border-color:#46c28b;background:rgba(20,70,50,.6);box-shadow:0 0 16px rgba(70,194,139,.4)}
-.round.alarm span.ring{border-color:#ff6b6b}
+.stage .spacer{flex:1}
+.controls{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;margin:22px 0 6px}
+.round{all:unset;cursor:pointer;display:grid;justify-items:center;gap:6px;font:700 20px/1 var(--hand);letter-spacing:.06em}
+.round span.ring{width:52px;height:52px;border-radius:50%;border:2px solid var(--edge);display:grid;place-items:center;transition:.15s}
+.round:hover span.ring{background:var(--sunk)}
+.round.on span.ring{border-color:#46c28b;color:#46c28b;box-shadow:0 0 16px rgba(70,194,139,.35)}
+.round.alarm span.ring{border-color:#ff6b6b;color:#ff6b6b}
 .round svg{width:24px;height:24px}
-.round:focus-visible span.ring{outline:2px solid #fff;outline-offset:3px}
-.round[disabled]{opacity:.4;cursor:default}
+.round:focus-visible span.ring{outline:2px solid var(--accent);outline-offset:3px}
+
+.settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;align-items:start}
 </style>
 </head>
 <body>
+<canvas id="space" aria-hidden="true"></canvas>
 <header>
-  <div class="brand">
-    <img class="logo" src="/logo.png" alt="">
-    The Button
-  </div>
-  <span class="muted" id="where"></span>
-  <div class="conn"><span class="dot" id="conn-dot"></span><span id="conn-text">Checking…</span></div>
+  <div class="brand"><img class="logo" src="/logo.png" alt="">The Button</div>
+  <div class="alerts" id="alerts"></div>
 </header>
 <nav id="nav">
-  <button data-page="home" class="on">Home <span class="badge" id="home-badge" hidden>!</span></button>
-  <button data-page="lobby">Lobby</button>
+  <button data-page="home" class="on">Home</button>
   <button data-page="mute">Automute</button>
   <button data-page="replays">Replays</button>
   <button data-page="settings">Settings</button>
 </nav>
 <main>
 
+<!-- Home: the lobby, on one screen. -->
 <section id="home" class="on">
-  <div><h1>Home</h1><p class="sub">Install the mod, add your setup code in Settings, then start Among Us. Everything else happens here: nothing is typed in the game chat.</p></div>
-  <div class="grid2">
-    <div class="card">
-      <h2>Among Us</h2>
-      <div id="game-found" hidden><dl class="kv"><dt>Folder</dt><dd class="mono" id="game-path"></dd></dl>
-        <div class="row" style="margin-top:10px"><button class="b" data-open="game">Open folder</button><button class="b" id="game-change">Change</button></div></div>
-      <div id="game-missing" hidden>
-        <p class="note warn">Couldn't find Among Us. Paste the folder that has <b>Among Us.exe</b> in it (Steam: right-click Among Us › Manage › Browse local files).</p>
-      </div>
-      <div id="game-pick" class="row" style="margin-top:10px" hidden>
-        <input id="game-input" placeholder="C:\Program Files (x86)\Steam\steamapps\common\Among Us" style="flex:1">
-        <button class="b primary" id="game-save">Use this folder</button>
-      </div>
-      <div id="game-candidates" class="row" style="margin-top:8px"></div>
-    </div>
-    <div class="card">
-      <h2>Mod</h2>
-      <p id="mod-line" class="muted">…</p>
-      <p id="mod-repair" class="note bad" hidden>The mod loader in the game folder is the 64-bit one, which Among Us can't load. Reinstall to fix it.</p>
-      <p id="mod-progress" class="note good" hidden></p>
-      <p id="mod-result" class="note" hidden></p>
-      <div class="row" style="margin-top:10px"><button class="b primary" id="mod-install">Install</button><button class="b" data-open="log">Open log</button></div>
-    </div>
-    <div class="card">
-      <h2>Setup code</h2>
-      <p id="setup-line" class="muted">None yet.</p>
-      <div class="row"><button class="b" data-go="settings">Add or change</button></div>
-    </div>
-    <div class="card">
-      <h2>Connection</h2>
-      <p id="conn-line" class="muted">Start Among Us and host a lobby: this connects on its own.</p>
-      <dl class="kv" id="conn-kv" hidden></dl>
-    </div>
+  <div class="stage" id="home-wait">
+    <h1 id="wait-title">Waiting for Among Us</h1>
+    <div class="loader" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+    <p class="say" id="wait-say">Start Among Us and host a lobby: The Button connects on its own.</p>
   </div>
-</section>
-
-<section id="lobby">
-  <div><h1>Lobby</h1><p class="sub" id="lobby-sub">Start Among Us and host a lobby to control it from here.</p></div>
-  <div id="lobby-live" hidden>
-    <div class="card"><div class="stats" id="lobby-stats"></div></div>
-    <div class="grid2" style="margin-top:16px">
-      <div class="card" id="round-card">
-        <h2>Round</h2>
-        <p class="muted" id="round-line"></p>
-        <div class="row"><button class="b primary" id="round-next">Start next round</button>
-          <input id="round-input" type="number" min="1" style="width:80px" aria-label="Round"><button class="b" id="round-set">Set round</button></div>
-      </div>
-      <div class="card">
-        <h2>This game</h2>
-        <p class="muted" id="game-line"></p>
-        <div class="row"><input id="void-reason" placeholder="Reason (e.g. restarted)" style="flex:1"><button class="b danger" id="void">Void game</button><button class="b" id="unvoid">Unvoid</button></div>
-      </div>
+  <div id="home-live" hidden>
+    <div class="lobby-head">
+      <h1 id="phase-title">Lobby</h1>
+      <div class="facts" id="facts"></div>
     </div>
-    <div class="card" style="margin-top:16px">
-      <h2>Players</h2>
-      <div class="tablewrap"><table><thead><tr><th>Player</th><th>Status</th><th>Discord</th><th></th></tr></thead><tbody id="players"></tbody></table></div>
-      <p class="muted" style="margin:8px 0 0;font-size:12.5px">Link someone by Discord user ID or name. Players in voice with the same name are linked on their own.</p>
-    </div>
-    <div class="grid2" style="margin-top:16px">
+    <div class="home-grid" style="margin-top:12px">
       <div class="card">
-        <h2>Lobby tools</h2>
-        <div class="toggle"><div><b>Settings lock</b><span>Keeps the lobby on the tournament's settings.</span></div><button class="b" id="t-lock"></button></div>
-        <div class="toggle"><div><b>Referee ghost slot</b><span>You play as a ghost referee (11-player lobby).</span></div><button class="b" id="t-refslot"></button></div>
-        <div class="toggle"><div><b>Stream overlay</b><span id="overlay-url">For OBS.</span></div><button class="b" id="t-overlay"></button></div>
-        <div class="toggle"><div><b>Lead lobby</b><span>Answers !lobbies and !start in the results channel.</span></div><button class="b" id="t-lead"></button></div>
+        <h2>Players</h2>
+        <div class="players" id="players"></div>
       </div>
-      <div class="card">
-        <h2>Standings</h2>
-        <div class="row">
-          <button class="b" data-cmd="leaderboard">Post standings</button>
-          <button class="b" data-cmd="servers">Post server standings</button>
-          <button class="b" data-cmd="refresh">Repost live status</button>
+      <div class="side">
+        <div class="card" id="round-card">
+          <h2>Round</h2>
+          <p class="muted" id="round-line" style="margin:0 0 8px"></p>
+          <div class="row"><button class="b primary" id="round-next">Next round</button>
+            <input id="round-input" type="number" min="1" style="width:64px" aria-label="Round"><button class="b" id="round-set">Set</button></div>
         </div>
-        <div class="row" style="margin-top:14px"><button class="b danger" id="reset-lb">Reset the combined leaderboard…</button></div>
-        <p id="reset-confirm" class="note warn" hidden style="margin-top:10px">Starts every lobby's combined leaderboard over. Deleting the reset message in the results channel undoes it.
-          <button class="b danger" data-cmd="resetleaderboard">Reset it</button> <button class="b" id="reset-cancel">Cancel</button></p>
+        <div class="card">
+          <h2>This game</h2>
+          <p class="muted" id="game-line" style="margin:0 0 8px"></p>
+          <div class="row"><input id="void-reason" placeholder="Reason" style="flex:1;min-width:90px"><button class="b danger" id="void">Void</button><button class="b" id="unvoid">Unvoid</button></div>
+        </div>
+        <div class="card">
+          <h2>Tools</h2>
+          <div class="toggle"><b>Settings lock</b><button class="b" id="t-lock"></button></div>
+          <div class="toggle"><b>Referee ghost slot</b><button class="b" id="t-refslot"></button></div>
+          <div class="toggle"><div><b>Stream overlay</b><span class="mono" id="overlay-url"></span></div><button class="b" id="t-overlay"></button></div>
+          <div class="toggle"><b>Lead lobby</b><button class="b" id="t-lead"></button></div>
+        </div>
+        <div class="card">
+          <h2>Standings</h2>
+          <div class="row"><button class="b" data-cmd="leaderboard">Post</button><button class="b" data-cmd="servers">Servers</button><button class="b" data-cmd="refresh">Status</button><button class="b danger" id="reset-lb">Reset…</button></div>
+          <p id="reset-confirm" class="note warn" hidden style="margin-top:8px">Start every lobby's combined leaderboard over? <button class="b danger" data-cmd="resetleaderboard">Reset</button> <button class="b" id="reset-cancel">Cancel</button></p>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
 <section id="mute">
-  <div class="sky" id="sky">
-    <svg class="stars" id="stars" aria-hidden="true"></svg>
-    <h1 class="hand" id="mute-title">Waiting for Among Us</h1>
+  <div class="stage">
+    <h1 id="mute-title">Waiting for Among Us</h1>
     <div class="where" id="mute-where"></div>
     <div class="loader" id="mute-loader" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
     <p class="say" id="mute-say"></p>
     <div class="crew" id="crew"></div>
     <div class="spacer"></div>
     <div class="controls" id="mute-controls">
-      <button class="round" id="m-enabled"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></span><span class="lbl">Automute</span></button>
-      <button class="round" id="m-ref"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M3 10v4h4l6 4V6L7 10H3z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg></span><span class="lbl">Referee</span></button>
-      <button class="round" id="m-spec"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="lbl">Spectators</span></button>
-      <button class="round alarm" data-cmd="unmuteall"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></span><span class="lbl">Unmute all</span></button>
+      <button class="round" id="m-enabled"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></span>Automute</button>
+      <button class="round" id="m-ref"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M3 10v4h4l6 4V6L7 10H3z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg></span>Referee</button>
+      <button class="round" id="m-spec"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span>Spectators</button>
+      <button class="round alarm" data-cmd="unmuteall"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></span>Unmute all</button>
     </div>
   </div>
 </section>
 
 <section id="replays">
   <div><h1>Replays</h1><p class="sub">Every game is recorded. Watch here, or in Among Us itself: open Freeplay on the game's map and press F8.</p></div>
-  <div class="card"><div class="tablewrap"><table><thead><tr><th>Game</th><th>When</th><th>Size</th><th></th></tr></thead><tbody id="replay-list"></tbody></table></div>
+  <div class="card"><table><tbody id="replay-list"></tbody></table>
     <p class="muted" style="margin:10px 0 0;font-size:12.5px">Replays from other lobbies: download them from the results channel into your Downloads folder and they show up here.</p></div>
 </section>
 
 <section id="settings">
-  <div><h1>Settings</h1><p class="sub">Your setup code and how The Button looks.</p></div>
+  <div><h1>Settings</h1></div>
+  <div class="settings-grid">
+    <div class="card">
+      <h2>Among Us</h2>
+      <div id="game-found" hidden><dl class="kv"><dt>Folder</dt><dd class="mono" id="game-path"></dd></dl>
+        <div class="row" style="margin-top:10px"><button class="b" data-open="game">Open folder</button><button class="b" id="game-change">Change</button></div></div>
+      <p id="game-missing" class="note warn" hidden>Couldn't find Among Us. Paste the folder that has <b>Among Us.exe</b> in it (Steam: right-click Among Us › Manage › Browse local files).</p>
+      <div id="game-pick" class="row" style="margin-top:10px" hidden>
+        <input id="game-input" placeholder="C:\Program Files (x86)\Steam\steamapps\common\Among Us" style="flex:1">
+        <button class="b primary" id="game-save">Use it</button>
+      </div>
+      <div id="game-candidates" class="row" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <h2>Mod</h2>
+      <p id="mod-line" class="muted" style="margin:0 0 8px">…</p>
+      <p id="mod-repair" class="note bad" hidden>The mod loader in the game folder is the 64-bit one, which Among Us can't load. Reinstall to fix it.</p>
+      <p id="mod-progress" class="note good" hidden></p>
+      <p id="mod-result" class="note" hidden></p>
+      <div class="row" style="margin-top:8px"><button class="b primary" id="mod-install">Install</button><button class="b" data-open="log">Open log</button></div>
+      <p class="muted" id="conn-line" style="margin:10px 0 0;font-size:12.5px"></p>
+    </div>
+  </div>
   <div class="card">
     <h2>Setup code</h2>
-    <p class="muted" style="margin:0 0 10px">The organiser gives you one line starting with TT1-. Paste it here.</p>
-    <textarea id="code" rows="3" placeholder="TT1-…"></textarea>
-    <div class="row" style="margin-top:10px"><button class="b primary" id="code-save">Use this code</button><button class="b danger" id="code-clear">Remove the code</button></div>
-    <p id="code-result" class="note" hidden style="margin-top:10px"></p>
+    <p class="muted" style="margin:0 0 8px">The organiser gives you one line starting with TT1-. Paste it here.</p>
+    <textarea id="code" rows="2" placeholder="TT1-…"></textarea>
+    <div class="row" style="margin-top:8px"><button class="b primary" id="code-save">Use this code</button><button class="b danger" id="code-clear">Remove it</button></div>
+    <p id="code-result" class="note" hidden style="margin-top:8px"></p>
   </div>
   <div id="setup-view"></div>
-  <div class="card">
-    <h2>Appearance</h2>
-    <div class="toggle"><div><b>Theme</b><span>Dark is the default.</span></div>
-      <div class="seg" role="group" aria-label="Theme"><button data-theme-pick="dark">Dark</button><button data-theme-pick="light">Light</button></div></div>
-  </div>
-  <div class="card">
-    <h2>Files</h2>
-    <div class="row"><button class="b" data-open="data">Open the mod's data folder</button><button class="b" data-open="config">Open the mod's config file</button><button class="b" data-open="log">Open the log</button></div>
+  <div class="settings-grid">
+    <div class="card">
+      <h2>Look</h2>
+      <div class="toggle"><b>Theme</b><div class="seg" role="group" aria-label="Theme"><button data-theme-pick="dark">Space</button><button data-theme-pick="light">Light</button></div></div>
+    </div>
+    <div class="card">
+      <h2>Files</h2>
+      <div class="row"><button class="b" data-open="data">Data folder</button><button class="b" data-open="config">Config file</button><button class="b" data-open="log">Log</button></div>
+    </div>
   </div>
 </section>
 </main>
@@ -278,9 +271,9 @@ tr:last-child td{border-bottom:0}
 
 <script>
 const TOKEN = '__APP_TOKEN__';
-const COLORS = ['#c51111','#132ed1','#117f2d','#ed54ba','#ef7d0d','#f5f557','#3f474e','#d6e0f0','#6b2fbb','#71491e','#38fedc','#50ef39','#5f1d2e','#ecc0d3','#fffebe','#708496','#928776','#ec7578'];
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const head = c => `/crew/${c >= 0 && c < 18 ? c : 15}.png`;
 let S = null;
 
 async function api(method, path, body) {
@@ -293,6 +286,32 @@ async function cmd(command) {
   toast(r.replies && r.replies.length ? r.replies.join(' ') : 'Sent.');
   refresh();
 }
+
+// ---- Space: drifting stars, like the Among Us menus ------------------------------------
+(function space() {
+  const canvas = $('space'), ctx = canvas.getContext('2d');
+  let stars = [], w = 0, h = 0;
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function size() {
+    const dpr = devicePixelRatio || 1;
+    w = innerWidth; h = innerHeight; canvas.width = w * dpr; canvas.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    let seed = 7; const r = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+    stars = Array.from({ length: Math.round(w * h / 5200) }, () => ({ x: r() * w, y: r() * h, z: r() }));
+  }
+  function draw(t) {
+    ctx.clearRect(0, 0, w, h);
+    for (const s of stars) {
+      if (!still) s.x -= 0.04 + s.z * 0.22;
+      if (s.x < -2) s.x = w + 2;
+      ctx.globalAlpha = 0.25 + s.z * 0.75;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(s.x, s.y, 0.4 + s.z * 1.3, 0, Math.PI * 2); ctx.fill();
+    }
+    if (!still) requestAnimationFrame(draw);
+  }
+  addEventListener('resize', () => { size(); if (still) draw(); });
+  size(); requestAnimationFrame(draw);
+})();
 
 // ---- Navigation and theme ----------------------------------------------------------------
 function go(page) {
@@ -314,37 +333,20 @@ function setTheme(theme) {
 }
 setTheme(document.documentElement.dataset.theme);
 
-// ---- Home ------------------------------------------------------------------------------
-$('game-change').addEventListener('click', () => { $('game-pick').hidden = false; $('game-input').value = S?.game?.path || ''; $('game-input').focus(); });
-$('game-save').addEventListener('click', async () => { const r = await api('POST', '/app/game', { path: $('game-input').value }); toast(r.message); if (r.ok) $('game-pick').hidden = true; refresh(); });
-$('mod-install').addEventListener('click', async () => { const r = await api('POST', '/app/install'); toast(r.message); refresh(); });
-
-function renderHome() {
-  const g = S.game, m = S.mod;
-  $('game-found').hidden = !g.found; $('game-missing').hidden = g.found;
-  if (!g.found) $('game-pick').hidden = false;
-  $('game-path').textContent = g.path || '';
-  $('game-candidates').innerHTML = g.found ? '' : (g.candidates || []).map(c => `<button class="b" data-path="${esc(c.path)}">${esc(c.store)}: ${esc(c.path)}</button>`).join('');
-  $('game-candidates').querySelectorAll('[data-path]').forEach(b => b.onclick = async () => { await api('POST', '/app/game', { path: b.dataset.path }); refresh(); });
-  $('mod-line').textContent = !g.found ? 'Find Among Us first.'
-    : m.installed ? `Installed${m.installedVersion ? ' ' + m.installedVersion : ''}.${m.updateAvailable ? ` ${m.latest} is out.` : m.latest ? ' Up to date.' : ''}`
-    : 'Not installed yet.';
-  $('mod-repair').hidden = !m.needsRepair;
-  $('mod-install').textContent = !m.installed ? 'Install' : m.needsRepair ? 'Repair' : m.updateAvailable ? `Update to ${m.latest}` : 'Reinstall';
-  $('mod-install').disabled = !g.found || !!m.installing;
-  $('mod-progress').hidden = !m.installing; $('mod-progress').textContent = m.installing;
-  $('mod-result').hidden = !m.installResult; $('mod-result').textContent = m.installResult;
-  $('mod-result').className = 'note ' + (/^Installed/.test(m.installResult) ? 'good' : 'bad');
-  $('home-badge').hidden = !(m.needsRepair || m.updateAvailable || !g.found || !m.installed);
-  $('setup-line').textContent = S.setup ? (S.setup.error ? 'The saved code is damaged: ' + S.setup.error : S.setup.description) : 'None yet: without one the mod uses its settings file.';
-  const st = S.status;
-  $('conn-line').textContent = st ? 'Connected to the mod in Among Us.' : m.installed ? 'Start Among Us and host a lobby: this connects on its own.' : 'Install the mod first.';
-  $('conn-kv').hidden = !st;
-  if (st) $('conn-kv').innerHTML = `<dt>Mode</dt><dd>${esc(st.mode)}${st.tournament ? ' · ' + esc(st.tournament) : ''}</dd><dt>Lobby</dt><dd>${esc(st.lobby || '—')} · ${esc(phaseName(st.phase))}</dd><dt>Mod</dt><dd>${esc(st.version)}</dd>`;
+// ---- Top bar: only what needs attention ----------------------------------------------------
+function renderAlerts() {
+  const g = S.game, m = S.mod, list = [];
+  if (!g.found) list.push(['bad', 'Among Us not found']);
+  else if (!m.installed) list.push(['bad', 'Mod not installed']);
+  else if (m.needsRepair) list.push(['bad', 'Mod needs repair']);
+  if (m.installing) list.push(['', m.installing]);
+  else if (m.updateAvailable) list.push(['', `New version available (${m.latest})`]);
+  if (!S.setup) list.push(['', 'No setup code installed']);
+  else if (S.setup.error) list.push(['bad', 'Setup code damaged']);
+  $('alerts').innerHTML = list.map(([k, t]) => `<button class="alert ${k}" data-go="settings">${esc(t)}</button>`).join('');
 }
-function phaseName(p) { return { Menu: 'main menu', Lobby: 'in the lobby', Tasks: 'game in progress', Meeting: 'meeting', GameOver: 'game over' }[p] || p; }
 
-// ---- Lobby -----------------------------------------------------------------------------
+// ---- Home: the lobby ----------------------------------------------------------------------
 function onOff(el, on, command) { el.textContent = on ? 'On' : 'Off'; el.classList.toggle('on', on); el.onclick = () => cmd(`${command} ${on ? 'off' : 'on'}`); }
 $('round-next').addEventListener('click', () => cmd('r' + ((S.status?.round || 0) + 1)));
 $('round-set').addEventListener('click', () => { const n = parseInt($('round-input').value, 10); if (n > 0) cmd('r' + n); });
@@ -352,65 +354,57 @@ $('void').addEventListener('click', () => cmd(('void ' + $('void-reason').value)
 $('unvoid').addEventListener('click', () => cmd('unvoid'));
 $('reset-lb').addEventListener('click', () => $('reset-confirm').hidden = false);
 $('reset-cancel').addEventListener('click', () => $('reset-confirm').hidden = true);
+const TITLES = { Menu: 'Main menu', Lobby: 'Lobby', Tasks: 'Tasks', Meeting: 'Discussion', GameOver: 'Game over' };
 
 let playersKey = '';
-function renderLobby() {
+function renderHome() {
   const st = S.status;
-  $('lobby-live').hidden = !st;
-  $('lobby-sub').textContent = st ? `${st.tournament || 'The Button'} · ${st.mode === 'Tournament' ? 'tournament host' : st.mode === 'Preliminary' ? 'preliminary' : 'standard'}` : 'Start Among Us and host a lobby to control it from here.';
-  if (!st) return;
-  $('lobby-stats').innerHTML = [
-    ['Lobby', st.lobby || '—'], ['Code', st.lobbyCode || '—'], ['Map', st.map || '—'], ['Now', phaseName(st.phase)],
-    ['Round', st.round || '—'], ['Players', st.players.filter(p => !p.referee).length],
-  ].map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="big">${esc(v)}</div></div>`).join('');
+  $('home-wait').hidden = !!st; $('home-live').hidden = !st;
+  if (!st) {
+    $('wait-say').textContent = !S.game.found ? 'Find Among Us in Settings first.' : !S.mod.installed ? 'Install the mod in Settings first.' : 'Start Among Us and host a lobby: The Button connects on its own.';
+    return;
+  }
+  $('phase-title').textContent = TITLES[st.phase] || st.phase;
+  const facts = [['Lobby', st.lobby || '—'], ['Code', st.lobbyCode || '—'], ['Map', st.map || '—'], st.mode === 'Tournament' && ['Round', st.round || '—'], ['Players', st.players.filter(p => !p.referee).length]].filter(Boolean);
+  $('facts').innerHTML = facts.map(([k, v]) => `<div class="fact"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join('');
   $('round-card').hidden = st.mode !== 'Tournament';
-  $('round-line').textContent = st.round ? `Round ${st.round}: ${st.gamesThisRound} of ${st.gamesPerRound} games played in this lobby.` : 'No round set yet: start round 1 before the first game.';
+  $('round-line').textContent = st.round ? `Round ${st.round}: ${st.gamesThisRound} of ${st.gamesPerRound} games played.` : 'No round yet: start round 1 before the first game.';
   const lg = st.lastGame;
-  $('game-line').textContent = st.inGame ? 'A game is running. Void it if it has to be restarted.' : lg ? `Last game: ${lg.name}, ${lg.voided ? 'VOID' : lg.winner ? lg.winner + ' win' : 'no result'}.` : 'No game yet this session.';
+  $('game-line').textContent = st.inGame ? 'A game is running.' : lg ? `Last game ${lg.name}: ${lg.voided ? 'VOID' : lg.winner ? lg.winner + ' win' : 'no result'}.` : 'No game yet.';
   onOff($('t-lock'), st.lock.on, 'lock'); $('t-lock').disabled = !st.lock.available;
   onOff($('t-refslot'), st.refSlot, 'refslot');
   onOff($('t-overlay'), st.overlay.on, 'overlay');
-  $('overlay-url').innerHTML = st.overlay.on ? `OBS browser source: <span class="mono">${esc(st.overlay.url)}</span>` : 'For OBS.';
-  $('t-lead').textContent = st.lead ? 'This lobby' : 'Take over'; $('t-lead').classList.toggle('on', st.lead); $('t-lead').disabled = st.lead || !st.shared;
+  $('overlay-url').textContent = st.overlay.on ? st.overlay.url : '';
+  $('t-lead').textContent = st.lead ? 'Yes' : 'Take over'; $('t-lead').classList.toggle('on', st.lead); $('t-lead').disabled = st.lead || !st.shared;
   $('t-lead').onclick = () => cmd('lead');
 
-  // Rebuild the player rows only when they change, so typing in a link box isn't interrupted.
+  // Rebuild the player cards only when they change, so typing in a link box isn't interrupted.
   const key = JSON.stringify(st.players.map(p => [p.name, p.color, p.dead, p.disconnected, p.discordId, p.discordName, p.isHost, p.referee]));
   if (key === playersKey) return;
   playersKey = key;
-  $('players').innerHTML = st.players.length ? st.players.map(p => `<tr>
-      <td><img class="bean" src="/crew/${p.color >= 0 && p.color < 18 ? p.color : 15}.png" alt="">${esc(p.name)}${p.isHost ? ' <span class="pill">you</span>' : ''}${p.referee ? ' <span class="pill">referee</span>' : ''}</td>
-      <td>${p.disconnected ? '<span class="pill bad">left</span>' : p.dead ? '<span class="pill">dead</span>' : '<span class="pill ok">here</span>'}</td>
-      <td>${p.discordId ? esc(p.discordName || p.discordId) : '<span class="muted">not linked</span>'}</td>
-      <td><div class="row" style="justify-content:flex-end">${p.discordId
+  $('players').innerHTML = st.players.length ? st.players.map(p => `<div class="pl${p.dead || p.disconnected ? ' dead' : ''}">
+      <img src="${head(p.color)}" alt="">
+      <div style="min-width:0"><div class="nm">${esc(p.name)}${p.isHost ? ' <span class="pill">you</span>' : ''}${p.referee ? ' <span class="pill">ref</span>' : ''}${p.disconnected ? ' <span class="pill">left</span>' : ''}</div>
+        ${p.discordId ? `<div class="dc">@${esc(p.discordName || p.discordId)}</div>` : `<input data-link-input="${esc(p.colorName)}" placeholder="Link Discord name">`}</div>
+      ${p.discordId
         ? `<button class="b" data-unlink="${esc(p.colorName)}">Unlink</button>`
-        : `<input data-link-input="${esc(p.colorName)}" placeholder="Discord ID or name" style="width:170px"><button class="b" data-link="${esc(p.colorName)}">Link</button>`}</div></td></tr>`).join('')
-    : '<tr><td colspan="4" class="empty">Nobody in the lobby yet.</td></tr>';
+        : `<button class="b" data-link="${esc(p.colorName)}">Link</button>`}</div>`).join('')
+    : '<p class="empty">Nobody in the lobby yet.</p>';
   $('players').querySelectorAll('[data-link]').forEach(b => b.onclick = () => {
     const v = $('players').querySelector(`[data-link-input="${b.dataset.link}"]`).value.trim(); if (v) cmd(`link ${b.dataset.link} ${v}`);
   });
   $('players').querySelectorAll('[data-unlink]').forEach(b => b.onclick = () => cmd(`unlink ${b.dataset.unlink}`));
 }
 
-// ---- Automute: the capture-window look ----------------------------------------------------
-(function stars() {
-  const svg = $('stars'); let seed = 11; const r = () => (seed = seed * 16807 % 2147483647) / 2147483647;
-  let dots = '';
-  for (let i = 0; i < 170; i++) dots += `<circle cx="${(r() * 100).toFixed(2)}%" cy="${(r() * 100).toFixed(2)}%" r="${(r() * 1.1 + 0.3).toFixed(2)}" fill="#fff" opacity="${(r() * 0.55 + 0.15).toFixed(2)}"/>`;
-  svg.setAttribute('width', '100%'); svg.setAttribute('height', '100%'); svg.innerHTML = dots;
-})();
-
-/** A crewmate head in the player's colour (unknown colours fall back to gray). */
+// ---- Automute ------------------------------------------------------------------------------
 function crewmate(color, dead) {
-  const c = color >= 0 && color < 18 ? color : 15;
-  return `<img class="head" src="/crew/${c}.png" alt="" draggable="false">${dead ? '<svg class="x" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg>' : ''}`;
+  return `<img class="head" src="${head(color)}" alt="" draggable="false">${dead ? '<svg class="x" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg>' : ''}`;
 }
 const VOICE = {
   muted: '<svg viewBox="0 0 24 24" fill="none" stroke="#ff8a8a" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a3 3 0 0 1 3 3v5M9 9v2a3 3 0 0 0 4.5 2.6"/><path d="M5 11a7 7 0 0 0 11 5.7M19 11a7 7 0 0 1-.6 2.8"/><path d="M3 3l18 18"/></svg>',
   deafened: '<svg viewBox="0 0 24 24" fill="none" stroke="#ffb86b" stroke-width="2.4" stroke-linecap="round"><path d="M4 14v-2a8 8 0 0 1 14.3-4.9M20 12v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/><path d="M3 3l18 18"/></svg>',
   open: '<svg viewBox="0 0 24 24" fill="none" stroke="#7ee2b0" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
 };
-const TITLES = { Menu: 'Main menu', Lobby: 'Lobby', Tasks: 'Tasks', Meeting: 'Discussion', GameOver: 'Game over' };
 function roundBtn(el, on, command) { el.classList.toggle('on', on); el.onclick = () => cmd(`${command} ${on ? 'off' : 'on'}`); }
 let crewKey = '';
 function renderMute() {
@@ -418,7 +412,7 @@ function renderMute() {
   $('mute-title').textContent = !st ? 'Waiting for Among Us' : !a.configured ? 'Automute is off' : TITLES[st.phase] || st.phase;
   $('mute-where').textContent = st && st.lobbyCode ? `${st.lobbyCode}${st.map ? ' · ' + st.map : ''}` : '';
   $('mute-loader').hidden = !!st && st.phase !== 'Menu';
-  $('mute-say').textContent = !st ? (S.mod.installed ? 'Start Among Us and host a lobby.' : 'Install the mod on the Home page first.')
+  $('mute-say').textContent = !st ? (S.mod.installed ? 'Start Among Us and host a lobby.' : 'Install the mod in Settings first.')
     : !a.configured ? 'Automute needs a bot: it comes with a tournament host code, or add one in the mod\'s config file.'
     : !a.voiceConnected ? 'Connecting to Discord voice…'
     : `${st.players.filter(p => p.discordId).length} of ${st.players.length} players linked to Discord${a.refereeMode ? ' · referee mode: only referees can talk' : ''}.`;
@@ -439,6 +433,9 @@ function renderMute() {
 }
 
 // ---- Settings -------------------------------------------------------------------------------
+$('game-change').addEventListener('click', () => { $('game-pick').hidden = false; $('game-input').value = S?.game?.path || ''; $('game-input').focus(); });
+$('game-save').addEventListener('click', async () => { const r = await api('POST', '/app/game', { path: $('game-input').value }); toast(r.message); if (r.ok) $('game-pick').hidden = true; refresh(); });
+$('mod-install').addEventListener('click', async () => { const r = await api('POST', '/app/install'); toast(r.message); refresh(); });
 $('code-save').addEventListener('click', async () => {
   const r = await api('POST', '/app/setup', { code: $('code').value });
   const n = $('code-result'); n.hidden = false; n.textContent = r.message; n.className = 'note ' + (r.ok ? 'good' : 'bad');
@@ -446,6 +443,26 @@ $('code-save').addEventListener('click', async () => {
   refresh();
 });
 $('code-clear').addEventListener('click', async () => { const r = await api('POST', '/app/setup/clear'); toast(r.message); refresh(); });
+
+function renderSettings() {
+  const g = S.game, m = S.mod;
+  $('game-found').hidden = !g.found; $('game-missing').hidden = g.found;
+  if (!g.found) $('game-pick').hidden = false;
+  $('game-path').textContent = g.path || '';
+  $('game-candidates').innerHTML = g.found ? '' : (g.candidates || []).map(c => `<button class="b" data-path="${esc(c.path)}">${esc(c.store)}: ${esc(c.path)}</button>`).join('');
+  $('game-candidates').querySelectorAll('[data-path]').forEach(b => b.onclick = async () => { await api('POST', '/app/game', { path: b.dataset.path }); refresh(); });
+  $('mod-line').textContent = !g.found ? 'Find Among Us first.'
+    : m.installed ? `Installed${m.installedVersion ? ' ' + m.installedVersion : ''}.${m.updateAvailable ? ` ${m.latest} is out.` : m.latest ? ' Up to date.' : ''}`
+    : 'Not installed yet.';
+  $('mod-repair').hidden = !m.needsRepair;
+  $('mod-install').textContent = !m.installed ? 'Install' : m.needsRepair ? 'Repair' : m.updateAvailable ? `Update to ${m.latest}` : 'Reinstall';
+  $('mod-install').disabled = !g.found || !!m.installing;
+  $('mod-progress').hidden = !m.installing; $('mod-progress').textContent = m.installing;
+  $('mod-result').hidden = !m.installResult; $('mod-result').textContent = m.installResult;
+  $('mod-result').className = 'note ' + (/^Installed/.test(m.installResult) ? 'good' : 'bad');
+  $('conn-line').textContent = S.status ? `Connected to the mod in Among Us (mod ${S.status.version}).` : 'Among Us isn\'t running with the mod right now.';
+  renderSetup();
+}
 function yesNo(v) { return v ? 'On' : 'Off'; }
 const SETTINGS = [['impostors','Impostors'],['killCooldown','Kill cooldown (s)'],['killDistance','Kill distance',v => ['Short','Medium','Long'][v] ?? v],['playerSpeed','Player speed'],['crewmateVision','Crewmate vision'],['impostorVision','Impostor vision'],
   ['emergencyMeetings','Emergency meetings'],['emergencyCooldown','Emergency cooldown (s)'],['discussionTime','Discussion (s)'],['votingTime','Voting (s)'],['confirmEjects','Confirm ejects',yesNo],['anonymousVotes','Anonymous votes',yesNo],['visualTasks','Visual tasks',yesNo],
@@ -455,14 +472,14 @@ function renderSetup() {
   const s = S.setup, key = JSON.stringify(s);
   if (key === setupKey) return;
   setupKey = key;
-  if (!s) { $('setup-view').innerHTML = '<div class="card empty">No setup code: the mod uses its settings file.</div>'; return; }
+  if (!s) { $('setup-view').innerHTML = ''; return; }
   if (s.error) { $('setup-view').innerHTML = `<p class="note bad">${esc(s.error)}</p>`; return; }
   const info = [['Kind', s.kind], ['Tournament', s.tournamentName], ['Tournament ID', s.tournamentId], s.server && ['Server', s.server],
     s.kind !== 'Preliminary' && ['Automute', s.bots ? 'On (organiser\'s bot)' : 'Off'], s.advanceCount && ['Move on per lobby', s.advanceCount],
     s.gamesPerRound && ['Games per round', s.gamesPerRound], ['Impostor rotation', yesNo(s.rotation)], s.kind !== 'Preliminary' && ['Lead lobby', s.lead ? 'Yes' : 'No']].filter(Boolean);
   const settings = s.settings ? SETTINGS.filter(([k]) => s.settings[k] != null).map(([k, l, f]) => `<tr><td>${l}</td><td style="text-align:right">${esc(f ? f(s.settings[k]) : s.settings[k])}</td></tr>`).join('') : '';
-  $('setup-view').innerHTML = `<div class="grid2">
-    <div class="card"><h2>${esc(s.description)}</h2><dl class="kv">${info.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl></div>
+  $('setup-view').innerHTML = `<div class="settings-grid">
+    <div class="card"><h2>${esc(s.tournamentName)}</h2><dl class="kv">${info.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl></div>
     <div class="card"><h2>Lobby settings${s.settings ? ' (locked)' : ''}</h2>${settings ? `<table>${settings}</table>` : '<p class="muted">This code doesn\'t lock any settings.</p>'}</div>
   </div>`;
 }
@@ -470,10 +487,10 @@ function renderSetup() {
 // ---- Replays -------------------------------------------------------------------------------
 async function loadReplays() {
   const list = await api('GET', '/app/replays');
-  $('replay-list').innerHTML = list.length ? list.map(r => `<tr><td><b>Game ${esc(r.label)}</b>${r.downloaded ? ' <span class="pill">downloaded</span>' : ''}</td>
-    <td>${new Date(r.when).toLocaleString()}</td><td>${(r.size / 1048576).toFixed(1)} MB</td>
+  $('replay-list').innerHTML = list.length ? list.map(r => `<tr><td><span style="font:700 24px/1 var(--hand);letter-spacing:.04em">Game ${esc(r.label)}</span>${r.downloaded ? ' <span class="pill">downloaded</span>' : ''}</td>
+    <td class="muted">${new Date(r.when).toLocaleString()}</td><td class="muted">${(r.size / 1048576).toFixed(1)} MB</td>
     <td style="text-align:right"><button class="b primary" data-watch="${esc(r.name)}">Watch</button></td></tr>`).join('')
-    : '<tr><td colspan="4" class="empty">No replays yet. They appear after the first recorded game.</td></tr>';
+    : '<tr><td class="empty">No replays yet. They appear after the first recorded game.</td></tr>';
   $('replay-list').querySelectorAll('[data-watch]').forEach(btn => btn.onclick = () =>
     window.open('/viewer?src=' + encodeURIComponent(`/app/replay?name=${encodeURIComponent(btn.dataset.watch)}&token=${TOKEN}`), '_blank'));
 }
@@ -481,11 +498,7 @@ async function loadReplays() {
 // ---- Refresh ------------------------------------------------------------------------------
 async function refresh() {
   try { S = await api('GET', '/app/state'); } catch (e) { return; }
-  const st = S.status;
-  $('conn-dot').classList.toggle('on', !!st);
-  $('conn-text').textContent = st ? `Connected · ${st.lobby || 'Among Us'}${st.lobbyCode ? ' · ' + st.lobbyCode : ''}` : 'Among Us not running';
-  $('where').textContent = S.setup && !S.setup.error ? S.setup.description : '';
-  renderHome(); renderLobby(); renderMute(); renderSetup();
+  renderAlerts(); renderHome(); renderMute(); renderSettings();
 }
 refresh();
 setInterval(refresh, 1500);

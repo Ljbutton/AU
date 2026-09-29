@@ -140,11 +140,11 @@ jobs:
             echo "setup code, rounds, automute, voids, links and replays. Nothing is typed in the game chat."
             echo "If Windows says it protected your PC, click More info, then Run anyway."
             echo
-            echo "Already have the app? It offers the update itself on its Home page."
+            echo "Already have the app? It shows \"New version available\" at the top; update from Settings."
             echo
             echo "Built from commit $GITHUB_SHA against:"
             cat dist/*/BUILT-AGAINST.txt
           } > notes.md
           # Creates the tag on GitHub at this commit if it doesn't exist yet.
           gh release create "$TAG" "$PKG_ZIP" dist/TournamentTracker-Full.zip dist/Install-TheButton.bat dist/app/TheButton.exe \
-            --target "$GITHUB_SHA" --title "Tournament Tracker $TAG" --notes-file notes.md --latest
+            --target "$GITHUB_SHA" --title "The Button $TAG" --notes-file notes.md --latest

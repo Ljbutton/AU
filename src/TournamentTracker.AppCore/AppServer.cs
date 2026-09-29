@@ -146,8 +146,12 @@ namespace TournamentTracker.App
                 return Text(200, "text/html; charset=utf-8",
                     "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head><body style=\"margin:0\">"
                     + Resource("ui/viewer-body.html") + "</body></html>");
-            if (method == "GET" && route == "/fonts/amatic-sc-700.woff2")
-                return (200, "font/woff2", ResourceBytes("ui/fonts/amatic-sc-700.woff2"));
+            var font = Regex.Match(route, @"^/fonts/([a-z0-9-]+\.woff2)$");
+            if (method == "GET" && font.Success)
+            {
+                var bytes = ResourceBytes("ui/fonts/" + font.Groups[1].Value);
+                return bytes.Length > 0 ? (200, "font/woff2", bytes) : Text(404, "text/plain", "Not found");
+            }
             if (method == "GET" && route == "/logo.png") return (200, "image/png", ResourceBytes("ui/logo.png"));
             var crew = Regex.Match(route, @"^/crew/(\d{1,2})\.png$");
             if (method == "GET" && crew.Success)

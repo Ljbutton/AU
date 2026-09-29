@@ -11,7 +11,7 @@
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="ui\*.html" LogicalName="ui/%(Filename)%(Extension)" />
-    <!-- Amatic SC (SIL Open Font License, ui/fonts/OFL-AmaticSC.txt): the hand-drawn capitals on the Automute screen. -->
+    <!-- Fonts, both SIL Open Font License (ui/fonts/OFL-*.txt): Amatic SC for titles, Varela Round for text. -->
     <EmbeddedResource Include="ui\fonts\*" LogicalName="ui/fonts/%(Filename)%(Extension)" />
     <!-- Crewmate heads, one per player colour (0 red … 17 coral). -->
     <EmbeddedResource Include="ui\crew\*.png" LogicalName="ui/crew/%(Filename)%(Extension)" />

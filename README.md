@@ -26,6 +26,8 @@ host needs the mod.
 
 ## Install (host only)
 
+The current release is **v0.1.0**, a beta.
+
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
 Windows shows "Windows protected your PC", click **More info → Run anyway**.
@@ -34,20 +36,22 @@ It installs **The Button**, the Tournament Tracker app (for your Windows user, n
 needed), with Start menu and desktop shortcuts, and opens it. Everything is done from the app; nothing
 is typed in the game chat, so there's nothing for Among Us's anti-cheat to trip on.
 
-1. **Home:** the app finds Among Us (Steam or Epic, any drive; or paste the folder) and
-   installs the mod with the mod loader it needs (BepInEx 6 build 735, 32-bit). It offers
-   updates when a new release is out, and repairs an install that has the wrong loader.
-2. **Settings:** paste the setup code the organiser gave you. The page then shows the
-   tournament and the locked lobby settings (point values stay with the organiser), and
-   switches between dark (the default) and light.
-3. **Start Among Us** and host a lobby. The first start takes a few minutes while BepInEx
+1. **Settings:** the app finds Among Us (Steam or Epic, any drive; or pick the folder) and
+   installs the mod with the mod loader it needs (BepInEx 6 build 735, 32-bit). Paste the
+   setup code the organiser gave you; the page then shows the tournament and the locked
+   lobby settings (point values stay with the organiser). Space (dark, the default) or light.
+2. **Start Among Us** and host a lobby. The first start takes a few minutes while BepInEx
    sets itself up (a black console window appears). The app connects on its own.
+
+The top bar only shows the logo, plus a warning when something needs you: "No setup code
+installed", "New version available", "Mod not installed", "Among Us not found". Click one
+to go to Settings and fix it.
 
 While you play, the app's pages run the lobby:
 
-* **Lobby:** lobby code, map and round; start the next round; void or unvoid a game;
-  link players to Discord; post standings; the settings lock, referee ghost slot, stream
-  overlay and lead-lobby switches.
+* **Home:** the whole lobby on one page: code, map, round and players; link players to
+  Discord; start the next round; void or unvoid a game; the settings lock, referee ghost
+  slot, stream overlay and lead-lobby switches; post standings.
 * **Automute:** in the style of the AutoMuteUs capture window: the game's state, every
   player as a crewmate in their colour with their Discord name and whether they're muted,
   and buttons for automute on/off, referee mode, spectator muting and "unmute everyone".
@@ -141,7 +145,7 @@ right away.
 
 ### During the tournament
 
-Hosts do all of this from the Tournament Tracker app's Lobby page (the `!` commands below
+Hosts do all of this from the The Button's Home page (the `!` commands below
 are what its buttons run); referees and the organiser use the private results channel.
 
 * **Rounds:** the host types `!r1`, `!r2`, `!r3`… in the lobby before each round's first game,
