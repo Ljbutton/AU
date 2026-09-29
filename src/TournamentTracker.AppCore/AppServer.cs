@@ -148,6 +148,12 @@ namespace TournamentTracker.App
                     + Resource("ui/viewer-body.html") + "</body></html>");
             if (method == "GET" && route == "/fonts/amatic-sc-700.woff2")
                 return (200, "font/woff2", ResourceBytes("ui/fonts/amatic-sc-700.woff2"));
+            var crew = Regex.Match(route, @"^/crew/(\d{1,2})\.png$");
+            if (method == "GET" && crew.Success)
+            {
+                var png = ResourceBytes($"ui/crew/{crew.Groups[1].Value}.png");
+                return png.Length > 0 ? (200, "image/png", png) : Text(404, "text/plain", "Not found");
+            }
             if (!route.StartsWith("/app/", StringComparison.Ordinal)) return Text(404, "text/plain", "Not found");
 
             headers.TryGetValue("x-app-token", out var token);

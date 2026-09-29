@@ -13,6 +13,8 @@
     <EmbeddedResource Include="ui\*.html" LogicalName="ui/%(Filename)%(Extension)" />
     <!-- Amatic SC (SIL Open Font License, ui/fonts/OFL-AmaticSC.txt): the hand-drawn capitals on the Automute screen. -->
     <EmbeddedResource Include="ui\fonts\*" LogicalName="ui/fonts/%(Filename)%(Extension)" />
+    <!-- Crewmate heads, one per player colour (0 red … 17 coral). -->
+    <EmbeddedResource Include="ui\crew\*.png" LogicalName="ui/crew/%(Filename)%(Extension)" />
     <!-- The same replay viewer as docs/replay-viewer.html (and the published page). -->
     <EmbeddedResource Include="..\..\docs\replay-viewer.html" LogicalName="ui/viewer-body.html" />
     <InternalsVisibleTo Include="TournamentTracker.Tests" />

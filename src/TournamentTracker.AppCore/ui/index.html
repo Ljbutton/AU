@@ -70,7 +70,7 @@ th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.05e
 td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
 tr:last-child td{border-bottom:0}
 .tablewrap{overflow-x:auto}
-.bean{display:inline-block;width:12px;height:14px;border-radius:6px 6px 4px 4px;border:1px solid rgba(0,0,0,.35);vertical-align:-2px;margin-right:8px}
+.bean{display:inline-block;width:26px;height:26px;vertical-align:middle;margin:-4px 8px -4px 0}
 .pill{font-size:11.5px;padding:2px 8px;border-radius:99px;background:var(--sunk);color:var(--muted);white-space:nowrap}
 .pill.ok{background:var(--good-soft);color:var(--good)}
 .pill.bad{background:var(--danger-soft);color:var(--danger)}
@@ -102,13 +102,14 @@ tr:last-child td{border-bottom:0}
 @media (prefers-reduced-motion:reduce){.loader i{animation:none;opacity:.8}}
 .crew{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:18px 12px;width:100%;max-width:760px;margin:26px 0 8px}
 .mate{display:grid;justify-items:center;gap:4px;font-size:13px}
-.mate svg{width:62px;height:76px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.45))}
+.mate img.head{width:84px;height:84px;display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,.45));user-select:none}
+.mate svg.x{position:absolute;inset:14px;width:56px;height:56px;stroke:#ff4d4d;stroke-width:1.1;stroke-linecap:round;opacity:.85}
 .mate .nm{font:700 22px/1 var(--hand);letter-spacing:.04em;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mate .dc{font-size:11.5px;color:#9fb4d8;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mate .dc.none{color:#ffb86b}
-.mate.dead svg{opacity:.35;filter:grayscale(.4)}
+.mate.dead img.head{opacity:.35;filter:grayscale(.4)}
 .mate.dead .nm{opacity:.55}
-.mate .voice{position:absolute;top:-6px;right:-14px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#0b1730;border:2px solid #36507d}
+.mate .voice{position:absolute;top:-2px;right:-8px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#0b1730;border:2px solid #36507d}
 .mate .voice svg{width:15px;height:15px;filter:none}
 .mate .voice.muted{border-color:#ff6b6b;background:#3a1016}
 .mate .voice.deafened{border-color:#ff9f43;background:#3a2410}
@@ -278,7 +279,6 @@ tr:last-child td{border-bottom:0}
 <script>
 const TOKEN = '__APP_TOKEN__';
 const COLORS = ['#c51111','#132ed1','#117f2d','#ed54ba','#ef7d0d','#f5f557','#3f474e','#d6e0f0','#6b2fbb','#71491e','#38fedc','#50ef39','#5f1d2e','#ecc0d3','#fffebe','#708496','#928776','#ec7578'];
-const SHADES = ['#7a0838','#09158e','#0a4d2e','#ab2bad','#b33e15','#c38823','#1e1f26','#8394bf','#3b177c','#5e2615','#24a8be','#15a742','#41070f','#de92b3','#d2bc89','#474c55','#51413e','#b4434e'];
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let S = null;
@@ -379,7 +379,7 @@ function renderLobby() {
   if (key === playersKey) return;
   playersKey = key;
   $('players').innerHTML = st.players.length ? st.players.map(p => `<tr>
-      <td><span class="bean" style="background:${COLORS[p.color] || '#888'}"></span>${esc(p.name)}${p.isHost ? ' <span class="pill">you</span>' : ''}${p.referee ? ' <span class="pill">referee</span>' : ''}</td>
+      <td><img class="bean" src="/crew/${p.color >= 0 && p.color < 18 ? p.color : 15}.png" alt="">${esc(p.name)}${p.isHost ? ' <span class="pill">you</span>' : ''}${p.referee ? ' <span class="pill">referee</span>' : ''}</td>
       <td>${p.disconnected ? '<span class="pill bad">left</span>' : p.dead ? '<span class="pill">dead</span>' : '<span class="pill ok">here</span>'}</td>
       <td>${p.discordId ? esc(p.discordName || p.discordId) : '<span class="muted">not linked</span>'}</td>
       <td><div class="row" style="justify-content:flex-end">${p.discordId
@@ -400,17 +400,10 @@ function renderLobby() {
   svg.setAttribute('width', '100%'); svg.setAttribute('height', '100%'); svg.innerHTML = dots;
 })();
 
-/** A crewmate, drawn here: body, backpack, legs and visor in the player's colour. */
+/** A crewmate head in the player's colour (unknown colours fall back to gray). */
 function crewmate(color, dead) {
-  const c = COLORS[color] || '#888', s = SHADES[color] || '#444';
-  return `<svg viewBox="0 0 64 80" aria-hidden="true">
-    <rect x="3" y="30" width="15" height="28" rx="6" fill="${s}" stroke="#000" stroke-width="3"/>
-    <path d="M14 32C14 14 24 5 35 5C48 5 56 15 56 31V63C56 70 52 75 46 75H43C39.5 75 38 73 38 69.5V65H31V69.5C31 73 29.5 75 26 75H23C17.5 75 14 70 14 63Z" fill="${c}" stroke="#000" stroke-width="3" stroke-linejoin="round"/>
-    <path d="M17 52C24 58 44 60 53 55V63C53 69 50 72 46 72H44C41 72 41 70 41 68V62H28V68C28 70.5 27 72 25 72H23C19 72 17 68 17 63Z" fill="${s}" opacity=".85"/>
-    <path d="M31 17H50C56 17 58 21 58 26C58 31 55 35 50 35H31C26 35 23 31 23 26C23 21 26 17 31 17Z" fill="#8fc9e0" stroke="#000" stroke-width="3"/>
-    <path d="M32 20H45C47 20 48 21 48 22.5C48 24 47 25 45 25H32C30.5 25 29.5 24 29.5 22.5C29.5 21 30.5 20 32 20Z" fill="#e6f6fc"/>
-    ${dead ? '<path d="M10 72L54 12M54 72L10 12" stroke="#ff4d4d" stroke-width="4" stroke-linecap="round" opacity=".8"/>' : ''}
-  </svg>`;
+  const c = color >= 0 && color < 18 ? color : 15;
+  return `<img class="head" src="/crew/${c}.png" alt="" draggable="false">${dead ? '<svg class="x" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg>' : ''}`;
 }
 const VOICE = {
   muted: '<svg viewBox="0 0 24 24" fill="none" stroke="#ff8a8a" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a3 3 0 0 1 3 3v5M9 9v2a3 3 0 0 0 4.5 2.6"/><path d="M5 11a7 7 0 0 0 11 5.7M19 11a7 7 0 0 1-.6 2.8"/><path d="M3 3l18 18"/></svg>',
