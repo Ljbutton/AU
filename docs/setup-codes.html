@@ -5,17 +5,13 @@
 <style>
 /* Layout: form on the left, the finished code pinned on the right; one column on phones. */
 :root{
-  --bg:#f3f4f7; --panel:#ffffff; --sunk:#eceef3; --line:#d9dce4; --fg:#1b1e27; --muted:#5d6475;
-  --accent:#b3202a; --accent-fg:#ffffff; --ok:#15803d; --warn:#a15c07; --warn-bg:#fdf3e2; --err:#b42318;
+  --bg:#14161c; --panel:#1c1f27; --sunk:#12141a; --line:#2d313c; --fg:#e8eaf0; --muted:#9aa1b2;
+  --accent:#ff5a5f; --accent-fg:#1a0b0c; --ok:#4ade80; --warn:#f5b453; --warn-bg:#2c2214; --err:#ff8a80;
+  color-scheme:dark;
   --display:"Rubik","Segoe UI",system-ui,sans-serif; --body:"Rubik","Segoe UI",system-ui,sans-serif; --mono:"JetBrains Mono",Consolas,monospace;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#14161c; --panel:#1c1f27; --sunk:#12141a; --line:#2d313c; --fg:#e8eaf0; --muted:#9aa1b2;
-  --accent:#ff5a5f; --accent-fg:#1a0b0c; --ok:#4ade80; --warn:#f5b453; --warn-bg:#2c2214; --err:#ff8a80; color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#14161c; --panel:#1c1f27; --sunk:#12141a; --line:#2d313c; --fg:#e8eaf0; --muted:#9aa1b2;
-  --accent:#ff5a5f; --accent-fg:#1a0b0c; --ok:#4ade80; --warn:#f5b453; --warn-bg:#2c2214; --err:#ff8a80; color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);padding-inline:16px;padding-block:28px 56px;margin:0}
 .wrap{max-width:1080px;margin:0 auto}
 h1{font:700 28px/1.2 var(--display);margin:0 0 6px;text-wrap:balance;letter-spacing:-.01em}
@@ -113,7 +109,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
 
   <fieldset class="tournament-only" hidden>
     <legend>Your bot (optional)</legend>
-    <p class="hint" style="margin:0">Without a bot, games are still tracked, scored and reported, and the host still has the app. The bot adds automute, <b>/link</b>, <b>/new</b> and the colour menu, the combined standings across lobbies, and the referee commands in the private results channel.</p>
+    <p class="hint admin-only" style="margin:0">The Button reads every lobby's live data and the results from the private results channel with this bot, and posts referee commands there. It needs View Channel, Read Message History and Send Messages in that channel, and Message Content Intent turned on (Discord Developer Portal → Bot). One of your hosts' bots is fine.</p>
+    <p class="hint host-only" style="margin:0">Without a bot, games are still tracked, scored and reported, and the host still has the app. The bot adds automute, <b>/link</b>, <b>/new</b> and the colour menu, the combined standings across lobbies, and the referee commands in the private results channel.</p>
     <div class="row">
       <div class="field"><label for="guild">Server ID</label><input type="text" id="guild" class="mono" inputmode="numeric" placeholder="1180000000000000000"><span class="bad" id="guild-bad" hidden></span></div>
       <div class="field"><label for="results">Private results channel ID</label><input type="text" id="results" class="mono" inputmode="numeric" placeholder="1290000000000000000"><span class="bad" id="results-bad" hidden></span></div>
@@ -185,14 +182,18 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <textarea id="code" class="mono" readonly aria-label="Setup code"></textarea>
     <div class="btns"><button type="button" class="primary" id="copy" disabled>Copy code</button></div>
     <div class="toast" id="toast" role="status"></div>
-    <div class="warn" id="secret" hidden>This code contains your bot token. Send it to that host privately. If it leaks, reset the token in the Discord Developer Portal and make new codes.</div>
+    <div class="warn" id="secret" hidden>This code contains your bot token. Send it <span id="secret-who">to that host</span> privately. If it leaks, reset the token in the Discord Developer Portal and make new codes.</div>
   </div>
   <div class="out">
-    <h2>What the host does</h2>
-    <ol class="howto">
-      <li>Download <code>Install-TournamentTracker.bat</code> from the latest release and run it.</li>
-      <li>Paste this code when it asks.</li>
-      <li>Already installed? Copy the code, then type <code>!setup</code> in the lobby chat.</li>
+    <h2 id="howto-title">What the host does</h2>
+    <ol class="howto host-only">
+      <li>Download <code>Install-TheButton.bat</code> from the latest release and run it.</li>
+      <li>In The Button: Settings → <b>Setup code</b>, paste this code and press <b>Use this code</b>.</li>
+    </ol>
+    <ol class="howto admin-only">
+      <li>Download <code>Install-TheButton.bat</code> from the latest release and run it (Among Us isn't needed).</li>
+      <li>In The Button: Settings → <b>Administration</b>, turn it on, paste this code and press <b>Unlock</b>.</li>
+      <li>The <b>Organiser</b> tab appears. The caster overlay is at <code>http://localhost:8767/</code>.</li>
     </ol>
   </div>
 </aside>
@@ -259,6 +260,9 @@ function build() {
   document.querySelectorAll('.prelim-only').forEach(e => e.hidden = k !== 'prelim');
   document.querySelector('.tournament-only').hidden = k === 'prelim';
   document.querySelectorAll('.host-only').forEach(e => e.hidden = k === 'admin');
+  document.querySelectorAll('.admin-only').forEach(e => e.hidden = k !== 'admin');
+  $('howto-title').textContent = k === 'admin' ? 'What they do' : 'What the host does';
+  $('secret-who').textContent = k === 'admin' ? 'only to your referees and casters' : 'to that host';
   document.querySelector('.tournament-only legend').textContent = k === 'admin' ? 'The administration bot' : 'Your bot (optional)';
   autoId();
   const problems = [];

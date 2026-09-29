@@ -18,6 +18,7 @@
     <EmbeddedResource Include="ui\logo.png" LogicalName="ui/logo.png" />
     <!-- The same replay viewer as docs/replay-viewer.html (and the published page). -->
     <EmbeddedResource Include="..\..\docs\replay-viewer.html" LogicalName="ui/viewer-body.html" />
+    <EmbeddedResource Include="..\..\docs\setup-codes.html" LogicalName="docs/setup-codes.html" />
     <InternalsVisibleTo Include="TournamentTracker.Tests" />
   </ItemGroup>
   <ItemGroup>

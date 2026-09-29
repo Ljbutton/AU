@@ -216,6 +216,8 @@ namespace TournamentTracker.App
                 return Text(200, "text/html; charset=utf-8",
                     "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head><body style=\"margin:0\">"
                     + Resource("ui/viewer-body.html") + "</body></html>");
+            if (method == "GET" && route == "/generator")
+                return Text(200, "text/html; charset=utf-8", Resource("docs/setup-codes.html"));
             var font = Regex.Match(route, @"^/fonts/([a-z0-9-]+\.woff2)$");
             if (method == "GET" && font.Success)
             {
@@ -445,7 +447,7 @@ namespace TournamentTracker.App
                 "config" => GamePath == null ? null : Path.Combine(GamePath, "BepInEx", "config", "com.ljbutton.tournamenttracker.cfg"),
                 "overlay" => "http://localhost:8765/",
                 "releases" => $"https://github.com/{ModInstaller.Repo}/releases/latest",
-                "generator" => $"https://github.com/{ModInstaller.Repo}/blob/main/docs/setup-codes.html",
+                "generator" => Url + "generator",
                 _ => null,
             };
             if (target == null) return new { ok = false };

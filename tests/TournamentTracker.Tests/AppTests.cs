@@ -143,6 +143,7 @@ public class AppTests : IDisposable
         rebinding.Headers.Add("X-App-Token", app.Token);
         Assert.Equal(HttpStatusCode.Forbidden, (await anon.SendAsync(rebinding)).StatusCode);
         Assert.Contains("REPLAY", await anon.GetStringAsync("/viewer"));
+        Assert.Contains("Tournament Setup Codes", await anon.GetStringAsync("/generator"));
         var head = await anon.GetByteArrayAsync("/crew/17.png");            // every colour has a head, up to coral
         Assert.Equal(new byte[] { 0x89, (byte)'P', (byte)'N', (byte)'G' }, head.Take(4).ToArray());
         Assert.Equal(HttpStatusCode.NotFound, (await anon.GetAsync("/crew/18.png")).StatusCode);

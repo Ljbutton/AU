@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.9**, a beta.
+The current release is **v0.1.10**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -113,7 +113,7 @@ but can have one for automute (see below).
 
 ### 3. Setup codes
 
-Open `docs/setup-codes.html` (the setup code generator) in a browser and fill it in:
+In The Button, Settings → Administration → **Make setup codes** opens the setup code generator in your browser (it's also `docs/setup-codes.html` in this repository). Fill it in:
 
 * **Preliminary code:** the tournament name, the preliminary server's name and the
   preliminary channel's webhook. Make one per preliminary server (the server name is what
