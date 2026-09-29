@@ -103,6 +103,27 @@ tr:last-child td{border-bottom:0}
 .automute .controls{margin:8px 0 0;gap:26px}
 .automute .round span.ring{width:46px;height:46px}
 .automute .round svg{width:21px;height:21px}
+/* ---- Organiser ---- */
+.org-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,430px);gap:14px;align-items:start}
+@media (max-width:900px){.org-head{grid-template-columns:minmax(0,1fr)}}
+.cast-card{display:grid;gap:4px;font-size:13.5px}
+.org-lobbies{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.lob{display:grid;gap:6px;border:1.5px solid var(--line);border-radius:14px;padding:10px 12px;background:var(--panel)}
+.lob.casting{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.lob.quiet{opacity:.55}
+.lob .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.lob .top b{font:700 26px/1 var(--hand);letter-spacing:.05em}
+.lob .meta{font-size:12.5px;color:var(--muted)}
+.lob .heads{display:flex;flex-wrap:wrap;gap:3px}
+.lob .heads img{width:26px;height:26px;border-radius:50%}
+.lob .heads img.dead{opacity:.3;filter:grayscale(.6)}
+.lob .heads img.imp{box-shadow:0 0 0 2px var(--danger)}
+.lob .ev{font-size:12.5px;color:var(--fg);min-height:18px}
+.lob .ev span{color:var(--muted);margin-right:6px}
+.phase-pill{font-size:12px;padding:1px 8px;border-radius:99px;background:var(--sunk);color:var(--muted)}
+.phase-pill.Tasks{background:rgba(59,130,246,.2);color:#9cc3ff}.phase-pill.Meeting{background:var(--warn-soft);color:var(--warn)}.phase-pill.Lobby{background:var(--good-soft);color:var(--good)}
+select{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5px solid var(--line);border-radius:9px;padding:6px 10px}
+
 /* ---- Points ---- */
 .points-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,640px),1fr));gap:14px;align-items:start}
 @media (max-width:560px){.points-grid{grid-template-columns:minmax(0,1fr)}}
@@ -151,6 +172,7 @@ tr:last-child td{border-bottom:0}
   <button data-page="home" class="on">Home</button>
   <button data-page="points">Points</button>
   <button data-page="replays">Replays</button>
+  <button data-page="organiser" id="nav-organiser" hidden>Organiser</button>
   <button data-page="settings">Settings</button>
 </nav>
 <main>
@@ -220,6 +242,29 @@ tr:last-child td{border-bottom:0}
   <div class="points-grid" id="points-list"></div>
 </section>
 
+<section id="organiser">
+  <div class="org-head">
+    <div><h1>Organiser</h1><p class="sub" id="org-sub"></p></div>
+    <div class="card cast-card">
+      <div><b>Caster overlay</b> <span class="muted" id="org-casting"></span></div>
+      <div class="mono" id="org-cast-url"></div>
+      <div class="muted" style="font-size:12px">OBS Browser source, 380×720. It follows the lobby you pick below (keys 1–9 switch). Add <span class="mono">?full=1</span> on a delayed stream for roles, kills and tasks.</div>
+    </div>
+  </div>
+  <p id="org-problem" class="note bad" hidden></p>
+  <div class="row" style="justify-content:space-between"><h2 style="margin:0">Lobbies</h2><label class="muted" style="font-size:13px"><input type="checkbox" id="org-roles"> Show roles and real deaths (staff only)</label></div>
+  <div class="org-lobbies" id="org-lobbies"></div>
+  <h2 style="margin:6px 0 0">Standings</h2>
+  <div class="points-grid" id="org-standings"></div>
+  <div class="card">
+    <h2>Referee</h2>
+    <p class="muted" style="margin:0 0 8px;font-size:12.5px">Posted to the private results channel as the administration bot, exactly like typing it there.</p>
+    <div class="row"><select id="adj-lobby"></select><input id="adj-player" placeholder="Player (colour or name)" style="width:170px"><input id="adj-points" type="number" step="0.5" placeholder="Points" style="width:90px"><input id="adj-reason" placeholder="Reason" style="flex:1;min-width:120px"><button class="b" id="adj-go">Adjust</button></div>
+    <div class="row" style="margin-top:8px"><input id="void-game" placeholder="Game (LJ-3) or lobby (LJ)" style="width:200px"><input id="void-why" placeholder="Reason" style="flex:1;min-width:120px"><button class="b danger" id="void-go">Void</button><button class="b" id="unvoid-go">Unvoid</button></div>
+    <div class="row" style="margin-top:8px"><input id="org-cmd" placeholder="Any command: !start 3 in 10, !lobbies 3, !move Soggy B…" class="mono" style="flex:1"><button class="b" id="org-cmd-go">Post</button></div>
+  </div>
+</section>
+
 <section id="replays">
   <div><h1>Replays</h1><p class="sub">Every game is recorded. Watch here, or in Among Us itself: open Freeplay on the game's map and press F8.</p></div>
   <div class="card"><table><tbody id="replay-list"></tbody></table>
@@ -259,6 +304,15 @@ tr:last-child td{border-bottom:0}
   </div>
   <div id="setup-view"></div>
   <div class="settings-grid">
+    <div class="card">
+      <h2>Administration</h2>
+      <div class="toggle"><div><b>Administration</b><span>For organisers, referees and casters: unlocks the Organiser tab with an administration code.</span></div><button class="b" id="admin-toggle"></button></div>
+      <div id="admin-form" hidden style="margin-top:8px">
+        <textarea id="admin-code" rows="2" placeholder="TT1-… (administration code)"></textarea>
+        <div class="row" style="margin-top:8px"><button class="b primary" id="admin-save">Unlock</button></div>
+      </div>
+      <p class="muted" id="admin-line" style="margin:8px 0 0"></p>
+    </div>
     <div class="card">
       <h2>The Button</h2>
       <p class="muted" id="app-line" style="margin:0 0 8px"></p>
@@ -324,6 +378,7 @@ function go(page) {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.page === page));
   document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === page));
   if (page === 'replays') loadReplays();
+  if (page === 'organiser') loadOrganiser();
 }
 $('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (b) go(b.dataset.page); });
 document.addEventListener('click', e => {
@@ -335,7 +390,10 @@ document.addEventListener('click', e => {
 // ---- Top bar: only what needs attention ----------------------------------------------------
 function renderAlerts() {
   const g = S.game, m = S.mod, list = [];
-  if (!g.found) list.push(['bad', 'Among Us not found']);
+  // Someone who only uses the Organiser tab (a caster, say) doesn't need Among Us here.
+  const orgOnly = S.admin && !g.found;
+  if (orgOnly) {}
+  else if (!g.found) list.push(['bad', 'Among Us not found']);
   else if (!m.installed) list.push(['bad', 'Mod not installed']);
   else if (m.needsRepair) list.push(['bad', 'Mod needs repair']);
   if (m.installing) list.push(['', m.installing]);
@@ -343,7 +401,7 @@ function renderAlerts() {
   const u = S.appUpdate || {};
   if (u.ready) list.push(['', `The Button ${u.ready} is ready: restart`]);
   else if (u.available && !u.auto) list.push(['', `The Button ${u.available} is out`]);
-  if (!S.setup) list.push(['', 'No setup code installed']);
+  if (!S.setup) { if (!orgOnly) list.push(['', 'No setup code installed']); }
   else if (S.setup.error) list.push(['bad', 'Setup code damaged']);
   const a = S.status && S.status.autoMute;
   if (a && a.voiceProblem) list.push(['bad', 'Discord bot refused', 'home']);
@@ -480,6 +538,63 @@ function renderPoints() {
     + (pts.voided ? `<p class="muted" style="font-size:12.5px">${pts.voided} voided game${pts.voided === 1 ? '' : 's'} left out.</p>` : '');
 }
 
+// ---- Organiser (administration code) -------------------------------------------------------------
+let ORG = null, orgKey = '', showRoles = false;
+$('org-roles').addEventListener('change', e => { showRoles = e.target.checked; orgKey = ''; renderOrganiser(); });
+const PHASE_NAMES = { Lobby: 'Lobby', Tasks: 'In game', Meeting: 'Meeting', GameOver: 'Game over', Menu: 'Closed' };
+async function loadOrganiser() {
+  if (!S || !S.admin) { ORG = null; return; }
+  try { ORG = await api('GET', '/app/admin'); } catch (e) { ORG = null; }
+  renderOrganiser();
+}
+function castLobby(label) { api('POST', '/app/admin/cast', { lobby: label }).then(r => { toast(r.message); loadOrganiser(); }); }
+document.addEventListener('keydown', e => {
+  const f = document.activeElement;
+  if (!$('organiser').classList.contains('on') || !ORG || (/INPUT|TEXTAREA|SELECT/.test(f.tagName) && f.type !== 'checkbox')) return;
+  const n = parseInt(e.key, 10);
+  if (n >= 1 && n <= 9 && ORG.lobbies[n - 1]) castLobby(ORG.lobbies[n - 1].label);
+});
+async function orgPost(text) { const r = await api('POST', '/app/admin/command', { text }); toast(r.message); }
+$('adj-go').addEventListener('click', () => {
+  const pts = $('adj-points').value.trim(), who = $('adj-player').value.trim();
+  if (!pts || !who) return toast('Pick the player and the points.');
+  orgPost(`!adjust ${$('adj-lobby').value} ${who} ${pts} ${$('adj-reason').value.trim()}`.trim());
+});
+$('void-go').addEventListener('click', () => { const g = $('void-game').value.trim(); if (g) orgPost(`!void ${g} ${$('void-why').value.trim()}`.trim()); });
+$('unvoid-go').addEventListener('click', () => { const g = $('void-game').value.trim(); if (g) orgPost(`!unvoid ${g}`); });
+$('org-cmd-go').addEventListener('click', () => { const t = $('org-cmd').value.trim(); if (t) { orgPost(t); $('org-cmd').value = ''; } });
+function renderOrganiser() {
+  if (!ORG) return;
+  const key = JSON.stringify([ORG, showRoles]);
+  if (key === orgKey) return;
+  orgKey = key;
+  $('org-sub').textContent = `${ORG.tournament}${ORG.round ? ' · round ' + ORG.round : ''} · ${ORG.lobbies.filter(l => !l.quiet && l.data.phase !== 'Menu').length} lobbies live`;
+  $('org-problem').hidden = !ORG.problem && !ORG.casterProblem; $('org-problem').textContent = ORG.problem || ORG.casterProblem || '';
+  $('org-cast-url').textContent = ORG.casterUrl || '';
+  $('org-casting').textContent = ORG.cast ? `· now showing ${ORG.cast}` : '· waiting for a lobby';
+  $('org-lobbies').innerHTML = ORG.lobbies.length ? ORG.lobbies.map((l, i) => {
+    const d = l.data, ev = (d.f || []).filter(f => showRoles || ['meeting', 'eject', 'end'].includes(f[1])).slice(-2).reverse();
+    const heads = (d.p || []).map(p => `<img src="${head(p[1])}" title="${esc(p[0])}" class="${(showRoles ? p[3] : p[2]) ? 'dead' : ''} ${showRoles && p[4] ? 'imp' : ''}" alt="">`).join('');
+    return `<div class="lob${l.label === ORG.cast ? ' casting' : ''}${l.quiet ? ' quiet' : ''}">
+      <div class="top"><b>${i < 9 ? `<span class="muted" style="font-size:18px">${i + 1}</span> ` : ''}${esc(l.label)}</b><span class="phase-pill ${esc(d.phase)}">${esc(l.quiet ? 'No news' : PHASE_NAMES[d.phase] || d.phase)}</span></div>
+      <div class="meta">${d.round ? `Round ${d.round} · game ${Math.min(d.played + (d.phase === 'Tasks' || d.phase === 'Meeting' ? 1 : 0), d.per)} of ${d.per}` : 'No round'}${d.map ? ' · ' + esc(d.map) : ''}${d.code ? ' · ' + esc(d.code) : ''} · ${l.age < 60 ? l.age + 's ago' : Math.round(l.age / 60) + ' min ago'}</div>
+      <div class="heads">${heads || '<span class="muted" style="font-size:12.5px">Nobody in the lobby</span>'}</div>
+      <div class="ev">${ev.map(f => `<div><span>${esc(f[0])}</span>${esc(f[2])}</div>`).join('') || '<span>No events yet</span>'}</div>
+      <div class="row"><button class="b${l.label === ORG.cast ? ' on' : ''}" data-cast="${esc(l.label)}">${l.label === ORG.cast ? 'Casting' : 'Cast'}</button></div>
+    </div>`;
+  }).join('') : '<div class="card"><p class="empty">No lobbies yet. Each tournament host\'s game shows up here once it opens a lobby (it needs the private results channel and a bot in its code).</p></div>';
+  $('org-lobbies').querySelectorAll('[data-cast]').forEach(b => b.onclick = () => castLobby(b.dataset.cast));
+  const sel = $('adj-lobby'), cur = sel.value;
+  sel.innerHTML = ORG.lobbies.map(l => `<option>${esc(l.label)}</option>`).join('');
+  if (cur) sel.value = cur;
+  const st = ORG.standings, n = v => (Math.round(v * 100) / 100).toString();
+  const table = (title, note, rows, cut) => `<div class="card"><h2>${esc(title)}</h2><p class="muted" style="margin:0 0 8px;font-size:12.5px">${esc(note)}</p><div class="pts-wrap"><table class="pts"><thead><tr><th></th><th class="l">Player</th><th>Points</th><th>Total</th><th>Games</th><th>W-L</th></tr></thead><tbody>
+    ${rows.map(r => `<tr class="${r.advancing ? 'up' : ''}${cut && r.rank === cut ? ' cut' : ''}"><td class="rk">${r.rank}</td><td class="l"><div class="nm" style="display:flex;align-items:center;gap:7px"><img src="${head(r.color)}" alt="" style="width:22px;height:22px"><span>${esc(r.name)}</span></div></td><td class="big">${n(r.points)}</td><td>${n(r.total)}</td><td>${r.games}</td><td>${r.wins}-${r.losses}</td></tr>`).join('')}</tbody></table></div></div>`;
+  $('org-standings').innerHTML = !st ? '<div class="card"><p class="empty">No games in this round yet.</p></div>'
+    : st.lobbies.map(l => table(`${l.lobby}'s lobby`, `Round ${ORG.round} · after game ${l.played} of ${ORG.perRound} · top ${ORG.advance} move on`, l.rows, ORG.advance)).join('')
+      + table('Every lobby', `Round ${ORG.round} · ${st.games} games`, st.all, 0);
+}
+
 // ---- Settings -------------------------------------------------------------------------------
 $('game-change').addEventListener('click', () => { $('game-pick').hidden = false; $('game-input').value = S?.game?.path || ''; $('game-input').focus(); });
 $('game-save').addEventListener('click', async () => { const r = await api('POST', '/app/game', { path: $('game-input').value }); toast(r.message); if (r.ok) $('game-pick').hidden = true; refresh(); });
@@ -511,7 +626,27 @@ function renderSettings() {
   $('conn-line').textContent = S.status ? `Connected to the mod in Among Us (mod ${S.status.version}).` : 'Among Us isn\'t running with the mod right now.';
   renderSetup();
   renderAppUpdate();
+  renderAdmin();
 }
+function renderAdmin() {
+  const on = !!S.admin, t = $('admin-toggle'), open = on || adminOpening;
+  t.textContent = open ? 'On' : 'Off'; t.classList.toggle('on', open);
+  $('admin-form').hidden = on || !adminOpening;
+  $('admin-line').textContent = on ? `Unlocked: ${S.admin.tournament}. The Organiser tab is open.` : adminOpening ? 'Paste the administration code the organiser gave you.' : '';
+  $('nav-organiser').hidden = !on;
+  if (!on && $('organiser').classList.contains('on')) go('settings');
+}
+let adminOpening = false;
+$('admin-toggle').addEventListener('click', async () => {
+  if (S.admin) { const r = await api('POST', '/app/admin/code', { code: '' }); toast(r.message); adminOpening = false; refresh(); }
+  else { adminOpening = !adminOpening; renderAdmin(); if (adminOpening) $('admin-code').focus(); }
+});
+$('admin-save').addEventListener('click', async () => {
+  const r = await api('POST', '/app/admin/code', { code: $('admin-code').value });
+  toast(r.message);
+  if (r.ok) { $('admin-code').value = ''; adminOpening = false; await refresh(); go('organiser'); }
+});
+
 function renderAppUpdate() {
   const u = S.appUpdate || {};
   $('app-line').textContent = `Version ${S.app || '?'}.` + (u.ready ? ` ${u.ready} is installed: restart to use it.` : u.busy ? ' Downloading the new version…' : u.available ? ` ${u.available} is out.` : ' Up to date.');
@@ -563,6 +698,7 @@ async function refresh() {
 }
 refresh();
 setInterval(refresh, 1500);
+setInterval(() => { if ($('organiser').classList.contains('on')) loadOrganiser(); }, 2000);
 </script>
 </body>
 </html>

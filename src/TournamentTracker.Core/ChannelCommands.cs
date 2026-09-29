@@ -51,8 +51,13 @@ namespace TournamentTracker
             {
                 // Another lobby took over answering.
                 if (text.StartsWith(LeadNotePrefix, StringComparison.Ordinal))
+                {
                     _isLead = text.StartsWith(LeadNotePrefix + LobbyLabel() + " ", StringComparison.OrdinalIgnoreCase);
-                return;
+                    return;
+                }
+                // Other bot messages are notes and results, except commands from the organiser's
+                // view in The Button, which posts them as the administration bot.
+                if (!text.StartsWith("!", StringComparison.Ordinal) || text.StartsWith(SharedResults.ResetCommand, StringComparison.OrdinalIgnoreCase)) return;
             }
             if (!text.StartsWith("!", StringComparison.Ordinal)) return;
             var parts = text.Substring(1).Split(new[] { ' ', '\n' }, StringSplitOptions.RemoveEmptyEntries);

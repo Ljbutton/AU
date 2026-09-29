@@ -46,6 +46,9 @@ namespace TournamentTracker
         /// <summary>Record a replay of every game (positions ~10 times a second, about 0.5 MB a game).</summary>
         public bool RecordReplays { get; set; } = true;
 
+        /// <summary>Tournaments with a results channel: keep a live data message there for the organiser's view and casters.</summary>
+        public bool PublishLive { get; set; } = true;
+
         /// <summary>
         /// Chat commands (!r2, !void…). Off: everything is done from the Tournament Tracker app,
         /// so nothing is typed in the lobby chat.

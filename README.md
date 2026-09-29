@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.8**, a beta.
+The current release is **v0.1.9**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -130,6 +130,11 @@ Open `docs/setup-codes.html` (the setup code generator) in a browser and fill it
   or colour menu, no combined standings and no referee commands. 2 or 3 bots mute a full
   lobby faster (Discord limits each bot's speed; the work is shared). A code with a bot
   token in it must be sent privately.
+
+* **Administration code** (for you, referees and casters): the tournament name, the private
+  results channel and one bot token. It isn't installed into a game; paste it into The
+  Button under Settings → **Administration** and press Unlock, and the **Organiser** tab
+  appears (see *Organiser tab* below). It has a bot token in it, so send it privately.
 
 Both carry the point values, so every host scores the same, and the game settings (below).
 Tournament host codes also carry the games per round and, for one host only (you), the
@@ -237,6 +242,30 @@ for a stream on a delay, since anyone watching live could see who the impostors 
 example the players on one side of the screen and the standings on the other. Standings
 and the feed stay hidden until there's something in them. Turning the switch off stops it;
 the choice is remembered.
+
+### Organiser tab (administration code)
+
+With an administration code unlocked (Settings → Administration), The Button gets an
+**Organiser** tab, and it doesn't need Among Us on that computer. Every tournament host's
+game with a bot keeps one "Live data" message in the private results channel, updated a few
+seconds after anything changes; the Organiser tab reads them all:
+
+* **Every lobby live:** phase, map, lobby code, who's alive or dead, and the round's games.
+  Tick **show roles** to see impostors, kills and task bars too. A lobby that hasn't sent
+  anything for a couple of minutes is shown as gone quiet.
+* **Standings:** each lobby's round standings with the cut line, and all lobbies combined.
+* **Referee:** adjust points, void or unvoid a game, or type any `!` command; it's posted in
+  the results channel as the administration bot and the lead lobby carries it out.
+* **Caster overlay:** an OBS Browser source at `http://localhost:8767/` that shows whichever
+  lobby you pick with **Cast** (or the number keys 1-9 while the tab is open), switching
+  live: players, round standings and the latest meetings and ejections for that game.
+  `http://localhost:8767/?full=1` adds roles, kills and task bars (for a stream on a delay
+  only). It's data only: for the game video, capture each host's stream or Discord Go Live
+  and switch scenes alongside it.
+
+The administration bot needs View Channel, Read Message History and Send Messages in the
+private results channel, and its **Message Content Intent** turned on (Discord Developer
+Portal → Bot). Hosts can turn the live data off with `PublishLive = false`.
 
 ### Replays
 
@@ -481,6 +510,7 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | Discord | `LeaderboardMentions` | false | Show linked players as @mentions on the leaderboard (nobody is pinged) |
 | Discord | `LiveStatus` | true | The live lobby status message |
 | Discord | `ResultsChannelId` | | Shared channel for the combined leaderboard across hosts |
+| Discord | `PublishLive` | true | Keep a "Live data" message in the private results channel for the Organiser tab |
 | Discord | `StatusWebhookUrl` | | Its own channel; empty = the stats channel |
 | AutoMute | `Enabled` | false | |
 | AutoMute | `BotTokens` | | Comma separated |

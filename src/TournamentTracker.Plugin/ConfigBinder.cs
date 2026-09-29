@@ -24,6 +24,8 @@ namespace TournamentTracker.Plugin
                 "Say in the lobby chat when a player is linked to Discord (by name automatically, or with /link).").Value;
             s.ControlPort = config.Bind("General", "ControlPort", d.ControlPort,
                 "Port the Tournament Tracker app connects on (this computer only). -1 turns the connection off.").Value;
+            s.PublishLive = config.Bind("General", "PublishLive", d.PublishLive,
+                "Tournaments with a results channel: keep a live data message there for the organiser's view and caster overlay.").Value;
             s.RecordReplays = config.Bind("General", "RecordReplays", d.RecordReplays,
                 "Record a replay of every game for the replay viewer (about 0.5 MB each, saved with the game).").Value;
             s.OverlayPort = config.Bind("General", "OverlayPort", d.OverlayPort,

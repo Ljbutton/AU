@@ -159,6 +159,11 @@ namespace TournamentTracker
                 Reply($"To change it, copy the new code, then type {_settings.CommandPrefix}setup. ({error})", false);
                 return;
             }
+            if (code.IsAdmin)
+            {
+                Reply("That's an administration code: it goes in The Button's Settings → Administration, not in the game.", false);
+                return;
+            }
             SetupCode.Save(_dataDir, code.Encode());
             Reply($"Setup applied: {code.Describe()}. Restarting the tracker…", false);
             RestartRequested?.Invoke();

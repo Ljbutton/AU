@@ -275,6 +275,7 @@ namespace TournamentTracker
             }
             // Move the live status below the report so it stays at the bottom of the channel.
             RepostStatus();
+            BumpLive();
             ApplyPendingRound();
             return game;
         }

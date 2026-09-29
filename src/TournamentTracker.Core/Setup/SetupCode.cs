@@ -64,7 +64,14 @@ namespace TournamentTracker.Setup
 
         public bool IsTournament => string.Equals(Mode, "tournament", StringComparison.OrdinalIgnoreCase);
 
+        /// <summary>
+        /// An administration code: unlocks the organiser's view in The Button (every lobby live,
+        /// standings, referee actions, the caster overlay). Not a host code: a game ignores it.
+        /// </summary>
+        public bool IsAdmin => string.Equals(Mode, "admin", StringComparison.OrdinalIgnoreCase);
+
         public string Describe() =>
+            IsAdmin ? $"{TournamentName} (administration)" :
             IsTournament
                 ? $"{TournamentName} (tournament host{(BotTokens?.Count > 0 ? ", automute on" : "")})"
                 : $"{TournamentName} (preliminary{(string.IsNullOrWhiteSpace(Server) ? "" : " in " + Server)}{(BotTokens?.Count > 0 ? ", automute on" : "")})";
@@ -104,6 +111,15 @@ namespace TournamentTracker.Setup
             {
                 error = "That setup code has no tournament in it. Ask the organiser for a new one.";
                 return false;
+            }
+            if (code.IsAdmin)
+            {
+                if ((code.BotTokens?.Count ?? 0) == 0 || string.IsNullOrWhiteSpace(code.ResultsChannelId))
+                {
+                    error = "That administration code has no bot or results channel in it. Ask the organiser for a new one.";
+                    return false;
+                }
+                return true;
             }
             if (!code.Webhook.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
@@ -173,7 +189,11 @@ namespace TournamentTracker.Setup
         {
             string path = Path.Combine(dataDir, FileName);
             if (!File.Exists(path)) return null;
-            if (TryParse(File.ReadAllText(path), out var code, out var error)) return code;
+            if (TryParse(File.ReadAllText(path), out var code, out var error))
+            {
+                if (!code.IsAdmin) return code;
+                error = "it's an administration code (it goes in The Button's Settings → Administration), not a host code";
+            }
             log.Warn($"Ignoring {FileName}: {error}");
             return null;
         }

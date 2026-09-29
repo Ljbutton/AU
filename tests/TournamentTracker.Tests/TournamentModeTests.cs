@@ -63,7 +63,9 @@ public sealed class FakeDiscord
         if (m.Success && r.Method == HttpMethod.Get)
         {
             string channel = m.Groups[1].Value;
-            var items = Messages.Where(x => x.Channel == channel).Reverse().Select(x => new Dictionary<string, object?>
+            List<Msg> snapshot;
+            lock (Messages) snapshot = Messages.ToList();
+            var items = snapshot.Where(x => x.Channel == channel).Reverse().Select(x => new Dictionary<string, object?>
             {
                 ["id"] = x.Id,
                 ["content"] = x.Content,
@@ -76,29 +78,43 @@ public sealed class FakeDiscord
         if (m.Success && r.Method == HttpMethod.Post)
         {
             string channel = m.Groups[1].Value;
-            if (r.Content is MultipartFormDataContent form)
+            string id;
+            lock (Messages)
             {
-                var parts = form.ToList();
-                var payload = JsonDocument.Parse(parts[0].ReadAsStringAsync().Result).RootElement;
-                Messages.Add(new Msg(NextId(), channel, payload.GetProperty("content").GetString()!,
-                    payload.GetProperty("attachments")[0].GetProperty("filename").GetString(), parts[1].ReadAsStringAsync().Result, true, null));
+                id = NextId();
+                if (r.Content is MultipartFormDataContent form)
+                {
+                    var parts = form.ToList();
+                    var payload = JsonDocument.Parse(parts[0].ReadAsStringAsync().Result).RootElement;
+                    Messages.Add(new Msg(id, channel, payload.GetProperty("content").GetString()!,
+                        payload.GetProperty("attachments")[0].GetProperty("filename").GetString(), parts[1].ReadAsStringAsync().Result, true, null));
+                }
+                else
+                {
+                    var body = JsonDocument.Parse(r.Content!.ReadAsStringAsync().Result).RootElement.Clone();
+                    Messages.Add(new Msg(id, channel, body.TryGetProperty("content", out var c) ? c.GetString()! : "", null, null, true,
+                        body.TryGetProperty("embeds", out var e) ? e : null));
+                }
             }
-            else
-            {
-                var body = JsonDocument.Parse(r.Content!.ReadAsStringAsync().Result).RootElement.Clone();
-                Messages.Add(new Msg(NextId(), channel, body.TryGetProperty("content", out var c) ? c.GetString()! : "", null, null, true,
-                    body.TryGetProperty("embeds", out var e) ? e : null));
-            }
-            return FakeHttp.Json(HttpStatusCode.OK, """{"id":"1"}""");
+            return FakeHttp.Json(HttpStatusCode.OK, "{\"id\":\"" + id + "\"}");
         }
         var edit = System.Text.RegularExpressions.Regex.Match(url, @"/channels/(\w+)/messages/(\d+)$");
         if (edit.Success && r.Method.Method == "PATCH")
         {
-            int i = Messages.FindIndex(x => x.Id == edit.Groups[2].Value);
-            var body = JsonDocument.Parse(r.Content!.ReadAsStringAsync().Result).RootElement.Clone();
-            Messages[i] = Messages[i] with { Embeds = body.GetProperty("embeds") };
-            Edits++;
+            lock (Messages)
+            {
+                int i = Messages.FindIndex(x => x.Id == edit.Groups[2].Value);
+                if (i < 0) return FakeHttp.Json(HttpStatusCode.NotFound, "{}");
+                var body = JsonDocument.Parse(r.Content!.ReadAsStringAsync().Result).RootElement.Clone();
+                Messages[i] = Messages[i] with { Embeds = body.GetProperty("embeds") };
+                Edits++;
+            }
             return FakeHttp.Json(HttpStatusCode.OK, "{}");
+        }
+        if (edit.Success && r.Method == HttpMethod.Delete)
+        {
+            lock (Messages) Messages.RemoveAll(x => x.Id == edit.Groups[2].Value);
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
         }
         return FakeHttp.Json(HttpStatusCode.OK, "{}");
     }

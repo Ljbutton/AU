@@ -85,6 +85,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <div class="kind">
       <label><input type="radio" name="kind" id="kind-prelim" value="prelim" checked><b>Preliminary</b><small>For hosts in other servers. Reports go to your server.</small></label>
       <label><input type="radio" name="kind" id="kind-tournament" value="tournament"><b>Tournament host</b><small>Your trusted hosts. Automute, rounds and standings.</small></label>
+      <label><input type="radio" name="kind" id="kind-admin" value="admin"><b>Administration</b><small>You, referees and casters: unlocks the Organiser tab in The Button (every lobby live, standings, referee buttons, caster overlay).</small></label>
     </div>
   </fieldset>
 
@@ -93,7 +94,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <div class="field"><label for="name">Name</label><input type="text" id="name" value="Fall Cup 2026"><span class="hint">Shown on every report and leaderboard.</span></div>
     <div class="field prelim-only"><label for="server">Preliminary server</label><input type="text" id="server" value="Sus Squad"><span class="hint">The Discord server these games are played in. Make one code per server.</span></div>
     <div class="field"><label for="tid">Tournament ID</label><input type="text" id="tid" class="mono"><span class="hint">Keeps this tournament's stats apart from every other. Filled in from the name; every host of the same event needs the same ID.</span></div>
-    <div class="field"><label for="webhook">Report channel webhook</label><input type="text" id="webhook" class="mono" placeholder="https://discord.com/api/webhooks/…"><span class="hint">Channel settings → Integrations → Webhooks → Copy URL. Preliminaries: your preliminary channel. Tournament: your results channel for players.</span><span class="bad" id="webhook-bad" hidden></span></div>
+    <div class="field host-only"><label for="webhook">Report channel webhook</label><input type="text" id="webhook" class="mono" placeholder="https://discord.com/api/webhooks/…"><span class="hint">Channel settings → Integrations → Webhooks → Copy URL. Preliminaries: your preliminary channel. Tournament: your results channel for players.</span><span class="bad" id="webhook-bad" hidden></span></div>
   </fieldset>
 
   <fieldset class="prelim-only">
@@ -118,26 +119,26 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <div class="field"><label for="results">Private results channel ID</label><input type="text" id="results" class="mono" inputmode="numeric" placeholder="1290000000000000000"><span class="bad" id="results-bad" hidden></span></div>
     </div>
     <div class="field"><label for="token">Bot token</label><input type="password" id="token" class="mono" placeholder="MTIz…"><span class="hint">Invite it with the link in the README. The token never leaves this page except inside the code.</span></div>
-    <div class="row">
+    <div class="row host-only">
       <div class="field"><label for="token2">Second bot token (optional)</label><input type="password" id="token2" class="mono" placeholder="MTIz…"></div>
       <div class="field"><label for="token3">Third bot token (optional)</label><input type="password" id="token3" class="mono" placeholder="MTIz…"></div>
     </div>
-    <p class="hint" style="margin:-6px 0 0">Discord limits how fast one bot can mute people, so 2 or 3 bots mute a full lobby noticeably faster: the work is shared between them. Each extra bot needs inviting to the server too. Give every lobby its own bots.</p>
-    <div class="field"><label for="prelims">Preliminary channel IDs</label><input type="text" id="prelims" class="mono" placeholder="1290000000000000001, 1290000000000000002"><span class="hint">Where preliminary reports went; used for server standings. Comma separated.</span><span class="bad" id="prelims-bad" hidden></span></div>
+    <p class="hint host-only" style="margin:-6px 0 0">Discord limits how fast one bot can mute people, so 2 or 3 bots mute a full lobby noticeably faster: the work is shared between them. Each extra bot needs inviting to the server too. Give every lobby its own bots.</p>
+    <div class="field host-only"><label for="prelims">Preliminary channel IDs</label><input type="text" id="prelims" class="mono" placeholder="1290000000000000001, 1290000000000000002"><span class="hint">Where preliminary reports went; used for server standings. Comma separated.</span><span class="bad" id="prelims-bad" hidden></span></div>
     <div class="row">
       <div class="field"><label for="advance">Players who move on per lobby</label><input type="number" id="advance" min="1" max="10" value="5"></div>
-      <div class="field"><label for="refs">Referee user IDs (optional)</label><input type="text" id="refs" class="mono" placeholder="Who can talk in referee mode"></div>
+      <div class="field host-only"><label for="refs">Referee user IDs (optional)</label><input type="text" id="refs" class="mono" placeholder="Who can talk in referee mode"></div>
     </div>
     <div class="row">
       <div class="field"><label for="gpr">Games per round</label><input type="number" id="gpr" min="1" max="10" value="3"><span class="hint">Cut-line tiebreaks apply once a lobby has played them all.</span></div>
-      <label class="check"><input type="checkbox" id="lead"> <span><b>Lead lobby</b>: this host's mod answers !lobbies, !move, !start… in the results channel. Tick it in the code for one host only (you).</span></label>
+      <label class="check host-only"><input type="checkbox" id="lead"> <span><b>Lead lobby</b>: this host's mod answers !lobbies, !move, !start… in the results channel. Tick it in the code for one host only (you).</span></label>
     </div>
   </fieldset>
 
-  <fieldset>
+  <fieldset class="host-only">
     <legend>Fairness and settings</legend>
     <label class="check"><input type="checkbox" id="rot"> <span><b>Fair impostor rotation</b>: within a round nobody is impostor twice until everyone has been once. Off unless ticked.</span></label>
-    <label class="check"><input type="checkbox" id="lock" checked> <span><b>Lock lobby settings</b> to these while the code is in use (hosts type !lock off for a casual game):</span></label>
+    <label class="check"><input type="checkbox" id="lock" checked> <span><b>Lock lobby settings</b> to these while the code is in use (for a casual game the host turns Settings lock off in The Button):</span></label>
     <div class="settings-grid" id="lock-fields">
       <label>Impostors<input type="number" id="s-imp" value="2" min="1" max="3"></label>
       <label>Kill cooldown (s)<input type="number" id="s-kc" value="25" step="any"></label>
@@ -159,7 +160,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
     </div>
   </fieldset>
 
-  <details id="scoring">
+  <details id="scoring" class="host-only">
     <summary>Point values <span class="hint" id="changed-count"></span></summary>
     <div class="inner"><div class="scores" id="scores"></div>
       <div><button type="button" id="reset-scores">Back to the point sheet</button></div>
@@ -256,17 +257,29 @@ function autoId() {
 function build() {
   const k = kind();
   document.querySelectorAll('.prelim-only').forEach(e => e.hidden = k !== 'prelim');
-  document.querySelector('.tournament-only').hidden = k !== 'tournament';
+  document.querySelector('.tournament-only').hidden = k === 'prelim';
+  document.querySelectorAll('.host-only').forEach(e => e.hidden = k === 'admin');
+  document.querySelector('.tournament-only legend').textContent = k === 'admin' ? 'The administration bot' : 'Your bot (optional)';
   autoId();
   const problems = [];
   const name = $('name').value.trim(), wh = $('webhook').value.trim();
   if (!name) problems.push('Give the tournament a name.');
   const whOk = /^https:\/\/(ptb\.|canary\.)?discord(app)?\.com\/api\/webhooks\/\d+\/[\w-]+/.test(wh);
   show('webhook-bad', wh && !whOk ? "That isn't a Discord webhook URL. It starts with https://discord.com/api/webhooks/." : '');
-  if (!whOk) problems.push('Add the webhook to finish the code.');
+  if (!whOk && k !== 'admin') problems.push('Add the webhook to finish the code.');
 
-  const code = { m: k, id: $('tid').value.trim() || slug(name), n: name, wh };
-  if (k === 'prelim') {
+  const code = k === 'admin' ? { m: k, id: $('tid').value.trim() || slug(name), n: name } : { m: k, id: $('tid').value.trim() || slug(name), n: name, wh };
+  if (k === 'admin') {
+    const guild = $('guild').value.trim(), results = $('results').value.trim(), token = $('token').value.trim();
+    show('guild-bad', guild && !snowflake(guild) ? 'Server IDs are long numbers (right-click the server → Copy Server ID).' : '');
+    show('results-bad', results && !snowflake(results) ? 'Channel IDs are long numbers (right-click the channel → Copy Channel ID).' : '');
+    if (token.split('.').length < 3) problems.push("Add the bot token: The Button reads the results channel with it.");
+    if (!snowflake(results)) problems.push('Add the private results channel ID.');
+    if (snowflake(guild)) code.g = guild;
+    code.bt = [token]; code.rc = results;
+    code.adv = Math.max(1, Math.min(10, parseInt($('advance').value, 10) || 5));
+    code.gpr = Math.max(1, Math.min(10, parseInt($('gpr').value, 10) || 3));
+  } else if (k === 'prelim') {
     if ($('server').value.trim()) code.srv = $('server').value.trim();
     const pg = $('p-guild').value.trim(), pt = $('p-token').value.trim(), ps = $('p-status').value.trim();
     const psOk = /^https:\/\/(ptb\.|canary\.)?discord(app)?\.com\/api\/webhooks\/\d+\/[\w-]+/.test(ps);
@@ -300,9 +313,9 @@ function build() {
     code.gpr = Math.max(1, Math.min(10, parseInt($('gpr').value, 10) || 3));
     if ($('lead').checked) code.lead = true;
   }
-  if ($('rot').checked) code.rot = true;
+  if ($('rot').checked && k !== 'admin') code.rot = true;
   $('lock-fields').hidden = !$('lock').checked;
-  if ($('lock').checked) {
+  if ($('lock').checked && k !== 'admin') {
     const set = {};
     for (const k of ['imp', 'em', 'ec', 'dt', 'vt', 'ct', 'lt', 'st', 'kd']) { const v = parseInt($('s-' + k).value, 10); if (!isNaN(v)) set[k] = v; }
     for (const k of ['kc', 'ps', 'cv', 'iv']) { const v = parseFloat($('s-' + k).value); if (!isNaN(v)) set[k] = v; }
@@ -315,7 +328,7 @@ function build() {
     sc[inp.id.slice(3)] = isNaN(v) ? def : v;
     const diff = !isNaN(v) && v !== def; inp.parentElement.classList.toggle('changed', diff); if (diff) changed++;
   });
-  code.sc = sc;
+  if (k !== 'admin') code.sc = sc;
   $('changed-count').textContent = changed ? `(${changed} changed from the point sheet)` : '(the point sheet)';
 
   const ready = problems.length === 0;
@@ -325,7 +338,7 @@ function build() {
   const st = $('status');
   st.className = 'status ' + (ready ? 'ok' : 'no');
   st.textContent = ready
-    ? (k === 'prelim' ? `Ready: ${name}, preliminary in ${code.srv || 'an unnamed server'}${code.bt ? ', with automute' : ''}.`
+    ? (k === 'admin' ? `Ready: ${name}, administration code. Give it privately to you, your referees and casters: it holds the bot token.` : k === 'prelim' ? `Ready: ${name}, preliminary in ${code.srv || 'an unnamed server'}${code.bt ? ', with automute' : ''}.`
        : `Ready: ${name}, tournament host${code.bt ? ` with ${code.bt.length} bot${code.bt.length > 1 ? 's' : ''}` : ', no bot (no automute or combined standings)'}.`)
     : problems[0];
   $('toast').textContent = '';
@@ -356,10 +369,10 @@ $('copy').addEventListener('click', async () => {
 $('load-btn').addEventListener('click', () => {
   try {
     const c = decodeCode($('load').value);
-    $(c.m === 'tournament' ? 'kind-tournament' : 'kind-prelim').checked = true;
+    $(c.m === 'tournament' ? 'kind-tournament' : c.m === 'admin' ? 'kind-admin' : 'kind-prelim').checked = true;
     $('name').value = c.n || ''; $('server').value = c.srv || ''; $('tid').value = c.id || ''; idEdited = !!c.id;
     $('webhook').value = c.wh || ''; $('guild').value = c.g || ''; $('results').value = c.rc || '';
-    const bt = c.bt || [], tour = c.m === 'tournament';
+    const bt = c.bt || [], tour = c.m === 'tournament' || c.m === 'admin';
     $('token').value = tour ? bt[0] || '' : ''; $('token2').value = tour ? bt[1] || '' : ''; $('token3').value = tour ? bt[2] || '' : '';
     $('prelims').value = (c.pc || []).join(', ');
     $('p-guild').value = tour ? '' : c.g || ''; $('p-token').value = tour ? '' : bt[0] || ''; $('p-token2').value = tour ? '' : bt[1] || ''; $('p-token3').value = tour ? '' : bt[2] || '';

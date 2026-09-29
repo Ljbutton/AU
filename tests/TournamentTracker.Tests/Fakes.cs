@@ -89,6 +89,16 @@ public sealed class TempDir : IDisposable
 
 public static class Wait
 {
+    public static async Task Until(Func<Task<bool>> condition, int timeoutMs = 3000)
+    {
+        var until = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (!await condition())
+        {
+            if (DateTime.UtcNow > until) throw new TimeoutException("Condition not met in time");
+            await Task.Delay(50);
+        }
+    }
+
     public static async Task Until(Func<bool> condition, int timeoutMs = 3000)
     {
         var until = DateTime.UtcNow.AddMilliseconds(timeoutMs);

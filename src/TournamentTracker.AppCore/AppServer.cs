@@ -26,6 +26,9 @@ namespace TournamentTracker.App
         /// <summary>Download and install new versions of The Button by itself.</summary>
         public bool AutoUpdateApp { get; set; } = true;
 
+        /// <summary>The administration code that unlocks the organiser's view (null: locked).</summary>
+        public string? AdminCode { get; set; }
+
         public static AppSettings Load(string file)
         {
             try { if (File.Exists(file)) return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(file)) ?? new AppSettings(); }
@@ -55,6 +58,9 @@ namespace TournamentTracker.App
         /// <summary>The running TheButton.exe, so it can update itself. Null: no self-update (tests, other platforms).</summary>
         public string? ExePath { get; set; }
 
+        /// <summary>The caster overlay's port (OBS points at it); 0 picks any free one (tests).</summary>
+        public int CasterPort { get; set; } = Organizer.CasterPort;
+
         /// <summary>Starts the new version and closes this one.</summary>
         public Action Restart { get; set; } = () => { };
     }
@@ -76,6 +82,33 @@ namespace TournamentTracker.App
         private readonly ModClient _mod;
         private readonly HttpClient _http;
         private Release? _latest;
+        private Organizer? _organizer;
+
+        /// <summary>Starts (or stops) the organiser's view for the saved administration code.</summary>
+        private void StartOrganizer()
+        {
+            _organizer?.Dispose();
+            _organizer = null;
+            if (_settings.AdminCode != null && SetupCode.TryParse(_settings.AdminCode, out var code, out _) && code.IsAdmin)
+                _organizer = new Organizer(code, _http, casterPort: _env.CasterPort);
+        }
+
+        private object SetAdminCode(string text)
+        {
+            if (text.Trim().Length == 0)
+            {
+                _settings.AdminCode = null;
+                TrySave();
+                StartOrganizer();
+                return new { ok = true, message = "Administration is off." };
+            }
+            if (!SetupCode.TryParse(text, out var code, out var error)) return new { ok = false, message = error };
+            if (!code.IsAdmin) return new { ok = false, message = "That's a host setup code. Administration needs an administration code from the organiser." };
+            _settings.AdminCode = code.Encode();
+            TrySave();
+            StartOrganizer();
+            return new { ok = true, message = $"Organiser view unlocked for {code.TournamentName}." };
+        }
 
         // The Button updating itself: the new exe is put in place next to the running one
         // (Windows lets a running program be renamed, not overwritten) and used from the next start.
@@ -128,6 +161,7 @@ namespace TournamentTracker.App
             _listener.Start();
             Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
             Task.Run(AcceptLoop);
+            StartOrganizer();
         }
 
         public string? GamePath => _settings.GamePath;
@@ -225,6 +259,15 @@ namespace TournamentTracker.App
                     return file == null || !ReplayName.IsMatch(name) ? Text(404, "text/plain", "Not found") : (200, "application/octet-stream", File.ReadAllBytes(file.FullName));
                 }
                 case ("POST", "/app/open"): return Ok(Open(Arg("what")));
+                case ("POST", "/app/admin/code"): return Ok(SetAdminCode(Arg("code")));
+                case ("GET", "/app/admin"): return _organizer == null ? Text(404, "application/json", "{\"error\":\"locked\"}") : Ok(_organizer.State());
+                case ("POST", "/app/admin/cast"):
+                    if (_organizer == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    _organizer.Cast(Arg("lobby"));
+                    return Ok(new { ok = true, message = $"Casting {Arg("lobby")}." });
+                case ("POST", "/app/admin/command"):
+                    if (_organizer == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    return Ok(new { ok = true, message = await _organizer.CommandAsync(Arg("text")).ConfigureAwait(false) });
                 case ("POST", "/app/update"):
                     if (!AppUpdateAvailable) return Ok(new { ok = false, message = "The Button is up to date." });
                     _ = Task.Run(UpdateAppAsync);
@@ -270,6 +313,7 @@ namespace TournamentTracker.App
                     InstallResult = _installResult,
                 },
                 Setup = SetupView(),
+                Admin = _organizer == null ? null : new { _organizer.Tournament },
                 AppUpdate = new
                 {
                     Supported = _env.ExePath != null,
@@ -356,6 +400,7 @@ namespace TournamentTracker.App
         {
             if (GamePath == null) return new { ok = false, message = "Find Among Us first." };
             if (!SetupCode.TryParse(text, out var code, out var error)) return new { ok = false, message = error };
+            if (code.IsAdmin) return new { ok = false, message = "That's an administration code. It goes under Administration, further down this page." };
             SetupCode.Save(ModInstaller.DataDir(GamePath), code.Encode());
             bool live = await _mod.CommandAsync(GamePath, "setup reload").ConfigureAwait(false) != null;
             return new { ok = true, message = $"Setup saved: {code.Describe()}." + (live ? " The mod in Among Us picked it up." : " It's used next time Among Us starts.") };
@@ -428,6 +473,7 @@ namespace TournamentTracker.App
         public void Dispose()
         {
             _cts.Cancel();
+            _organizer?.Dispose();
             try { _listener.Stop(); } catch (Exception) { }
         }
     }
