@@ -146,6 +146,8 @@ namespace TournamentTracker.App
                 return Text(200, "text/html; charset=utf-8",
                     "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head><body style=\"margin:0\">"
                     + Resource("ui/viewer-body.html") + "</body></html>");
+            if (method == "GET" && route == "/fonts/amatic-sc-700.woff2")
+                return (200, "font/woff2", ResourceBytes("ui/fonts/amatic-sc-700.woff2"));
             if (!route.StartsWith("/app/", StringComparison.Ordinal)) return Text(404, "text/plain", "Not found");
 
             headers.TryGetValue("x-app-token", out var token);
@@ -240,7 +242,6 @@ namespace TournamentTracker.App
                     code.Lobby.DiscussionTime, code.Lobby.VotingTime, code.Lobby.ConfirmEjects, code.Lobby.AnonymousVotes,
                     code.Lobby.VisualTasks, code.Lobby.CommonTasks, code.Lobby.LongTasks, code.Lobby.ShortTasks, code.Lobby.RolesOff,
                 },
-                Scoring = code.Scoring ?? new ScoringRules(),
             };
         }
 
@@ -340,6 +341,15 @@ namespace TournamentTracker.App
             if (stream == null) return "";
             using var reader = new StreamReader(stream);
             return reader.ReadToEnd();
+        }
+
+        private static byte[] ResourceBytes(string name)
+        {
+            using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name);
+            if (stream == null) return Array.Empty<byte>();
+            using var copy = new MemoryStream();
+            stream.CopyTo(copy);
+            return copy.ToArray();
         }
 
         public void Dispose()

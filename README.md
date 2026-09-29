@@ -26,19 +26,20 @@ host needs the mod.
 
 ## Install (host only)
 
-**One click:** download **`Install-TournamentTracker.bat`** from the
+**One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
 Windows shows "Windows protected your PC", click **More info → Run anyway**.
 
-It installs the **Tournament Tracker app** (for your Windows user, no admin needed) with
-Start menu and desktop shortcuts, and opens it. Everything is done from the app; nothing
+It installs **The Button**, the Tournament Tracker app (for your Windows user, no admin
+needed), with Start menu and desktop shortcuts, and opens it. Everything is done from the app; nothing
 is typed in the game chat, so there's nothing for Among Us's anti-cheat to trip on.
 
 1. **Home:** the app finds Among Us (Steam or Epic, any drive; or paste the folder) and
    installs the mod with the mod loader it needs (BepInEx 6 build 735, 32-bit). It offers
    updates when a new release is out, and repairs an install that has the wrong loader.
-2. **Setup code:** paste the code the organiser gave you. The page then shows everything in
-   it: the tournament, the locked lobby settings and every point value.
+2. **Settings:** paste the setup code the organiser gave you. The page then shows the
+   tournament and the locked lobby settings (point values stay with the organiser), and
+   switches between dark (the default) and light.
 3. **Start Among Us** and host a lobby. The first start takes a few minutes while BepInEx
    sets itself up (a black console window appears). The app connects on its own.
 
@@ -47,9 +48,10 @@ While you play, the app's pages run the lobby:
 * **Lobby:** lobby code, map and round; start the next round; void or unvoid a game;
   link players to Discord; post standings; the settings lock, referee ghost slot, stream
   overlay and lead-lobby switches.
-* **Automute:** on/off, referee mode, spectator muting, and an emergency "unmute everyone".
+* **Automute:** in the style of the AutoMuteUs capture window: the game's state, every
+  player as a crewmate in their colour with their Discord name and whether they're muted,
+  and buttons for automute on/off, referee mode, spectator muting and "unmute everyone".
 * **Replays:** every recorded game (and any downloaded from Discord); watch one in the app.
-* **Activity:** everything the mod reports, as it happens.
 
 The app talks to the mod over a private connection on your computer only (port 8766, with a
 random key the mod writes in its data folder).

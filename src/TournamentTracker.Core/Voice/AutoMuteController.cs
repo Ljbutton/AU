@@ -60,6 +60,9 @@ namespace TournamentTracker.Voice
         private VoiceState RefereeState(string userId) =>
             _referees.Contains(userId) ? VoiceState.Open : new VoiceState(true, false);
 
+        /// <summary>What automute last set for this Discord user (null: never touched).</summary>
+        public VoiceState? StateFor(string userId) => _sent.TryGetValue(userId, out var s) ? s : (VoiceState?)null;
+
         public bool MuteSpectators
         {
             get => _settings.MuteSpectators;

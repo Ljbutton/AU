@@ -1,29 +1,35 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tournament Tracker</title>
+<title>The Button</title>
+<script>
+  // Dark unless the host picked light in Settings.
+  try { document.documentElement.dataset.theme = localStorage.getItem('theme') === 'light' ? 'light' : 'dark'; } catch (e) { }
+</script>
 <style>
-:root{
-  --bg:#f4f5f7;--side:#eceef2;--panel:#ffffff;--sunk:#f0f2f5;--fg:#16191f;--muted:#5f6773;--line:#dde1e7;
-  --accent:#0d8a72;--accent-fg:#ffffff;--accent-soft:#dff3ee;--danger:#c0362c;--danger-soft:#fbe4e1;--warn:#a15c07;--warn-soft:#fdf0dc;
-  --ok:#1f8a4c;--imp:#c0362c;
-  --sans:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;--mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+@font-face{font-family:"Amatic SC";font-weight:700;font-display:swap;src:url(/fonts/amatic-sc-700.woff2) format("woff2")}
+:root,[data-theme="dark"]{
+  --bg:#12151b;--side:#0d1015;--panel:#1a1e25;--sunk:#222730;--fg:#e8ebef;--muted:#98a2ae;--line:#2a3039;
+  --accent:#e5484d;--accent-fg:#ffffff;--accent-soft:#3a1b1d;--good:#46c28b;--good-soft:#143428;--warn:#e8a54a;--warn-soft:#3a2a12;
+  --danger:#f07166;--danger-soft:#3a1d1a;color-scheme:dark;
 }
-@media (prefers-color-scheme:dark){:root{
-  --bg:#15181d;--side:#101317;--panel:#1c2026;--sunk:#23282f;--fg:#e8ebef;--muted:#9aa3ae;--line:#2c323a;
-  --accent:#3fcfb0;--accent-fg:#0b1512;--accent-soft:#16352f;--danger:#f07166;--danger-soft:#3a1d1a;--warn:#e8a54a;--warn-soft:#3a2a12;--ok:#5fd08a;--imp:#f07166;color-scheme:dark}}
+[data-theme="light"]{
+  --bg:#f3f4f7;--side:#e9ebf0;--panel:#ffffff;--sunk:#eff1f4;--fg:#15181e;--muted:#5d6672;--line:#dcdfe5;
+  --accent:#d0343a;--accent-fg:#ffffff;--accent-soft:#fbe3e3;--good:#1f8a57;--good-soft:#dcf3e8;--warn:#9a5a06;--warn-soft:#fcefd9;
+  --danger:#c0362c;--danger-soft:#fbe4e1;color-scheme:light;
+}
+:root{--sans:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;--mono:"Cascadia Mono",Consolas,ui-monospace,monospace;--hand:"Amatic SC","Segoe Print",cursive}
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--sans);display:grid;grid-template-columns:210px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--sans);display:grid;grid-template-columns:200px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
 header{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
-.brand{font-weight:700;font-size:15px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
-.brand i{width:14px;height:16px;border-radius:7px 7px 4px 4px;background:var(--accent);position:relative;display:inline-block}
-.brand i::after{content:"";position:absolute;right:-2px;top:3px;width:8px;height:5px;border-radius:3px;background:#bfe3f2}
+.brand{font-weight:700;font-size:16px;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+.logo{width:26px;height:26px;flex:none}
 .conn{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
-.dot.on{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 25%,transparent)}
+.dot.on{background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 25%,transparent)}
 nav{background:var(--side);border-right:1px solid var(--line);padding:12px 8px;display:flex;flex-direction:column;gap:2px;overflow:auto}
 nav button{all:unset;cursor:pointer;padding:9px 12px;border-radius:8px;font-weight:600;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
 nav button:hover{background:var(--sunk);color:var(--fg)}
@@ -31,7 +37,7 @@ nav button.on{background:var(--panel);color:var(--fg);box-shadow:0 0 0 1px var(-
 nav button:focus-visible{outline:2px solid var(--accent)}
 nav .badge{font:600 11px var(--mono);background:var(--warn-soft);color:var(--warn);border-radius:99px;padding:1px 7px}
 main{overflow:auto;padding:20px 24px 40px}
-section{display:none;max-width:980px}
+section{display:none;max-width:1000px}
 section.on{display:grid;gap:16px}
 h1{font-size:21px;margin:0;letter-spacing:-.01em}
 h2{font-size:15px;margin:0 0 10px}
@@ -39,21 +45,21 @@ h2{font-size:15px;margin:0 0 10px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 14px;font-size:13.5px}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 14px;font-size:13.5px;margin:0}
 .kv dt{color:var(--muted)}.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
-button.b{font:600 13px var(--sans);padding:7px 13px;border-radius:8px;border:1px solid var(--line);background:var(--sunk);color:var(--fg);cursor:pointer}
+button.b{white-space:nowrap;font:600 13px var(--sans);padding:7px 13px;border-radius:8px;border:1px solid var(--line);background:var(--sunk);color:var(--fg);cursor:pointer}
 button.b:hover{border-color:var(--accent)}
 button.b.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
 button.b.danger{color:var(--danger)}
-button.b.on{background:var(--accent-soft);border-color:var(--accent)}
+button.b.on{background:var(--good-soft);border-color:var(--good);color:var(--fg)}
 button.b:disabled{opacity:.5;cursor:default}
-button.b:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 input,textarea{font:14px var(--sans);color:var(--fg);background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
 textarea{width:100%;font-family:var(--mono);font-size:12px;resize:vertical}
-.note{padding:10px 12px;border-radius:9px;font-size:13.5px}
+.note{padding:10px 12px;border-radius:9px;font-size:13.5px;margin:0}
 .note.warn{background:var(--warn-soft);color:var(--warn)}
 .note.bad{background:var(--danger-soft);color:var(--danger)}
-.note.good{background:var(--accent-soft);color:var(--fg)}
+.note.good{background:var(--good-soft);color:var(--fg)}
 .muted{color:var(--muted)}
 .mono{font-family:var(--mono);font-size:12.5px}
 .big{font-size:26px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
@@ -66,23 +72,68 @@ tr:last-child td{border-bottom:0}
 .tablewrap{overflow-x:auto}
 .bean{display:inline-block;width:12px;height:14px;border-radius:6px 6px 4px 4px;border:1px solid rgba(0,0,0,.35);vertical-align:-2px;margin-right:8px}
 .pill{font-size:11.5px;padding:2px 8px;border-radius:99px;background:var(--sunk);color:var(--muted);white-space:nowrap}
-.pill.ok{background:var(--accent-soft);color:var(--accent)}
+.pill.ok{background:var(--good-soft);color:var(--good)}
 .pill.bad{background:var(--danger-soft);color:var(--danger)}
 .toggle{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
 .toggle:last-child{border-bottom:0}
 .toggle b{display:block;font-size:14px}.toggle span{color:var(--muted);font-size:12.5px}
 .empty{padding:26px;text-align:center;color:var(--muted)}
-.log{font-family:var(--mono);font-size:12.5px;display:grid;gap:4px;max-height:60vh;overflow:auto}
-.log div{display:grid;grid-template-columns:70px minmax(0,1fr);gap:10px}
-.log span{color:var(--muted)}
-#toast{position:fixed;right:18px;bottom:18px;max-width:420px;background:var(--fg);color:var(--bg);padding:10px 14px;border-radius:10px;font-size:13.5px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{all:unset;cursor:pointer;padding:7px 16px;font-weight:600;font-size:13px;color:var(--muted)}
+.seg button.on{background:var(--accent);color:var(--accent-fg)}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+#toast{position:fixed;right:18px;bottom:18px;max-width:420px;background:var(--fg);color:var(--bg);padding:10px 14px;border-radius:10px;font-size:13.5px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;z-index:5}
 #toast.show{opacity:1;transform:none}
 [hidden]{display:none!important}
+
+/* ---- Automute: in the style of the AutoMuteUs capture window (always the night sky) ---- */
+#mute.on{display:block;max-width:none}
+.sky{position:relative;min-height:calc(100vh - 110px);border-radius:14px;overflow:hidden;color:#eef3ff;
+  background:radial-gradient(ellipse at 50% 42%,#123b73 0%,#0a2350 34%,#06122c 70%,#040a1a 100%);
+  display:flex;flex-direction:column;align-items:center;padding:34px 20px 26px;text-align:center}
+.sky .stars{position:absolute;inset:0;pointer-events:none}
+.sky > *:not(.stars){position:relative}
+.sky h1.hand{font:700 clamp(40px,6vw,64px)/1 var(--hand);letter-spacing:.06em;margin:8px 0 4px;text-shadow:0 2px 12px rgba(0,0,0,.45)}
+.sky .where{font:700 26px/1.1 var(--hand);letter-spacing:.08em;color:#9fc3ff;min-height:28px}
+.loader{display:flex;gap:10px;margin:26px 0 8px;height:26px;align-items:flex-end}
+.loader i{width:10px;height:10px;border-radius:50%;background:#7fa7ff;animation:hop 1.2s ease-in-out infinite}
+.loader i:nth-child(2){animation-delay:.12s}.loader i:nth-child(3){animation-delay:.24s}.loader i:nth-child(4){animation-delay:.36s}.loader i:nth-child(5){animation-delay:.48s}
+@keyframes hop{0%,60%,100%{transform:translateY(0);opacity:.55}30%{transform:translateY(-14px);opacity:1}}
+@media (prefers-reduced-motion:reduce){.loader i{animation:none;opacity:.8}}
+.crew{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:18px 12px;width:100%;max-width:760px;margin:26px 0 8px}
+.mate{display:grid;justify-items:center;gap:4px;font-size:13px}
+.mate svg{width:62px;height:76px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.45))}
+.mate .nm{font:700 22px/1 var(--hand);letter-spacing:.04em;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mate .dc{font-size:11.5px;color:#9fb4d8;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mate .dc.none{color:#ffb86b}
+.mate.dead svg{opacity:.35;filter:grayscale(.4)}
+.mate.dead .nm{opacity:.55}
+.mate .voice{position:absolute;top:-6px;right:-14px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#0b1730;border:2px solid #36507d}
+.mate .voice svg{width:15px;height:15px;filter:none}
+.mate .voice.muted{border-color:#ff6b6b;background:#3a1016}
+.mate .voice.deafened{border-color:#ff9f43;background:#3a2410}
+.mate .voice.open{border-color:#46c28b;background:#0d2c21}
+.mate > span.wrap{position:relative;display:block}
+.sky .say{max-width:52ch;color:#b9c9e6;font-size:14px;margin:12px 0 0}
+.sky .spacer{flex:1}
+.controls{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;margin-top:26px}
+.round{all:unset;cursor:pointer;display:grid;justify-items:center;gap:7px;font:700 18px/1 var(--hand);letter-spacing:.06em;color:#dfe8ff}
+.round span.ring{width:52px;height:52px;border-radius:50%;border:2px solid rgba(223,232,255,.55);display:grid;place-items:center;background:rgba(10,24,52,.55);transition:.15s}
+.round:hover span.ring{border-color:#fff;background:rgba(30,60,120,.55)}
+.round.on span.ring{border-color:#46c28b;background:rgba(20,70,50,.6);box-shadow:0 0 16px rgba(70,194,139,.4)}
+.round.alarm span.ring{border-color:#ff6b6b}
+.round svg{width:24px;height:24px}
+.round:focus-visible span.ring{outline:2px solid #fff;outline-offset:3px}
+.round[disabled]{opacity:.4;cursor:default}
 </style>
 </head>
 <body>
 <header>
-  <div class="brand"><i></i>Tournament Tracker</div>
+  <div class="brand">
+    <!-- Placeholder mark until the real logo arrives: an emergency button. -->
+    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="17.5" r="13.5" fill="#6b7280"/><circle cx="16" cy="16.5" r="12" fill="#a1a8b3"/><circle cx="16" cy="15" r="9" fill="#b91c1c"/><circle cx="16" cy="13.5" r="8.2" fill="#ef4444"/><ellipse cx="13" cy="10.8" rx="3.4" ry="1.8" fill="#fca5a5" opacity=".8"/></svg>
+    The Button
+  </div>
   <span class="muted" id="where"></span>
   <div class="conn"><span class="dot" id="conn-dot"></span><span id="conn-text">Checking…</span></div>
 </header>
@@ -90,14 +141,13 @@ tr:last-child td{border-bottom:0}
   <button data-page="home" class="on">Home <span class="badge" id="home-badge" hidden>!</span></button>
   <button data-page="lobby">Lobby</button>
   <button data-page="mute">Automute</button>
-  <button data-page="setup">Setup code</button>
   <button data-page="replays">Replays</button>
-  <button data-page="activity">Activity</button>
+  <button data-page="settings">Settings</button>
 </nav>
 <main>
 
 <section id="home" class="on">
-  <div><h1>Home</h1><p class="sub">Install the mod, add your setup code, then start Among Us. Everything else happens here: nothing is typed in the game chat.</p></div>
+  <div><h1>Home</h1><p class="sub">Install the mod, add your setup code in Settings, then start Among Us. Everything else happens here: nothing is typed in the game chat.</p></div>
   <div class="grid2">
     <div class="card">
       <h2>Among Us</h2>
@@ -118,12 +168,12 @@ tr:last-child td{border-bottom:0}
       <p id="mod-repair" class="note bad" hidden>The mod loader in the game folder is the 64-bit one, which Among Us can't load. Reinstall to fix it.</p>
       <p id="mod-progress" class="note good" hidden></p>
       <p id="mod-result" class="note" hidden></p>
-      <div class="row"><button class="b primary" id="mod-install">Install</button><button class="b" data-open="log">Open log</button></div>
+      <div class="row" style="margin-top:10px"><button class="b primary" id="mod-install">Install</button><button class="b" data-open="log">Open log</button></div>
     </div>
     <div class="card">
       <h2>Setup code</h2>
       <p id="setup-line" class="muted">None yet.</p>
-      <div class="row"><button class="b" data-go="setup">Add or change</button></div>
+      <div class="row"><button class="b" data-go="settings">Add or change</button></div>
     </div>
     <div class="card">
       <h2>Connection</h2>
@@ -171,7 +221,7 @@ tr:last-child td{border-bottom:0}
           <button class="b" data-cmd="refresh">Repost live status</button>
         </div>
         <div class="row" style="margin-top:14px"><button class="b danger" id="reset-lb">Reset the combined leaderboard…</button></div>
-        <p id="reset-confirm" class="note warn" hidden>Starts every lobby's combined leaderboard over. Deleting the reset message in the results channel undoes it.
+        <p id="reset-confirm" class="note warn" hidden style="margin-top:10px">Starts every lobby's combined leaderboard over. Deleting the reset message in the results channel undoes it.
           <button class="b danger" data-cmd="resetleaderboard">Reset it</button> <button class="b" id="reset-cancel">Cancel</button></p>
       </div>
     </div>
@@ -179,25 +229,21 @@ tr:last-child td{border-bottom:0}
 </section>
 
 <section id="mute">
-  <div><h1>Automute</h1><p class="sub">Mutes the living during tasks and the dead during meetings in your Discord voice channel.</p></div>
-  <p class="note warn" id="mute-off" hidden>Automute isn't set up: it comes with a tournament host code (the organiser's bot), or add a bot in the mod's config file.</p>
-  <p class="note" id="mute-offline" hidden>Start Among Us to control automute.</p>
-  <div class="card" id="mute-live" hidden>
-    <div class="toggle"><div><b>Automute</b><span id="mute-voice"></span></div><button class="b" id="m-enabled"></button></div>
-    <div class="toggle"><div><b>Referee mode</b><span>Mutes everyone but the referees, to explain the rules.</span></div><button class="b" id="m-ref"></button></div>
-    <div class="toggle"><div><b>Mute spectators</b><span>People in voice who aren't playing are muted during games.</span></div><button class="b" id="m-spec"></button></div>
-    <div class="toggle"><div><b>Emergency</b><span>Unmutes everyone and turns automute off.</span></div><button class="b danger" data-cmd="unmuteall">Unmute everyone</button></div>
+  <div class="sky" id="sky">
+    <svg class="stars" id="stars" aria-hidden="true"></svg>
+    <h1 class="hand" id="mute-title">Waiting for Among Us</h1>
+    <div class="where" id="mute-where"></div>
+    <div class="loader" id="mute-loader" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+    <p class="say" id="mute-say"></p>
+    <div class="crew" id="crew"></div>
+    <div class="spacer"></div>
+    <div class="controls" id="mute-controls">
+      <button class="round" id="m-enabled"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></span><span class="lbl">Automute</span></button>
+      <button class="round" id="m-ref"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M3 10v4h4l6 4V6L7 10H3z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg></span><span class="lbl">Referee</span></button>
+      <button class="round" id="m-spec"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="lbl">Spectators</span></button>
+      <button class="round alarm" data-cmd="unmuteall"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></span><span class="lbl">Unmute all</span></button>
+    </div>
   </div>
-</section>
-
-<section id="setup">
-  <div><h1>Setup code</h1><p class="sub">The organiser gives you one line starting with TT1-. Paste it here.</p></div>
-  <div class="card">
-    <textarea id="code" rows="3" placeholder="TT1-…"></textarea>
-    <div class="row" style="margin-top:10px"><button class="b primary" id="code-save">Use this code</button><button class="b danger" id="code-clear">Remove the code</button></div>
-    <p id="code-result" class="note" hidden style="margin-top:10px"></p>
-  </div>
-  <div id="setup-view"></div>
 </section>
 
 <section id="replays">
@@ -206,9 +252,25 @@ tr:last-child td{border-bottom:0}
     <p class="muted" style="margin:10px 0 0;font-size:12.5px">Replays from other lobbies: download them from the results channel into your Downloads folder and they show up here.</p></div>
 </section>
 
-<section id="activity">
-  <div><h1>Activity</h1><p class="sub">Everything the mod has reported, newest at the bottom.</p></div>
-  <div class="card"><div class="log" id="log"><div class="empty">Nothing yet.</div></div></div>
+<section id="settings">
+  <div><h1>Settings</h1><p class="sub">Your setup code and how The Button looks.</p></div>
+  <div class="card">
+    <h2>Setup code</h2>
+    <p class="muted" style="margin:0 0 10px">The organiser gives you one line starting with TT1-. Paste it here.</p>
+    <textarea id="code" rows="3" placeholder="TT1-…"></textarea>
+    <div class="row" style="margin-top:10px"><button class="b primary" id="code-save">Use this code</button><button class="b danger" id="code-clear">Remove the code</button></div>
+    <p id="code-result" class="note" hidden style="margin-top:10px"></p>
+  </div>
+  <div id="setup-view"></div>
+  <div class="card">
+    <h2>Appearance</h2>
+    <div class="toggle"><div><b>Theme</b><span>Dark is the default.</span></div>
+      <div class="seg" role="group" aria-label="Theme"><button data-theme-pick="dark">Dark</button><button data-theme-pick="light">Light</button></div></div>
+  </div>
+  <div class="card">
+    <h2>Files</h2>
+    <div class="row"><button class="b" data-open="data">Open the mod's data folder</button><button class="b" data-open="config">Open the mod's config file</button><button class="b" data-open="log">Open the log</button></div>
+  </div>
 </section>
 </main>
 <div id="toast" role="status" aria-live="polite"></div>
@@ -216,9 +278,10 @@ tr:last-child td{border-bottom:0}
 <script>
 const TOKEN = '__APP_TOKEN__';
 const COLORS = ['#c51111','#132ed1','#117f2d','#ed54ba','#ef7d0d','#f5f557','#3f474e','#d6e0f0','#6b2fbb','#71491e','#38fedc','#50ef39','#5f1d2e','#ecc0d3','#fffebe','#708496','#928776','#ec7578'];
+const SHADES = ['#7a0838','#09158e','#0a4d2e','#ab2bad','#b33e15','#c38823','#1e1f26','#8394bf','#3b177c','#5e2615','#24a8be','#15a742','#41070f','#de92b3','#d2bc89','#474c55','#51413e','#b4434e'];
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-let S = null, lastLog = 0;
+let S = null;
 
 async function api(method, path, body) {
   const r = await fetch(path, { method, headers: { 'X-App-Token': TOKEN, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
@@ -227,11 +290,11 @@ async function api(method, path, body) {
 function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 4200); }
 async function cmd(command) {
   const r = await api('POST', '/app/command', { command });
-  toast(r.replies && r.replies.length ? r.replies.join(' ') : 'Sent. The answer shows in Activity when it comes back.');
+  toast(r.replies && r.replies.length ? r.replies.join(' ') : 'Sent.');
   refresh();
 }
 
-// ---- Navigation -----------------------------------------------------------------------
+// ---- Navigation and theme ----------------------------------------------------------------
 function go(page) {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.page === page));
   document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === page));
@@ -242,7 +305,14 @@ document.addEventListener('click', e => {
   const c = e.target.closest('[data-cmd]'); if (c) { cmd(c.dataset.cmd); if (c.dataset.cmd === 'resetleaderboard') $('reset-confirm').hidden = true; }
   const o = e.target.closest('[data-open]'); if (o) api('POST', '/app/open', { what: o.dataset.open });
   const g = e.target.closest('[data-go]'); if (g) go(g.dataset.go);
+  const t = e.target.closest('[data-theme-pick]'); if (t) setTheme(t.dataset.themePick);
 });
+function setTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem('theme', theme); } catch (e) { }
+  document.querySelectorAll('[data-theme-pick]').forEach(b => b.classList.toggle('on', b.dataset.themePick === theme));
+}
+setTheme(document.documentElement.dataset.theme);
 
 // ---- Home ------------------------------------------------------------------------------
 $('game-change').addEventListener('click', () => { $('game-pick').hidden = false; $('game-input').value = S?.game?.path || ''; $('game-input').focus(); });
@@ -256,7 +326,6 @@ function renderHome() {
   $('game-path').textContent = g.path || '';
   $('game-candidates').innerHTML = g.found ? '' : (g.candidates || []).map(c => `<button class="b" data-path="${esc(c.path)}">${esc(c.store)}: ${esc(c.path)}</button>`).join('');
   $('game-candidates').querySelectorAll('[data-path]').forEach(b => b.onclick = async () => { await api('POST', '/app/game', { path: b.dataset.path }); refresh(); });
-
   $('mod-line').textContent = !g.found ? 'Find Among Us first.'
     : m.installed ? `Installed${m.installedVersion ? ' ' + m.installedVersion : ''}.${m.updateAvailable ? ` ${m.latest} is out.` : m.latest ? ' Up to date.' : ''}`
     : 'Not installed yet.';
@@ -267,7 +336,6 @@ function renderHome() {
   $('mod-result').hidden = !m.installResult; $('mod-result').textContent = m.installResult;
   $('mod-result').className = 'note ' + (/^Installed/.test(m.installResult) ? 'good' : 'bad');
   $('home-badge').hidden = !(m.needsRepair || m.updateAvailable || !g.found || !m.installed);
-
   $('setup-line').textContent = S.setup ? (S.setup.error ? 'The saved code is damaged: ' + S.setup.error : S.setup.description) : 'None yet: without one the mod uses its settings file.';
   const st = S.status;
   $('conn-line').textContent = st ? 'Connected to the mod in Among Us.' : m.installed ? 'Start Among Us and host a lobby: this connects on its own.' : 'Install the mod first.';
@@ -289,7 +357,7 @@ let playersKey = '';
 function renderLobby() {
   const st = S.status;
   $('lobby-live').hidden = !st;
-  $('lobby-sub').textContent = st ? `${st.tournament || 'Tournament Tracker'} · ${st.mode === 'Tournament' ? 'tournament host' : st.mode === 'Preliminary' ? 'preliminary' : 'standard'}` : 'Start Among Us and host a lobby to control it from here.';
+  $('lobby-sub').textContent = st ? `${st.tournament || 'The Button'} · ${st.mode === 'Tournament' ? 'tournament host' : st.mode === 'Preliminary' ? 'preliminary' : 'standard'}` : 'Start Among Us and host a lobby to control it from here.';
   if (!st) return;
   $('lobby-stats').innerHTML = [
     ['Lobby', st.lobby || '—'], ['Code', st.lobbyCode || '—'], ['Map', st.map || '—'], ['Now', phaseName(st.phase)],
@@ -307,7 +375,7 @@ function renderLobby() {
   $('t-lead').onclick = () => cmd('lead');
 
   // Rebuild the player rows only when they change, so typing in a link box isn't interrupted.
-  const key = JSON.stringify(st.players);
+  const key = JSON.stringify(st.players.map(p => [p.name, p.color, p.dead, p.disconnected, p.discordId, p.discordName, p.isHost, p.referee]));
   if (key === playersKey) return;
   playersKey = key;
   $('players').innerHTML = st.players.length ? st.players.map(p => `<tr>
@@ -324,22 +392,60 @@ function renderLobby() {
   $('players').querySelectorAll('[data-unlink]').forEach(b => b.onclick = () => cmd(`unlink ${b.dataset.unlink}`));
 }
 
-// ---- Automute ----------------------------------------------------------------------------
+// ---- Automute: the capture-window look ----------------------------------------------------
+(function stars() {
+  const svg = $('stars'); let seed = 11; const r = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+  let dots = '';
+  for (let i = 0; i < 170; i++) dots += `<circle cx="${(r() * 100).toFixed(2)}%" cy="${(r() * 100).toFixed(2)}%" r="${(r() * 1.1 + 0.3).toFixed(2)}" fill="#fff" opacity="${(r() * 0.55 + 0.15).toFixed(2)}"/>`;
+  svg.setAttribute('width', '100%'); svg.setAttribute('height', '100%'); svg.innerHTML = dots;
+})();
+
+/** A crewmate, drawn here: body, backpack, legs and visor in the player's colour. */
+function crewmate(color, dead) {
+  const c = COLORS[color] || '#888', s = SHADES[color] || '#444';
+  return `<svg viewBox="0 0 64 80" aria-hidden="true">
+    <rect x="3" y="30" width="15" height="28" rx="6" fill="${s}" stroke="#000" stroke-width="3"/>
+    <path d="M14 32C14 14 24 5 35 5C48 5 56 15 56 31V63C56 70 52 75 46 75H43C39.5 75 38 73 38 69.5V65H31V69.5C31 73 29.5 75 26 75H23C17.5 75 14 70 14 63Z" fill="${c}" stroke="#000" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M17 52C24 58 44 60 53 55V63C53 69 50 72 46 72H44C41 72 41 70 41 68V62H28V68C28 70.5 27 72 25 72H23C19 72 17 68 17 63Z" fill="${s}" opacity=".85"/>
+    <path d="M31 17H50C56 17 58 21 58 26C58 31 55 35 50 35H31C26 35 23 31 23 26C23 21 26 17 31 17Z" fill="#8fc9e0" stroke="#000" stroke-width="3"/>
+    <path d="M32 20H45C47 20 48 21 48 22.5C48 24 47 25 45 25H32C30.5 25 29.5 24 29.5 22.5C29.5 21 30.5 20 32 20Z" fill="#e6f6fc"/>
+    ${dead ? '<path d="M10 72L54 12M54 72L10 12" stroke="#ff4d4d" stroke-width="4" stroke-linecap="round" opacity=".8"/>' : ''}
+  </svg>`;
+}
+const VOICE = {
+  muted: '<svg viewBox="0 0 24 24" fill="none" stroke="#ff8a8a" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a3 3 0 0 1 3 3v5M9 9v2a3 3 0 0 0 4.5 2.6"/><path d="M5 11a7 7 0 0 0 11 5.7M19 11a7 7 0 0 1-.6 2.8"/><path d="M3 3l18 18"/></svg>',
+  deafened: '<svg viewBox="0 0 24 24" fill="none" stroke="#ffb86b" stroke-width="2.4" stroke-linecap="round"><path d="M4 14v-2a8 8 0 0 1 14.3-4.9M20 12v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/><path d="M3 3l18 18"/></svg>',
+  open: '<svg viewBox="0 0 24 24" fill="none" stroke="#7ee2b0" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+};
+const TITLES = { Menu: 'Main menu', Lobby: 'Lobby', Tasks: 'Tasks', Meeting: 'Discussion', GameOver: 'Game over' };
+function roundBtn(el, on, command) { el.classList.toggle('on', on); el.onclick = () => cmd(`${command} ${on ? 'off' : 'on'}`); }
+let crewKey = '';
 function renderMute() {
-  const st = S.status;
-  $('mute-offline').hidden = !!st;
-  $('mute-off').hidden = !st || st.autoMute.configured;
-  $('mute-live').hidden = !st || !st.autoMute.configured;
-  if (!st || !st.autoMute.configured) return;
-  const a = st.autoMute;
-  onOff($('m-enabled'), a.enabled, 'automute');
-  onOff($('m-ref'), a.refereeMode, 'ref');
-  onOff($('m-spec'), a.muteSpectators, 'spectators');
-  const linked = st.players.filter(p => p.discordId).length;
-  $('mute-voice').textContent = `${a.voiceConnected ? 'Connected to Discord voice' : 'Not connected to Discord voice yet'} · ${linked} of ${st.players.length} players linked`;
+  const st = S.status, a = st && st.autoMute;
+  $('mute-title').textContent = !st ? 'Waiting for Among Us' : !a.configured ? 'Automute is off' : TITLES[st.phase] || st.phase;
+  $('mute-where').textContent = st && st.lobbyCode ? `${st.lobbyCode}${st.map ? ' · ' + st.map : ''}` : '';
+  $('mute-loader').hidden = !!st && st.phase !== 'Menu';
+  $('mute-say').textContent = !st ? (S.mod.installed ? 'Start Among Us and host a lobby.' : 'Install the mod on the Home page first.')
+    : !a.configured ? 'Automute needs a bot: it comes with a tournament host code, or add one in the mod\'s config file.'
+    : !a.voiceConnected ? 'Connecting to Discord voice…'
+    : `${st.players.filter(p => p.discordId).length} of ${st.players.length} players linked to Discord${a.refereeMode ? ' · referee mode: only referees can talk' : ''}.`;
+  $('mute-controls').hidden = !st || !a.configured;
+  if (st && a.configured) {
+    roundBtn($('m-enabled'), a.enabled, 'automute');
+    roundBtn($('m-ref'), a.refereeMode, 'ref');
+    roundBtn($('m-spec'), a.muteSpectators, 'spectators');
+  }
+  const players = st ? st.players.filter(p => !p.referee && !p.disconnected) : [];
+  const key = JSON.stringify(players.map(p => [p.name, p.color, p.dead, p.discordId, p.discordName, p.voice]));
+  if (key === crewKey) return;
+  crewKey = key;
+  $('crew').innerHTML = players.map(p => `<div class="mate${p.dead ? ' dead' : ''}">
+      <span class="wrap">${crewmate(p.color, p.dead)}${p.voice ? `<span class="voice ${p.voice}" title="${p.voice}">${VOICE[p.voice]}</span>` : ''}</span>
+      <span class="nm">${esc(p.name)}</span>
+      <span class="dc${p.discordId ? '' : ' none'}">${p.discordId ? '@' + esc(p.discordName || p.discordId) : 'not linked'}</span></div>`).join('');
 }
 
-// ---- Setup code ----------------------------------------------------------------------------
+// ---- Settings -------------------------------------------------------------------------------
 $('code-save').addEventListener('click', async () => {
   const r = await api('POST', '/app/setup', { code: $('code').value });
   const n = $('code-result'); n.hidden = false; n.textContent = r.message; n.className = 'note ' + (r.ok ? 'good' : 'bad');
@@ -347,13 +453,10 @@ $('code-save').addEventListener('click', async () => {
   refresh();
 });
 $('code-clear').addEventListener('click', async () => { const r = await api('POST', '/app/setup/clear'); toast(r.message); refresh(); });
-
-const RULES = [['Impostor', [['kill','Kill (each)'],['firstBlood','First blood'],['votedCrewmateOut','Voted a crewmate out (each)'],['impostorSabotageWin','Sabotage win'],['impostorVoteWin','Vote win'],['impostorKillWin','Kill win'],['impostorTaskLoss','Lost to tasks'],['impostorVoteLoss','Lost to vote'],['votedOutFirst','Voted out first'],['votedOutLast','Voted out later']]],
-  ['Crewmate', [['crewTaskWin','Task win'],['crewVoteWin','Vote win'],['crewSabotageLossAlive','Alive at a sabotage loss'],['crewOtherLoss','Any other loss'],['correctVoteOut','Correct vote out (each)'],['incorrectVoteOut','Incorrect vote out (each)'],['caughtKiller','Caught and voted out killer'],['readVotePoints','Read on an impostor (each)'],['readVoteBonus','Reads bonus (up to)'],['taskPercentBonus','Task % bonus (up to)'],['longTaskWeight','Long task counts as'],['diedFirstShareOfCrewAverage','Died first: share of crew average']]]];
+function yesNo(v) { return v ? 'On' : 'Off'; }
 const SETTINGS = [['impostors','Impostors'],['killCooldown','Kill cooldown (s)'],['killDistance','Kill distance',v => ['Short','Medium','Long'][v] ?? v],['playerSpeed','Player speed'],['crewmateVision','Crewmate vision'],['impostorVision','Impostor vision'],
-  ['emergencyMeetings','Emergency meetings'],['emergencyCooldown','Emergency cooldown (s)'],['discussionTime','Discussion (s)'],['votingTime','Voting (s)'],['confirmEjects','Confirm ejects',b],['anonymousVotes','Anonymous votes',b],['visualTasks','Visual tasks',b],
+  ['emergencyMeetings','Emergency meetings'],['emergencyCooldown','Emergency cooldown (s)'],['discussionTime','Discussion (s)'],['votingTime','Voting (s)'],['confirmEjects','Confirm ejects',yesNo],['anonymousVotes','Anonymous votes',yesNo],['visualTasks','Visual tasks',yesNo],
   ['commonTasks','Common tasks'],['longTasks','Long tasks'],['shortTasks','Short tasks'],['rolesOff','Special roles',v => v ? 'All off' : 'Allowed']];
-function b(v) { return v ? 'On' : 'Off'; }
 let setupKey = '';
 function renderSetup() {
   const s = S.setup, key = JSON.stringify(s);
@@ -362,15 +465,13 @@ function renderSetup() {
   if (!s) { $('setup-view').innerHTML = '<div class="card empty">No setup code: the mod uses its settings file.</div>'; return; }
   if (s.error) { $('setup-view').innerHTML = `<p class="note bad">${esc(s.error)}</p>`; return; }
   const info = [['Kind', s.kind], ['Tournament', s.tournamentName], ['Tournament ID', s.tournamentId], s.server && ['Server', s.server],
-    s.kind !== 'Preliminary' && ['Bots', s.bots ? `${s.bots} (automute on)` : 'none'], s.resultsChannelId && ['Results channel', s.resultsChannelId],
-    s.advanceCount && ['Move on per lobby', s.advanceCount], s.gamesPerRound && ['Games per round', s.gamesPerRound],
-    ['Impostor rotation', s.rotation ? 'On' : 'Off'], s.kind !== 'Preliminary' && ['Lead lobby', s.lead ? 'Yes' : 'No']].filter(Boolean);
+    s.kind !== 'Preliminary' && ['Automute', s.bots ? 'On (organiser\'s bot)' : 'Off'], s.advanceCount && ['Move on per lobby', s.advanceCount],
+    s.gamesPerRound && ['Games per round', s.gamesPerRound], ['Impostor rotation', yesNo(s.rotation)], s.kind !== 'Preliminary' && ['Lead lobby', s.lead ? 'Yes' : 'No']].filter(Boolean);
   const settings = s.settings ? SETTINGS.filter(([k]) => s.settings[k] != null).map(([k, l, f]) => `<tr><td>${l}</td><td style="text-align:right">${esc(f ? f(s.settings[k]) : s.settings[k])}</td></tr>`).join('') : '';
-  const scoring = RULES.map(([g, list]) => `<tr><th colspan="2">${g}</th></tr>` + list.map(([k, l]) => `<tr><td>${l}</td><td style="text-align:right;font-variant-numeric:tabular-nums">${s.scoring[k] > 0 && !/Weight|Share/.test(k) ? '+' : ''}${esc(s.scoring[k])}</td></tr>`).join('')).join('');
   $('setup-view').innerHTML = `<div class="grid2">
     <div class="card"><h2>${esc(s.description)}</h2><dl class="kv">${info.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl></div>
     <div class="card"><h2>Lobby settings${s.settings ? ' (locked)' : ''}</h2>${settings ? `<table>${settings}</table>` : '<p class="muted">This code doesn\'t lock any settings.</p>'}</div>
-  </div><div class="card"><h2>Point values</h2><div class="tablewrap"><table>${scoring}</table></div></div>`;
+  </div>`;
 }
 
 // ---- Replays -------------------------------------------------------------------------------
@@ -384,26 +485,6 @@ async function loadReplays() {
     window.open('/viewer?src=' + encodeURIComponent(`/app/replay?name=${encodeURIComponent(btn.dataset.watch)}&token=${TOKEN}`), '_blank'));
 }
 
-// ---- Activity ------------------------------------------------------------------------------
-async function pollLog() {
-  try {
-    const a = await api('GET', '/app/activity?since=' + lastLog);
-    if (a.last < lastLog) lastLog = 0;              // the game restarted
-    if (a.lines && a.lines.length) {
-      const log = $('log');
-      if (lastLog === 0) log.innerHTML = '';
-      const atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 20;
-      for (const l of a.lines) {
-        const d = document.createElement('div');
-        d.innerHTML = `<span>${new Date(l.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span><div>${esc(l.text)}</div>`;
-        log.appendChild(d);
-      }
-      if (atBottom) log.scrollTop = log.scrollHeight;
-      lastLog = a.last;
-    }
-  } catch (e) { }
-}
-
 // ---- Refresh ------------------------------------------------------------------------------
 async function refresh() {
   try { S = await api('GET', '/app/state'); } catch (e) { return; }
@@ -413,9 +494,8 @@ async function refresh() {
   $('where').textContent = S.setup && !S.setup.error ? S.setup.description : '';
   renderHome(); renderLobby(); renderMute(); renderSetup();
 }
-refresh(); pollLog();
+refresh();
 setInterval(refresh, 1500);
-setInterval(pollLog, 2000);
 </script>
 </body>
 </html>

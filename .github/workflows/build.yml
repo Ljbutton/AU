@@ -60,7 +60,7 @@ jobs:
           dotnet build src/TournamentTracker.Plugin -c Release
           ${{ inputs.game_libs_version && format('-p:GameLibsVersion={0}', inputs.game_libs_version) || '' }}
 
-      - name: Build the Tournament Tracker app (Windows)
+      - name: Build The Button, the app (Windows)
         run: >
           dotnet publish src/TournamentTracker.App -c Release -r win-x64 --self-contained
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
@@ -114,7 +114,7 @@ jobs:
           (cd "$full" && zip -qr ../TournamentTracker-Full.zip .)
           # The installer: a .bat that runs the PowerShell stored after its #PS-START line.
           { cat installer/Install-TournamentTracker.header.bat; echo '#PS-START'; cat installer/install.ps1; } \
-            | sed 's/$/\r/' > dist/Install-TournamentTracker.bat
+            | sed 's/$/\r/' > dist/Install-TheButton.bat
           ls -la dist
 
       - uses: actions/upload-artifact@v4
@@ -123,8 +123,8 @@ jobs:
           path: |
             ${{ env.PKG_ZIP }}
             dist/TournamentTracker-Full.zip
-            dist/Install-TournamentTracker.bat
-            dist/app/TournamentTracker.exe
+            dist/Install-TheButton.bat
+            dist/app/TheButton.exe
 
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
@@ -135,8 +135,8 @@ jobs:
           set -euo pipefail
           {
             echo "## Install"
-            echo "Download **Install-TournamentTracker.bat** below and double-click it (host only). It installs"
-            echo "the **Tournament Tracker app**, which installs the mod into Among Us and runs everything:"
+            echo "Download **Install-TheButton.bat** below and double-click it (host only). It installs"
+            echo "**The Button**, the app that installs the mod into Among Us and runs everything:"
             echo "setup code, rounds, automute, voids, links and replays. Nothing is typed in the game chat."
             echo "If Windows says it protected your PC, click More info, then Run anyway."
             echo
@@ -146,5 +146,5 @@ jobs:
             cat dist/*/BUILT-AGAINST.txt
           } > notes.md
           # Creates the tag on GitHub at this commit if it doesn't exist yet.
-          gh release create "$TAG" "$PKG_ZIP" dist/TournamentTracker-Full.zip dist/Install-TournamentTracker.bat dist/app/TournamentTracker.exe \
+          gh release create "$TAG" "$PKG_ZIP" dist/TournamentTracker-Full.zip dist/Install-TheButton.bat dist/app/TheButton.exe \
             --target "$GITHUB_SHA" --title "Tournament Tracker $TAG" --notes-file notes.md --latest

@@ -125,6 +125,7 @@ namespace TournamentTracker
                         DiscordId = string.IsNullOrEmpty(link?.DiscordUserId) ? null : link!.DiscordUserId,
                         DiscordName = string.IsNullOrEmpty(link?.DiscordName) ? null : link!.DiscordName,
                         Referee = RefSlotKey != null && p.Key == RefSlotKey,
+                        Voice = VoiceOf(link?.DiscordUserId),
                     };
                 }).ToList(),
                 AutoMute = new
@@ -142,8 +143,15 @@ namespace TournamentTracker
                 Lead = IsLead,
                 Shared = Shared != null,
                 LastGame = last == null ? null : new { last.Name, last.Winner, last.Voided, last.Counted },
-                Scoring = _settings.Scoring,
             }, ApiJson);
+        }
+
+        /// <summary>"deafened", "muted", "open", or null when automute isn't handling them.</summary>
+        private string? VoiceOf(string? discordId)
+        {
+            if (AutoMute == null || !AutoMute.Enabled || string.IsNullOrEmpty(discordId)) return null;
+            var state = AutoMute.StateFor(discordId!);
+            return state == null ? null : state.Value.Deaf ? "deafened" : state.Value.Mute ? "muted" : "open";
         }
 
         public static string Version => typeof(TournamentSession).Assembly.GetName().Version?.ToString(3) ?? "";

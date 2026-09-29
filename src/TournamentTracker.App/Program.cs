@@ -17,7 +17,7 @@ namespace TournamentTracker.App
         private static void Main()
         {
             // One copy at a time: a second start just brings the first to the front.
-            using var single = new Mutex(true, "TournamentTracker.App", out bool first);
+            using var single = new Mutex(true, "TheButton.App", out bool first);
             if (!first)
             {
                 NativeMethods.ShowExisting();
@@ -25,7 +25,7 @@ namespace TournamentTracker.App
             }
 
             ApplicationConfiguration.Initialize();
-            string appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TournamentTracker");
+            string appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TheButton");
             var env = new AppEnvironment
             {
                 SettingsFile = Path.Combine(appData, "app.json"),
@@ -84,7 +84,7 @@ namespace TournamentTracker.App
                     Controls.Remove(_view);
                     Controls.Add(new Label
                     {
-                        Text = "Tournament Tracker is running in your web browser.\nKeep this window open while you use it; closing it quits the app.",
+                        Text = "The Button is running in your web browser.\nKeep this window open while you use it; closing it quits the app.",
                         Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 11f),
                     });
                     Process.Start(new ProcessStartInfo(_url) { UseShellExecute = true });
@@ -95,7 +95,7 @@ namespace TournamentTracker.App
 
     internal static class NativeMethods
     {
-        public const string Title = "Tournament Tracker";
+        public const string Title = "The Button";
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -105,7 +105,7 @@ namespace TournamentTracker.App
 
         public static void ShowExisting()
         {
-            foreach (var p in Process.GetProcessesByName("TournamentTracker"))
+            foreach (var p in Process.GetProcessesByName("TheButton"))
             {
                 if (p.Id == Environment.ProcessId || p.MainWindowHandle == IntPtr.Zero) continue;
                 ShowWindow(p.MainWindowHandle, 9);   // restore if minimised

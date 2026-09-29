@@ -9,8 +9,8 @@ function Check([bool]$ok, [string]$what) {
 $root = Join-Path ([IO.Path]::GetTempPath()) ('tt-test-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $root | Out-Null
 
-Check ($AppUrl -like '*/releases/latest/download/TournamentTracker.exe') 'downloads the app from the latest release'
-Check ((Get-InstallDir) -like '*Programs*TournamentTracker') 'installs into the user''s programs folder'
+Check ($AppUrl -like '*/releases/latest/download/TheButton.exe') 'downloads The Button from the latest release'
+Check ((Get-InstallDir) -like '*Programs*TheButton') 'installs into the user''s programs folder'
 
 $download = Join-Path $root 'download.exe'
 Set-Content -LiteralPath $download -Value 'app v1'

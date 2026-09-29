@@ -166,7 +166,7 @@ public class AppTests : IDisposable
         var setup = (await Get(http, "app/state")).GetProperty("setup");
         Assert.Equal("Preliminary", setup.GetProperty("kind").GetString());
         Assert.Equal(1.25, setup.GetProperty("settings").GetProperty("playerSpeed").GetDouble(), 3);
-        Assert.Equal(4, setup.GetProperty("scoring").GetProperty("readVoteBonus").GetDouble());
+        Assert.False(setup.TryGetProperty("scoring", out var scoring));   // point values stay with the organiser
 
         var offline = await Post(http, "app/command", new { command = "r2" });
         Assert.False(offline.GetProperty("ok").GetBoolean());
