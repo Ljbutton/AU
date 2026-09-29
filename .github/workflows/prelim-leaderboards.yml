@@ -16,6 +16,8 @@ concurrency:
 
 jobs:
   update:
+    # Does nothing (and doesn't fail) until the organiser sets it up.
+    if: ${{ vars.PRELIM_CHANNEL_IDS != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
