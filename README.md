@@ -530,7 +530,7 @@ allowed, penalties are negative, and 0 switches a rule off.
 | Win by tasks | +5 | `CrewTaskWin` |
 | Win by vote | +3 | `CrewVoteWin` |
 | Alive when the team loses to sabotage | −5 | `CrewSabotageLossAlive` |
-| Any other loss | −1 | `CrewOtherLoss` |
+| Any other loss | −2 | `CrewOtherLoss` |
 
 A crewmate's vote scores one of two ways. A vote that **ejected** someone is a vote out:
 +2 on an impostor, −2 on a crewmate. Any other vote, for someone who stayed in, is a

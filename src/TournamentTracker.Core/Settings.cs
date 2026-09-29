@@ -210,7 +210,7 @@ namespace TournamentTracker
         public double CrewTaskWin { get; set; } = 5;
         public double CrewVoteWin { get; set; } = 3;
         public double CrewSabotageLossAlive { get; set; } = -5;
-        public double CrewOtherLoss { get; set; } = -1;
+        public double CrewOtherLoss { get; set; } = -2;
 
         // Crewmate bonuses
         /// <summary>

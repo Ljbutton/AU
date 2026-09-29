@@ -55,10 +55,10 @@ public class ScoringTests
 
         Assert.Equal(2 + 4, Pts(g, 0));           // voted a crewmate out, vote win
         Assert.Equal(2 + 4, Pts(g, 1));
-        Assert.Equal(-2 - 1, Pts(g, 2));          // incorrect vote out, lost
-        Assert.Equal(-1, Pts(g, 3));              // ejected crewmate: just the loss
-        Assert.Equal(-1, Pts(g, 4));              // voted Red, who stayed in: no points either way
-        Assert.Equal(-2 - 1, Pts(g, 5));
+        Assert.Equal(-2 - 2, Pts(g, 2));          // incorrect vote out, lost
+        Assert.Equal(-2, Pts(g, 3));              // ejected crewmate: just the loss
+        Assert.Equal(-2, Pts(g, 4));              // voted Red, who stayed in: no points either way
+        Assert.Equal(-2 - 2, Pts(g, 5));
     }
 
     [Fact]
@@ -71,8 +71,8 @@ public class ScoringTests
 
         Assert.Equal(1 + 1 + 5, Pts(g, 0));       // kill, first blood, sabotage win
         Assert.Equal(1 + 5, Pts(g, 1));
-        Assert.Equal(-1, Pts(g, 2));              // dead, so just the ordinary loss
-        Assert.Equal(-1, Pts(g, 3));
+        Assert.Equal(-2, Pts(g, 2));              // dead, so just the ordinary loss
+        Assert.Equal(-2, Pts(g, 3));
         Assert.Equal(-5, Pts(g, 4));              // alive at a sabotage loss
     }
 
@@ -99,7 +99,7 @@ public class ScoringTests
         _t.Disconnected(4, _clock.Now);                             // crewmate leaves, crew loses
         _t.Disconnected(1, _clock.Now);                             // impostor leaves, impostors win
         var g = End("ImpostorByKill");
-        Assert.Equal(-1, Pts(g, 4));
+        Assert.Equal(-2, Pts(g, 4));
         Assert.Contains(g.ById(4)!.PointBreakdown, l => l.Rule == "Lost (left the game)");
         Assert.Equal(0, Pts(g, 1));
         Assert.Equal(1 + 1 + 4, Pts(g, 0));
@@ -122,7 +122,7 @@ public class ScoringTests
         t.Kill(0, 2, _clock.Now);
         var g = t.End("ImpostorByKill", Outcome.Impostors, Players.Lobby(), _clock.Now)!;
         Assert.Equal(2 + 1 + 10, g.ById(0)!.Points);
-        Assert.Equal(-1, g.ById(2)!.Points);
+        Assert.Equal(-2, g.ById(2)!.Points);
     }
 
     [Fact]

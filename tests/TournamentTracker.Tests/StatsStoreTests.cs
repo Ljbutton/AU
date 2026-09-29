@@ -38,9 +38,8 @@ public class StatsStoreTests
 
         // Alice: 2 kills + first blood + kill win (7), then lost to tasks (-3).
         Assert.Equal(4, alice.Points);
-        // Carl: died first in a loss, so 90% of the crew's -1 average (-1), then a task win (+5).
-        Assert.Equal(4, carl.Points);
-        // Level on points with Alice, who wins the tie on kills.
+        // Carl: died first in a loss, so 90% of the crew's -2 average (-1.8, rounded to -2), then a task win (+5).
+        Assert.Equal(3, carl.Points);
         Assert.Equal("Alice", store.Leaderboard()[0].Name);
     }
 

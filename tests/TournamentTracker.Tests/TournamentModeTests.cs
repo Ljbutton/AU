@@ -282,7 +282,7 @@ public class TournamentModeTests : IDisposable
         string table = FakeDiscord.Description(standings.Payload);
         Assert.Contains("── top 2 move on ──", table);
         var carl = table.Split('\n').Single(l => l.Contains("Carl"));
-        Assert.Matches(@"Carl\s+5\s+4 ", carl);                  // round 2: +5 task win; total: 0 − 1 + 5
+        Assert.Matches(@"Carl\s+5\s+3 ", carl);                  // round 2: +5 task win; total: 0 − 2 + 5
         Assert.Equal(2, _discord.Messages.Count(m => m.Channel == "results" && m.File != null));
     }
 
