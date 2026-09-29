@@ -153,6 +153,7 @@ tr:last-child td{border-bottom:0}
     <h1 id="wait-title">Waiting for Among Us</h1>
     <div class="loader" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
     <p class="say" id="wait-say">Start Among Us and host a lobby: The Button connects on its own.</p>
+    <button class="b primary" id="wait-fix" data-go="settings" hidden style="margin-top:16px">Open Settings</button>
   </div>
   <div id="home-live" hidden>
     <div class="lobby-head">
@@ -167,6 +168,7 @@ tr:last-child td{border-bottom:0}
       </div>
       <div class="card automute">
         <div class="am-head"><h2>Automute</h2><span class="muted" id="mute-say"></span></div>
+        <p id="mute-problem" class="note bad" hidden style="margin-top:8px;font-size:13px"></p>
         <div class="controls" id="mute-controls">
           <button class="round" id="m-enabled"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></span>Automute</button>
           <button class="round" id="m-ref"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M3 10v4h4l6 4V6L7 10H3z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg></span>Referee</button>
@@ -324,7 +326,10 @@ function renderAlerts() {
   else if (m.updateAvailable) list.push(['', `New version available (${m.latest})`]);
   if (!S.setup) list.push(['', 'No setup code installed']);
   else if (S.setup.error) list.push(['bad', 'Setup code damaged']);
-  $('alerts').innerHTML = list.map(([k, t]) => `<button class="alert ${k}" data-go="settings">${esc(t)}</button>`).join('');
+  const a = S.status && S.status.autoMute;
+  if (a && a.voiceProblem) list.push(['bad', 'Discord bot refused', 'home']);
+  else if (a && a.voiceWarning) list.push(['', 'Referee commands not heard', 'home']);
+  $('alerts').innerHTML = list.map(([k, t, page]) => `<button class="alert ${k}" data-go="${page || 'settings'}">${esc(t)}</button>`).join('');
 }
 
 // ---- Home: the lobby ----------------------------------------------------------------------
@@ -342,7 +347,14 @@ function renderHome() {
   const st = S.status;
   $('home-wait').hidden = !!st; $('home-live').hidden = !st;
   if (!st) {
-    $('wait-say').textContent = !S.game.found ? 'Find Among Us in Settings first.' : !S.mod.installed ? 'Install the mod in Settings first.' : 'Start Among Us and host a lobby: The Button connects on its own.';
+    const fix = !S.game.found ? ['Among Us not found', 'The Button couldn\'t find Among Us on this PC. Pick its folder in Settings.']
+      : !S.mod.installed ? ['Mod not installed', 'Install the mod into Among Us from Settings (it takes a minute).']
+      : S.mod.needsRepair ? ['Mod needs repair', 'The mod loader in the game folder is the wrong one. Repair it in Settings.']
+      : null;
+    $('wait-title').textContent = fix ? fix[0] : 'Waiting for Among Us';
+    $('wait-say').textContent = fix ? fix[1] : 'Start Among Us and host a lobby: The Button connects on its own.';
+    $('wait-fix').hidden = !fix;
+    document.querySelector('#home-wait .loader').hidden = !!fix;
     return;
   }
   $('phase-title').textContent = TITLES[st.phase] || st.phase;
@@ -382,7 +394,11 @@ const VOICE = {
 function roundBtn(el, on, command) { el.classList.toggle('on', on); el.onclick = () => cmd(`${command} ${on ? 'off' : 'on'}`); }
 function renderAutomute(st) {
   const a = st.autoMute, linked = st.players.filter(p => p.discordId).length;
+  $('mute-problem').hidden = !a.voiceProblem && !a.voiceWarning;
+  $('mute-problem').className = 'note ' + (a.voiceProblem ? 'bad' : 'warn');
+  $('mute-problem').textContent = a.voiceProblem || a.voiceWarning || '';
   $('mute-say').textContent = !a.configured ? 'Off: it needs a bot, which comes with a tournament host code.'
+    : a.voiceProblem ? 'Not working: see below.'
     : !a.voiceConnected ? 'Connecting to Discord voice…'
     : a.refereeMode ? 'Referee mode: only referees can talk.'
     : `${linked} of ${st.players.length} linked${linked < st.players.length ? ' · the rest type /link in Discord' : ''}`;

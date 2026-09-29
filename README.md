@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.3**, a beta.
+The current release is **v0.1.4**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -44,8 +44,10 @@ is typed in the game chat, so there's nothing for Among Us's anti-cheat to trip 
    sets itself up (a black console window appears). The app connects on its own.
 
 The top bar only shows the logo, plus a warning when something needs you: "No setup code
-installed", "New version available", "Mod not installed", "Among Us not found". Click one
-to go to Settings and fix it.
+installed", "New version available", "Mod not installed", "Mod needs repair", "Among Us not
+found", "Setup code damaged", "Discord bot refused" (the bot's token was reset: the host
+needs a new code) or "Referee commands not heard" (the bot's Message Content Intent is off).
+Click one to go where it's fixed.
 
 While you play, the app's pages run the lobby:
 

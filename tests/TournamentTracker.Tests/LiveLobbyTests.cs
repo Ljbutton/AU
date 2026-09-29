@@ -97,6 +97,32 @@ public class VoicePresenceTests
     }
 }
 
+public class GatewayProblemTests
+{
+    [Fact]
+    public async Task A_refused_bot_token_is_reported_for_the_app()
+    {
+        int port = Random.Shared.Next(20000, 40000);
+        using var listener = new HttpListener();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        listener.Start();
+        var server = Task.Run(async () =>
+        {
+            var ws = (await (await listener.GetContextAsync()).AcceptWebSocketAsync(null)).WebSocket;
+            await ws.SendAsync(Encoding.UTF8.GetBytes("""{"op":10,"d":{"heartbeat_interval":5000}}"""), WebSocketMessageType.Text, true, default);
+            await ws.ReceiveAsync(new byte[8192], default);                          // identify
+            await ws.CloseOutputAsync((WebSocketCloseStatus)4004, "Authentication failed.", default);
+        });
+
+        using var gateway = new VoiceGateway("bad", "g1", NullLog.Instance, $"ws://127.0.0.1:{port}/");
+        gateway.Start();
+        await Wait.Until(() => gateway.State.Problem != null, 5000);
+        Assert.StartsWith("Discord turned down the bot's token", gateway.State.Problem);
+        Assert.False(gateway.Connected);
+        await server;
+    }
+}
+
 public class LiveLobbyTests : IDisposable
 {
     private const string Webhook = "https://discord.test/api/webhooks/1/abc";

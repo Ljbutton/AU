@@ -47,6 +47,12 @@ namespace TournamentTracker.Discord
 
         public bool Connected { get; set; }
         public string? BotUserId { get; private set; }
+
+        /// <summary>Why Discord won't let the bot in (it has stopped trying), for the host to see. Null when fine.</summary>
+        public string? Problem { get; set; }
+
+        /// <summary>Something that works but is limited, e.g. results-channel commands unheard.</summary>
+        public string? Warning { get; set; }
         public string? ApplicationId { get; private set; }
 
         /// <summary>The gateway said hello: the bot's user and application are known.</summary>
@@ -201,6 +207,12 @@ namespace TournamentTracker.Discord
                 catch (FatalGatewayException e)
                 {
                     _log.Error("Discord gateway refused the bot: " + e.Message + " Spectator muting and auto-link are off.");
+                    State.Problem = e.Code switch
+                    {
+                        4004 => "Discord turned down the bot's token: it was reset or copied wrong. Ask the organiser for a new setup code.",
+                        4013 or 4014 => "Discord won't give the bot what it needs. The organiser should check the bot's settings in the Discord Developer Portal (Bot → Privileged Gateway Intents).",
+                        _ => $"Discord refused the bot (code {e.Code}). Ask the organiser to check it.",
+                    };
                     return;
                 }
                 catch (Exception e)
@@ -299,10 +311,11 @@ namespace TournamentTracker.Discord
                     // The Message Content intent isn't turned on: keep voice working without channel commands.
                     _intents = BaseIntents;
                     _log.Warn("The bot's Message Content Intent is off, so results-channel commands (!lobbies, !start…) won't be heard. Voice features carry on.");
+                    State.Warning = "The bot's Message Content Intent is off, so referee commands in the results channel (!adjust, !void, !start…) aren't heard. The organiser turns it on in the Discord Developer Portal.";
                     throw new IOException("reconnecting without message intents");
                 }
                 if (closeStatus.HasValue && IsFatal((int)closeStatus.Value))
-                    throw new FatalGatewayException($"close code {(int)closeStatus.Value} {socket.CloseStatusDescription}");
+                    throw new FatalGatewayException((int)closeStatus.Value, $"close code {(int)closeStatus.Value} {socket.CloseStatusDescription}");
             }
         }
 
@@ -333,7 +346,8 @@ namespace TournamentTracker.Discord
 
         private sealed class FatalGatewayException : Exception
         {
-            public FatalGatewayException(string message) : base(message) { }
+            public FatalGatewayException(int code, string message) : base(message) { Code = code; }
+            public int Code { get; }
         }
     }
 }

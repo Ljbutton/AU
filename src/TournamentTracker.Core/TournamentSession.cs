@@ -168,10 +168,10 @@ namespace TournamentTracker
             _log.Info($"Tracking game {game.Name} on {map} with {players.Count} players");
             StartReplay(game);
             if (_settings.Mode == TrackerMode.Tournament && Round == 0)
-                Reply($"No round set, so this game counts as round 0. Type {_settings.CommandPrefix}r1 in the lobby before the next game.", false);
+                Reply($"No round set, so this game counts as round 0. {Cap(HowTo("r1", "Next round"))} before the next game.", false);
             else if (_settings.Mode == TrackerMode.Tournament && _settings.GamesPerRound > 0 && GamesThisRound >= _settings.GamesPerRound)
                 Reply($"This lobby has already played {GamesThisRound} of {_settings.GamesPerRound} games in round {Round}, so this one is extra. " +
-                      $"If it shouldn't count, type {_settings.CommandPrefix}void. If a new round has started, type {_settings.CommandPrefix}r{Round + 1} before the next game.", false);
+                      $"If it shouldn't count, {HowTo("void", "Void")}. If a new round has started, {HowTo($"r{Round + 1}", "Next round")} before the next game.", false);
         }
 
         public void Kill(byte killerId, byte victimId) => Tracker.Kill(killerId, victimId, _clock());
@@ -189,14 +189,13 @@ namespace TournamentTracker
             Tracker.Disconnected(playerId, _clock());
 
             string at = TimeSpan.FromSeconds(p.DiedAtSeconds ?? 0).ToString(@"m\:ss");
-            string prefix = _settings.CommandPrefix;
             if (game.Meetings.Count == 0)
             {
-                Reply($"{p.Name} left at {at}, before the first meeting. To restart, type {prefix}void {p.Name} left, then start a new game.", false);
+                Reply($"{p.Name} left at {at}, before the first meeting. To restart, {HowTo($"void {p.Name} left", "Void")}, then start a new game.", false);
             }
             else
             {
-                Reply($"{p.Name} left at {at}. The game plays on: they keep the points they'd earned and take the loss if their team loses. ({prefix}void to throw the game out instead.)", false);
+                Reply($"{p.Name} left at {at}. The game plays on: they keep the points they'd earned and take the loss if their team loses. (To throw the game out instead, {HowTo("void", "Void")}.)", false);
             }
             if (Shared != null && _settings.Mode == TrackerMode.Tournament)
             {
@@ -331,6 +330,15 @@ namespace TournamentTracker
         }
 
         private void Reply(string text, bool isPublic) => Reply(text, isPublic, false);
+
+        /// <summary>
+        /// How the host does something, for messages: the chat command when chat commands are on,
+        /// otherwise the button in The Button ("press Void in The Button").
+        /// </summary>
+        private string HowTo(string command, string button) =>
+            _settings.ChatCommands ? $"type {_settings.CommandPrefix}{command}" : $"press {button} in The Button";
+
+        private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s.Substring(1);
 
         /// <summary>
         /// <paramref name="lobbyChat"/>: goes to everyone's chat even with PublicChat off. Only in

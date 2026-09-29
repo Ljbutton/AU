@@ -135,6 +135,8 @@ namespace TournamentTracker
                     RefereeMode = AutoMute?.RefereeMode ?? false,
                     MuteSpectators = AutoMute?.MuteSpectators ?? false,
                     VoiceConnected = Presence?.Connected ?? false,
+                    VoiceProblem = (_gateway?.State ?? Presence as Discord.VoicePresenceState)?.Problem,
+                    VoiceWarning = (_gateway?.State ?? Presence as Discord.VoicePresenceState)?.Warning,
                 },
                 Lock = new { Available = _settings.LobbySettings != null && _settings.Mode != TrackerMode.Standard, On = LockedSettings != null, Settings = _settings.LobbySettings },
                 Rotation = RotationOn,
