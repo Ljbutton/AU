@@ -92,7 +92,7 @@ jobs:
           set -euo pipefail
           # BepInEx be.735, the build Among Us mods use, straight from BepInEx's build server.
           # Among Us is a 32-bit game, so it must be the win-x86 build: the x64 one never loads.
-          href=$(curl -fsSL https://builds.bepinex.dev/projects/bepinex_be \
+          href=$(curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 https://builds.bepinex.dev/projects/bepinex_be \
             | grep -oE 'href="[^"]*BepInEx-Unity\.IL2CPP-win-x86-6\.0\.0-be\.735[^"]*\.zip"' | head -1 | sed -E 's/^href="//; s/"$//') || true
           case "$href" in
             http*) url="$href" ;;
@@ -101,7 +101,7 @@ jobs:
             *) url="https://builds.bepinex.dev/projects/bepinex_be/$href" ;;
           esac
           echo "BepInEx from $url"
-          curl -fsSL "$url" -o bepinex.zip
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 "$url" -o bepinex.zip
           full=dist/full
           mkdir -p "$full"
           unzip -q bepinex.zip -d "$full"
