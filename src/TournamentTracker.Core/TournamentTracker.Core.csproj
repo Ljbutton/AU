@@ -13,4 +13,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="TournamentTracker.Tests" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The crewmate heads, for the stream overlay (the same pictures The Button uses). -->
+    <EmbeddedResource Include="..\TournamentTracker.AppCore\ui\crew\*.png" LogicalName="crew/%(Filename)%(Extension)" />
+  </ItemGroup>
 </Project>

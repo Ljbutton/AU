@@ -20,10 +20,9 @@ html,body{margin:0;background:transparent;color:var(--fg);font:600 16px/1.3 ""Se
 .phase{display:inline-block;margin-top:4px;font-size:12px;padding:2px 8px;border-radius:99px;background:rgba(94,234,212,.16);color:var(--accent)}
 .players{display:grid;gap:4px}
 .players.two{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:14px}
-.p{display:grid;grid-template-columns:18px 1fr auto;gap:8px;align-items:center}
-.bean{width:16px;height:18px;border-radius:8px 8px 5px 5px;border:1.5px solid rgba(0,0,0,.55);position:relative}
-.bean::after{content:"""";position:absolute;right:-1px;top:4px;width:8px;height:5px;border-radius:3px;background:#bfe3f2;border:1px solid rgba(0,0,0,.45)}
-.p.dead{opacity:.45}.p.dead .name{text-decoration:line-through}
+.p{display:grid;grid-template-columns:26px 1fr auto;gap:7px;align-items:center}
+.mate{width:26px;height:26px;display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+.p.dead{opacity:.45}.p.dead .mate{filter:grayscale(.6)}.p.dead .name{text-decoration:line-through}
 .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tag{font-size:11px;padding:1px 6px;border-radius:6px;background:rgba(255,90,78,.2);color:var(--imp)}
 .bar{height:4px;margin-top:-2px;border-radius:2px;background:rgba(255,255,255,.12);grid-column:2/4;overflow:hidden}.bar i{display:block;height:100%;background:var(--good)}
@@ -42,7 +41,6 @@ tr.cut td{border-top:1px dashed var(--accent)}
   <div class=""panel"" id=""feed-panel""><div class=""title"">Latest</div><div class=""feed"" id=""feed""></div></div>
 </div>
 <script>
-const COLORS=['#c51111','#132ed1','#117f2d','#ed54ba','#ef7d0d','#f5f557','#3f474e','#d6e0f0','#6b2fbb','#71491e','#38fedc','#50ef39','#5f1d2e','#ecc0d3','#fffebe','#708496','#928776','#ec7578'];
 const q=new URLSearchParams(location.search);
 const show=(q.get('show')||'players,standings,feed').split(',');
 const full=q.get('full')==='1';
@@ -57,7 +55,7 @@ async function tick(){
     const ph=document.getElementById('phase');ph.hidden=!s.phase;ph.textContent=PHASES[s.phase]||s.phase;
     // Big lobbies (up to 15) go in two columns so everything stays on a 720p screen.
     document.getElementById('players').classList.toggle('two',(s.players||[]).length>8);
-    document.getElementById('players').innerHTML=(s.players||[]).map(p=>`<div class=""p${p.dead?' dead':''}""><span class=""bean"" style=""background:${COLORS[p.color]||'#888'}""></span><span class=""name"">${esc(p.name)}</span>${p.impostor?'<span class=""tag"">IMP</span>':'<span></span>'}${p.tasks?`<div class=""bar""><i style=""width:${Math.round(100*p.tasks[0]/Math.max(1,p.tasks[1]))}%""></i></div>`:full?'<div class=""bar"" style=""visibility:hidden""></div>':''}</div>`).join('');
+    document.getElementById('players').innerHTML=(s.players||[]).map(p=>`<div class=""p${p.dead?' dead':''}""><img class=""mate"" src=""/crew/${p.color>=0&&p.color<18?p.color:15}.png"" alt=""""><span class=""name"">${esc(p.name)}</span>${p.impostor?'<span class=""tag"">IMP</span>':'<span></span>'}${p.tasks?`<div class=""bar""><i style=""width:${Math.round(100*p.tasks[0]/Math.max(1,p.tasks[1]))}%""></i></div>`:full?'<div class=""bar"" style=""visibility:hidden""></div>':''}</div>`).join('');
     document.getElementById('st-title').textContent=s.standingsTitle||'Standings';
     document.getElementById('standings').innerHTML=(s.standings||[]).slice(0,s.advance?s.advance+2:6).map((r,i)=>`<tr class=""${s.advance&&i===s.advance?'cut':''}""><td class=""n"">${i+1}.</td><td>${esc(r.name)}</td><td class=""pts"">${r.points}</td></tr>`).join('');
     document.getElementById('feed').innerHTML=(s.feed||[]).slice(-4).map(e=>`<div><span class=""t"">${e.at}</span>${esc(e.text)}</div>`).join('');

@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -62,27 +64,34 @@ namespace TournamentTracker.Overlay
 
                     var parts = requestLine.Split(' ');
                     string path = parts.Length > 1 ? parts[1] : "/";
-                    string body, type;
+                    byte[] bytes;
+                    string type, cache = "no-store";
                     int status = 200;
+                    var crew = Regex.Match(path, @"^/crew/(\d{1,2})\.png$");
                     if (path.StartsWith("/state", StringComparison.Ordinal))
                     {
-                        body = path.Contains("full=1") ? FullJson : SafeJson;
+                        bytes = Encoding.UTF8.GetBytes(path.Contains("full=1") ? FullJson : SafeJson);
                         type = "application/json";
                     }
                     else if (path == "/" || path.StartsWith("/?", StringComparison.Ordinal) || path.StartsWith("/overlay", StringComparison.Ordinal))
                     {
-                        body = OverlayPage.Html;
+                        bytes = Encoding.UTF8.GetBytes(OverlayPage.Html);
                         type = "text/html; charset=utf-8";
+                    }
+                    else if (crew.Success && CrewHead(int.Parse(crew.Groups[1].Value)) is byte[] png)
+                    {
+                        bytes = png;
+                        type = "image/png";
+                        cache = "max-age=86400";
                     }
                     else
                     {
                         status = 404;
-                        body = "Not found";
+                        bytes = Encoding.UTF8.GetBytes("Not found");
                         type = "text/plain";
                     }
-                    byte[] bytes = Encoding.UTF8.GetBytes(body);
                     string head = $"HTTP/1.1 {status} {(status == 200 ? "OK" : "Not Found")}\r\nContent-Type: {type}\r\nContent-Length: {bytes.Length}\r\n" +
-                                  "Cache-Control: no-store\r\nConnection: close\r\n\r\n";
+                                  $"Cache-Control: {cache}\r\nConnection: close\r\n\r\n";
                     byte[] headBytes = Encoding.ASCII.GetBytes(head);
                     await stream.WriteAsync(headBytes, 0, headBytes.Length).ConfigureAwait(false);
                     await stream.WriteAsync(bytes, 0, bytes.Length).ConfigureAwait(false);
@@ -91,6 +100,27 @@ namespace TournamentTracker.Overlay
                 {
                     _log.Warn("Overlay request failed: " + e.Message);
                 }
+            }
+        }
+
+        private static readonly Dictionary<int, byte[]?> Heads = new Dictionary<int, byte[]?>();
+
+        /// <summary>A crewmate head in colour <paramref name="colorId"/> (0–17), built into the DLL.</summary>
+        public static byte[]? CrewHead(int colorId)
+        {
+            if (colorId < 0 || colorId > 17) return null;
+            lock (Heads)
+            {
+                if (Heads.TryGetValue(colorId, out var cached)) return cached;
+                using var stream = typeof(OverlayServer).Assembly.GetManifestResourceStream($"crew/{colorId}.png");
+                byte[]? bytes = null;
+                if (stream != null)
+                {
+                    using var copy = new MemoryStream();
+                    stream.CopyTo(copy);
+                    bytes = copy.ToArray();
+                }
+                return Heads[colorId] = bytes;
             }
         }
 

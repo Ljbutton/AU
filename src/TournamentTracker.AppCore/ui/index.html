@@ -76,42 +76,51 @@ tr:last-child td{border-bottom:0}
 @media (max-width:980px){.home-grid{grid-template-columns:minmax(0,1fr)}}
 .players{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 10px}
 @media (max-width:700px){.players{grid-template-columns:minmax(0,1fr)}}
-.pl{display:grid;grid-template-columns:32px minmax(0,1fr);gap:8px;align-items:center;min-height:38px;padding:3px 8px 3px 5px;border-radius:10px;background:var(--sunk)}
+.pl{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:8px;align-items:center;min-height:38px;padding:3px 8px 3px 5px;border-radius:10px;background:var(--sunk)}
 .pl img{width:32px;height:32px}
 .pl .nm{font:15px/1.2 var(--round);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl .dc{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl .dc.none{color:var(--warn)}
 .pl.dead{opacity:.55}
-.side{display:grid;gap:12px}
+.left,.side{display:grid;gap:12px;align-content:start}
+.pl .voice{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#0b1320;border:2px solid #36507d}
+.pl .voice svg{width:14px;height:14px}
+.pl .voice.muted{border-color:#ff6b6b;background:#3a1016}
+.pl .voice.deafened{border-color:#ff9f43;background:#3a2410}
+.pl .voice.open{border-color:#46c28b;background:#0d2c21}
+.automute{padding:10px 14px 12px}
+.am-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.am-head h2{font-size:25px;margin:0}
+.am-head .muted{font-size:12.5px}
+.automute .controls{margin:8px 0 0;gap:26px}
+.automute .round span.ring{width:46px;height:46px}
+.automute .round svg{width:21px;height:21px}
+/* ---- Points ---- */
+.points-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,640px),1fr));gap:14px;align-items:start}
+@media (max-width:560px){.points-grid{grid-template-columns:minmax(0,1fr)}}
+.points-grid .card{min-width:0}
+.pts-wrap{overflow-x:auto}
+.pts{font-variant-numeric:tabular-nums;font-size:13.5px}
+.pts th{font-weight:400;color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;text-align:right;padding:4px;border-bottom:1px solid var(--line);white-space:nowrap}
+.pts th.l,.pts td.l{text-align:left}
+.pts td{text-align:right;white-space:nowrap}
+.pts .nm span{max-width:170px;overflow:hidden;text-overflow:ellipsis}
+.pts td.big{font-weight:700;color:var(--fg);font-size:14.5px}
+.pts tr.up td{background:var(--good-soft)}
+.pts tr.cut td{border-bottom:2px dashed var(--good)}
+.pts .rk{color:var(--muted);width:2.2em}
 .side .card{padding:10px 14px}
 .side h2{font-size:25px;margin-bottom:6px}
 
-/* ---- Waiting, and automute: the capture-window look on the same space background ---- */
+/* ---- Waiting for the game ---- */
 .stage{display:flex;flex-direction:column;align-items:center;text-align:center;padding:10px 10px 0;min-height:calc(100vh - 110px)}
 .stage h1{font-size:clamp(46px,6vw,70px);text-shadow:0 2px 14px rgba(0,0,0,.6)}
-.stage .where{font:700 28px/1.1 var(--hand);letter-spacing:.08em;color:#9fc3ff;min-height:30px}
 .loader{display:flex;gap:10px;margin:24px 0 6px;height:26px;align-items:flex-end}
 .loader i{width:10px;height:10px;border-radius:50%;background:#7fa7ff;animation:hop 1.2s ease-in-out infinite}
 .loader i:nth-child(2){animation-delay:.12s}.loader i:nth-child(3){animation-delay:.24s}.loader i:nth-child(4){animation-delay:.36s}.loader i:nth-child(5){animation-delay:.48s}
 @keyframes hop{0%,60%,100%{transform:translateY(0);opacity:.55}30%{transform:translateY(-14px);opacity:1}}
 .stage .say{max-width:54ch;color:var(--muted);margin:10px 0 0}
-.crew{display:grid;grid-template-columns:repeat(var(--cols,5),104px);justify-content:center;gap:14px 10px;width:100%;margin:18px 0 8px}
-@media (max-width:900px){.crew{grid-template-columns:repeat(auto-fill,104px)}}
-.mate{display:grid;justify-items:center;gap:3px}
-.mate img.head{width:80px;height:80px;display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5));user-select:none}
-.mate svg.x{position:absolute;inset:13px;width:54px;height:54px;stroke:#ff4d4d;stroke-width:1.1;stroke-linecap:round;opacity:.85}
-.mate .nm{font:15px/1.2 var(--round);max-width:104px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mate .dc{font-size:11.5px;color:var(--muted);max-width:104px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mate .dc.none{color:var(--warn)}
-.mate.dead img.head{opacity:.35;filter:grayscale(.4)}
-.mate.dead .nm{opacity:.55}
-.mate > span.wrap{position:relative;display:block}
-.mate .voice{position:absolute;top:-2px;right:-8px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#0b1320;border:2px solid #36507d}
-.mate .voice svg{width:15px;height:15px}
-.mate .voice.muted{border-color:#ff6b6b;background:#3a1016}
-.mate .voice.deafened{border-color:#ff9f43;background:#3a2410}
-.mate .voice.open{border-color:#46c28b;background:#0d2c21}
-.stage .spacer{flex:1}
+/* ---- Automute buttons ---- */
 .controls{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;margin:22px 0 6px}
 .round{all:unset;cursor:pointer;display:grid;justify-items:center;gap:6px;font:700 20px/1 var(--hand);letter-spacing:.06em}
 .round span.ring{width:52px;height:52px;border-radius:50%;border:2px solid var(--edge);display:grid;place-items:center;transition:.15s}
@@ -132,7 +141,7 @@ tr:last-child td{border-bottom:0}
 </header>
 <nav id="nav">
   <button data-page="home" class="on">Home</button>
-  <button data-page="mute">Automute</button>
+  <button data-page="points">Points</button>
   <button data-page="replays">Replays</button>
   <button data-page="settings">Settings</button>
 </nav>
@@ -151,9 +160,20 @@ tr:last-child td{border-bottom:0}
       <div class="facts" id="facts"></div>
     </div>
     <div class="home-grid" style="margin-top:12px">
+      <div class="left">
       <div class="card">
         <div class="row" style="justify-content:space-between;align-items:baseline"><h2>Players</h2><span class="muted" style="font-size:12.5px">Players link themselves in Discord: <b>/link</b> and their name or colour</span></div>
         <div class="players" id="players"></div>
+      </div>
+      <div class="card automute">
+        <div class="am-head"><h2>Automute</h2><span class="muted" id="mute-say"></span></div>
+        <div class="controls" id="mute-controls">
+          <button class="round" id="m-enabled"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></span>Automute</button>
+          <button class="round" id="m-ref"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M3 10v4h4l6 4V6L7 10H3z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg></span>Referee</button>
+          <button class="round" id="m-spec"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span>Spectators</button>
+          <button class="round alarm" data-cmd="unmuteall"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></span>Unmute all</button>
+        </div>
+      </div>
       </div>
       <div class="side">
         <div class="card" id="round-card">
@@ -184,21 +204,9 @@ tr:last-child td{border-bottom:0}
   </div>
 </section>
 
-<section id="mute">
-  <div class="stage">
-    <h1 id="mute-title">Waiting for Among Us</h1>
-    <div class="where" id="mute-where"></div>
-    <div class="loader" id="mute-loader" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
-    <p class="say" id="mute-say"></p>
-    <div class="crew" id="crew"></div>
-    <div class="spacer"></div>
-    <div class="controls" id="mute-controls">
-      <button class="round" id="m-enabled"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></span>Automute</button>
-      <button class="round" id="m-ref"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M3 10v4h4l6 4V6L7 10H3z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg></span>Referee</button>
-      <button class="round" id="m-spec"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span>Spectators</button>
-      <button class="round alarm" data-cmd="unmuteall"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></span>Unmute all</button>
-    </div>
-  </div>
+<section id="points">
+  <div><h1>Points</h1><p class="sub" id="points-sub">For you and the referees. Players never see these in the game or through the bot.</p></div>
+  <div class="points-grid" id="points-list"></div>
 </section>
 
 <section id="replays">
@@ -351,53 +359,60 @@ function renderHome() {
   $('t-lead').textContent = st.lead ? 'Yes' : 'Take over'; $('t-lead').classList.toggle('on', st.lead); $('t-lead').disabled = st.lead || !st.shared;
   $('t-lead').onclick = () => cmd('lead');
 
+  renderAutomute(st);
+
   // Rebuild the player cards only when they change.
-  const key = JSON.stringify(st.players.map(p => [p.name, p.color, p.dead, p.disconnected, p.discordId, p.discordName, p.isHost, p.referee]));
+  const key = JSON.stringify(st.players.map(p => [p.name, p.color, p.dead, p.disconnected, p.discordId, p.discordName, p.isHost, p.referee, p.voice]));
   if (key === playersKey) return;
   playersKey = key;
   $('players').innerHTML = st.players.length ? st.players.map(p => `<div class="pl${p.dead || p.disconnected ? ' dead' : ''}">
       <img src="${head(p.color)}" alt="">
       <div style="min-width:0"><div class="nm">${esc(p.name)}${p.isHost ? ' <span class="pill">you</span>' : ''}${p.referee ? ' <span class="pill">ref</span>' : ''}${p.disconnected ? ' <span class="pill">left</span>' : ''}</div>
-        <div class="dc${p.discordId ? '' : ' none'}">${p.discordId ? '@' + esc(p.discordName || p.discordId) : 'not linked yet'}</div></div></div>`).join('')
+        <div class="dc${p.discordId ? '' : ' none'}">${p.discordId ? '@' + esc(p.discordName || p.discordId) : 'not linked yet'}</div></div>
+      ${p.voice ? `<span class="voice ${p.voice}" title="${p.voice}">${VOICE[p.voice]}</span>` : '<span></span>'}</div>`).join('')
     : '<p class="empty">Nobody in the lobby yet.</p>';
 }
 
-// ---- Automute ------------------------------------------------------------------------------
-function crewmate(color, dead) {
-  return `<img class="head" src="${head(color)}" alt="" draggable="false">${dead ? '<svg class="x" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg>' : ''}`;
-}
+// ---- Automute (on Home) --------------------------------------------------------------------
 const VOICE = {
   muted: '<svg viewBox="0 0 24 24" fill="none" stroke="#ff8a8a" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a3 3 0 0 1 3 3v5M9 9v2a3 3 0 0 0 4.5 2.6"/><path d="M5 11a7 7 0 0 0 11 5.7M19 11a7 7 0 0 1-.6 2.8"/><path d="M3 3l18 18"/></svg>',
   deafened: '<svg viewBox="0 0 24 24" fill="none" stroke="#ffb86b" stroke-width="2.4" stroke-linecap="round"><path d="M4 14v-2a8 8 0 0 1 14.3-4.9M20 12v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/><path d="M3 3l18 18"/></svg>',
   open: '<svg viewBox="0 0 24 24" fill="none" stroke="#7ee2b0" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
 };
 function roundBtn(el, on, command) { el.classList.toggle('on', on); el.onclick = () => cmd(`${command} ${on ? 'off' : 'on'}`); }
-let crewKey = '';
-function renderMute() {
-  const st = S.status, a = st && st.autoMute;
-  $('mute-title').textContent = !st ? 'Waiting for Among Us' : !a.configured ? 'Automute is off' : TITLES[st.phase] || st.phase;
-  $('mute-where').textContent = st && st.lobbyCode ? `${st.lobbyCode}${st.map ? ' · ' + st.map : ''}` : '';
-  $('mute-loader').hidden = !!st && st.phase !== 'Menu';
-  $('mute-say').textContent = !st ? (S.mod.installed ? 'Start Among Us and host a lobby.' : 'Install the mod in Settings first.')
-    : !a.configured ? 'Automute needs a bot: it comes with a tournament host code, or add one in the mod\'s config file.'
+function renderAutomute(st) {
+  const a = st.autoMute, linked = st.players.filter(p => p.discordId).length;
+  $('mute-say').textContent = !a.configured ? 'Off: it needs a bot, which comes with a tournament host code.'
     : !a.voiceConnected ? 'Connecting to Discord voice…'
-    : `${st.players.filter(p => p.discordId).length} of ${st.players.length} players linked to Discord${st.players.some(p => !p.discordId) ? ' · the rest type /link in Discord' : ''}${a.refereeMode ? ' · referee mode: only referees can talk' : ''}.`;
-  $('mute-controls').hidden = !st || !a.configured;
-  if (st && a.configured) {
+    : a.refereeMode ? 'Referee mode: only referees can talk.'
+    : `${linked} of ${st.players.length} linked${linked < st.players.length ? ' · the rest type /link in Discord' : ''}`;
+  $('mute-controls').hidden = !a.configured;
+  if (a.configured) {
     roundBtn($('m-enabled'), a.enabled, 'automute');
     roundBtn($('m-ref'), a.refereeMode, 'ref');
     roundBtn($('m-spec'), a.muteSpectators, 'spectators');
   }
-  const players = st ? st.players.filter(p => !p.referee && !p.disconnected) : [];
-  const key = JSON.stringify(players.map(p => [p.name, p.color, p.dead, p.discordId, p.discordName, p.voice]));
-  if (key === crewKey) return;
-  crewKey = key;
-  // One row up to 6; after that two even rows (15 players: 8 and 7).
-  $('crew').style.setProperty('--cols', players.length <= 6 ? Math.max(players.length, 1) : Math.ceil(players.length / 2));
-  $('crew').innerHTML = players.map(p => `<div class="mate${p.dead ? ' dead' : ''}">
-      <span class="wrap">${crewmate(p.color, p.dead)}${p.voice ? `<span class="voice ${p.voice}" title="${p.voice}">${VOICE[p.voice]}</span>` : ''}</span>
-      <span class="nm">${esc(p.name)}</span>
-      <span class="dc${p.discordId ? '' : ' none'}">${p.discordId ? '@' + esc(p.discordName || p.discordId) : 'not linked'}</span></div>`).join('');
+}
+
+// ---- Points ------------------------------------------------------------------------------
+let pointsKey = '';
+function renderPoints() {
+  const pts = S.status && S.status.points, key = JSON.stringify(pts || null);
+  if (key === pointsKey) return;
+  pointsKey = key;
+  if (!pts) {
+    $('points-list').innerHTML = `<div class="card"><p class="empty">${S.status ? 'No games yet.' : 'Start Among Us with the mod to see the points.'}</p></div>`;
+    return;
+  }
+  const n = v => (Math.round(v * 100) / 100).toString();
+  $('points-list').innerHTML = pts.sections.map(sec => `<div class="card">
+    <h2>${esc(sec.title)}</h2><p class="muted" style="margin:0 0 8px;font-size:12.5px">${esc(sec.note)}</p>
+    ${sec.rows.length ? `<div class="pts-wrap"><table class="pts"><thead><tr><th></th><th class="l">Player</th><th>Points</th>${sec.withTotal ? '<th>Total</th>' : ''}<th>Games</th><th>W-L</th><th>Imp wins</th><th>Kills</th><th>Votes</th></tr></thead><tbody>
+      ${sec.rows.map(r => `<tr class="${r.advancing ? 'up' : ''}${sec.cut && r.rank === sec.cut ? ' cut' : ''}"><td class="rk">${r.rank}</td>
+        <td class="l"><div class="nm" style="display:flex;align-items:center;gap:7px"><img src="${head(r.color)}" alt="" style="width:22px;height:22px"><span>${esc(r.name)}</span></div></td>
+        <td class="big">${n(r.points)}</td>${sec.withTotal ? `<td>${n(r.total)}</td>` : ''}<td>${r.games}</td><td>${r.wins}-${r.losses}</td><td>${esc(r.impostor)}</td><td>${r.kills}</td><td>${esc(r.votes)}</td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="empty">No counted games yet.</p>'}</div>`).join('')
+    + (pts.voided ? `<p class="muted" style="font-size:12.5px">${pts.voided} voided game${pts.voided === 1 ? '' : 's'} left out.</p>` : '');
 }
 
 // ---- Settings -------------------------------------------------------------------------------
@@ -466,7 +481,7 @@ async function loadReplays() {
 // ---- Refresh ------------------------------------------------------------------------------
 async function refresh() {
   try { S = await api('GET', '/app/state'); } catch (e) { return; }
-  renderAlerts(); renderHome(); renderMute(); renderSettings();
+  renderAlerts(); renderHome(); renderPoints(); renderSettings();
 }
 refresh();
 setInterval(refresh, 1500);

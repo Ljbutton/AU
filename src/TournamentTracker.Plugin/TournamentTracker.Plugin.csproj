@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <Compile Include="..\TournamentTracker.Core\**\*.cs" Exclude="..\TournamentTracker.Core\bin\**;..\TournamentTracker.Core\obj\**" LinkBase="Core" />
+    <EmbeddedResource Include="..\TournamentTracker.AppCore\ui\crew\*.png" LogicalName="crew/%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

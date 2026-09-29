@@ -143,6 +143,7 @@ namespace TournamentTracker
                 Lead = IsLead,
                 Shared = Shared != null,
                 LastGame = last == null ? null : new { last.Name, last.Winner, last.Voided, last.Counted },
+                Points = PointsForApp(),
             }, ApiJson);
         }
 

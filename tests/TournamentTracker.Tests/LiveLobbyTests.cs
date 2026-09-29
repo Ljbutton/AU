@@ -270,7 +270,6 @@ public class LiveLobbyTests : IDisposable
         Assert.Contains("voice channel", TournamentSession.SlashFallback(Slash("link", "1", "x", "red")));
         Assert.Contains("join the lobby first", TournamentSession.SlashFallback(Slash("link", "1", "x", "Zed")));
         Assert.Contains("aren't linked", TournamentSession.SlashFallback(Slash("unlink", "1", "x")));
-        Assert.Contains("No tournament stats for you", TournamentSession.SlashFallback(Slash("stats", "1", "x")));
     }
 
     [Fact]

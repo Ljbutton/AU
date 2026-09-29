@@ -6,7 +6,6 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using TournamentTracker.Discord;
 using TournamentTracker.Stats;
-using TournamentTracker.Voice;
 
 namespace TournamentTracker
 {
@@ -19,25 +18,7 @@ namespace TournamentTracker
         /// Replies to players are public so they see them; host-only commands answer privately.
         /// </summary>
         public bool HandleChat(PlayerSnapshot sender, bool fromHost, string text) =>
-            _settings.ChatCommands ? HandleCommand(sender, fromHost, text) : HandleStatsOnly(sender, text);
-
-        private readonly Dictionary<string, DateTime> _statsAsked = new Dictionary<string, DateTime>();
-        private static readonly TimeSpan StatsCooldown = TimeSpan.FromSeconds(20);
-
-        /// <summary>With chat commands off, players can still ask for their stats in the lobby.</summary>
-        private bool HandleStatsOnly(PlayerSnapshot sender, string text)
-        {
-            text = text.Trim();
-            string p = _settings.CommandPrefix;
-            if (!_settings.StatsCommand || p.Length == 0 || _phase != VoicePhase.Lobby) return false;
-            if (!(text.Equals(p + "stats", StringComparison.OrdinalIgnoreCase) || text.StartsWith(p + "stats ", StringComparison.OrdinalIgnoreCase))) return false;
-            // One answer per player every 20 seconds, so nobody can flood the chat through the host.
-            var now = _clock();
-            if (_statsAsked.TryGetValue(sender.Key, out var last) && now - last < StatsCooldown) return true;
-            _statsAsked[sender.Key] = now;
-            StatsCommand(sender, text.Substring(p.Length + 5).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
-            return true;
-        }
+            _settings.ChatCommands && HandleCommand(sender, fromHost, text);
 
         private bool HandleCommand(PlayerSnapshot sender, bool fromHost, string text)
         {
@@ -68,9 +49,6 @@ namespace TournamentTracker
                     return true;
                 case "unlink":
                     UnlinkCommand(sender, fromHost, args);
-                    return true;
-                case "stats":
-                    StatsCommand(sender, args);
                     return true;
                 case "links" when fromHost:
                     LinksCommand();
@@ -132,7 +110,7 @@ namespace TournamentTracker
         private void Help(bool fromHost)
         {
             string p = _settings.CommandPrefix;
-            Reply($"Commands: {p}link <discord name or id> · {p}unlink · {p}stats [player]", !fromHost);
+            Reply($"Commands: {p}link <discord name or id> · {p}unlink", !fromHost);
             if (fromHost)
             {
                 Reply($"Host: {p}link <player> <discord> · {p}unlink <player> · {p}links · {p}automute on|off · " +
@@ -253,25 +231,6 @@ namespace TournamentTracker
             bool isPublic = !fromHost || target.Key != sender.Key;
             BlockAutoLink(target.Key);
             Reply(Links.Unlink(target.Key) ? $"Unlinked {target}." : $"{target} wasn't linked.", isPublic);
-        }
-
-        private void StatsCommand(PlayerSnapshot sender, string[] args)
-        {
-            var target = args.Length > 0 ? FindPlayer(string.Join(" ", args)) : sender;
-            if (target == null)
-            {
-                Reply($"No player matches \"{string.Join(" ", args)}\".", true, _settings.StatsCommand);
-                return;
-            }
-            var t = Standings.Find(target.Key);
-            if (t == null || t.Games == 0)
-            {
-                Reply($"{target.Name}: no games yet.", true, _settings.StatsCommand);
-                return;
-            }
-            int rank = Standings.Leaderboard().ToList().FindIndex(x => x.Key == t.Key) + 1;
-            Reply($"{t.Name}: #{rank}, {ReportFormatter.Pts(t.Points)} pts, {t.Wins}W-{t.Losses}L, {t.Kills} kills", true, _settings.StatsCommand);
-            Reply($"Imp {t.ImpostorWins}/{t.ImpostorGames} · Crew {t.CrewWins}/{t.CrewGames} · votes {t.CorrectVotes}✓ {t.IncorrectVotes}✗", true, _settings.StatsCommand);
         }
 
         private void LinksCommand()

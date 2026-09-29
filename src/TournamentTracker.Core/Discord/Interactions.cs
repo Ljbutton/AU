@@ -85,16 +85,6 @@ namespace TournamentTracker.Discord
             },
             new
             {
-                name = "stats",
-                description = "Tournament stats: yours, or another player's",
-                options = new object[]
-                {
-                    new { type = 3, name = "player", description = "An in-game name", required = false },
-                    new { type = 6, name = "user", description = "A Discord user", required = false },
-                },
-            },
-            new
-            {
                 name = "unlink",
                 description = "Unlink your Discord account from your Among Us player",
                 options = new object[]

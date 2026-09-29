@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.2**, a beta.
+The current release is **v0.1.3**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -50,11 +50,15 @@ to go to Settings and fix it.
 While you play, the app's pages run the lobby:
 
 * **Home:** the whole lobby on one page, up to 15 players: code, map, round, each player
-  and their Discord link; start the next round; void or unvoid a game; the settings lock,
-  referee ghost slot, stream overlay and lead-lobby switches; post standings.
-* **Automute:** in the style of the AutoMuteUs capture window: the game's state, every
-  player (up to 15) as a crewmate in their colour with their Discord name and whether they're muted,
-  and buttons for automute on/off, referee mode, spectator muting and "unmute everyone".
+  as their crewmate with their Discord link and whether automute has them muted or deafened;
+  the automute buttons (automute on/off, referee mode, spectator muting, unmute everyone);
+  start the next round; void or unvoid a game; the settings lock, referee ghost slot,
+  stream overlay and lead-lobby switches; post standings.
+* **Points:** the point totals, for the host and the referees (players never see them in
+  the game or through the bot). In a tournament: this lobby's round standings with the cut
+  line and each player's running total, every lobby's round together (with a results
+  channel), and the running total across rounds. With a preliminary code: the lobby's
+  leaderboard, to help decide who moves on.
 * **Replays:** every recorded game (and any downloaded from Discord); watch one in the app.
 
 The app talks to the mod over a private connection on your computer only (port 8766, with a
@@ -200,8 +204,8 @@ private results channel.
 
 **Stream overlay** (Home → Tools) starts an overlay for OBS on the host's computer: add a
 **Browser source** with `http://localhost:8765/` (size 380×720). With more than 8 players
-the list goes into two columns, so a full 15-player lobby still fits. It shows the lobby, round and game
-number, the players, the round standings with the cut line, and the latest meetings and
+the list goes into two columns, so a full 15-player lobby still fits. It shows the lobby,
+round and game number, the players (as the same crewmate heads The Button uses), the round standings with the cut line, and the latest meetings and
 ejections. It only shows what the players in the game already know (a death appears once a
 meeting reveals it). `http://localhost:8765/?full=1` adds roles, kills and task bars: only
 for a stream on a delay, since anyone watching live could see who the impostors are. Add
@@ -296,11 +300,11 @@ Voice switches a moment after the game does, so nobody gets cut off mid-word:
 | Game ends → everyone unmuted | 3 s | `DelayGameEnd` |
 | Meeting called → alive players unmuted | 0 s, so nobody misses the start of the discussion | `DelayMeetingStart` |
 
-A death applies at once, and **Unmute all** (Automute page) / **F9** never wait.
+A death applies at once, and **Unmute all** (Home) / **F9** never wait.
 
 #### Referee mode
 
-Press **Referee** on the Automute page to explain the rules: everyone in the voice channel (players and
+Press **Referee** under Automute on Home to explain the rules: everyone in the voice channel (players and
 spectators) is muted, but can still hear, except you and anyone in `RefereeUserIds`
 (co-referees, casters). Pressing it again gives everyone their voice back. It only ever turns on
 by hand, and it ends by itself when a game starts, so a forgotten toggle can't silence a
@@ -309,7 +313,7 @@ message shows when the referee is speaking.
 
 #### Spectators
 
-With **Spectators** on (Automute page, or `MuteSpectators = true`), anyone in the game's voice channel who
+With **Spectators** on (Automute on Home, or `MuteSpectators = true`), anyone in the game's voice channel who
 isn't playing is muted while a game is running and unmuted in the lobby. The game's voice
 channel is the one the host is in (once the host is linked), otherwise the one most linked
 players are in; set `VoiceChannelId` to pin it. Put casters
@@ -341,7 +345,7 @@ colour changes, and they're saved in `BepInEx/config/TournamentTracker/links.jso
 * Or fill in `links.json` before the event (see `links.example.json`). A player's key is their
   friend code in lower case, e.g. `coolbean#1234`.
 
-The Home and Automute pages show who is linked. Unlinked players are never muted, and
+Home shows who is linked. Unlinked players are never muted, and
 spectators only when spectator muting is on.
 
 ## Several lobbies at once
@@ -374,17 +378,6 @@ the log warns about it.
 message count. The older game files stay in the channel, so deleting the reset message
 brings the old standings back.
 
-## Stats for players
-
-* **`/stats`** in Discord shows your tournament totals (rank, points, wins and losses,
-  impostor and crew records, votes, tasks) and where you stand in your lobby this round, with
-  the cut line. `/stats player:Soggy` or `/stats user:@Soggy` shows someone else's. Everyone
-  in the channel sees the answer.
-* **`!stats`** typed in the Among Us lobby chat still works (`!stats red`, `!stats Soggy` for
-  someone else): the host's game answers in the lobby chat. It only answers in the lobby
-  (never during a game), at most once every 20 seconds per player, even though the other chat
-  commands are off. `StatsCommand = false` turns it off.
-
 ## Chat commands (off by default)
 
 The app does all of this. Typing commands in the lobby chat is off unless you set
@@ -395,7 +388,6 @@ to everyone's chat). The commands, for reference; the app runs the same ones:
 | --- | --- | --- |
 | `!link <discord>` | anyone* | Link your Discord account (normally `/link` in Discord) |
 | `!unlink` | anyone | Remove your link |
-| `!stats [player]` | anyone | Show tournament totals in chat (works with chat commands off; see *Stats for players*) |
 | `!help` | anyone | List commands |
 | `!link <player> <discord>` | host | Link someone else (player = colour or name) |
 | `!unlink <player>` | host | Unlink someone |
@@ -436,7 +428,6 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | General | `GamesPerRound` | 3 | Tournament rounds; a setup code overrides it |
 | General | `ChatCommands` | false | Accept commands typed in the lobby chat (the app is the normal way) |
 | General | `PublicChat` | false | Send announcements to everyone's chat |
-| General | `StatsCommand` | true | Players' `!stats` in the lobby chat, even with chat commands off |
 | General | `AnnounceLinks` | true | Say in the lobby chat when a player is linked to Discord |
 | General | `ControlPort` | 8766 | The app's private connection; -1 turns it off |
 | Discord | `StatsWebhookUrl` | | Game reports and leaderboard |

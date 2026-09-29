@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using TournamentTracker.Discord;
@@ -60,6 +61,10 @@ public class OverlayTests : IDisposable
 
         using var http = new HttpClient();
         string page = await http.GetStringAsync(s.Overlay!.Url);
+        var head = await http.GetAsync(s.Overlay.Url + "crew/17.png");
+        Assert.Equal("image/png", head.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(0x89, (await head.Content.ReadAsByteArrayAsync())[0]);
+        Assert.Equal(HttpStatusCode.NotFound, (await http.GetAsync(s.Overlay.Url + "crew/18.png")).StatusCode);
         Assert.Contains("<title>Tournament overlay</title>", page);
         var state = JsonDocument.Parse(await http.GetStringAsync(s.Overlay.Url + "state")).RootElement;
         Assert.Equal("Cup", state.GetProperty("tournament").GetString());

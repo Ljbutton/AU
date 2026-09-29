@@ -35,6 +35,35 @@ public class ControlApiTests : IDisposable
     }
 
     [Fact]
+    public async Task The_app_gets_point_totals_for_the_host_and_referees()
+    {
+        var settings = new TrackerSettings { LiveStatus = false, TournamentName = "Cup", ControlPort = 0, Mode = TrackerMode.Tournament, AdvanceCount = 3, GamesPerRound = 3 };
+        using var s = new TournamentSession(settings, _dir.Path, NullLog.Instance, new HttpClient(new FakeHttp()), () => _clock.Now, new FakeVoiceApi(), new VoicePresenceState("g1"));
+        var lobby = Players.Lobby();
+        lobby[3].IsHost = true;
+        s.RunCommand("r1");
+        s.GameStarted("X", "Polus", lobby);
+        s.Kill(0, 2);
+        s.GameEnded("ImpostorByKill", lobby);
+        _clock.Advance(5);
+        s.VoiceTick(Voice.VoicePhase.Lobby, lobby);
+
+        var control = JsonDocument.Parse(File.ReadAllText(Path.Combine(_dir.Path, ControlServer.FileName))).RootElement;
+        using var http = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{control.GetProperty("port").GetInt32()}/") };
+        http.DefaultRequestHeaders.Add("X-TT-Token", control.GetProperty("token").GetString());
+        var points = JsonDocument.Parse(await http.GetStringAsync("api/status")).RootElement.GetProperty("points");
+        var sections = points.GetProperty("sections");
+        Assert.Equal("Round 1 · Dana's lobby", sections[0].GetProperty("title").GetString());
+        Assert.Equal(3, sections[0].GetProperty("cut").GetInt32());
+        var top = sections[0].GetProperty("rows")[0];
+        Assert.Equal("Alice", top.GetProperty("name").GetString());
+        Assert.Equal(6, top.GetProperty("points").GetDouble());
+        Assert.True(top.GetProperty("advancing").GetBoolean());
+        Assert.Equal("Running total", sections[1].GetProperty("title").GetString());
+        Assert.Equal(6, sections[1].GetProperty("rows").GetArrayLength());
+    }
+
+    [Fact]
     public async Task The_app_reads_the_status_and_runs_commands_with_the_token_from_control_json()
     {
         using var s = Session();
