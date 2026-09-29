@@ -89,12 +89,20 @@ jobs:
         shell: pwsh
         run: ./installer/test/installer.tests.ps1
 
+      # BepInEx's build server often drops downloads, so keep the file once we have it.
+      - name: Cache BepInEx be.735 (win-x86)
+        uses: actions/cache@v4
+        with:
+          path: bepinex.zip
+          key: bepinex-be735-win-x86
+
       - name: Build the one-click installer and the full bundle
         run: |
           set -euo pipefail
+          if [ ! -s bepinex.zip ] || ! unzip -tq bepinex.zip >/dev/null; then
           # BepInEx be.735, the build Among Us mods use, straight from BepInEx's build server.
           # Among Us is a 32-bit game, so it must be the win-x86 build: the x64 one never loads.
-          href=$(curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 https://builds.bepinex.dev/projects/bepinex_be \
+          href=$(curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 https://builds.bepinex.dev/projects/bepinex_be \
             | grep -oE 'href="[^"]*BepInEx-Unity\.IL2CPP-win-x86-6\.0\.0-be\.735[^"]*\.zip"' | head -1 | sed -E 's/^href="//; s/"$//') || true
           case "$href" in
             http*) url="$href" ;;
@@ -103,7 +111,8 @@ jobs:
             *) url="https://builds.bepinex.dev/projects/bepinex_be/$href" ;;
           esac
           echo "BepInEx from $url"
-          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 "$url" -o bepinex.zip
+          curl -fsSL --http1.1 --retry 8 --retry-all-errors --retry-delay 10 -C - "$url" -o bepinex.zip
+          fi
           full=dist/full
           mkdir -p "$full"
           unzip -q bepinex.zip -d "$full"
