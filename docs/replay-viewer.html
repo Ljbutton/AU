@@ -349,6 +349,12 @@ function loop(now) {
   if (playing && R) { t += (now - last) / 1000 * speed; if (t >= R.duration) { t = R.duration; setPlaying(false); } render(); }
   else if (follow != null && R) render();
   last = now; requestAnimationFrame(loop);
+
+// Opened by the Tournament Tracker app with ?src=<replay file>: load it straight away.
+try {
+  const src = new URLSearchParams(location.search).get('src');
+  if (src) fetch(src).then(r => { if (!r.ok) throw new Error('not found'); return r.blob(); }).then(b => readFile(b)).then(load).catch(err => alertBox(err));
+} catch (e) { }
 }
 requestAnimationFrame(loop);
 

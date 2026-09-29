@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tournament Tracker</title>
+<style>
+:root{
+  --bg:#f4f5f7;--side:#eceef2;--panel:#ffffff;--sunk:#f0f2f5;--fg:#16191f;--muted:#5f6773;--line:#dde1e7;
+  --accent:#0d8a72;--accent-fg:#ffffff;--accent-soft:#dff3ee;--danger:#c0362c;--danger-soft:#fbe4e1;--warn:#a15c07;--warn-soft:#fdf0dc;
+  --ok:#1f8a4c;--imp:#c0362c;
+  --sans:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;--mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#15181d;--side:#101317;--panel:#1c2026;--sunk:#23282f;--fg:#e8ebef;--muted:#9aa3ae;--line:#2c323a;
+  --accent:#3fcfb0;--accent-fg:#0b1512;--accent-soft:#16352f;--danger:#f07166;--danger-soft:#3a1d1a;--warn:#e8a54a;--warn-soft:#3a2a12;--ok:#5fd08a;--imp:#f07166;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--sans);display:grid;grid-template-columns:210px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+header{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{font-weight:700;font-size:15px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.brand i{width:14px;height:16px;border-radius:7px 7px 4px 4px;background:var(--accent);position:relative;display:inline-block}
+.brand i::after{content:"";position:absolute;right:-2px;top:3px;width:8px;height:5px;border-radius:3px;background:#bfe3f2}
+.conn{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
+.dot.on{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 25%,transparent)}
+nav{background:var(--side);border-right:1px solid var(--line);padding:12px 8px;display:flex;flex-direction:column;gap:2px;overflow:auto}
+nav button{all:unset;cursor:pointer;padding:9px 12px;border-radius:8px;font-weight:600;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+nav button:hover{background:var(--sunk);color:var(--fg)}
+nav button.on{background:var(--panel);color:var(--fg);box-shadow:0 0 0 1px var(--line)}
+nav button:focus-visible{outline:2px solid var(--accent)}
+nav .badge{font:600 11px var(--mono);background:var(--warn-soft);color:var(--warn);border-radius:99px;padding:1px 7px}
+main{overflow:auto;padding:20px 24px 40px}
+section{display:none;max-width:980px}
+section.on{display:grid;gap:16px}
+h1{font-size:21px;margin:0;letter-spacing:-.01em}
+h2{font-size:15px;margin:0 0 10px}
+.sub{color:var(--muted);margin:2px 0 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 14px;font-size:13.5px}
+.kv dt{color:var(--muted)}.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+button.b{font:600 13px var(--sans);padding:7px 13px;border-radius:8px;border:1px solid var(--line);background:var(--sunk);color:var(--fg);cursor:pointer}
+button.b:hover{border-color:var(--accent)}
+button.b.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+button.b.danger{color:var(--danger)}
+button.b.on{background:var(--accent-soft);border-color:var(--accent)}
+button.b:disabled{opacity:.5;cursor:default}
+button.b:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input,textarea{font:14px var(--sans);color:var(--fg);background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
+textarea{width:100%;font-family:var(--mono);font-size:12px;resize:vertical}
+.note{padding:10px 12px;border-radius:9px;font-size:13.5px}
+.note.warn{background:var(--warn-soft);color:var(--warn)}
+.note.bad{background:var(--danger-soft);color:var(--danger)}
+.note.good{background:var(--accent-soft);color:var(--fg)}
+.muted{color:var(--muted)}
+.mono{font-family:var(--mono);font-size:12.5px}
+.big{font-size:26px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.stats{display:flex;flex-wrap:wrap;gap:24px}
+.stat .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line);font-weight:600}
+td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.tablewrap{overflow-x:auto}
+.bean{display:inline-block;width:12px;height:14px;border-radius:6px 6px 4px 4px;border:1px solid rgba(0,0,0,.35);vertical-align:-2px;margin-right:8px}
+.pill{font-size:11.5px;padding:2px 8px;border-radius:99px;background:var(--sunk);color:var(--muted);white-space:nowrap}
+.pill.ok{background:var(--accent-soft);color:var(--accent)}
+.pill.bad{background:var(--danger-soft);color:var(--danger)}
+.toggle{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.toggle:last-child{border-bottom:0}
+.toggle b{display:block;font-size:14px}.toggle span{color:var(--muted);font-size:12.5px}
+.empty{padding:26px;text-align:center;color:var(--muted)}
+.log{font-family:var(--mono);font-size:12.5px;display:grid;gap:4px;max-height:60vh;overflow:auto}
+.log div{display:grid;grid-template-columns:70px minmax(0,1fr);gap:10px}
+.log span{color:var(--muted)}
+#toast{position:fixed;right:18px;bottom:18px;max-width:420px;background:var(--fg);color:var(--bg);padding:10px 14px;border-radius:10px;font-size:13.5px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none}
+#toast.show{opacity:1;transform:none}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><i></i>Tournament Tracker</div>
+  <span class="muted" id="where"></span>
+  <div class="conn"><span class="dot" id="conn-dot"></span><span id="conn-text">Checking…</span></div>
+</header>
+<nav id="nav">
+  <button data-page="home" class="on">Home <span class="badge" id="home-badge" hidden>!</span></button>
+  <button data-page="lobby">Lobby</button>
+  <button data-page="mute">Automute</button>
+  <button data-page="setup">Setup code</button>
+  <button data-page="replays">Replays</button>
+  <button data-page="activity">Activity</button>
+</nav>
+<main>
+
+<section id="home" class="on">
+  <div><h1>Home</h1><p class="sub">Install the mod, add your setup code, then start Among Us. Everything else happens here: nothing is typed in the game chat.</p></div>
+  <div class="grid2">
+    <div class="card">
+      <h2>Among Us</h2>
+      <div id="game-found" hidden><dl class="kv"><dt>Folder</dt><dd class="mono" id="game-path"></dd></dl>
+        <div class="row" style="margin-top:10px"><button class="b" data-open="game">Open folder</button><button class="b" id="game-change">Change</button></div></div>
+      <div id="game-missing" hidden>
+        <p class="note warn">Couldn't find Among Us. Paste the folder that has <b>Among Us.exe</b> in it (Steam: right-click Among Us › Manage › Browse local files).</p>
+      </div>
+      <div id="game-pick" class="row" style="margin-top:10px" hidden>
+        <input id="game-input" placeholder="C:\Program Files (x86)\Steam\steamapps\common\Among Us" style="flex:1">
+        <button class="b primary" id="game-save">Use this folder</button>
+      </div>
+      <div id="game-candidates" class="row" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <h2>Mod</h2>
+      <p id="mod-line" class="muted">…</p>
+      <p id="mod-repair" class="note bad" hidden>The mod loader in the game folder is the 64-bit one, which Among Us can't load. Reinstall to fix it.</p>
+      <p id="mod-progress" class="note good" hidden></p>
+      <p id="mod-result" class="note" hidden></p>
+      <div class="row"><button class="b primary" id="mod-install">Install</button><button class="b" data-open="log">Open log</button></div>
+    </div>
+    <div class="card">
+      <h2>Setup code</h2>
+      <p id="setup-line" class="muted">None yet.</p>
+      <div class="row"><button class="b" data-go="setup">Add or change</button></div>
+    </div>
+    <div class="card">
+      <h2>Connection</h2>
+      <p id="conn-line" class="muted">Start Among Us and host a lobby: this connects on its own.</p>
+      <dl class="kv" id="conn-kv" hidden></dl>
+    </div>
+  </div>
+</section>
+
+<section id="lobby">
+  <div><h1>Lobby</h1><p class="sub" id="lobby-sub">Start Among Us and host a lobby to control it from here.</p></div>
+  <div id="lobby-live" hidden>
+    <div class="card"><div class="stats" id="lobby-stats"></div></div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="card" id="round-card">
+        <h2>Round</h2>
+        <p class="muted" id="round-line"></p>
+        <div class="row"><button class="b primary" id="round-next">Start next round</button>
+          <input id="round-input" type="number" min="1" style="width:80px" aria-label="Round"><button class="b" id="round-set">Set round</button></div>
+      </div>
+      <div class="card">
+        <h2>This game</h2>
+        <p class="muted" id="game-line"></p>
+        <div class="row"><input id="void-reason" placeholder="Reason (e.g. restarted)" style="flex:1"><button class="b danger" id="void">Void game</button><button class="b" id="unvoid">Unvoid</button></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2>Players</h2>
+      <div class="tablewrap"><table><thead><tr><th>Player</th><th>Status</th><th>Discord</th><th></th></tr></thead><tbody id="players"></tbody></table></div>
+      <p class="muted" style="margin:8px 0 0;font-size:12.5px">Link someone by Discord user ID or name. Players in voice with the same name are linked on their own.</p>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="card">
+        <h2>Lobby tools</h2>
+        <div class="toggle"><div><b>Settings lock</b><span>Keeps the lobby on the tournament's settings.</span></div><button class="b" id="t-lock"></button></div>
+        <div class="toggle"><div><b>Referee ghost slot</b><span>You play as a ghost referee (11-player lobby).</span></div><button class="b" id="t-refslot"></button></div>
+        <div class="toggle"><div><b>Stream overlay</b><span id="overlay-url">For OBS.</span></div><button class="b" id="t-overlay"></button></div>
+        <div class="toggle"><div><b>Lead lobby</b><span>Answers !lobbies and !start in the results channel.</span></div><button class="b" id="t-lead"></button></div>
+      </div>
+      <div class="card">
+        <h2>Standings</h2>
+        <div class="row">
+          <button class="b" data-cmd="leaderboard">Post standings</button>
+          <button class="b" data-cmd="servers">Post server standings</button>
+          <button class="b" data-cmd="refresh">Repost live status</button>
+        </div>
+        <div class="row" style="margin-top:14px"><button class="b danger" id="reset-lb">Reset the combined leaderboard…</button></div>
+        <p id="reset-confirm" class="note warn" hidden>Starts every lobby's combined leaderboard over. Deleting the reset message in the results channel undoes it.
+          <button class="b danger" data-cmd="resetleaderboard">Reset it</button> <button class="b" id="reset-cancel">Cancel</button></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="mute">
+  <div><h1>Automute</h1><p class="sub">Mutes the living during tasks and the dead during meetings in your Discord voice channel.</p></div>
+  <p class="note warn" id="mute-off" hidden>Automute isn't set up: it comes with a tournament host code (the organiser's bot), or add a bot in the mod's config file.</p>
+  <p class="note" id="mute-offline" hidden>Start Among Us to control automute.</p>
+  <div class="card" id="mute-live" hidden>
+    <div class="toggle"><div><b>Automute</b><span id="mute-voice"></span></div><button class="b" id="m-enabled"></button></div>
+    <div class="toggle"><div><b>Referee mode</b><span>Mutes everyone but the referees, to explain the rules.</span></div><button class="b" id="m-ref"></button></div>
+    <div class="toggle"><div><b>Mute spectators</b><span>People in voice who aren't playing are muted during games.</span></div><button class="b" id="m-spec"></button></div>
+    <div class="toggle"><div><b>Emergency</b><span>Unmutes everyone and turns automute off.</span></div><button class="b danger" data-cmd="unmuteall">Unmute everyone</button></div>
+  </div>
+</section>
+
+<section id="setup">
+  <div><h1>Setup code</h1><p class="sub">The organiser gives you one line starting with TT1-. Paste it here.</p></div>
+  <div class="card">
+    <textarea id="code" rows="3" placeholder="TT1-…"></textarea>
+    <div class="row" style="margin-top:10px"><button class="b primary" id="code-save">Use this code</button><button class="b danger" id="code-clear">Remove the code</button></div>
+    <p id="code-result" class="note" hidden style="margin-top:10px"></p>
+  </div>
+  <div id="setup-view"></div>
+</section>
+
+<section id="replays">
+  <div><h1>Replays</h1><p class="sub">Every game is recorded. Watch here, or in Among Us itself: open Freeplay on the game's map and press F8.</p></div>
+  <div class="card"><div class="tablewrap"><table><thead><tr><th>Game</th><th>When</th><th>Size</th><th></th></tr></thead><tbody id="replay-list"></tbody></table></div>
+    <p class="muted" style="margin:10px 0 0;font-size:12.5px">Replays from other lobbies: download them from the results channel into your Downloads folder and they show up here.</p></div>
+</section>
+
+<section id="activity">
+  <div><h1>Activity</h1><p class="sub">Everything the mod has reported, newest at the bottom.</p></div>
+  <div class="card"><div class="log" id="log"><div class="empty">Nothing yet.</div></div></div>
+</section>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const TOKEN = '__APP_TOKEN__';
+const COLORS = ['#c51111','#132ed1','#117f2d','#ed54ba','#ef7d0d','#f5f557','#3f474e','#d6e0f0','#6b2fbb','#71491e','#38fedc','#50ef39','#5f1d2e','#ecc0d3','#fffebe','#708496','#928776','#ec7578'];
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let S = null, lastLog = 0;
+
+async function api(method, path, body) {
+  const r = await fetch(path, { method, headers: { 'X-App-Token': TOKEN, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  return r.json();
+}
+function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 4200); }
+async function cmd(command) {
+  const r = await api('POST', '/app/command', { command });
+  toast(r.replies && r.replies.length ? r.replies.join(' ') : 'Sent. The answer shows in Activity when it comes back.');
+  refresh();
+}
+
+// ---- Navigation -----------------------------------------------------------------------
+function go(page) {
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.page === page));
+  document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === page));
+  if (page === 'replays') loadReplays();
+}
+$('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (b) go(b.dataset.page); });
+document.addEventListener('click', e => {
+  const c = e.target.closest('[data-cmd]'); if (c) { cmd(c.dataset.cmd); if (c.dataset.cmd === 'resetleaderboard') $('reset-confirm').hidden = true; }
+  const o = e.target.closest('[data-open]'); if (o) api('POST', '/app/open', { what: o.dataset.open });
+  const g = e.target.closest('[data-go]'); if (g) go(g.dataset.go);
+});
+
+// ---- Home ------------------------------------------------------------------------------
+$('game-change').addEventListener('click', () => { $('game-pick').hidden = false; $('game-input').value = S?.game?.path || ''; $('game-input').focus(); });
+$('game-save').addEventListener('click', async () => { const r = await api('POST', '/app/game', { path: $('game-input').value }); toast(r.message); if (r.ok) $('game-pick').hidden = true; refresh(); });
+$('mod-install').addEventListener('click', async () => { const r = await api('POST', '/app/install'); toast(r.message); refresh(); });
+
+function renderHome() {
+  const g = S.game, m = S.mod;
+  $('game-found').hidden = !g.found; $('game-missing').hidden = g.found;
+  if (!g.found) $('game-pick').hidden = false;
+  $('game-path').textContent = g.path || '';
+  $('game-candidates').innerHTML = g.found ? '' : (g.candidates || []).map(c => `<button class="b" data-path="${esc(c.path)}">${esc(c.store)}: ${esc(c.path)}</button>`).join('');
+  $('game-candidates').querySelectorAll('[data-path]').forEach(b => b.onclick = async () => { await api('POST', '/app/game', { path: b.dataset.path }); refresh(); });
+
+  $('mod-line').textContent = !g.found ? 'Find Among Us first.'
+    : m.installed ? `Installed${m.installedVersion ? ' ' + m.installedVersion : ''}.${m.updateAvailable ? ` ${m.latest} is out.` : m.latest ? ' Up to date.' : ''}`
+    : 'Not installed yet.';
+  $('mod-repair').hidden = !m.needsRepair;
+  $('mod-install').textContent = !m.installed ? 'Install' : m.needsRepair ? 'Repair' : m.updateAvailable ? `Update to ${m.latest}` : 'Reinstall';
+  $('mod-install').disabled = !g.found || !!m.installing;
+  $('mod-progress').hidden = !m.installing; $('mod-progress').textContent = m.installing;
+  $('mod-result').hidden = !m.installResult; $('mod-result').textContent = m.installResult;
+  $('mod-result').className = 'note ' + (/^Installed/.test(m.installResult) ? 'good' : 'bad');
+  $('home-badge').hidden = !(m.needsRepair || m.updateAvailable || !g.found || !m.installed);
+
+  $('setup-line').textContent = S.setup ? (S.setup.error ? 'The saved code is damaged: ' + S.setup.error : S.setup.description) : 'None yet: without one the mod uses its settings file.';
+  const st = S.status;
+  $('conn-line').textContent = st ? 'Connected to the mod in Among Us.' : m.installed ? 'Start Among Us and host a lobby: this connects on its own.' : 'Install the mod first.';
+  $('conn-kv').hidden = !st;
+  if (st) $('conn-kv').innerHTML = `<dt>Mode</dt><dd>${esc(st.mode)}${st.tournament ? ' · ' + esc(st.tournament) : ''}</dd><dt>Lobby</dt><dd>${esc(st.lobby || '—')} · ${esc(phaseName(st.phase))}</dd><dt>Mod</dt><dd>${esc(st.version)}</dd>`;
+}
+function phaseName(p) { return { Menu: 'main menu', Lobby: 'in the lobby', Tasks: 'game in progress', Meeting: 'meeting', GameOver: 'game over' }[p] || p; }
+
+// ---- Lobby -----------------------------------------------------------------------------
+function onOff(el, on, command) { el.textContent = on ? 'On' : 'Off'; el.classList.toggle('on', on); el.onclick = () => cmd(`${command} ${on ? 'off' : 'on'}`); }
+$('round-next').addEventListener('click', () => cmd('r' + ((S.status?.round || 0) + 1)));
+$('round-set').addEventListener('click', () => { const n = parseInt($('round-input').value, 10); if (n > 0) cmd('r' + n); });
+$('void').addEventListener('click', () => cmd(('void ' + $('void-reason').value).trim()));
+$('unvoid').addEventListener('click', () => cmd('unvoid'));
+$('reset-lb').addEventListener('click', () => $('reset-confirm').hidden = false);
+$('reset-cancel').addEventListener('click', () => $('reset-confirm').hidden = true);
+
+let playersKey = '';
+function renderLobby() {
+  const st = S.status;
+  $('lobby-live').hidden = !st;
+  $('lobby-sub').textContent = st ? `${st.tournament || 'Tournament Tracker'} · ${st.mode === 'Tournament' ? 'tournament host' : st.mode === 'Preliminary' ? 'preliminary' : 'standard'}` : 'Start Among Us and host a lobby to control it from here.';
+  if (!st) return;
+  $('lobby-stats').innerHTML = [
+    ['Lobby', st.lobby || '—'], ['Code', st.lobbyCode || '—'], ['Map', st.map || '—'], ['Now', phaseName(st.phase)],
+    ['Round', st.round || '—'], ['Players', st.players.filter(p => !p.referee).length],
+  ].map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="big">${esc(v)}</div></div>`).join('');
+  $('round-card').hidden = st.mode !== 'Tournament';
+  $('round-line').textContent = st.round ? `Round ${st.round}: ${st.gamesThisRound} of ${st.gamesPerRound} games played in this lobby.` : 'No round set yet: start round 1 before the first game.';
+  const lg = st.lastGame;
+  $('game-line').textContent = st.inGame ? 'A game is running. Void it if it has to be restarted.' : lg ? `Last game: ${lg.name}, ${lg.voided ? 'VOID' : lg.winner ? lg.winner + ' win' : 'no result'}.` : 'No game yet this session.';
+  onOff($('t-lock'), st.lock.on, 'lock'); $('t-lock').disabled = !st.lock.available;
+  onOff($('t-refslot'), st.refSlot, 'refslot');
+  onOff($('t-overlay'), st.overlay.on, 'overlay');
+  $('overlay-url').innerHTML = st.overlay.on ? `OBS browser source: <span class="mono">${esc(st.overlay.url)}</span>` : 'For OBS.';
+  $('t-lead').textContent = st.lead ? 'This lobby' : 'Take over'; $('t-lead').classList.toggle('on', st.lead); $('t-lead').disabled = st.lead || !st.shared;
+  $('t-lead').onclick = () => cmd('lead');
+
+  // Rebuild the player rows only when they change, so typing in a link box isn't interrupted.
+  const key = JSON.stringify(st.players);
+  if (key === playersKey) return;
+  playersKey = key;
+  $('players').innerHTML = st.players.length ? st.players.map(p => `<tr>
+      <td><span class="bean" style="background:${COLORS[p.color] || '#888'}"></span>${esc(p.name)}${p.isHost ? ' <span class="pill">you</span>' : ''}${p.referee ? ' <span class="pill">referee</span>' : ''}</td>
+      <td>${p.disconnected ? '<span class="pill bad">left</span>' : p.dead ? '<span class="pill">dead</span>' : '<span class="pill ok">here</span>'}</td>
+      <td>${p.discordId ? esc(p.discordName || p.discordId) : '<span class="muted">not linked</span>'}</td>
+      <td><div class="row" style="justify-content:flex-end">${p.discordId
+        ? `<button class="b" data-unlink="${esc(p.colorName)}">Unlink</button>`
+        : `<input data-link-input="${esc(p.colorName)}" placeholder="Discord ID or name" style="width:170px"><button class="b" data-link="${esc(p.colorName)}">Link</button>`}</div></td></tr>`).join('')
+    : '<tr><td colspan="4" class="empty">Nobody in the lobby yet.</td></tr>';
+  $('players').querySelectorAll('[data-link]').forEach(b => b.onclick = () => {
+    const v = $('players').querySelector(`[data-link-input="${b.dataset.link}"]`).value.trim(); if (v) cmd(`link ${b.dataset.link} ${v}`);
+  });
+  $('players').querySelectorAll('[data-unlink]').forEach(b => b.onclick = () => cmd(`unlink ${b.dataset.unlink}`));
+}
+
+// ---- Automute ----------------------------------------------------------------------------
+function renderMute() {
+  const st = S.status;
+  $('mute-offline').hidden = !!st;
+  $('mute-off').hidden = !st || st.autoMute.configured;
+  $('mute-live').hidden = !st || !st.autoMute.configured;
+  if (!st || !st.autoMute.configured) return;
+  const a = st.autoMute;
+  onOff($('m-enabled'), a.enabled, 'automute');
+  onOff($('m-ref'), a.refereeMode, 'ref');
+  onOff($('m-spec'), a.muteSpectators, 'spectators');
+  const linked = st.players.filter(p => p.discordId).length;
+  $('mute-voice').textContent = `${a.voiceConnected ? 'Connected to Discord voice' : 'Not connected to Discord voice yet'} · ${linked} of ${st.players.length} players linked`;
+}
+
+// ---- Setup code ----------------------------------------------------------------------------
+$('code-save').addEventListener('click', async () => {
+  const r = await api('POST', '/app/setup', { code: $('code').value });
+  const n = $('code-result'); n.hidden = false; n.textContent = r.message; n.className = 'note ' + (r.ok ? 'good' : 'bad');
+  if (r.ok) $('code').value = '';
+  refresh();
+});
+$('code-clear').addEventListener('click', async () => { const r = await api('POST', '/app/setup/clear'); toast(r.message); refresh(); });
+
+const RULES = [['Impostor', [['kill','Kill (each)'],['firstBlood','First blood'],['votedCrewmateOut','Voted a crewmate out (each)'],['impostorSabotageWin','Sabotage win'],['impostorVoteWin','Vote win'],['impostorKillWin','Kill win'],['impostorTaskLoss','Lost to tasks'],['impostorVoteLoss','Lost to vote'],['votedOutFirst','Voted out first'],['votedOutLast','Voted out later']]],
+  ['Crewmate', [['crewTaskWin','Task win'],['crewVoteWin','Vote win'],['crewSabotageLossAlive','Alive at a sabotage loss'],['crewOtherLoss','Any other loss'],['correctVoteOut','Correct vote out (each)'],['incorrectVoteOut','Incorrect vote out (each)'],['caughtKiller','Caught and voted out killer'],['readVotePoints','Read on an impostor (each)'],['readVoteBonus','Reads bonus (up to)'],['taskPercentBonus','Task % bonus (up to)'],['longTaskWeight','Long task counts as'],['diedFirstShareOfCrewAverage','Died first: share of crew average']]]];
+const SETTINGS = [['impostors','Impostors'],['killCooldown','Kill cooldown (s)'],['killDistance','Kill distance',v => ['Short','Medium','Long'][v] ?? v],['playerSpeed','Player speed'],['crewmateVision','Crewmate vision'],['impostorVision','Impostor vision'],
+  ['emergencyMeetings','Emergency meetings'],['emergencyCooldown','Emergency cooldown (s)'],['discussionTime','Discussion (s)'],['votingTime','Voting (s)'],['confirmEjects','Confirm ejects',b],['anonymousVotes','Anonymous votes',b],['visualTasks','Visual tasks',b],
+  ['commonTasks','Common tasks'],['longTasks','Long tasks'],['shortTasks','Short tasks'],['rolesOff','Special roles',v => v ? 'All off' : 'Allowed']];
+function b(v) { return v ? 'On' : 'Off'; }
+let setupKey = '';
+function renderSetup() {
+  const s = S.setup, key = JSON.stringify(s);
+  if (key === setupKey) return;
+  setupKey = key;
+  if (!s) { $('setup-view').innerHTML = '<div class="card empty">No setup code: the mod uses its settings file.</div>'; return; }
+  if (s.error) { $('setup-view').innerHTML = `<p class="note bad">${esc(s.error)}</p>`; return; }
+  const info = [['Kind', s.kind], ['Tournament', s.tournamentName], ['Tournament ID', s.tournamentId], s.server && ['Server', s.server],
+    s.kind !== 'Preliminary' && ['Bots', s.bots ? `${s.bots} (automute on)` : 'none'], s.resultsChannelId && ['Results channel', s.resultsChannelId],
+    s.advanceCount && ['Move on per lobby', s.advanceCount], s.gamesPerRound && ['Games per round', s.gamesPerRound],
+    ['Impostor rotation', s.rotation ? 'On' : 'Off'], s.kind !== 'Preliminary' && ['Lead lobby', s.lead ? 'Yes' : 'No']].filter(Boolean);
+  const settings = s.settings ? SETTINGS.filter(([k]) => s.settings[k] != null).map(([k, l, f]) => `<tr><td>${l}</td><td style="text-align:right">${esc(f ? f(s.settings[k]) : s.settings[k])}</td></tr>`).join('') : '';
+  const scoring = RULES.map(([g, list]) => `<tr><th colspan="2">${g}</th></tr>` + list.map(([k, l]) => `<tr><td>${l}</td><td style="text-align:right;font-variant-numeric:tabular-nums">${s.scoring[k] > 0 && !/Weight|Share/.test(k) ? '+' : ''}${esc(s.scoring[k])}</td></tr>`).join('')).join('');
+  $('setup-view').innerHTML = `<div class="grid2">
+    <div class="card"><h2>${esc(s.description)}</h2><dl class="kv">${info.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl></div>
+    <div class="card"><h2>Lobby settings${s.settings ? ' (locked)' : ''}</h2>${settings ? `<table>${settings}</table>` : '<p class="muted">This code doesn\'t lock any settings.</p>'}</div>
+  </div><div class="card"><h2>Point values</h2><div class="tablewrap"><table>${scoring}</table></div></div>`;
+}
+
+// ---- Replays -------------------------------------------------------------------------------
+async function loadReplays() {
+  const list = await api('GET', '/app/replays');
+  $('replay-list').innerHTML = list.length ? list.map(r => `<tr><td><b>Game ${esc(r.label)}</b>${r.downloaded ? ' <span class="pill">downloaded</span>' : ''}</td>
+    <td>${new Date(r.when).toLocaleString()}</td><td>${(r.size / 1048576).toFixed(1)} MB</td>
+    <td style="text-align:right"><button class="b primary" data-watch="${esc(r.name)}">Watch</button></td></tr>`).join('')
+    : '<tr><td colspan="4" class="empty">No replays yet. They appear after the first recorded game.</td></tr>';
+  $('replay-list').querySelectorAll('[data-watch]').forEach(btn => btn.onclick = () =>
+    window.open('/viewer?src=' + encodeURIComponent(`/app/replay?name=${encodeURIComponent(btn.dataset.watch)}&token=${TOKEN}`), '_blank'));
+}
+
+// ---- Activity ------------------------------------------------------------------------------
+async function pollLog() {
+  try {
+    const a = await api('GET', '/app/activity?since=' + lastLog);
+    if (a.last < lastLog) lastLog = 0;              // the game restarted
+    if (a.lines && a.lines.length) {
+      const log = $('log');
+      if (lastLog === 0) log.innerHTML = '';
+      const atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 20;
+      for (const l of a.lines) {
+        const d = document.createElement('div');
+        d.innerHTML = `<span>${new Date(l.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span><div>${esc(l.text)}</div>`;
+        log.appendChild(d);
+      }
+      if (atBottom) log.scrollTop = log.scrollHeight;
+      lastLog = a.last;
+    }
+  } catch (e) { }
+}
+
+// ---- Refresh ------------------------------------------------------------------------------
+async function refresh() {
+  try { S = await api('GET', '/app/state'); } catch (e) { return; }
+  const st = S.status;
+  $('conn-dot').classList.toggle('on', !!st);
+  $('conn-text').textContent = st ? `Connected · ${st.lobby || 'Among Us'}${st.lobbyCode ? ' · ' + st.lobbyCode : ''}` : 'Among Us not running';
+  $('where').textContent = S.setup && !S.setup.error ? S.setup.description : '';
+  renderHome(); renderLobby(); renderMute(); renderSetup();
+}
+refresh(); pollLog();
+setInterval(refresh, 1500);
+setInterval(pollLog, 2000);
+</script>
+</body>
+</html>

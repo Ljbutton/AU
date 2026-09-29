@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The Tournament Tracker app, minus its window: finds Among Us, installs and updates the
+    mod, keeps the setup code, talks to the mod over its private connection, and serves the
+    app's screens (ui/) on this computer only. The Windows app shows those screens in a
+    window; everything here also runs (and is tested) on Linux.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>TournamentTracker.App</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="ui\*.html" LogicalName="ui/%(Filename)%(Extension)" />
+    <!-- The same replay viewer as docs/replay-viewer.html (and the published page). -->
+    <EmbeddedResource Include="..\..\docs\replay-viewer.html" LogicalName="ui/viewer-body.html" />
+    <InternalsVisibleTo Include="TournamentTracker.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TournamentTracker.Core\TournamentTracker.Core.csproj" />
+  </ItemGroup>
+</Project>

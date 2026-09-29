@@ -15,7 +15,7 @@ namespace TournamentTracker.Plugin
     public sealed class TournamentPlugin : BasePlugin
     {
         public const string Id = "com.ljbutton.tournamenttracker";
-        public const string Version = "1.0.0";
+        public const string Version = "1.2.0";
 
         internal static TournamentSession Session = null!;
         internal static ILog Logger = NullLog.Instance;

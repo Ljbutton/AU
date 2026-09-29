@@ -1,148 +1,40 @@
-# Tournament Tracker installer. Finds Among Us (Steam or Epic), downloads the mod with
-# BepInEx, and installs both into the game folder. Safe to run again to update: settings,
-# links and stats are never touched.
+# Tournament Tracker installer. Installs the Tournament Tracker app for this Windows user
+# (no admin needed), adds Start menu and desktop shortcuts, and opens it. The app then finds
+# Among Us, installs and updates the mod, and takes the setup code. Safe to run again: it
+# replaces the app with the newest one.
 #
 # Works in Windows PowerShell 5.1 (what the .bat starts), so no PowerShell 7 syntax.
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'   # makes Invoke-WebRequest much faster in 5.1
-$DownloadUrl = if ($env:TT_DOWNLOAD_URL) { $env:TT_DOWNLOAD_URL } else { 'https://github.com/Ljbutton/AU/releases/latest/download/TournamentTracker-Full.zip' }
-
-# Joins path parts. Unlike Join-Path, it doesn't fail when the drive doesn't exist.
-function Join-Parts([string[]]$parts) {
-    return [IO.Path]::Combine([string[]]$parts)
-}
+$AppUrl = if ($env:TT_APP_URL) { $env:TT_APP_URL } else { 'https://github.com/Ljbutton/AU/releases/latest/download/TournamentTracker.exe' }
+$AppName = 'Tournament Tracker'
 
 function Write-Step([string]$text) { Write-Host ''; Write-Host "  $text" -ForegroundColor Cyan }
 function Write-Ok([string]$text) { Write-Host "  $text" -ForegroundColor Green }
-function Write-Problem([string]$text) { Write-Host "  $text" -ForegroundColor Yellow }
 
-# Test-Path, but a path on a drive that doesn't exist is just "not there" instead of an error.
-function Test-Exists([string]$path) {
-    try { return [bool]($path -and (Test-Path -LiteralPath $path)) } catch { return $false }
+function Get-InstallDir {
+    $base = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { [IO.Path]::GetTempPath() }
+    return [IO.Path]::Combine($base, 'Programs', 'TournamentTracker')
 }
 
-function Test-AmongUsFolder([string]$path) {
-    return $path -and (Test-Exists (Join-Parts @($path, 'Among Us.exe')))
+# Puts the app in place, replacing an older copy (closing it first if it's open).
+function Install-App([string]$exe, [string]$dir) {
+    Get-Process -Name 'TournamentTracker' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 300
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    $target = [IO.Path]::Combine($dir, 'TournamentTracker.exe')
+    Copy-Item -LiteralPath $exe -Destination $target -Force
+    return $target
 }
 
-# Steam keeps a list of its library folders in libraryfolders.vdf.
-function Get-SteamLibraries([string]$steamPath) {
-    $libraries = @()
-    if (-not $steamPath) { return $libraries }
-    $libraries += $steamPath
-    $vdf = Join-Parts @($steamPath, 'steamapps', 'libraryfolders.vdf')
-    if (Test-Exists $vdf) {
-        foreach ($m in [regex]::Matches((Get-Content -Raw -LiteralPath $vdf), '"path"\s+"([^"]+)"')) {
-            $libraries += ($m.Groups[1].Value -replace '\\\\', '\')
-        }
-    }
-    return $libraries | Select-Object -Unique
-}
-
-# Epic writes one JSON manifest per installed game.
-function Get-EpicInstalls([string]$manifestDir) {
-    $found = @()
-    if (-not (Test-Exists $manifestDir)) { return $found }
-    foreach ($file in Get-ChildItem -LiteralPath $manifestDir -Filter '*.item' -ErrorAction SilentlyContinue) {
-        try {
-            $item = Get-Content -Raw -LiteralPath $file.FullName | ConvertFrom-Json
-            if ($item.DisplayName -like 'Among Us*' -and $item.InstallLocation) { $found += $item.InstallLocation }
-        } catch { }
-    }
-    return $found
-}
-
-function Find-AmongUs {
-    $candidates = @()
-    $steamPath = $null
-    try { $steamPath = (Get-ItemProperty -Path 'HKCU:\Software\Valve\Steam' -ErrorAction Stop).SteamPath } catch { }
-    foreach ($lib in Get-SteamLibraries $steamPath) {
-        $candidates += [pscustomobject]@{ Store = 'Steam'; Path = (Join-Parts @($lib, 'steamapps', 'common', 'Among Us')) }
-    }
-    foreach ($path in Get-EpicInstalls 'C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests') {
-        $candidates += [pscustomobject]@{ Store = 'Epic Games'; Path = $path }
-    }
-    foreach ($path in @('C:\Program Files (x86)\Steam\steamapps\common\Among Us', 'C:\Program Files\Epic Games\AmongUs')) {
-        $candidates += [pscustomobject]@{ Store = 'Found'; Path = $path }
-    }
-    $seen = @{}
-    return @($candidates | Where-Object { (Test-AmongUsFolder $_.Path) -and -not $seen.ContainsKey($_.Path.ToLower()) -and ($seen[$_.Path.ToLower()] = $true) })
-}
-
-function Test-XboxInstall {
-    if (Test-Exists 'C:\XboxGames\Among Us') { return $true }
-    try { return [bool](Get-ChildItem 'C:\Program Files\WindowsApps' -Filter 'Innersloth.AmongUs*' -ErrorAction SilentlyContinue) } catch { return $false }
-}
-
-function Select-FolderByHand {
-    Write-Problem "Couldn't find Among Us automatically. Pick the folder that contains 'Among Us.exe'."
-    Write-Host '  (In Steam: right-click Among Us > Manage > Browse local files.)'
-    try {
-        Add-Type -AssemblyName System.Windows.Forms
-        $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
-        $dialog.Description = "Select the Among Us folder (the one with 'Among Us.exe' in it)"
-        if ($dialog.ShowDialog() -eq 'OK') { return $dialog.SelectedPath }
-    } catch {
-        return (Read-Host '  Paste the folder path')
-    }
-    return $null
-}
-
-# Copies the extracted bundle into the game folder. Existing settings, links and stats live
-# in BepInEx\config, which the bundle never contains, so they survive an update.
-function Install-Bundle([string]$bundleDir, [string]$gameDir) {
-    foreach ($item in Get-ChildItem -LiteralPath $bundleDir -Force) {
-        Copy-Item -LiteralPath $item.FullName -Destination $gameDir -Recurse -Force
-    }
-    return (Test-Path -LiteralPath (Join-Parts @($gameDir, 'BepInEx', 'plugins', 'TournamentTracker.dll'))) -and
-           (Test-Path -LiteralPath (Join-Parts @($gameDir, 'winhttp.dll')))
-}
-
-# Reads a setup code (TT1-...) far enough to show what it's for. Returns $null if it isn't one.
-function Read-SetupCode([string]$text) {
-    $t = ($text -replace '\s', '')
-    $i = $t.IndexOf('TT1-')
-    if ($i -lt 0) { return $null }
-    $body = $t.Substring($i + 4).Replace('-', '+').Replace('_', '/')
-    while ($body.Length % 4 -ne 0) { $body += '=' }
-    try {
-        $json = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($body)) | ConvertFrom-Json
-        if (-not $json.n -or -not $json.wh) { return $null }
-        $mode = if ($json.m -eq 'tournament') { 'tournament host' } else { 'preliminary' }
-        $where = if ($json.srv) { " in $($json.srv)" } else { '' }
-        return [pscustomobject]@{ Code = $t.Substring($i); Description = "$($json.n) ($mode$where)" }
-    } catch {
-        return $null
-    }
-}
-
-# Asks for the organiser's setup code and saves it where the mod reads it.
-function Set-SetupCode([string]$gameDir) {
-    $dir = Join-Parts @($gameDir, 'BepInEx', 'config', 'TournamentTracker')
-    $file = Join-Parts @($dir, 'setup-code.txt')
-    $current = if (Test-Exists $file) { Read-SetupCode (Get-Content -Raw -LiteralPath $file) } else { $null }
-
-    Write-Step 'Setup code'
-    if ($current) {
-        Write-Host "  Current setup: $($current.Description)"
-        Write-Host '  Paste a new code to replace it, or just press Enter to keep it.'
-    } else {
-        Write-Host '  Paste the setup code the organiser gave you (it starts with TT1-),'
-        Write-Host '  then press Enter. No code? Just press Enter.'
-    }
-    while ($true) {
-        $text = Read-Host '  Code'
-        if (-not $text -or -not $text.Trim()) { return $current }
-        $code = Read-SetupCode $text
-        if ($code) {
-            New-Item -ItemType Directory -Path $dir -Force | Out-Null
-            Set-Content -LiteralPath $file -Value $code.Code -Encoding ASCII
-            Write-Ok "Set up for: $($code.Description)"
-            return $code
-        }
-        Write-Problem "That doesn't look like a setup code. Copy the whole code (it starts with TT1-) and paste it again, or press Enter to skip."
-    }
+function New-Shortcut([string]$path, [string]$target) {
+    $shell = New-Object -ComObject WScript.Shell
+    $link = $shell.CreateShortcut($path)
+    $link.TargetPath = $target
+    $link.WorkingDirectory = [IO.Path]::GetDirectoryName($target)
+    $link.Description = 'Among Us tournament stats, automute and replays'
+    $link.Save()
 }
 
 function Invoke-Installer {
@@ -152,70 +44,30 @@ function Invoke-Installer {
     Write-Host '  ============================================' -ForegroundColor Magenta
     Write-Host '  Only the lobby host needs this.'
 
-    Write-Step 'Looking for Among Us...'
-    $found = Find-AmongUs
-    $gameDir = $null
-    if ($found.Count -eq 1) {
-        $gameDir = $found[0].Path
-        Write-Ok "Found it ($($found[0].Store)): $gameDir"
-    } elseif ($found.Count -gt 1) {
-        for ($i = 0; $i -lt $found.Count; $i++) { Write-Host "   [$($i + 1)] $($found[$i].Store): $($found[$i].Path)" }
-        $pick = Read-Host '  Which one? Type the number'
-        $gameDir = $found[[int]$pick - 1].Path
-    } else {
-        if (Test-XboxInstall) {
-            Write-Problem 'Among Us from the Xbox app / Game Pass can''t be modded.'
-            Write-Problem 'The host needs the Steam or Epic Games version.'
-        }
-        $gameDir = Select-FolderByHand
-    }
-    if (-not (Test-AmongUsFolder $gameDir)) {
-        throw "That folder doesn't contain 'Among Us.exe'. Run the installer again and pick the Among Us folder."
-    }
-
-    $running = Get-Process -Name 'Among Us' -ErrorAction SilentlyContinue
-    if ($running) {
-        Write-Problem 'Among Us is running. It has to be closed to install.'
-        Read-Host '  Close the game, then press Enter' | Out-Null
-        if (Get-Process -Name 'Among Us' -ErrorAction SilentlyContinue) { throw 'Among Us is still running. Close it and run the installer again.' }
-    }
-
-    $existing = @(Get-ChildItem -LiteralPath (Join-Parts @($gameDir, 'BepInEx', 'plugins')) -Filter '*.dll' -Recurse -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -ne 'TournamentTracker.dll' })
-    if ($existing.Count -gt 0) {
-        Write-Problem "Other mods are installed ($($existing.Name -join ', ')). They'll stay, but mods built for a different BepInEx version may stop working."
-    }
-
-    Write-Step 'Downloading the mod...'
-    $temp = Join-Path ([IO.Path]::GetTempPath()) ('tt-install-' + [guid]::NewGuid().ToString('N'))
-    New-Item -ItemType Directory -Path $temp | Out-Null
+    Write-Step 'Downloading the Tournament Tracker app...'
+    $temp = [IO.Path]::Combine([IO.Path]::GetTempPath(), 'tt-app-' + [guid]::NewGuid().ToString('N') + '.exe')
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Invoke-WebRequest -Uri $AppUrl -OutFile $temp -UseBasicParsing
     try {
-        $zip = Join-Path $temp 'bundle.zip'
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -Uri $DownloadUrl -OutFile $zip -UseBasicParsing
         Write-Step 'Installing...'
-        Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $temp 'bundle') -Force
-        if (-not (Install-Bundle (Join-Path $temp 'bundle') $gameDir)) { throw 'The files didn''t copy. Is the game folder read-only?' }
+        $exe = Install-App $temp (Get-InstallDir)
     } finally {
-        Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue
     }
 
-    Write-Ok 'Mod installed.'
-    $setup = Set-SetupCode $gameDir
-
-    Write-Host ''
-    Write-Ok 'All done!'
-    Write-Host ''
-    Write-Host '  Next: start Among Us and host a lobby. The FIRST start takes a few minutes:'
-    Write-Host '  a black console window appears while the mod loader sets itself up. That only'
-    Write-Host '  happens once.'
-    if (-not $setup) {
-        Write-Host ''
-        Write-Host '  No setup code yet. When you get one, copy it and type !setup in the lobby chat,'
-        Write-Host '  or run this installer again.'
+    try {
+        New-Shortcut ([IO.Path]::Combine([Environment]::GetFolderPath('Programs'), "$AppName.lnk")) $exe
+        New-Shortcut ([IO.Path]::Combine([Environment]::GetFolderPath('Desktop'), "$AppName.lnk")) $exe
+        Write-Ok 'Added it to the Start menu and the desktop.'
+    } catch {
+        Write-Host "  (Couldn't add shortcuts: $($_.Exception.Message). The app is at $exe)"
     }
+
+    Write-Ok 'Installed. Opening Tournament Tracker...'
     Write-Host ''
-    Write-Host '  To update later, run this installer again. Your setup and stats are kept.'
+    Write-Host '  In the app: install the mod into Among Us, paste your setup code, then start'
+    Write-Host '  Among Us. Everything is done from the app; nothing is typed in the game chat.'
+    Start-Process -FilePath $exe
 }
 
 if ($env:TT_INSTALLER_TEST -ne '1') {
