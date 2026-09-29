@@ -28,6 +28,19 @@ namespace TournamentTracker
         private bool _statusClosed = true;
         private DateTime _statusNextSend;
 
+        // The bot posts the live status itself when it can, so it can carry the colour menu
+        // (webhook messages can't have menus). Null until the webhook's channel is looked up.
+        private bool? _statusByBot;
+        private string? _statusChannel;
+        private bool _statusIdByBot;
+        private readonly string _linkMenuId = "tt-link:" + Guid.NewGuid().ToString("N").Substring(0, 12);
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<int, string> _crewEmojis = new System.Collections.Concurrent.ConcurrentDictionary<int, string>();
+
+        /// <summary>The ID of this lobby's colour menu in the live status.</summary>
+        public string LinkMenuId => _linkMenuId;
+
+        private bool LinkMenuWanted => _settings.AutoMute.IsConfigured && _settings.AutoMute.LinkMenu && _statusByBot != false;
+
         /// <summary>Called a few times a second with the current phase and players.</summary>
         public void VoiceTick(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, string lobbyCode = "", string map = "")
         {
@@ -180,6 +193,8 @@ namespace TournamentTracker
                 RefereeMode = AutoMute != null && AutoMute.Enabled && AutoMute.RefereeMode,
                 CommandPrefix = _settings.CommandPrefix,
                 Referee = RefSlotKey == null ? null : players.FirstOrDefault(p => p.Key == RefSlotKey),
+                Emojis = _crewEmojis,
+                LinkMenuId = LinkMenuWanted ? _linkMenuId : null,
                 Players = WithoutReferee(players).Where(p => !p.Disconnected).Select(p => new StatusPlayer
                 {
                     Player = p,
@@ -250,23 +265,70 @@ namespace TournamentTracker
 
                     try
                     {
-                        if (repost && id != null)
+                        string? token = _settings.AutoMute.BotTokens.FirstOrDefault();
+                        bool byBot = false;
+                        if (token != null && _settings.AutoMute.IsConfigured && _settings.AutoMute.LinkMenu && _statusByBot != false)
                         {
-                            await _rest.DeleteWebhookMessageAsync(url, id).ConfigureAwait(false);
-                            id = null;
+                            if (_statusByBot == null)
+                            {
+                                _statusChannel = await _rest.WebhookChannelAsync(url).ConfigureAwait(false);
+                                _statusByBot = _statusChannel != null;
+                                if (_statusChannel == null) _log.Warn("Couldn't find the live status channel from its webhook; it stays a webhook message, without the colour menu.");
+                            }
+                            byBot = _statusByBot == true;
                         }
-                        if (id != null)
+                        if (id != null && _statusIdByBot != byBot) id = null;   // switched senders: start a new message
+
+                        if (byBot)
                         {
-                            var edit = await _rest.EditWebhookMessageAsync(url, id, message).ConfigureAwait(false);
-                            if (edit.Status == 404) id = null;      // someone deleted it; post a new one
-                            else if (!edit.Ok) _log.Warn("Could not update the live status: " + edit);
+                            string channel = _statusChannel!;
+                            if (repost && id != null)
+                            {
+                                await _rest.DeleteMessageAsync(token!, channel, id).ConfigureAwait(false);
+                                id = null;
+                            }
+                            if (id != null)
+                            {
+                                var edit = await _rest.EditEmbedsAsync(token!, channel, id, message).ConfigureAwait(false);
+                                if (edit.Status == 404) id = null;
+                                else if (!edit.Ok) _log.Warn("Could not update the live status: " + edit);
+                            }
+                            if (id == null)
+                            {
+                                var created = await _rest.PostEmbedsAsync(token!, channel, message).ConfigureAwait(false);
+                                if (created.Ok) id = DiscordRest.MessageIdOf(created);
+                                else if (created.Status == 403 || created.Status == 401)
+                                {
+                                    // The bot can't post there: back to the webhook, without the menu.
+                                    _log.Warn("The bot can't post in the live status channel, so the colour menu is off. Give it Send Messages there to turn it on.");
+                                    _statusByBot = false;
+                                    byBot = false;          // the next tick rebuilds the status without the menu
+                                }
+                                else _log.Warn("Could not post the live status: " + created);
+                            }
                         }
-                        if (id == null)
+                        if (!byBot)
                         {
-                            var created = await _rest.ExecuteWebhookAsync(url, message).ConfigureAwait(false);
-                            if (created.Ok) id = DiscordRest.MessageIdOf(created);
-                            else _log.Warn("Could not post the live status: " + created);
+                            var plain = message.Components == null ? message : new WebhookMessage { Username = message.Username, Content = message.Content, Embeds = message.Embeds, AllowedMentions = message.AllowedMentions };
+                            if (repost && id != null)
+                            {
+                                await _rest.DeleteWebhookMessageAsync(url, id).ConfigureAwait(false);
+                                id = null;
+                            }
+                            if (id != null)
+                            {
+                                var edit = await _rest.EditWebhookMessageAsync(url, id, plain).ConfigureAwait(false);
+                                if (edit.Status == 404) id = null;      // someone deleted it; post a new one
+                                else if (!edit.Ok) _log.Warn("Could not update the live status: " + edit);
+                            }
+                            if (id == null)
+                            {
+                                var created = await _rest.ExecuteWebhookAsync(url, plain).ConfigureAwait(false);
+                                if (created.Ok) id = DiscordRest.MessageIdOf(created);
+                                else _log.Warn("Could not post the live status: " + created);
+                            }
                         }
+                        _statusIdByBot = byBot;
                     }
                     finally
                     {

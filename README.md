@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.4**, a beta.
+The current release is **v0.1.5**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -332,6 +332,13 @@ colour changes, and they're saved in `BepInEx/config/TournamentTracker/links.jso
   when they're in the lobby's voice channel; a name works from anywhere. With several
   lobbies running, the lobby that has that player (or that voice channel) answers.
 * **`/unlink`** removes their link (and stops auto-link from linking them again that session).
+* **The colour menu:** when the host has a bot (every tournament host code does), the bot
+  posts the live status message itself, with each player's crewmate head and a
+  "Select your in-game colour" menu under it, like AutoMuteUs. Picking a colour links whoever
+  picked it (only they see the answer); "Unlink me" at the bottom undoes it. The crewmate
+  heads are uploaded as the bot's own emojis the first time it connects. The bot needs Send
+  Messages in the status channel; without it the status stays a webhook message without the
+  menu. `LinkMenu = false` turns the menu off.
 * If no open lobby can match the name (the player isn't in the Among Us lobby yet, or used a
   colour from outside the lobby's voice channel), they're told why instead of getting no
   answer. `/link` only works while a host has Among Us open, since the host's game is the bot.
@@ -453,6 +460,7 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | AutoMute | `VoiceChannelId` | | Empty = where most linked players are |
 | AutoMute | `SpectatorExemptUserIds` | | Comma separated |
 | AutoMute | `AutoLinkByName` | true | |
+| AutoMute | `LinkMenu` | true | The bot posts the live status with a colour menu for linking |
 | AutoMute | `RefereeUserIds` | | Who else can talk in referee mode, comma separated |
 | Scoring | *(see below)* | | Every point value on the tournament sheet |
 

@@ -30,6 +30,12 @@ namespace TournamentTracker.Discord
         /// <summary>The referee ghost slot's player, shown apart from the players.</summary>
         public PlayerSnapshot? Referee { get; set; }
         public string CommandPrefix { get; set; } = "!";
+
+        /// <summary>The bot's crewmate-head emoji IDs by colour, when it has them.</summary>
+        public IReadOnlyDictionary<int, string>? Emojis { get; set; }
+
+        /// <summary>Adds the "pick your colour" menu with this ID (only when the bot posts the message).</summary>
+        public string? LinkMenuId { get; set; }
     }
 
     /// <summary>The live lobby message: who's playing, who they are on Discord, and what phase the game is in.</summary>
@@ -59,6 +65,7 @@ namespace TournamentTracker.Discord
                 foreach (var p in s.Players.OrderBy(p => p.Player.ColorId))
                 {
                     string who = $"**{Colors.Name(p.Player.ColorId)}** {Escape(p.Player.Name)}";
+                    if (EmojiId(s, p.Player.ColorId) is string emoji) who = $"<:{EmojiName(p.Player.ColorId)}:{emoji}> {who}";
                     if (p.KnownDead) who = $"💀 ~~{who}~~";
                     string discord = p.DiscordUserId != null ? $"<@{p.DiscordUserId}>" : "*not linked*";
                     sb.Append(who).Append(" · ").AppendLine(discord);
@@ -79,7 +86,9 @@ namespace TournamentTracker.Discord
             var footer = new List<string>();
             if (s.AutoMuteOn.HasValue) footer.Add($"Automute {(s.AutoMuteOn.Value ? "on" : "OFF")}");
             if (s.Players.Count > 0) footer.Add($"{linked}/{s.Players.Count} linked");
-            if (s.Phase != VoicePhase.Menu && linked < s.Players.Count) footer.Add("Not linked? Type /link and your in-game name or colour");
+            bool menu = s.LinkMenuId != null && s.Phase != VoicePhase.Menu && s.Players.Count > 0;
+            if (s.Phase != VoicePhase.Menu && linked < s.Players.Count)
+                footer.Add(menu ? "Not linked? Pick your colour below (or type /link)" : "Not linked? Type /link and your in-game name or colour");
 
             return new WebhookMessage
             {
@@ -92,6 +101,45 @@ namespace TournamentTracker.Discord
                         Color = Color(s.Phase),
                         Description = ReportFormatter.Clip(sb.ToString().TrimEnd(), Embed.DescriptionLimit),
                         Footer = footer.Count > 0 ? new EmbedFooter { Text = string.Join(" · ", footer) } : null,
+                    },
+                },
+                Components = menu ? LinkMenu(s) : null,
+            };
+        }
+
+        /// <summary>The emoji name for a colour's crewmate head, e.g. "tt_red".</summary>
+        public static string EmojiName(int colorId) => "tt_" + Colors.Name(colorId).ToLowerInvariant();
+
+        private static string? EmojiId(StatusInfo s, int colorId) =>
+            s.Emojis != null && s.Emojis.TryGetValue(colorId, out var id) && id.Length > 0 ? id : null;
+
+        /// <summary>
+        /// A menu of the lobby's colours, like AutoMuteUs: picking one links whoever clicked to
+        /// that player. The last option unlinks them.
+        /// </summary>
+        private static List<object> LinkMenu(StatusInfo s)
+        {
+            var options = s.Players.OrderBy(p => p.Player.ColorId).Take(24).Select(p =>
+            {
+                string name = p.Player.Name.Length > 60 ? p.Player.Name.Substring(0, 60) : p.Player.Name;
+                var option = new Dictionary<string, object>
+                {
+                    ["label"] = Colors.Name(p.Player.ColorId),
+                    ["value"] = p.Player.ColorId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["description"] = name + (p.DiscordUserId != null ? " · linked" : ""),
+                };
+                if (EmojiId(s, p.Player.ColorId) is string emoji) option["emoji"] = new { id = emoji, name = EmojiName(p.Player.ColorId) };
+                return (object)option;
+            }).ToList();
+            options.Add(new Dictionary<string, object> { ["label"] = "Unlink me", ["value"] = "unlink", ["description"] = "Remove your link in this lobby", ["emoji"] = new { name = "✖️" } });
+            return new List<object>
+            {
+                new
+                {
+                    type = 1,
+                    components = new object[]
+                    {
+                        new { type = 3, custom_id = s.LinkMenuId, placeholder = "Select your in-game colour", min_values = 1, max_values = 1, options },
                     },
                 },
             };

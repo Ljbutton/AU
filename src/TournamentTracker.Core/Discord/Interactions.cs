@@ -27,23 +27,34 @@ namespace TournamentTracker.Discord
         /// <summary>A referee or organiser: someone who can mute members in the server.</summary>
         public bool IsStaff => (Permissions & (MuteMembers | Administrator)) != 0;
 
+        /// <summary>A menu pick (the menu's custom_id); Command is then "menu".</summary>
+        public string CustomId { get; set; } = "";
+
+        /// <summary>What was picked in a menu.</summary>
+        public List<string> Values { get; set; } = new List<string>();
+
         public string? Option(string name) => Options.TryGetValue(name, out var v) && v.Length > 0 ? v : null;
 
-        /// <summary>Reads an INTERACTION_CREATE payload. Null when it isn't a slash command in a server.</summary>
+        /// <summary>Reads an INTERACTION_CREATE payload: a slash command or a menu pick, in a server. Null otherwise.</summary>
         public static Interaction? Parse(JsonElement d)
         {
-            if (Int(d, "type") != 2 || !d.TryGetProperty("data", out var data)) return null;
+            int type = Int(d, "type");
+            if ((type != 2 && type != 3) || !d.TryGetProperty("data", out var data)) return null;
             if (!d.TryGetProperty("member", out var member) || !member.TryGetProperty("user", out var user)) return null;
             var i = new Interaction
             {
                 Id = Str(d, "id") ?? "",
                 Token = Str(d, "token") ?? "",
                 GuildId = Str(d, "guild_id") ?? "",
-                Command = (Str(data, "name") ?? "").ToLowerInvariant(),
+                Command = type == 3 ? "menu" : (Str(data, "name") ?? "").ToLowerInvariant(),
+                CustomId = type == 3 ? Str(data, "custom_id") ?? "" : "",
                 UserId = Str(user, "id") ?? "",
                 UserName = Str(member, "nick") ?? Str(user, "global_name") ?? Str(user, "username") ?? "",
             };
             if (ulong.TryParse(Str(member, "permissions"), out var perms)) i.Permissions = perms;
+            if (data.TryGetProperty("values", out var values) && values.ValueKind == JsonValueKind.Array)
+                foreach (var v in values.EnumerateArray())
+                    if (v.ValueKind == JsonValueKind.String) i.Values.Add(v.GetString() ?? "");
             if (data.TryGetProperty("options", out var options) && options.ValueKind == JsonValueKind.Array)
                 foreach (var o in options.EnumerateArray())
                     if (Str(o, "name") is string name && o.TryGetProperty("value", out var v))

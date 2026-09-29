@@ -27,14 +27,50 @@ namespace TournamentTracker
                     if (!result.Ok) _log.Warn("Couldn't add /link to the Discord server: " + $"{result.Status} {result.Body}");
                 }
                 catch (Exception e) { _log.Warn("Couldn't add /link to the Discord server: " + e.Message); }
+                try { await LoadCrewEmojisAsync(token, app).ConfigureAwait(false); }
+                catch (Exception e) { _log.Warn("Couldn't set up the crewmate emojis: " + e.Message); }
             });
         }
 
         /// <summary>How long a lobby that can't answer waits before saying so, giving the right lobby time to answer first.</summary>
         private static readonly TimeSpan FallbackDelay = TimeSpan.FromSeconds(1.6);
 
+        /// <summary>
+        /// The crewmate heads as the bot's own emojis (uploaded the first time), for the live
+        /// status and its colour menu.
+        /// </summary>
+        private async Task LoadCrewEmojisAsync(string token, string app)
+        {
+            var have = await _rest.AppEmojisAsync(token, app).ConfigureAwait(false);
+            if (have == null) return;
+            for (int color = 0; color < 18; color++)
+            {
+                string name = StatusFormatter.EmojiName(color);
+                if (have.TryGetValue(name, out var id)) { _crewEmojis[color] = id; continue; }
+                var png = TournamentTracker.Overlay.OverlayServer.CrewHead(color);
+                if (png == null) continue;
+                var made = await _rest.CreateAppEmojiAsync(token, app, name, png).ConfigureAwait(false);
+                if (made != null) _crewEmojis[color] = made;
+            }
+        }
+
         private void OnInteraction(Interaction i)
         {
+            if (i.Command == "menu")
+            {
+                // Only this lobby's own live status message.
+                if (i.CustomId != _linkMenuId) return;
+                _mainThread.Enqueue(() =>
+                {
+                    try
+                    {
+                        string answer = HandleLinkMenu(i);
+                        Task.Run(() => _rest.RespondToInteractionAsync(i.Id, i.Token, answer));
+                    }
+                    catch (Exception e) { _log.Error("Colour menu failed: " + e.Message); }
+                });
+                return;
+            }
             if (i.Command != "link" && i.Command != "unlink") return;
             _mainThread.Enqueue(() =>
             {
@@ -59,6 +95,35 @@ namespace TournamentTracker
                 }
                 catch (Exception e) { _log.Error("/" + i.Command + " failed: " + e.Message); }
             });
+        }
+
+        /// <summary>
+        /// Someone picked a colour (or "Unlink me") in this lobby's live status. Public for tests;
+        /// normally fed by the gateway.
+        /// </summary>
+        public string HandleLinkMenu(Interaction i)
+        {
+            string value = i.Values.FirstOrDefault() ?? "";
+            if (value == "unlink")
+            {
+                var link = Links.FindByDiscordId(i.UserId);
+                if (link == null) return "You aren't linked.";
+                Links.Unlink(link.PlayerKey);
+                BlockAutoLink(link.PlayerKey);
+                RefreshStatus(force: true);
+                return $"Unlinked you from {link.PlayerName}.";
+            }
+            if (!int.TryParse(value, out int color)) return "That didn't work. Pick your colour again.";
+            var player = WithoutReferee(Players).FirstOrDefault(p => p.ColorId == color && !p.Disconnected);
+            if (player == null) return $"Nobody is {Colors.Name(color)} in the lobby now. Check your colour in Among Us and pick again.";
+            var taken = Links.Find(player.Key);
+            if (taken != null && taken.DiscordUserId == i.UserId) return $"You're already linked to {player}.";
+            if (taken != null && !i.IsStaff)
+                return $"{player} is already linked to @{taken.DiscordName}. If that's wrong, ask a referee.";
+            Links.Link(player.Key, player.Name, i.UserId, i.UserName);
+            RefreshStatus(force: true);
+            Reply($"Linked {player} to @{i.UserName}.", true, _settings.AnnounceLinks);
+            return $"Linked you to {player}. Automute will follow you from now on.";
         }
 
         /// <summary>The answer when no open lobby could handle the command.</summary>

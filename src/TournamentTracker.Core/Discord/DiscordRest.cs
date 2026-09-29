@@ -161,7 +161,7 @@ namespace TournamentTracker.Discord
         /// <summary>Posts embeds as the bot (used by the scheduled preliminary job).</summary>
         public Task<DiscordResult> PostEmbedsAsync(string botToken, string channelId, WebhookMessage message, CancellationToken ct = default)
         {
-            string json = JsonSerializer.Serialize(new { embeds = message.Embeds, allowed_mentions = new { parse = Array.Empty<string>() } }, WebhookMessage.JsonOptions);
+            string json = JsonSerializer.Serialize(new { embeds = message.Embeds, components = message.Components, allowed_mentions = new { parse = Array.Empty<string>() } }, WebhookMessage.JsonOptions);
             return SendAsync(() =>
             {
                 var req = new HttpRequestMessage(HttpMethod.Post, $"{_apiBase}/channels/{channelId}/messages") { Content = new StringContent(json, Encoding.UTF8, "application/json") };
@@ -172,13 +172,72 @@ namespace TournamentTracker.Discord
 
         public Task<DiscordResult> EditEmbedsAsync(string botToken, string channelId, string messageId, WebhookMessage message, CancellationToken ct = default)
         {
-            string json = JsonSerializer.Serialize(new { embeds = message.Embeds }, WebhookMessage.JsonOptions);
+            string json = JsonSerializer.Serialize(new { embeds = message.Embeds, components = message.Components ?? new List<object>() }, WebhookMessage.JsonOptions);
             return SendAsync(() =>
             {
                 var req = new HttpRequestMessage(new HttpMethod("PATCH"), $"{_apiBase}/channels/{channelId}/messages/{messageId}") { Content = new StringContent(json, Encoding.UTF8, "application/json") };
                 Authorize(req, botToken);
                 return req;
             }, "channel-edit:" + botToken.GetHashCode() + ":" + channelId, ct);
+        }
+
+        public Task<DiscordResult> DeleteMessageAsync(string botToken, string channelId, string messageId, CancellationToken ct = default) =>
+            SendAsync(() =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Delete, $"{_apiBase}/channels/{channelId}/messages/{messageId}");
+                Authorize(req, botToken);
+                return req;
+            }, "channel-delete:" + botToken.GetHashCode() + ":" + channelId, ct);
+
+        /// <summary>The channel a webhook posts into (the webhook URL is enough to ask). Null if Discord doesn't say.</summary>
+        public async Task<string?> WebhookChannelAsync(string webhookUrl, CancellationToken ct = default)
+        {
+            int q = webhookUrl.IndexOf('?');
+            string url = q < 0 ? webhookUrl : webhookUrl.Substring(0, q);
+            var result = await SendAsync(() => new HttpRequestMessage(HttpMethod.Get, url), "webhook-info:" + url, ct).ConfigureAwait(false);
+            if (!result.Ok) return null;
+            try
+            {
+                using var doc = JsonDocument.Parse(result.Body);
+                return doc.RootElement.TryGetProperty("channel_id", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() : null;
+            }
+            catch (JsonException) { return null; }
+        }
+
+        /// <summary>The bot's own emojis (usable in any server), by name.</summary>
+        public async Task<Dictionary<string, string>?> AppEmojisAsync(string botToken, string applicationId, CancellationToken ct = default)
+        {
+            var result = await SendAsync(() =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Get, $"{_apiBase}/applications/{applicationId}/emojis");
+                Authorize(req, botToken);
+                return req;
+            }, "app-emojis:" + applicationId, ct).ConfigureAwait(false);
+            if (!result.Ok) return null;
+            var emojis = new Dictionary<string, string>();
+            try
+            {
+                using var doc = JsonDocument.Parse(result.Body);
+                if (doc.RootElement.TryGetProperty("items", out var items))
+                    foreach (var e in items.EnumerateArray())
+                        if (e.TryGetProperty("name", out var n) && e.TryGetProperty("id", out var id))
+                            emojis[n.GetString() ?? ""] = id.GetString() ?? "";
+            }
+            catch (JsonException) { return null; }
+            return emojis;
+        }
+
+        /// <summary>Uploads a PNG as one of the bot's own emojis. Returns its ID.</summary>
+        public async Task<string?> CreateAppEmojiAsync(string botToken, string applicationId, string name, byte[] png, CancellationToken ct = default)
+        {
+            string json = JsonSerializer.Serialize(new { name, image = "data:image/png;base64," + Convert.ToBase64String(png) });
+            var result = await SendAsync(() =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post, $"{_apiBase}/applications/{applicationId}/emojis") { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+                Authorize(req, botToken);
+                return req;
+            }, "app-emojis:" + applicationId, ct).ConfigureAwait(false);
+            return result.Ok ? MessageIdOf(result) : null;
         }
 
         /// <summary>Up to 100 messages, newest first, older than <paramref name="before"/> when given.</summary>
@@ -474,6 +533,9 @@ namespace TournamentTracker.Discord
         [JsonPropertyName("username")] public string? Username { get; set; }
         [JsonPropertyName("content")] public string? Content { get; set; }
         [JsonPropertyName("embeds")] public List<Embed>? Embeds { get; set; }
+
+        /// <summary>Buttons and menus. Only messages the bot posts itself can have them (not webhooks).</summary>
+        [JsonPropertyName("components")] public List<object>? Components { get; set; }
 
         /// <summary>Stops a player named "@everyone" from pinging the server.</summary>
         [JsonPropertyName("allowed_mentions")] public AllowedMentions AllowedMentions { get; set; } = new AllowedMentions();

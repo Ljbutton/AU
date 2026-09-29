@@ -164,6 +164,9 @@ namespace TournamentTracker
         /// <summary>Link players automatically when their in-game name matches a Discord name in the voice channel.</summary>
         public bool AutoLinkByName { get; set; } = true;
 
+        /// <summary>The bot posts the live status with a "pick your colour" menu that links whoever picks.</summary>
+        public bool LinkMenu { get; set; } = true;
+
         public bool IsConfigured => Enabled && BotTokens.Count > 0 && GuildId.Length > 0;
     }
 

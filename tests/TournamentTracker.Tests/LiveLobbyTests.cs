@@ -417,12 +417,79 @@ public class LiveLobbyTests : IDisposable
         JsonDocument.Parse(r.Body).RootElement.GetProperty("embeds")[0].GetProperty("description").GetString()!;
 
     [Fact]
+    public async Task With_a_bot_the_status_has_a_colour_menu_that_links_whoever_picks()
+    {
+        _http.Default = r =>
+            r.Method == HttpMethod.Get && r.RequestUri!.AbsoluteUri == Webhook ? FakeHttp.Json(HttpStatusCode.OK, """{"channel_id":"777"}""")
+            : r.Method == HttpMethod.Post ? FakeHttp.Json(HttpStatusCode.OK, """{"id":"888"}""")
+            : FakeHttp.Json(HttpStatusCode.OK, "{}");
+        var s = Session(c => { c.LiveStatus = true; c.AutoMute.AutoLinkByName = false; });
+        s.VoiceTick(VoicePhase.Lobby, _lobby, "ABCDEF", "Polus");
+        await s.PendingPosts;
+
+        var post = _http.Requests.Single(r => r.Method == HttpMethod.Post);
+        Assert.Equal("https://discord.com/api/v10/channels/777/messages", post.Url);
+        Assert.Equal("Bot tok", post.Auth);
+        var menu = JsonDocument.Parse(post.Body).RootElement.GetProperty("components")[0].GetProperty("components")[0];
+        Assert.Equal(s.LinkMenuId, menu.GetProperty("custom_id").GetString());
+        var options = menu.GetProperty("options");
+        Assert.Equal(7, options.GetArrayLength());                                   // 6 colours and "Unlink me"
+        Assert.Equal("Red", options[0].GetProperty("label").GetString());
+        Assert.Equal("Alice", options[0].GetProperty("description").GetString());
+        Assert.Equal("unlink", options[6].GetProperty("value").GetString());
+
+        var pick = new Interaction { Command = "menu", CustomId = s.LinkMenuId, UserId = "300", UserName = "carl.au" };
+        pick.Values.Add("2");
+        Assert.Equal("Linked you to Green (Carl). Automute will follow you from now on.", s.HandleLinkMenu(pick));
+        Assert.Equal("300", s.Links.Find(_lobby[2].Key)?.DiscordUserId);
+        Assert.Contains(s.Pump(), r => r.Public && r.Text == "Linked Green (Carl) to @carl.au.");
+
+        var steal = new Interaction { Command = "menu", CustomId = s.LinkMenuId, UserId = "301", UserName = "someone" };
+        steal.Values.Add("2");
+        Assert.StartsWith("Green (Carl) is already linked to @carl.au", s.HandleLinkMenu(steal));
+        var gone = new Interaction { Command = "menu", CustomId = s.LinkMenuId, UserId = "301", UserName = "someone" };
+        gone.Values.Add("12");
+        Assert.StartsWith("Nobody is Maroon in the lobby now", s.HandleLinkMenu(gone));
+        var unlink = new Interaction { Command = "menu", CustomId = s.LinkMenuId, UserId = "300", UserName = "carl.au" };
+        unlink.Values.Add("unlink");
+        Assert.Equal("Unlinked you from Carl.", s.HandleLinkMenu(unlink));
+    }
+
+    [Fact]
+    public async Task If_the_bot_cannot_post_the_status_goes_back_to_the_webhook_without_the_menu()
+    {
+        _http.Default = r =>
+            r.Method == HttpMethod.Get ? FakeHttp.Json(HttpStatusCode.OK, """{"channel_id":"777"}""")
+            : r.RequestUri!.AbsoluteUri.Contains("/channels/") ? FakeHttp.Json(HttpStatusCode.Forbidden, """{"code":50013}""")
+            : FakeHttp.Json(HttpStatusCode.OK, """{"id":"555"}""");
+        var s = Session(c => { c.LiveStatus = true; c.AutoMute.AutoLinkByName = false; });
+        s.VoiceTick(VoicePhase.Lobby, _lobby, "ABCDEF", "Polus");
+        await s.PendingPosts;
+        _clock.Advance(3);
+        s.VoiceTick(VoicePhase.Lobby, _lobby, "ABCDEF", "Polus");
+        await s.PendingPosts;
+        var hook = _http.Requests.Last(r => r.Url.StartsWith(Webhook));
+        Assert.DoesNotContain("components", hook.Body);
+        Assert.Contains("Type /link", hook.Body);
+    }
+
+    [Fact]
+    public void Menu_picks_are_read_from_the_gateway()
+    {
+        var i = Interaction.Parse(JsonDocument.Parse("""
+            {"id":"9","token":"t","type":3,"guild_id":"g1","member":{"user":{"id":"77","username":"dee"}},
+             "data":{"component_type":3,"custom_id":"tt-link:abc","values":["4"]}}
+            """).RootElement);
+        Assert.Equal(("menu", "tt-link:abc", "4", "77"), (i!.Command, i.CustomId, i.Values[0], i.UserId));
+    }
+
+    [Fact]
     public async Task Status_is_posted_once_then_edited_in_place()
     {
         _http.Default = r => r.Method == HttpMethod.Post
             ? FakeHttp.Json(HttpStatusCode.OK, """{"id":"555"}""")
             : FakeHttp.Json(HttpStatusCode.OK, "{}");
-        var s = Session(c => { c.LiveStatus = true; c.AutoMute.AutoLinkByName = false; });
+        var s = Session(c => { c.LiveStatus = true; c.AutoMute.LinkMenu = false; c.AutoMute.AutoLinkByName = false; });
         s.Links.Link(_lobby[0].Key, "Alice", "100", "alice");
 
         s.VoiceTick(VoicePhase.Lobby, _lobby, "ABCDEF", "Polus");
@@ -470,7 +537,7 @@ public class LiveLobbyTests : IDisposable
         _http.Default = r => r.Method == HttpMethod.Post
             ? FakeHttp.Json(HttpStatusCode.OK, $$"""{"id":"{{next++}}"}""")
             : FakeHttp.Json(HttpStatusCode.OK, "{}");
-        var s = Session(c => { c.LiveStatus = true; c.AutoMute.AutoLinkByName = false; });
+        var s = Session(c => { c.LiveStatus = true; c.AutoMute.LinkMenu = false; c.AutoMute.AutoLinkByName = false; });
         s.VoiceTick(VoicePhase.Lobby, _lobby, "ABCDEF", "Polus");
         s.GameStarted("ABCDEF", "Polus", _lobby);
         s.GameEnded("HumansByTask", _lobby);
@@ -491,7 +558,7 @@ public class LiveLobbyTests : IDisposable
     {
         const string statusHook = "https://discord.test/api/webhooks/2/status?thread_id=77";
         _http.Default = r => FakeHttp.Json(HttpStatusCode.OK, """{"id":"9"}""");
-        var s = Session(c => { c.LiveStatus = true; c.StatusWebhookUrl = statusHook; c.AutoMute.AutoLinkByName = false; });
+        var s = Session(c => { c.LiveStatus = true; c.AutoMute.LinkMenu = false; c.StatusWebhookUrl = statusHook; c.AutoMute.AutoLinkByName = false; });
         s.VoiceTick(VoicePhase.Lobby, _lobby, "ABCDEF", "Polus");
         await s.PendingPosts;
         _lobby[0].Name = "Alicia";
