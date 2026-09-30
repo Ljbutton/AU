@@ -107,8 +107,8 @@ jobs:
           set -euo pipefail
           # BepInEx be.735, the build Among Us mods use, straight from BepInEx's build server.
           # The loader has to match the game: Among Us was 32-bit (win-x86) until its 29 September
-          # 2026 update made it 64-bit (win-x64). Both are shipped; The Button reads Among Us.exe
-          # and installs the matching one.
+          # 2026 update made it 64-bit (win-x64). The Button installs the 64-bit one; the 32-bit
+          # one is shipped too, for installing by hand on an older patch.
           fetch() {
             local arch=$1 out=$2 href url
             if [ -s "$out" ] && unzip -tq "$out" >/dev/null; then echo "BepInEx win-$arch from the cache"; return; fi
@@ -140,8 +140,8 @@ jobs:
             (cd "$full" && zip -qr "../TournamentTracker-Full-$arch.zip" .)
           done
           # The Button v0.1.13 and older only know this name (and need it to find their own
-          # updates), so keep it: it's the 32-bit bundle those versions expect.
-          cp dist/TournamentTracker-Full-x86.zip dist/TournamentTracker-Full.zip
+          # updates), so keep it. It's the 64-bit bundle, for the newest Among Us patch.
+          cp dist/TournamentTracker-Full-x64.zip dist/TournamentTracker-Full.zip
           # The installer: a .bat that runs the PowerShell stored after its #PS-START line.
           { cat installer/Install-TournamentTracker.header.bat; echo '#PS-START'; cat installer/install.ps1; } \
             | sed 's/$/\r/' > dist/Install-TheButton.bat
@@ -174,9 +174,9 @@ jobs:
             echo
             echo "Already have the app? It shows \"New version available\" at the top; update from Settings."
             echo
-            echo "The Button installs the mod loader that matches your Among Us: 64-bit since the game's"
-            echo "29 September 2026 update, 32-bit before it. Installing by hand? Use"
-            echo "TournamentTracker-Full-x64.zip for 64-bit Among Us, TournamentTracker-Full-x86.zip for 32-bit."
+            echo "The Button installs the 64-bit mod loader the newest Among Us needs (the game is 64-bit"
+            echo "since its 29 September 2026 update). Installing by hand? Use TournamentTracker-Full-x64.zip;"
+            echo "TournamentTracker-Full-x86.zip is only for 32-bit Among Us from before that patch."
             echo
             echo "Built from commit $GITHUB_SHA against:"
             cat dist/*/BUILT-AGAINST.txt

@@ -19,8 +19,8 @@ namespace TournamentTracker.App
         public string? GameArch { get; set; }
         /// <summary>What BepInEx's loader (winhttp.dll) is built for, or null when it isn't there.</summary>
         public string? LoaderArch { get; set; }
-        /// <summary>The loader can load in this game: it's there and built for the same bitness (an unreadable game is given the benefit of the doubt).</summary>
-        public bool LoaderMatchesGame => LoaderArch != null && LoaderArch == (GameArch ?? LoaderArch);
+        /// <summary>The loader is the one the newest Among Us needs (64-bit), whatever the game file says.</summary>
+        public bool LoaderMatchesGame => LoaderArch == ModInstaller.TargetArch;
     }
 
     public sealed class Release
@@ -41,8 +41,12 @@ namespace TournamentTracker.App
         public static string BundleName(string arch) => $"TournamentTracker-Full-{arch}.zip";
         /// <summary>The bundle's name before 64-bit Among Us (always x86). Releases keep it for older copies of The Button.</summary>
         public const string LegacyBundleName = "TournamentTracker-Full.zip";
-        /// <summary>When the game can't be read, assume today's 64-bit Among Us.</summary>
-        public const string DefaultArch = "x64";
+        /// <summary>
+        /// The loader The Button installs: 64-bit, for Among Us since its 29 September 2026 patch.
+        /// The game file's bitness is only shown, not used to choose (the 32-bit bundle stays in
+        /// releases for installing by hand).
+        /// </summary>
+        public const string TargetArch = "x64";
         public const string AppName = "TheButton.exe";
         private const string Marker = "installed.json";
         private readonly HttpClient _http;
@@ -140,8 +144,8 @@ namespace TournamentTracker.App
         {
             if (!GameLocator.IsGameFolder(gameDir)) return "That folder doesn't have Among Us in it.";
             if (GameRunning()) return "Close Among Us first: its files are in use while it runs.";
-            // BepInEx's loader has to match the game: 32-bit Among Us needs the x86 build, 64-bit the x64 one.
-            string arch = GameArch(gameDir) ?? DefaultArch;
+            // BepInEx's loader has to match the game: the newest Among Us is 64-bit, so always the x64 build.
+            string arch = TargetArch;
             string? bundleUrl = release.BundleFor(arch);
             if (bundleUrl == null)
                 return $"{release.Tag} has no mod download for {(arch == "x64" ? "64-bit" : "32-bit")} Among Us yet. Update The Button, or wait for the next release.";
@@ -169,7 +173,7 @@ namespace TournamentTracker.App
                 var state = State(gameDir);
                 if (!state.Installed || state.LoaderArch == null) return "The files didn't all land. Try again, or run the app as administrator if the game is in Program Files.";
                 if (!state.LoaderMatchesGame)
-                    return $"The mod loader that was downloaded is {Bits(state.LoaderArch)} but Among Us is {Bits(state.GameArch)}. Try again; if it keeps happening, the release was packaged wrong.";
+                    return $"The mod loader that was downloaded is {Bits(state.LoaderArch)}, not 64-bit. Try again; if it keeps happening, the release was packaged wrong.";
                 return "";
             }
             catch (FileLockedException e)

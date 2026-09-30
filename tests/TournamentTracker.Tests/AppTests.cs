@@ -62,7 +62,7 @@ public class AppTests : IDisposable
     }
 
     [Fact]
-    public void The_loader_has_to_match_the_games_bitness()
+    public void The_loader_has_to_be_the_64_bit_one()
     {
         string game = Game(Path.Combine(_dir.Path, "AU"), 0x8664);              // Among Us since 29 September 2026
         Directory.CreateDirectory(Path.Combine(game, "BepInEx", "plugins"));
@@ -79,16 +79,15 @@ public class AppTests : IDisposable
         File.WriteAllBytes(Path.Combine(game, "winhttp.dll"), Pe(0x8664));
         Assert.True(ModInstaller.State(game).LoaderMatchesGame);
 
-        // 32-bit Among Us still needs the 32-bit loader.
+        // Always the 64-bit loader, the one the newest patch needs, whatever the game file says.
         File.WriteAllBytes(Path.Combine(game, "Among Us.exe"), Pe(0x14C));
-        Assert.False(ModInstaller.State(game).LoaderMatchesGame);
-        File.WriteAllBytes(Path.Combine(game, "winhttp.dll"), Pe(0x14C));
+        Assert.Equal("x86", ModInstaller.State(game).GameArch);
         Assert.True(ModInstaller.State(game).LoaderMatchesGame);
-
-        // A game exe that can't be read doesn't count against the loader.
         File.WriteAllText(Path.Combine(game, "Among Us.exe"), "");
         Assert.Null(ModInstaller.State(game).GameArch);
         Assert.True(ModInstaller.State(game).LoaderMatchesGame);
+        File.WriteAllBytes(Path.Combine(game, "winhttp.dll"), Pe(0x14C));
+        Assert.False(ModInstaller.State(game).LoaderMatchesGame);
         Assert.Null(ModInstaller.Machine(Path.Combine(game, "missing.dll")));
     }
 
@@ -146,11 +145,10 @@ public class AppTests : IDisposable
         Assert.Equal("keep me", File.ReadAllText(Path.Combine(data, "links.json")));
         Assert.Contains(progress, p => p.StartsWith("Downloading v1.2.0 (64-bit)"));
 
-        // A 32-bit game gets the 32-bit loader.
+        // 64-bit is the default: even a game file that reads as 32-bit gets the 64-bit loader.
         string old = Game(Path.Combine(_dir.Path, "AU32"), 0x14C);
         Assert.Equal("", await installer.InstallAsync(old, release, _ => { }));
-        Assert.Equal("x86", ModInstaller.State(old).LoaderArch);
-        Assert.True(ModInstaller.State(old).LoaderMatchesGame);
+        Assert.Equal("x64", ModInstaller.State(old).LoaderArch);
     }
 
     [Fact]

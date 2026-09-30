@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.14**, a beta.
+The current release is **v0.1.15**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -37,9 +37,9 @@ It installs **The Button** (for your Windows user, no admin needed), with Start 
 is typed in the game chat, so there's nothing for Among Us's anti-cheat to trip on.
 
 1. **Settings:** the app finds Among Us (Steam or Epic, any drive; or pick the folder) and
-   installs the mod with the mod loader it needs (BepInEx 6 build 735, matching your game:
-   64-bit since Among Us's 29 September 2026 update, 32-bit before it; The Button reads
-   `Among Us.exe` to tell, and offers a repair if the two ever don't match). Paste the
+   installs the mod with the mod loader it needs (BepInEx 6 build 735, 64-bit: Among Us is
+   64-bit since its 29 September 2026 patch; a 32-bit loader left from before shows as
+   "Mod needs repair", and Repair swaps it). Paste the
    setup code the organiser gave you; the page then shows the tournament and the locked
    lobby settings (point values stay with the organiser).
 2. **Start Among Us** and host a lobby. The first start takes a few minutes while BepInEx
@@ -79,8 +79,8 @@ random key the mod writes in its data folder).
 1. Download `TournamentTracker-Full-x64.zip` (64-bit Among Us, the game since its 29 September
    2026 update) or `TournamentTracker-Full-x86.zip` (32-bit Among Us, before it) from the latest
    release and extract everything into the Among Us folder (the one with `Among Us.exe`). It
-   contains BepInEx and the mod. (`TournamentTracker-Full.zip` is the 32-bit one, kept for
-   older copies of The Button.)
+   contains BepInEx and the mod. (`TournamentTracker-Full.zip` is the same as the x64 one, kept
+   for older copies of The Button.)
 2. Or, if you already have **BepInEx 6 bleeding-edge build 735 (IL2CPP, the win-x64 build for
    64-bit Among Us, win-x86 for 32-bit)**, only
    `TournamentTracker-Mod-*.zip` is needed: it puts `BepInEx/plugins/TournamentTracker.dll` in

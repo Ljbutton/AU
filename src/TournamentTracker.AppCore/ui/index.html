@@ -406,7 +406,7 @@ document.addEventListener('click', e => {
 });
 
 // ---- Top bar: only what needs attention ----------------------------------------------------
-// BepInEx's loader has to match the game: 32-bit Among Us (before 29 September 2026) or 64-bit.
+// BepInEx's loader has to be the 64-bit one the newest Among Us needs.
 function needsRepair(m) { return !!(m && m.installed && !m.loaderMatchesGame); }
 function bits(arch) { return arch === 'x64' ? '64-bit' : arch === 'x86' ? '32-bit' : 'missing'; }
 function renderAlerts() {
@@ -455,7 +455,7 @@ function renderHome() {
   if (!st) {
     const fix = !S.game.found ? ['Among Us not found', 'The Button couldn\'t find Among Us on this PC. Pick its folder in Settings.']
       : !S.mod.installed ? ['Mod not installed', 'Install the mod into Among Us from Settings (it takes a minute).']
-      : needsRepair(S.mod) ? ['Mod needs repair', `The mod loader in the game folder doesn't match Among Us (${bits(S.mod.loaderArch)} loader, ${bits(S.mod.gameArch)} game). Repair it in Settings.`]
+      : needsRepair(S.mod) ? ['Mod needs repair', `The mod loader in the game folder is ${bits(S.mod.loaderArch)}; the newest Among Us needs the 64-bit one. Repair it in Settings.`]
       : null;
     $('wait-title').textContent = fix ? fix[0] : 'Waiting for Among Us';
     $('wait-say').textContent = fix ? fix[1] : 'Start Among Us and host a lobby: The Button connects on its own.';
@@ -654,7 +654,7 @@ function renderSettings() {
     : m.installed ? `${m.gameArch ? bits(m.gameArch) + ' Among Us. ' : ''}Installed${m.installedVersion ? ' ' + m.installedVersion : ''}.${m.updateAvailable ? ` ${m.latest} is out.` : m.latest ? ' Up to date.' : ''}`
     : 'Not installed yet.';
   $('mod-repair').hidden = !needsRepair(m);
-  $('mod-repair').textContent = `The mod loader in the game folder is ${bits(m.loaderArch)}, but Among Us is ${bits(m.gameArch)}, so the mod can't load. Repair installs the matching one.`;
+  $('mod-repair').textContent = `The mod loader in the game folder is ${bits(m.loaderArch)}, but the newest Among Us needs the 64-bit one, so the mod can't load. Repair installs it.`;
   $('mod-install').textContent = !m.installed ? 'Install' : needsRepair(m) ? 'Repair' : m.updateAvailable ? `Update the mod to ${m.latest}` : 'Reinstall';
   $('mod-install').disabled = !g.found || !!m.installing;
   $('mod-progress').hidden = !m.installing; $('mod-progress').textContent = m.installing;
