@@ -111,6 +111,41 @@ public class AppTests : IDisposable
         Assert.Contains(progress, p => p.StartsWith("Downloading v1.2.0"));
     }
 
+    [Fact]
+    public void Updating_the_mod_skips_unchanged_files_and_moves_a_busy_one_aside()
+    {
+        string from = Path.Combine(_dir.Path, "bundle"), to = Path.Combine(_dir.Path, "game");
+        Directory.CreateDirectory(Path.Combine(from, "BepInEx", "core"));
+        Directory.CreateDirectory(Path.Combine(to, "BepInEx", "core"));
+        File.WriteAllText(Path.Combine(from, "BepInEx", "core", "same.dll"), "unchanged");
+        File.WriteAllText(Path.Combine(to, "BepInEx", "core", "same.dll"), "unchanged");
+        File.WriteAllText(Path.Combine(from, "winhttp.dll"), "new");
+        File.WriteAllText(Path.Combine(to, "winhttp.dll"), "old");
+
+        // Something holds both files open without sharing: the same one needn't be touched,
+        // and the changed one is renamed out of the way.
+        using (var same = new FileStream(Path.Combine(to, "BepInEx", "core", "same.dll"), FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
+        using (var busy = new FileStream(Path.Combine(to, "winhttp.dll"), FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
+        {
+            ModInstaller.CopyOver(from, to, TimeSpan.FromMilliseconds(10), 2);
+        }
+        Assert.Equal("new", File.ReadAllText(Path.Combine(to, "winhttp.dll")));
+        Assert.Equal("unchanged", File.ReadAllText(Path.Combine(to, "BepInEx", "core", "same.dll")));
+
+        File.WriteAllText(Path.Combine(to, "winhttp.dll" + ModInstaller.SetAsideSuffix), "old");
+        File.WriteAllText(Path.Combine(to, "BepInEx", "core", "x.dll" + ModInstaller.SetAsideSuffix), "old");
+        ModInstaller.RemoveSetAside(to);
+        Assert.Empty(Directory.GetFiles(to, "*" + ModInstaller.SetAsideSuffix, SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public void A_file_in_use_says_which_file()
+    {
+        var e = new FileLockedException(Path.Combine("BepInEx", "core", "a.dll"), new[] { "Among Us" });
+        Assert.Contains("is in use by Among Us", e.Message);
+        Assert.Contains("a.dll", new FileLockedException("a.dll", Array.Empty<string>()).Message);
+    }
+
     private (AppServer App, HttpClient Http, string Game) App(string? steamGame = null)
     {
         string game = steamGame ?? Game(Path.Combine(_dir.Path, "Steam", "steamapps", "common", "Among Us"));

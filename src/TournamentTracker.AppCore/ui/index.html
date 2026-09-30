@@ -23,6 +23,15 @@ header{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:8px 18p
 .brand{font:700 34px/1 var(--hand);letter-spacing:.04em;display:flex;align-items:center;gap:10px}
 .logo{width:40px;height:40px;object-fit:contain}
 .alerts{display:flex;flex-wrap:wrap;gap:8px;margin-left:8px}
+/* Window buttons (The Button's window has no frame of its own; the header is its title bar). */
+header{user-select:none}
+.winctl{margin-left:auto;align-self:flex-start;display:flex;margin-top:-8px;margin-right:-18px}
+.winctl button{all:unset;width:46px;height:34px;display:grid;place-items:center;color:var(--muted);cursor:default}
+.winctl button:hover{background:rgba(255,255,255,.1);color:var(--fg)}
+.winctl button.x:hover{background:#e81123;color:#fff}
+.winctl svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.1}
+.winctl .i-restore,body.maxed .winctl .i-max{display:none}
+body.maxed .winctl .i-restore{display:block}
 .alert{all:unset;cursor:pointer;font:13px var(--round);padding:4px 11px;border-radius:99px;border:1.5px solid var(--warn);color:var(--warn);background:var(--warn-soft)}
 .alert.bad{border-color:var(--danger);color:var(--danger);background:var(--danger-soft)}
 .alert:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
@@ -173,6 +182,11 @@ select{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5p
 <header>
   <div class="brand"><img class="logo" src="/logo.png" alt="">The Button</div>
   <div class="alerts" id="alerts"></div>
+  <div class="winctl" id="winctl" hidden>
+    <button data-win="min" title="Minimise" aria-label="Minimise"><svg viewBox="0 0 12 12"><path d="M2 6.5h8"/></svg></button>
+    <button data-win="max" title="Maximise" aria-label="Maximise"><svg viewBox="0 0 12 12" class="i-max"><rect x="2" y="2" width="8" height="8" rx="1"/></svg><svg viewBox="0 0 12 12" class="i-restore"><rect x="2" y="4" width="6" height="6" rx="1"/><path d="M4 4V2.5a.5.5 0 0 1 .5-.5H9.5a.5.5 0 0 1 .5.5V7.5a.5.5 0 0 1-.5.5H8"/></svg></button>
+    <button data-win="close" class="x" title="Close" aria-label="Close"><svg viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button>
+  </div>
 </header>
 <nav id="nav">
   <button data-page="home" class="on">Home</button>
@@ -405,7 +419,7 @@ function renderAlerts() {
   else if (!m.installed) list.push(['bad', 'Mod not installed']);
   else if (m.needsRepair) list.push(['bad', 'Mod needs repair']);
   if (m.installing) list.push(['', m.installing]);
-  else if (m.updateAvailable) list.push(['', `New version available (${m.latest})`]);
+  else if (m.updateAvailable) list.push(['', `Mod update in Among Us: ${m.latest}`]);
   const u = S.appUpdate || {};
   if (u.ready) list.push(['', `The Button ${u.ready} is ready: restart`]);
   else if (u.available && !u.auto) list.push(['', `The Button ${u.available} is out`]);
@@ -640,7 +654,7 @@ function renderSettings() {
     : m.installed ? `Installed${m.installedVersion ? ' ' + m.installedVersion : ''}.${m.updateAvailable ? ` ${m.latest} is out.` : m.latest ? ' Up to date.' : ''}`
     : 'Not installed yet.';
   $('mod-repair').hidden = !m.needsRepair;
-  $('mod-install').textContent = !m.installed ? 'Install' : m.needsRepair ? 'Repair' : m.updateAvailable ? `Update to ${m.latest}` : 'Reinstall';
+  $('mod-install').textContent = !m.installed ? 'Install' : m.needsRepair ? 'Repair' : m.updateAvailable ? `Update the mod to ${m.latest}` : 'Reinstall';
   $('mod-install').disabled = !g.found || !!m.installing;
   $('mod-progress').hidden = !m.installing; $('mod-progress').textContent = m.installing;
   $('mod-result').hidden = !m.installResult; $('mod-result').textContent = m.installResult;
@@ -721,6 +735,26 @@ async function refresh() {
 refresh();
 setInterval(refresh, 1500);
 setInterval(() => { if ($('organiser').classList.contains('on')) loadOrganiser(); }, 2000);
+
+// ---- Window: the header is the title bar (drag, double-click to maximise) --------------------
+(() => {
+  const host = window.chrome && window.chrome.webview;
+  if (!host) return;
+  $('winctl').hidden = false;
+  document.querySelector('header').addEventListener('mousedown', e => {
+    if (e.button !== 0 || e.target.closest('button,a,input,select,textarea,.alert')) return;
+    e.preventDefault();
+    host.postMessage('drag');
+  });
+  $('winctl').addEventListener('click', e => { const b = e.target.closest('[data-win]'); if (b) host.postMessage(b.dataset.win); });
+  host.addEventListener('message', e => {
+    if (typeof e.data === 'string' && e.data.startsWith('maximized:')) {
+      const on = e.data === 'maximized:true';
+      document.body.classList.toggle('maxed', on);
+      document.querySelector('[data-win="max"]').title = on ? 'Restore' : 'Maximise';
+    }
+  });
+})();
 </script>
 </body>
 </html>

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -51,6 +52,13 @@ namespace TournamentTracker.App
             {
                 string marker = Path.Combine(DataDir(gameDir!), Marker);
                 if (File.Exists(marker)) state.InstalledVersion = JsonDocument.Parse(File.ReadAllText(marker)).RootElement.GetProperty("tag").GetString();
+            }
+            catch (Exception) { }
+            // The mod's own version wins: the marker can be missing or behind (a copy installed by hand).
+            try
+            {
+                if (state.Installed && System.Reflection.AssemblyName.GetAssemblyName(Path.Combine(gameDir!, "BepInEx", "plugins", "TournamentTracker.dll")).Version is Version v && v.Major + v.Minor + v.Build > 0)
+                    state.InstalledVersion = "v" + v.ToString(3);
             }
             catch (Exception) { }
             return state;
@@ -106,6 +114,7 @@ namespace TournamentTracker.App
         {
             if (!GameLocator.IsGameFolder(gameDir)) return "That folder doesn't have Among Us in it.";
             if (GameRunning()) return "Close Among Us first: its files are in use while it runs.";
+            RemoveSetAside(gameDir);
             string temp = Path.Combine(Path.GetTempPath(), "tt-install-" + Guid.NewGuid().ToString("N"));
             try
             {
@@ -130,6 +139,10 @@ namespace TournamentTracker.App
                 if (!state.Installed || state.LoaderIs32Bit != true) return "The files didn't all land. Try again, or run the app as administrator if the game is in Program Files.";
                 return "";
             }
+            catch (FileLockedException e)
+            {
+                return e.Message;
+            }
             catch (UnauthorizedAccessException)
             {
                 return "Windows wouldn't let the app write to the game folder. Close Among Us, or run the app as administrator.";
@@ -144,12 +157,113 @@ namespace TournamentTracker.App
             }
         }
 
-        public static void CopyOver(string from, string to)
+        /// <summary>What a file in use is renamed to so the new one can go in its place.</summary>
+        public const string SetAsideSuffix = ".tt-old";
+
+        /// <summary>
+        /// Copies the bundle over the game folder. Files that are already the same are left alone
+        /// (so a mod update only touches what changed), a file that's briefly busy (antivirus,
+        /// the game still closing) is tried again, and one that stays in use is renamed out of
+        /// the way (Windows allows that even for a loaded DLL) and removed on the next install.
+        /// </summary>
+        public static void CopyOver(string from, string to) => CopyOver(from, to, TimeSpan.FromMilliseconds(400), 6);
+
+        public static void CopyOver(string from, string to, TimeSpan wait, int tries)
         {
             foreach (var dir in Directory.EnumerateDirectories(from, "*", SearchOption.AllDirectories))
                 Directory.CreateDirectory(Path.Combine(to, Path.GetRelativePath(from, dir)));
             foreach (var file in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))
-                File.Copy(file, Path.Combine(to, Path.GetRelativePath(from, file)), overwrite: true);
+            {
+                string relative = Path.GetRelativePath(from, file);
+                string target = Path.Combine(to, relative);
+                if (SameFile(file, target)) continue;
+                for (int attempt = 1; ; attempt++)
+                {
+                    try
+                    {
+                        File.Copy(file, target, overwrite: true);
+                        break;
+                    }
+                    catch (IOException) when (attempt < tries)
+                    {
+                        System.Threading.Thread.Sleep(wait);
+                    }
+                    catch (IOException)
+                    {
+                        if (SetAside(target))
+                        {
+                            File.Copy(file, target, overwrite: true);
+                            break;
+                        }
+                        var users = FileLocks.Users(target);
+                        throw new FileLockedException(relative, users);
+                    }
+                }
+            }
         }
+
+        private static bool SameFile(string a, string b)
+        {
+            try
+            {
+                var fa = new FileInfo(a);
+                var fb = new FileInfo(b);
+                if (!fb.Exists || fa.Length != fb.Length) return false;
+                using var sa = new FileStream(a, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using var sb = new FileStream(b, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                var ba = new byte[81920];
+                var bb = new byte[81920];
+                while (true)
+                {
+                    int na = sa.Read(ba, 0, ba.Length);
+                    int nb = sb.Read(bb, 0, bb.Length);
+                    if (na != nb) return false;
+                    if (na == 0) return true;
+                    if (!ba.AsSpan(0, na).SequenceEqual(bb.AsSpan(0, nb))) return false;
+                }
+            }
+            catch (Exception) { return false; }
+        }
+
+        private static bool SetAside(string target)
+        {
+            try
+            {
+                string aside = target + SetAsideSuffix;
+                if (File.Exists(aside))
+                {
+                    try { File.Delete(aside); }
+                    catch (Exception) { aside = target + "." + Guid.NewGuid().ToString("N").Substring(0, 8) + SetAsideSuffix; }
+                }
+                File.Move(target, aside);
+                return true;
+            }
+            catch (Exception) { return false; }
+        }
+
+        /// <summary>Removes files an earlier install had to rename out of the way.</summary>
+        public static void RemoveSetAside(string gameDir)
+        {
+            foreach (var root in new[] { gameDir, Path.Combine(gameDir, "BepInEx") })
+            {
+                if (!Directory.Exists(root)) continue;
+                var option = root == gameDir ? SearchOption.TopDirectoryOnly : SearchOption.AllDirectories;
+                IEnumerable<string> files;
+                try { files = Directory.EnumerateFiles(root, "*" + SetAsideSuffix, option).ToList(); }
+                catch (Exception) { continue; }
+                foreach (var f in files)
+                    try { File.Delete(f); } catch (Exception) { }
+            }
+        }
+    }
+
+    /// <summary>A file in the game folder that something else has open, so the mod can't be installed.</summary>
+    public sealed class FileLockedException : IOException
+    {
+        public FileLockedException(string file, IReadOnlyList<string> users)
+            : base(users.Count > 0
+                ? $"{file} in the Among Us folder is in use by {string.Join(", ", users)}. Close {(users.Count == 1 ? "it" : "them")} (or restart your PC) and try again."
+                : $"{file} in the Among Us folder is in use by another program. Make sure Among Us is fully closed (check Task Manager), or restart your PC, and try again.")
+        { }
     }
 }
