@@ -89,40 +89,59 @@ jobs:
         shell: pwsh
         run: ./installer/test/installer.tests.ps1
 
-      # BepInEx's build server often drops downloads, so keep the file once we have it.
+      # BepInEx's build server often drops downloads, so keep the files once we have them.
       - name: Cache BepInEx be.735 (win-x86)
         uses: actions/cache@v4
         with:
           path: bepinex.zip
           key: bepinex-be735-win-x86
 
-      - name: Build the one-click installer and the full bundle
+      - name: Cache BepInEx be.735 (win-x64)
+        uses: actions/cache@v4
+        with:
+          path: bepinex-x64.zip
+          key: bepinex-be735-win-x64
+
+      - name: Build the one-click installer and the full bundles
         run: |
           set -euo pipefail
-          if [ ! -s bepinex.zip ] || ! unzip -tq bepinex.zip >/dev/null; then
           # BepInEx be.735, the build Among Us mods use, straight from BepInEx's build server.
-          # Among Us is a 32-bit game, so it must be the win-x86 build: the x64 one never loads.
-          href=$(curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 https://builds.bepinex.dev/projects/bepinex_be \
-            | grep -oE 'href="[^"]*BepInEx-Unity\.IL2CPP-win-x86-6\.0\.0-be\.735[^"]*\.zip"' | head -1 | sed -E 's/^href="//; s/"$//') || true
-          case "$href" in
-            http*) url="$href" ;;
-            /*) url="https://builds.bepinex.dev$href" ;;
-            "") url="https://builds.bepinex.dev/projects/bepinex_be/735/BepInEx-Unity.IL2CPP-win-x86-6.0.0-be.735%2B5fef357.zip" ;;
-            *) url="https://builds.bepinex.dev/projects/bepinex_be/$href" ;;
-          esac
-          echo "BepInEx from $url"
-          curl -fsSL --http1.1 --retry 8 --retry-all-errors --retry-delay 10 -C - "$url" -o bepinex.zip
-          fi
-          full=dist/full
-          mkdir -p "$full"
-          unzip -q bepinex.zip -d "$full"
-          test -f "$full/winhttp.dll"
-          # Refuse to ship a 64-bit loader: "PE32 executable ... Intel 80386" is 32-bit, "PE32+ ... x86-64" is not.
-          file "$full/winhttp.dll"
-          file "$full/winhttp.dll" | grep -q 'Intel 80386' || { echo "::error::BepInEx loader is not 32-bit"; exit 1; }
-          mkdir -p "$full/BepInEx/plugins"
-          cp src/TournamentTracker.Plugin/bin/Release/net6.0/TournamentTracker.dll "$full/BepInEx/plugins/"
-          (cd "$full" && zip -qr ../TournamentTracker-Full.zip .)
+          # The loader has to match the game: Among Us was 32-bit (win-x86) until its 29 September
+          # 2026 update made it 64-bit (win-x64). Both are shipped; The Button reads Among Us.exe
+          # and installs the matching one.
+          fetch() {
+            local arch=$1 out=$2 href url
+            if [ -s "$out" ] && unzip -tq "$out" >/dev/null; then echo "BepInEx win-$arch from the cache"; return; fi
+            href=$(curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 https://builds.bepinex.dev/projects/bepinex_be \
+              | grep -oE "href=\"[^\"]*BepInEx-Unity\.IL2CPP-win-$arch-6\.0\.0-be\.735[^\"]*\.zip\"" | head -1 | sed -E 's/^href="//; s/"$//') || true
+            case "$href" in
+              http*) url="$href" ;;
+              /*) url="https://builds.bepinex.dev$href" ;;
+              "") url="https://builds.bepinex.dev/projects/bepinex_be/735/BepInEx-Unity.IL2CPP-win-$arch-6.0.0-be.735%2B5fef357.zip" ;;
+              *) url="https://builds.bepinex.dev/projects/bepinex_be/$href" ;;
+            esac
+            echo "BepInEx win-$arch from $url"
+            curl -fsSL --http1.1 --retry 8 --retry-all-errors --retry-delay 10 -C - "$url" -o "$out"
+          }
+          fetch x86 bepinex.zip
+          fetch x64 bepinex-x64.zip
+          for arch in x86 x64; do
+            if [ "$arch" = x86 ]; then zipfile=bepinex.zip; expect='Intel 80386'; else zipfile=bepinex-x64.zip; expect='x86-64'; fi
+            full="dist/full-$arch"
+            mkdir -p "$full"
+            unzip -q "$zipfile" -d "$full"
+            test -f "$full/winhttp.dll"
+            # Make sure each bundle's loader is the bitness it's named for:
+            # "PE32 executable ... Intel 80386" is 32-bit, "PE32+ executable ... x86-64" is 64-bit.
+            file "$full/winhttp.dll"
+            file "$full/winhttp.dll" | grep -q "$expect" || { echo "::error::The win-$arch BepInEx loader isn't $arch"; exit 1; }
+            mkdir -p "$full/BepInEx/plugins"
+            cp src/TournamentTracker.Plugin/bin/Release/net6.0/TournamentTracker.dll "$full/BepInEx/plugins/"
+            (cd "$full" && zip -qr "../TournamentTracker-Full-$arch.zip" .)
+          done
+          # The Button v0.1.13 and older only know this name (and need it to find their own
+          # updates), so keep it: it's the 32-bit bundle those versions expect.
+          cp dist/TournamentTracker-Full-x86.zip dist/TournamentTracker-Full.zip
           # The installer: a .bat that runs the PowerShell stored after its #PS-START line.
           { cat installer/Install-TournamentTracker.header.bat; echo '#PS-START'; cat installer/install.ps1; } \
             | sed 's/$/\r/' > dist/Install-TheButton.bat
@@ -133,6 +152,8 @@ jobs:
           name: ${{ env.NAME }}
           path: |
             ${{ env.PKG_ZIP }}
+            dist/TournamentTracker-Full-x86.zip
+            dist/TournamentTracker-Full-x64.zip
             dist/TournamentTracker-Full.zip
             dist/Install-TheButton.bat
             dist/app/TheButton.exe
@@ -153,9 +174,14 @@ jobs:
             echo
             echo "Already have the app? It shows \"New version available\" at the top; update from Settings."
             echo
+            echo "The Button installs the mod loader that matches your Among Us: 64-bit since the game's"
+            echo "29 September 2026 update, 32-bit before it. Installing by hand? Use"
+            echo "TournamentTracker-Full-x64.zip for 64-bit Among Us, TournamentTracker-Full-x86.zip for 32-bit."
+            echo
             echo "Built from commit $GITHUB_SHA against:"
             cat dist/*/BUILT-AGAINST.txt
           } > notes.md
           # Creates the tag on GitHub at this commit if it doesn't exist yet.
-          gh release create "$TAG" "$PKG_ZIP" dist/TournamentTracker-Full.zip dist/Install-TheButton.bat dist/app/TheButton.exe \
+          gh release create "$TAG" "$PKG_ZIP" dist/TournamentTracker-Full-x86.zip dist/TournamentTracker-Full-x64.zip \
+            dist/TournamentTracker-Full.zip dist/Install-TheButton.bat dist/app/TheButton.exe \
             --target "$GITHUB_SHA" --title "The Button $TAG" --notes-file notes.md --latest

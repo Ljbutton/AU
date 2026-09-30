@@ -309,7 +309,7 @@ select{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5p
     <div class="card">
       <h2>Mod</h2>
       <p id="mod-line" class="muted" style="margin:0 0 8px">…</p>
-      <p id="mod-repair" class="note bad" hidden>The mod loader in the game folder is the 64-bit one, which Among Us can't load. Reinstall to fix it.</p>
+      <p id="mod-repair" class="note bad" hidden></p>
       <p id="mod-progress" class="note good" hidden></p>
       <p id="mod-result" class="note" hidden></p>
       <div class="row" style="margin-top:8px"><button class="b primary" id="mod-install">Install</button><button class="b" data-open="log">Open log</button></div>
@@ -406,6 +406,9 @@ document.addEventListener('click', e => {
 });
 
 // ---- Top bar: only what needs attention ----------------------------------------------------
+// BepInEx's loader has to match the game: 32-bit Among Us (before 29 September 2026) or 64-bit.
+function needsRepair(m) { return !!(m && m.installed && !m.loaderMatchesGame); }
+function bits(arch) { return arch === 'x64' ? '64-bit' : arch === 'x86' ? '32-bit' : 'missing'; }
 function renderAlerts() {
   const g = S.game, m = S.mod, list = [];
   // Someone who only uses the Organiser tab (a caster, say) doesn't need Among Us here.
@@ -413,7 +416,7 @@ function renderAlerts() {
   if (orgOnly) {}
   else if (!g.found) list.push(['bad', 'Among Us not found']);
   else if (!m.installed) list.push(['bad', 'Mod not installed']);
-  else if (m.needsRepair) list.push(['bad', 'Mod needs repair']);
+  else if (needsRepair(m)) list.push(['bad', 'Mod needs repair']);
   if (m.installing) list.push(['', m.installing]);
   else if (m.updateAvailable) list.push(['', `Mod update in Among Us: ${m.latest}`]);
   const u = S.appUpdate || {};
@@ -452,7 +455,7 @@ function renderHome() {
   if (!st) {
     const fix = !S.game.found ? ['Among Us not found', 'The Button couldn\'t find Among Us on this PC. Pick its folder in Settings.']
       : !S.mod.installed ? ['Mod not installed', 'Install the mod into Among Us from Settings (it takes a minute).']
-      : S.mod.needsRepair ? ['Mod needs repair', 'The mod loader in the game folder is the wrong one. Repair it in Settings.']
+      : needsRepair(S.mod) ? ['Mod needs repair', `The mod loader in the game folder doesn't match Among Us (${bits(S.mod.loaderArch)} loader, ${bits(S.mod.gameArch)} game). Repair it in Settings.`]
       : null;
     $('wait-title').textContent = fix ? fix[0] : 'Waiting for Among Us';
     $('wait-say').textContent = fix ? fix[1] : 'Start Among Us and host a lobby: The Button connects on its own.';
@@ -648,10 +651,11 @@ function renderSettings() {
   $('game-candidates').innerHTML = g.found ? '' : (g.candidates || []).map(c => `<button class="b" data-path="${esc(c.path)}">${esc(c.store)}: ${esc(c.path)}</button>`).join('');
   $('game-candidates').querySelectorAll('[data-path]').forEach(b => b.onclick = async () => { await api('POST', '/app/game', { path: b.dataset.path }); refresh(); });
   $('mod-line').textContent = !g.found ? 'Find Among Us first.'
-    : m.installed ? `Installed${m.installedVersion ? ' ' + m.installedVersion : ''}.${m.updateAvailable ? ` ${m.latest} is out.` : m.latest ? ' Up to date.' : ''}`
+    : m.installed ? `${m.gameArch ? bits(m.gameArch) + ' Among Us. ' : ''}Installed${m.installedVersion ? ' ' + m.installedVersion : ''}.${m.updateAvailable ? ` ${m.latest} is out.` : m.latest ? ' Up to date.' : ''}`
     : 'Not installed yet.';
-  $('mod-repair').hidden = !m.needsRepair;
-  $('mod-install').textContent = !m.installed ? 'Install' : m.needsRepair ? 'Repair' : m.updateAvailable ? `Update the mod to ${m.latest}` : 'Reinstall';
+  $('mod-repair').hidden = !needsRepair(m);
+  $('mod-repair').textContent = `The mod loader in the game folder is ${bits(m.loaderArch)}, but Among Us is ${bits(m.gameArch)}, so the mod can't load. Repair installs the matching one.`;
+  $('mod-install').textContent = !m.installed ? 'Install' : needsRepair(m) ? 'Repair' : m.updateAvailable ? `Update the mod to ${m.latest}` : 'Reinstall';
   $('mod-install').disabled = !g.found || !!m.installing;
   $('mod-progress').hidden = !m.installing; $('mod-progress').textContent = m.installing;
   $('mod-result').hidden = !m.installResult; $('mod-result').textContent = m.installResult;

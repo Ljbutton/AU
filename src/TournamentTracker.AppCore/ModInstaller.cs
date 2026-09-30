@@ -15,15 +15,20 @@ namespace TournamentTracker.App
         public bool GameFound { get; set; }
         public bool Installed { get; set; }
         public string? InstalledVersion { get; set; }
-        /// <summary>BepInEx's loader is the 32-bit one Among Us needs (false: 64-bit, won't load; null: not there).</summary>
-        public bool? LoaderIs32Bit { get; set; }
-        public bool NeedsRepair => Installed && LoaderIs32Bit == false;
+        /// <summary>What Among Us.exe is built for: "x86" (32-bit, before the 29 September 2026 update), "x64", or null if unreadable.</summary>
+        public string? GameArch { get; set; }
+        /// <summary>What BepInEx's loader (winhttp.dll) is built for, or null when it isn't there.</summary>
+        public string? LoaderArch { get; set; }
+        /// <summary>The loader can load in this game: it's there and built for the same bitness (an unreadable game is given the benefit of the doubt).</summary>
+        public bool LoaderMatchesGame => LoaderArch != null && LoaderArch == (GameArch ?? LoaderArch);
     }
 
     public sealed class Release
     {
         public string Tag { get; set; } = "";
-        public string BundleUrl { get; set; } = "";
+        /// <summary>The full bundle (mod and BepInEx) for each game bitness: "x86" and "x64".</summary>
+        public Dictionary<string, string> BundleUrls { get; set; } = new Dictionary<string, string>();
+        public string? BundleFor(string arch) => BundleUrls.TryGetValue(arch, out var url) ? url : null;
         /// <summary>The Button itself (TheButton.exe) in this release, if it has one.</summary>
         public string? AppUrl { get; set; }
     }
@@ -32,7 +37,12 @@ namespace TournamentTracker.App
     public sealed class ModInstaller
     {
         public const string Repo = "Ljbutton/AU";
-        public const string BundleName = "TournamentTracker-Full.zip";
+        /// <summary>The full bundle for one bitness: TournamentTracker-Full-x86.zip or -x64.zip.</summary>
+        public static string BundleName(string arch) => $"TournamentTracker-Full-{arch}.zip";
+        /// <summary>The bundle's name before 64-bit Among Us (always x86). Releases keep it for older copies of The Button.</summary>
+        public const string LegacyBundleName = "TournamentTracker-Full.zip";
+        /// <summary>When the game can't be read, assume today's 64-bit Among Us.</summary>
+        public const string DefaultArch = "x64";
         public const string AppName = "TheButton.exe";
         private const string Marker = "installed.json";
         private readonly HttpClient _http;
@@ -46,8 +56,9 @@ namespace TournamentTracker.App
             var state = new ModState { GameFound = GameLocator.IsGameFolder(gameDir) };
             if (!state.GameFound) return state;
             state.Installed = File.Exists(Path.Combine(gameDir!, "BepInEx", "plugins", "TournamentTracker.dll"));
+            state.GameArch = GameArch(gameDir!);
             string loader = Path.Combine(gameDir!, "winhttp.dll");
-            if (File.Exists(loader)) state.LoaderIs32Bit = Is32Bit(loader);
+            if (File.Exists(loader)) state.LoaderArch = Machine(loader);
             try
             {
                 string marker = Path.Combine(DataDir(gameDir!), Marker);
@@ -64,18 +75,26 @@ namespace TournamentTracker.App
             return state;
         }
 
-        /// <summary>Reads a DLL's machine type from its PE header: 0x14C is 32-bit x86.</summary>
-        public static bool? Is32Bit(string dll)
+        /// <summary>What Among Us.exe in this folder is built for ("x86" or "x64"), or null.</summary>
+        public static string? GameArch(string gameDir) => Machine(Path.Combine(gameDir, GameLocator.Exe));
+
+        /// <summary>
+        /// Reads an exe's or DLL's machine type from its PE header: 0x14C is 32-bit x86, 0x8664
+        /// is x64. Null when the file is missing, isn't a PE file, or is something else.
+        /// </summary>
+        public static string? Machine(string file)
         {
             try
             {
-                using var f = File.OpenRead(dll);
+                using var f = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                 using var r = new BinaryReader(f);
+                if (f.Length < 0x40 || r.ReadUInt16() != 0x5A4D) return null;          // "MZ"
                 f.Seek(0x3C, SeekOrigin.Begin);
                 int pe = r.ReadInt32();
-                f.Seek(pe + 4, SeekOrigin.Begin);
-                ushort machine = r.ReadUInt16();
-                return machine == 0x14C;
+                if (pe <= 0 || pe + 6 > f.Length) return null;
+                f.Seek(pe, SeekOrigin.Begin);
+                if (r.ReadUInt32() != 0x00004550) return null;                          // "PE\0\0"
+                return r.ReadUInt16() switch { 0x14C => "x86", 0x8664 => "x64", _ => null };
             }
             catch (Exception) { return null; }
         }
@@ -89,19 +108,26 @@ namespace TournamentTracker.App
                 using var response = await _http.SendAsync(request).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode) return null;
                 var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync().ConfigureAwait(false)).RootElement;
-                var asset = json.GetProperty("assets").EnumerateArray()
-                    .FirstOrDefault(a => a.GetProperty("name").GetString() == BundleName);
-                if (asset.ValueKind != JsonValueKind.Object) return null;
-                var app = json.GetProperty("assets").EnumerateArray().FirstOrDefault(a => a.GetProperty("name").GetString() == AppName);
+                var assets = json.GetProperty("assets").EnumerateArray()
+                    .Where(a => a.TryGetProperty("name", out _) && a.TryGetProperty("browser_download_url", out _))
+                    .ToDictionary(a => a.GetProperty("name").GetString() ?? "", a => a.GetProperty("browser_download_url").GetString() ?? "");
+                var bundles = new Dictionary<string, string>();
+                foreach (var arch in new[] { "x86", "x64" })
+                    if (assets.TryGetValue(BundleName(arch), out var url)) bundles[arch] = url;
+                // Releases from before 64-bit Among Us only have the x86 bundle, under its old name.
+                if (!bundles.ContainsKey("x86") && assets.TryGetValue(LegacyBundleName, out var legacy)) bundles["x86"] = legacy;
+                if (bundles.Count == 0) return null;
                 return new Release
                 {
                     Tag = json.GetProperty("tag_name").GetString() ?? "",
-                    BundleUrl = asset.GetProperty("browser_download_url").GetString() ?? "",
-                    AppUrl = app.ValueKind == JsonValueKind.Object ? app.GetProperty("browser_download_url").GetString() : null,
+                    BundleUrls = bundles,
+                    AppUrl = assets.TryGetValue(AppName, out var app) ? app : null,
                 };
             }
             catch (Exception) { return null; }
         }
+
+        private static string Bits(string? arch) => arch == "x64" ? "64-bit" : arch == "x86" ? "32-bit" : "unknown";
 
         public static bool GameRunning() =>
             Process.GetProcesses().Any(p => { try { return p.ProcessName == "Among Us"; } catch (Exception) { return false; } });
@@ -114,14 +140,19 @@ namespace TournamentTracker.App
         {
             if (!GameLocator.IsGameFolder(gameDir)) return "That folder doesn't have Among Us in it.";
             if (GameRunning()) return "Close Among Us first: its files are in use while it runs.";
+            // BepInEx's loader has to match the game: 32-bit Among Us needs the x86 build, 64-bit the x64 one.
+            string arch = GameArch(gameDir) ?? DefaultArch;
+            string? bundleUrl = release.BundleFor(arch);
+            if (bundleUrl == null)
+                return $"{release.Tag} has no mod download for {(arch == "x64" ? "64-bit" : "32-bit")} Among Us yet. Update The Button, or wait for the next release.";
             RemoveSetAside(gameDir);
             string temp = Path.Combine(Path.GetTempPath(), "tt-install-" + Guid.NewGuid().ToString("N"));
             try
             {
-                progress("Downloading " + release.Tag + "…");
+                progress($"Downloading {release.Tag} ({(arch == "x64" ? "64-bit" : "32-bit")})…");
                 Directory.CreateDirectory(temp);
-                string zip = Path.Combine(temp, BundleName);
-                var request = new HttpRequestMessage(HttpMethod.Get, release.BundleUrl);
+                string zip = Path.Combine(temp, BundleName(arch));
+                var request = new HttpRequestMessage(HttpMethod.Get, bundleUrl);
                 request.Headers.UserAgent.ParseAdd("TournamentTracker-App");
                 using (var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false))
                 {
@@ -136,7 +167,9 @@ namespace TournamentTracker.App
                 Directory.CreateDirectory(DataDir(gameDir));
                 File.WriteAllText(Path.Combine(DataDir(gameDir), Marker), JsonSerializer.Serialize(new { tag = release.Tag, at = DateTime.UtcNow }));
                 var state = State(gameDir);
-                if (!state.Installed || state.LoaderIs32Bit != true) return "The files didn't all land. Try again, or run the app as administrator if the game is in Program Files.";
+                if (!state.Installed || state.LoaderArch == null) return "The files didn't all land. Try again, or run the app as administrator if the game is in Program Files.";
+                if (!state.LoaderMatchesGame)
+                    return $"The mod loader that was downloaded is {Bits(state.LoaderArch)} but Among Us is {Bits(state.GameArch)}. Try again; if it keeps happening, the release was packaged wrong.";
                 return "";
             }
             catch (FileLockedException e)

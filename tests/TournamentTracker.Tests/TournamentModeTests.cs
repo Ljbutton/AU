@@ -490,7 +490,7 @@ public class TournamentModeTests : IDisposable
         second.VoiceTick(VoicePhase.Lobby, Lobby("Sam"), "ABCDEF", "Polus");
         second.HandleChat(Lobby("Sam")[3], true, "!lead");
         await second.PendingPosts;
-        var note = _discord.Messages.Last();
+        var note = _discord.Messages.ToList().Last(m => m.Content?.StartsWith("Lead · ") == true);   // the live data can be posted around it
         Assert.StartsWith("Lead · Sam answers channel commands", note.Content);
         first.HandleChannelMessage(new ChannelMessage { Id = note.Id, ChannelId = "results", Content = note.Content, AuthorIsBot = true });
         Assert.False(first.IsLead);

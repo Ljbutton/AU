@@ -23,10 +23,12 @@ public class AppTests : IDisposable
     private readonly TempDir _dir = new();
     public void Dispose() => _dir.Dispose();
 
-    private string Game(string at)
+    /// <summary>A fake Among Us folder; <paramref name="machine"/> makes Among Us.exe a 32-bit (0x14C) or 64-bit (0x8664) exe.</summary>
+    private string Game(string at, ushort? machine = null)
     {
         Directory.CreateDirectory(at);
-        File.WriteAllText(Path.Combine(at, "Among Us.exe"), "");
+        if (machine is ushort m) File.WriteAllBytes(Path.Combine(at, "Among Us.exe"), Pe(m));
+        else File.WriteAllText(Path.Combine(at, "Among Us.exe"), "");
         return at;
     }
 
@@ -60,55 +62,108 @@ public class AppTests : IDisposable
     }
 
     [Fact]
-    public void Tells_a_32_bit_loader_from_a_64_bit_one()
+    public void The_loader_has_to_match_the_games_bitness()
     {
-        string game = Game(Path.Combine(_dir.Path, "AU"));
+        string game = Game(Path.Combine(_dir.Path, "AU"), 0x8664);              // Among Us since 29 September 2026
         Directory.CreateDirectory(Path.Combine(game, "BepInEx", "plugins"));
         File.WriteAllText(Path.Combine(game, "BepInEx", "plugins", "TournamentTracker.dll"), "");
-        File.WriteAllBytes(Path.Combine(game, "winhttp.dll"), Pe(0x8664));
         var state = ModInstaller.State(game);
-        Assert.True(state.Installed);
-        Assert.False(state.LoaderIs32Bit);
-        Assert.True(state.NeedsRepair);
+        Assert.Equal("x64", state.GameArch);
+        Assert.Null(state.LoaderArch);
+        Assert.False(state.LoaderMatchesGame);                                  // no loader at all
+
+        File.WriteAllBytes(Path.Combine(game, "winhttp.dll"), Pe(0x14C));       // the 32-bit loader from before
+        state = ModInstaller.State(game);
+        Assert.Equal("x86", state.LoaderArch);
+        Assert.False(state.LoaderMatchesGame);
+        File.WriteAllBytes(Path.Combine(game, "winhttp.dll"), Pe(0x8664));
+        Assert.True(ModInstaller.State(game).LoaderMatchesGame);
+
+        // 32-bit Among Us still needs the 32-bit loader.
+        File.WriteAllBytes(Path.Combine(game, "Among Us.exe"), Pe(0x14C));
+        Assert.False(ModInstaller.State(game).LoaderMatchesGame);
         File.WriteAllBytes(Path.Combine(game, "winhttp.dll"), Pe(0x14C));
-        Assert.False(ModInstaller.State(game).NeedsRepair);
+        Assert.True(ModInstaller.State(game).LoaderMatchesGame);
+
+        // A game exe that can't be read doesn't count against the loader.
+        File.WriteAllText(Path.Combine(game, "Among Us.exe"), "");
+        Assert.Null(ModInstaller.State(game).GameArch);
+        Assert.True(ModInstaller.State(game).LoaderMatchesGame);
+        Assert.Null(ModInstaller.Machine(Path.Combine(game, "missing.dll")));
     }
+
+    /// <summary>A release with a full bundle for each bitness, each with the matching loader.</summary>
+    private static LocalOrFake ReleaseWithBothBundles(string assetsJson)
+    {
+        byte[] Bundle(ushort machine)
+        {
+            using var zip = new MemoryStream();
+            using (var archive = new ZipArchive(zip, ZipArchiveMode.Create, true))
+            {
+                void Add(string name, byte[] bytes) { using var s = archive.CreateEntry(name).Open(); s.Write(bytes); }
+                Add("winhttp.dll", Pe(machine));
+                Add("BepInEx/plugins/TournamentTracker.dll", new byte[] { 1 });
+                Add("BepInEx/core/BepInEx.Core.dll", new byte[] { 2 });
+            }
+            return zip.ToArray();
+        }
+        var x86 = Bundle(0x14C);
+        var x64 = Bundle(0x8664);
+        return new LocalOrFake
+        {
+            Internet = r => r.RequestUri!.AbsoluteUri.Contains("api.github.com")
+                ? FakeHttp.Json(HttpStatusCode.OK, "{\"tag_name\":\"v1.2.0\",\"assets\":" + assetsJson + "}")
+                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(r.RequestUri.AbsoluteUri.Contains("x64") ? x64 : x86) },
+        };
+    }
+
+    private const string BothBundles = """[{"name":"TournamentTracker-Full.zip","browser_download_url":"https://github.com/x/TournamentTracker-Full.zip"},{"name":"TournamentTracker-Full-x86.zip","browser_download_url":"https://github.com/x/TournamentTracker-Full-x86.zip"},{"name":"TournamentTracker-Full-x64.zip","browser_download_url":"https://github.com/x/TournamentTracker-Full-x64.zip"},{"name":"TheButton.exe","browser_download_url":"https://github.com/x/TheButton.exe"}]""";
 
     [Fact]
     public async Task Installs_the_latest_release_over_the_game_keeping_settings()
     {
-        string game = Game(Path.Combine(_dir.Path, "AU"));
+        // 64-bit Among Us with the 32-bit loader an older install left behind.
+        string game = Game(Path.Combine(_dir.Path, "AU"), 0x8664);
         string data = ModInstaller.DataDir(game);
         Directory.CreateDirectory(data);
         File.WriteAllText(Path.Combine(data, "links.json"), "keep me");
-        File.WriteAllBytes(Path.Combine(game, "winhttp.dll"), Pe(0x8664));      // the old 64-bit loader
+        File.WriteAllBytes(Path.Combine(game, "winhttp.dll"), Pe(0x14C));
 
-        using var zip = new MemoryStream();
-        using (var archive = new ZipArchive(zip, ZipArchiveMode.Create, true))
-        {
-            void Add(string name, byte[] bytes) { using var s = archive.CreateEntry(name).Open(); s.Write(bytes); }
-            Add("winhttp.dll", Pe(0x14C));
-            Add("BepInEx/plugins/TournamentTracker.dll", new byte[] { 1 });
-            Add("BepInEx/core/BepInEx.Core.dll", new byte[] { 2 });
-        }
-        var web = new LocalOrFake
-        {
-            Internet = r => r.RequestUri!.AbsoluteUri.Contains("api.github.com")
-                ? FakeHttp.Json(HttpStatusCode.OK, """{"tag_name":"v1.2.0","assets":[{"name":"TournamentTracker-Full.zip","browser_download_url":"https://github.com/x/TournamentTracker-Full.zip"}]}""")
-                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(zip.ToArray()) },
-        };
-        var installer = new ModInstaller(new HttpClient(web));
+        var installer = new ModInstaller(new HttpClient(ReleaseWithBothBundles(BothBundles)));
         var release = await installer.LatestAsync();
         Assert.Equal("v1.2.0", release!.Tag);
+        Assert.Equal("https://github.com/x/TournamentTracker-Full-x64.zip", release.BundleFor("x64"));
+        Assert.Equal("https://github.com/x/TournamentTracker-Full-x86.zip", release.BundleFor("x86"));
+        Assert.Equal("https://github.com/x/TheButton.exe", release.AppUrl);
         var progress = new List<string>();
         Assert.Equal("", await installer.InstallAsync(game, release, progress.Add));
 
         var state = ModInstaller.State(game);
         Assert.True(state.Installed);
-        Assert.True(state.LoaderIs32Bit);
+        Assert.Equal("x64", state.LoaderArch);
+        Assert.True(state.LoaderMatchesGame);
         Assert.Equal("v1.2.0", state.InstalledVersion);
         Assert.Equal("keep me", File.ReadAllText(Path.Combine(data, "links.json")));
-        Assert.Contains(progress, p => p.StartsWith("Downloading v1.2.0"));
+        Assert.Contains(progress, p => p.StartsWith("Downloading v1.2.0 (64-bit)"));
+
+        // A 32-bit game gets the 32-bit loader.
+        string old = Game(Path.Combine(_dir.Path, "AU32"), 0x14C);
+        Assert.Equal("", await installer.InstallAsync(old, release, _ => { }));
+        Assert.Equal("x86", ModInstaller.State(old).LoaderArch);
+        Assert.True(ModInstaller.State(old).LoaderMatchesGame);
+    }
+
+    [Fact]
+    public async Task An_old_release_has_only_the_32_bit_bundle()
+    {
+        var installer = new ModInstaller(new HttpClient(ReleaseWithBothBundles(
+            """[{"name":"TournamentTracker-Full.zip","browser_download_url":"https://github.com/x/TournamentTracker-Full.zip"}]""")));
+        var release = await installer.LatestAsync();
+        Assert.Equal("https://github.com/x/TournamentTracker-Full.zip", release!.BundleFor("x86"));
+        Assert.Null(release.BundleFor("x64"));
+        string game = Game(Path.Combine(_dir.Path, "AU"), 0x8664);
+        Assert.Contains("no mod download for 64-bit Among Us", await installer.InstallAsync(game, release, _ => { }));
+        Assert.False(File.Exists(Path.Combine(game, "winhttp.dll")));
     }
 
     [Fact]

@@ -162,7 +162,7 @@ public class OrganizerTests : IDisposable
         var org = Organiser();
         Assert.StartsWith("Commands start with !", await org.CommandAsync("hello"));
         Assert.Equal("Posted: !start 2", await org.CommandAsync("!start 2"));
-        var posted = _discord.Messages.Last();
+        var posted = _discord.Messages.ToList().Last(m => m.Content == "!start 2");
         Assert.True(posted.Bot);
         lj.HandleChannelMessage(new ChannelMessage { Id = posted.Id, ChannelId = "results", Content = posted.Content, AuthorIsBot = true });
         Assert.Equal(2, lj.Round);                                                             // a bot's !start counts

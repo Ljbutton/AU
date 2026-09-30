@@ -315,7 +315,7 @@ namespace TournamentTracker.App
                 Game = new { Path = GamePath, Found = mod.GameFound, Candidates = Candidates() },
                 Mod = new
                 {
-                    mod.Installed, mod.InstalledVersion, mod.LoaderIs32Bit, mod.NeedsRepair,
+                    mod.Installed, mod.InstalledVersion, mod.GameArch, mod.LoaderArch, mod.LoaderMatchesGame,
                     Latest = _latest?.Tag,
                     UpdateAvailable = _latest != null && mod.Installed && Newer(_latest.Tag, mod.InstalledVersion),
                     Installing = _installing,
