@@ -168,7 +168,7 @@ namespace TournamentTracker
             }
             if (code.IsAdmin)
             {
-                Reply("That's an administration code: it goes in The Button's Settings → Administration, not in the game.", false);
+                Reply("That's an administration code: paste it into The Button's Setup code box, not the game.", false);
                 return;
             }
             SetupCode.Save(_dataDir, code.Encode());

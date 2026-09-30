@@ -192,7 +192,7 @@ namespace TournamentTracker.Setup
             if (TryParse(File.ReadAllText(path), out var code, out var error))
             {
                 if (!code.IsAdmin) return code;
-                error = "it's an administration code (it goes in The Button's Settings → Administration), not a host code";
+                error = "it's an administration code (paste it into The Button's Setup code box), not a host code";
             }
             log.Warn($"Ignoring {FileName}: {error}");
             return null;

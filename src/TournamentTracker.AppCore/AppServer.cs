@@ -29,6 +29,12 @@ namespace TournamentTracker.App
         /// <summary>The administration code that unlocks the organiser's view (null: locked).</summary>
         public string? AdminCode { get; set; }
 
+        /// <summary>
+        /// A copy of the host's setup code. The mod reads it from the Among Us folder, where a
+        /// reinstall or a file check can remove it; from here it's put back.
+        /// </summary>
+        public string? SetupCode { get; set; }
+
         public static AppSettings Load(string file)
         {
             try { if (File.Exists(file)) return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(file)) ?? new AppSettings(); }
@@ -340,9 +346,41 @@ namespace TournamentTracker.App
             return l != null && (i == null || l > i);
         }
 
+        /// <summary>
+        /// Keeps The Button's copy of the setup code and the one in the Among Us folder the same:
+        /// a code put in some other way is copied here, and one that went missing (the mod
+        /// reinstalled, Among Us reinstalled or its files checked) is put back.
+        /// </summary>
+        private void KeepSetupCode()
+        {
+            if (GamePath == null) return;
+            string dir = ModInstaller.DataDir(GamePath);
+            string file = Path.Combine(dir, SetupCode.FileName);
+            try
+            {
+                if (File.Exists(file))
+                {
+                    string text = File.ReadAllText(file).Trim();
+                    if (text != _settings.SetupCode && SetupCode.TryParse(text, out var code, out _) && !code.IsAdmin)
+                    {
+                        _settings.SetupCode = text;
+                        TrySave();
+                    }
+                }
+                else if (_settings.SetupCode != null && SetupCode.TryParse(_settings.SetupCode, out _, out _))
+                {
+                    SetupCode.Save(dir, _settings.SetupCode);
+                    string game = GamePath;
+                    _ = Task.Run(() => _mod.CommandAsync(game, "setup reload"));
+                }
+            }
+            catch (Exception) { }
+        }
+
         private object? SetupView()
         {
             if (GamePath == null) return null;
+            KeepSetupCode();
             string file = Path.Combine(ModInstaller.DataDir(GamePath), SetupCode.FileName);
             if (!File.Exists(file)) return null;
             if (!SetupCode.TryParse(File.ReadAllText(file), out var code, out var error)) return new { Error = error };
@@ -393,6 +431,7 @@ namespace TournamentTracker.App
                     _latest = release;
                     string error = await _installer.InstallAsync(game, release, m => _installing = m).ConfigureAwait(false);
                     _installResult = error.Length > 0 ? error : $"Installed {release.Tag}. Start Among Us: the first start takes a few minutes while BepInEx sets itself up.";
+                    KeepSetupCode();
                 }
                 finally { _installing = ""; }
             });
@@ -403,8 +442,15 @@ namespace TournamentTracker.App
         {
             if (GamePath == null) return new { ok = false, message = "Find Among Us first." };
             if (!SetupCode.TryParse(text, out var code, out var error)) return new { ok = false, message = error };
-            if (code.IsAdmin) return new { ok = false, message = "That's an administration code. It goes under Administration, further down this page." };
+            // The organiser's own code unlocks the Organiser tab; nobody else sees that it exists.
+            if (code.IsAdmin)
+            {
+                SetAdminCode(text);
+                return new { ok = true, admin = true, message = $"Organiser view unlocked for {code.TournamentName}." };
+            }
             SetupCode.Save(ModInstaller.DataDir(GamePath), code.Encode());
+            _settings.SetupCode = code.Encode();
+            TrySave();
             bool live = await _mod.CommandAsync(GamePath, "setup reload").ConfigureAwait(false) != null;
             return new { ok = true, message = $"Setup saved: {code.Describe()}." + (live ? " The mod in Among Us picked it up." : " It's used next time Among Us starts.") };
         }
@@ -413,6 +459,8 @@ namespace TournamentTracker.App
         {
             if (GamePath == null) return new { ok = false, message = "Find Among Us first." };
             SetupCode.Clear(ModInstaller.DataDir(GamePath));
+            _settings.SetupCode = null;
+            TrySave();
             await _mod.CommandAsync(GamePath, "setup reload").ConfigureAwait(false);
             return new { ok = true, message = "Setup code removed: the mod uses its settings file." };
         }

@@ -207,6 +207,24 @@ public class AppTests : IDisposable
         Assert.Equal(1.25, setup.GetProperty("settings").GetProperty("playerSpeed").GetDouble(), 3);
         Assert.False(setup.TryGetProperty("scoring", out var scoring));   // point values stay with the organiser
 
+        // A reinstall (of the mod or Among Us) removes it from the game folder: The Button puts it back.
+        string file = Path.Combine(ModInstaller.DataDir(game), SetupCode.FileName);
+        File.Delete(file);
+        Assert.Equal("Preliminary", (await Get(http, "app/state")).GetProperty("setup").GetProperty("kind").GetString());
+        Assert.Equal(code.Encode(), File.ReadAllText(file).Trim());
+        // Removing it on purpose is remembered.
+        await Post(http, "app/setup/clear");
+        Assert.Equal(JsonValueKind.Null, (await Get(http, "app/state")).GetProperty("setup").ValueKind);
+        Assert.False(File.Exists(file));
+
+        // The organiser's administration code in the same box unlocks the Organiser instead.
+        Assert.Equal(JsonValueKind.Null, (await Get(http, "app/state")).GetProperty("admin").ValueKind);
+        var admin = new SetupCode { Mode = "admin", TournamentId = "oct", TournamentName = "October", BotTokens = new() { "a.b.c" }, ResultsChannelId = "1" };
+        var unlocked = await Post(http, "app/setup", new { code = admin.Encode() });
+        Assert.True(unlocked.GetProperty("admin").GetBoolean());
+        Assert.Equal("October", (await Get(http, "app/state")).GetProperty("admin").GetProperty("tournament").GetString());
+        Assert.False(File.Exists(file));                                                   // not a lobby's code
+
         var offline = await Post(http, "app/command", new { command = "r2" });
         Assert.False(offline.GetProperty("ok").GetBoolean());
         Assert.StartsWith("Among Us isn't running", offline.GetProperty("replies")[0].GetString());

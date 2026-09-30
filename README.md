@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.12**, a beta.
+The current release is **v0.1.13**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -113,7 +113,7 @@ but can have one for automute (see below).
 
 ### 3. Setup codes
 
-In The Button, Settings → Administration → **Make setup codes** opens the setup code generator in your browser (it's also `docs/setup-codes.html` in this repository). Fill it in:
+Once your administration code is in, Settings → Administration → **Make setup codes** opens the setup code generator in your browser (it's also `docs/setup-codes.html` in this repository). Fill it in:
 
 * **Preliminary code:** the tournament name, the preliminary server's name and the
   preliminary channel's webhook. Make one per preliminary server (the server name is what
@@ -132,14 +132,16 @@ In The Button, Settings → Administration → **Make setup codes** opens the se
   token in it must be sent privately.
 
 * **Administration code** (for you, referees and casters): the tournament name, the private
-  results channel and one bot token. It isn't installed into a game; paste it into The
-  Button under Settings → **Administration** and press Unlock, and the **Organiser** tab
-  appears (see *Organiser tab* below). It has a bot token in it, so send it privately.
+  results channel and one bot token. Paste it into The Button's Settings → **Setup
+  code** box like any code: The Button recognises it, and the **Administration** card and
+  **Organiser** tab appear (nobody without the code sees either) (see *Organiser tab* below). It has a bot token in it, so send it privately.
 
 Both carry the point values, so every host scores the same, and the game settings (below).
 Tournament host codes also carry the games per round and, for one host only (you), the
 **lead lobby** tick that makes that host's mod answer your results-channel commands. Codes
-are only encoded, not encrypted: anyone holding one can read what's in it.
+are only encoded, not encrypted: anyone holding one can read what's in it. The Button keeps
+its own copy of the host's code, so reinstalling the mod or Among Us doesn't lose it: it's
+put back by itself.
 
 * **Settings lock** (on by default in the generator): while a preliminary or tournament code
   is in use, the host's lobby is kept on the tournament's settings (impostors, cooldowns,
@@ -245,7 +247,7 @@ the choice is remembered.
 
 ### Organiser tab (administration code)
 
-With an administration code unlocked (Settings → Administration), The Button gets an
+With an administration code pasted into Settings → Setup code, The Button gets an
 **Organiser** tab, and it doesn't need Among Us on that computer. Every tournament host's
 game with a bot keeps one "Live data" message in the private results channel, updated a few
 seconds after anything changes; the Organiser tab reads them all:

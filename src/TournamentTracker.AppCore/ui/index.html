@@ -325,15 +325,11 @@ select{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5p
   </div>
   <div id="setup-view"></div>
   <div class="settings-grid">
-    <div class="card">
+    <div class="card" id="admin-card" hidden>
       <h2>Administration</h2>
-      <div class="toggle"><div><b>Administration</b><span>For organisers, referees and casters: unlocks the Organiser tab with an administration code.</span></div><button class="b" id="admin-toggle"></button></div>
-      <div id="admin-form" hidden style="margin-top:8px">
-        <textarea id="admin-code" rows="2" placeholder="TT1-… (administration code)"></textarea>
-        <div class="row" style="margin-top:8px"><button class="b primary" id="admin-save">Unlock</button></div>
-      </div>
-      <p class="muted" id="admin-line" style="margin:8px 0 0"></p>
-      <div class="row" style="margin-top:8px"><button class="b" data-open="generator">Make setup codes</button><span class="muted">Opens the code generator in your browser</span></div>
+      <p class="muted" id="admin-line" style="margin:0 0 8px"></p>
+      <div class="row"><button class="b" data-open="generator">Make setup codes</button><button class="b danger" id="admin-lock">Lock</button></div>
+      <p class="muted" style="margin:8px 0 0;font-size:12.5px">Only people with an administration code see this. Lock hides it again; paste the code into Setup code to come back.</p>
     </div>
     <div class="card">
       <h2>The Button</h2>
@@ -639,7 +635,8 @@ $('code-save').addEventListener('click', async () => {
   const r = await api('POST', '/app/setup', { code: $('code').value });
   const n = $('code-result'); n.hidden = false; n.textContent = r.message; n.className = 'note ' + (r.ok ? 'good' : 'bad');
   if (r.ok) $('code').value = '';
-  refresh();
+  await refresh();
+  if (r.admin) go('organiser');
 });
 $('code-clear').addEventListener('click', async () => { const r = await api('POST', '/app/setup/clear'); toast(r.message); refresh(); });
 
@@ -665,23 +662,13 @@ function renderSettings() {
   renderAdmin();
 }
 function renderAdmin() {
-  const on = !!S.admin, t = $('admin-toggle'), open = on || adminOpening;
-  t.textContent = open ? 'On' : 'Off'; t.classList.toggle('on', open);
-  $('admin-form').hidden = on || !adminOpening;
-  $('admin-line').textContent = on ? `Unlocked: ${S.admin.tournament}. The Organiser tab is open.` : adminOpening ? 'Paste the administration code the organiser gave you.' : '';
+  const on = !!S.admin;
+  $('admin-card').hidden = !on;
+  $('admin-line').textContent = on ? `Unlocked: ${S.admin.tournament}. The Organiser tab is open.` : '';
   $('nav-organiser').hidden = !on;
   if (!on && $('organiser').classList.contains('on')) go('settings');
 }
-let adminOpening = false;
-$('admin-toggle').addEventListener('click', async () => {
-  if (S.admin) { const r = await api('POST', '/app/admin/code', { code: '' }); toast(r.message); adminOpening = false; refresh(); }
-  else { adminOpening = !adminOpening; renderAdmin(); if (adminOpening) $('admin-code').focus(); }
-});
-$('admin-save').addEventListener('click', async () => {
-  const r = await api('POST', '/app/admin/code', { code: $('admin-code').value });
-  toast(r.message);
-  if (r.ok) { $('admin-code').value = ''; adminOpening = false; await refresh(); go('organiser'); }
-});
+$('admin-lock').addEventListener('click', async () => { const r = await api('POST', '/app/admin/code', { code: '' }); toast(r.message); refresh(); });
 
 function renderAppUpdate() {
   const u = S.appUpdate || {};
@@ -701,6 +688,7 @@ const SETTINGS = [['impostors','Impostors'],['killCooldown','Kill cooldown (s)']
   ['commonTasks','Common tasks'],['longTasks','Long tasks'],['shortTasks','Short tasks'],['rolesOff','Special roles',v => v ? 'All off' : 'Allowed']];
 let setupKey = '';
 function renderSetup() {
+  $('code').placeholder = S.setup && !S.setup.error ? 'Your code is in use (details below). Paste a new one here only to replace it.' : 'TT1-…';
   const s = S.setup, key = JSON.stringify(s);
   if (key === setupKey) return;
   setupKey = key;
