@@ -194,6 +194,14 @@ namespace TournamentTracker.App
             return $"{TournamentSession.VdoNinja}?view={parts[0]}&password={parts[1]}&noaudio&cleanoutput";
         }
 
+        /// <summary>
+        /// The same host's game sound on its own (no picture). The caster's video page plays only
+        /// the lobby on air: the pictures stay connected silently, and this moves with the cast,
+        /// so two lobbies' sound can never play at once. Public for tests.
+        /// </summary>
+        public static string? SoundUrl(JsonElement d) =>
+            VideoUrl(d)?.Replace("&noaudio&cleanoutput", "&novideo&cleanoutput");
+
         /// <summary>What the caster's video pages read: the lobby being cast and every lobby's video. Public for tests.</summary>
         public string FeedsJson()
         {
@@ -215,6 +223,7 @@ namespace TournamentTracker.App
                     {
                         l.Label,
                         Video = VideoUrl(l.Data),
+                        Sound = SoundUrl(l.Data),
                         Phase = l.Data.GetProperty("phase").GetString(),
                         Alive = players.Count(x => x[2].GetInt32() == 0),
                         Total = players.Count,

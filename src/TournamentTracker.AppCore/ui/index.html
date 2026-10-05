@@ -245,7 +245,7 @@ select{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5p
           <div class="toggle"><b>Settings lock</b><button class="b" id="t-lock"></button></div>
           <div class="toggle"><b>Referee ghost slot</b><button class="b" id="t-refslot"></button></div>
           <div class="toggle"><div><b>Stream overlay</b><span class="mono" id="overlay-url"></span></div><button class="b" id="t-overlay"></button></div>
-          <div class="toggle" id="feed-row"><div><b>Send my game to the caster</b><span id="feed-line">Opens a private VDO.Ninja page in your browser: pick the Among Us window and leave the tab open.</span></div><div class="row" style="flex-wrap:nowrap"><button class="b" id="feed-again" hidden>Open again</button><button class="b" id="t-feed"></button></div></div>
+          <div class="toggle" id="feed-row"><div><b>Send my game to the caster</b><span id="feed-line">Opens a private VDO.Ninja page in your browser: choose <b>Entire screen</b>, tick <b>Share system audio</b> for the game sound, and leave the tab open.</span></div><div class="row" style="flex-wrap:nowrap"><button class="b" id="feed-again" hidden>Open again</button><button class="b" id="t-feed"></button></div></div>
           <div class="toggle"><b>Lead lobby</b><button class="b" id="t-lead"></button></div>
         </div>
         <div class="card">
@@ -269,7 +269,7 @@ select{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5p
     <div class="card cast-card">
       <div><b>Caster</b> <span class="muted" id="org-casting"></span></div>
       <div class="cast-urls" id="org-cast-url"></div>
-      <div class="muted" style="font-size:12px">OBS Browser sources. Video and overlay follow the lobby you pick below (keys 1–9 switch). Overlay 380×720, add <span class="mono">?full=1</span> on a delayed stream for roles and kills. Video and multiview 1920×1080: hosts turn on "Send my game to the caster" in their Button.</div>
+      <div class="muted" style="font-size:12px">OBS Browser sources. Video and overlay follow the lobby you pick below (keys 1–9 switch). Overlay 380×720, add <span class="mono">?full=1</span> on a delayed stream for roles and kills. Video (with the game sound of the lobby on air) and multiview (silent) 1920×1080: hosts turn on "Send my game to the caster" in their Button.</div>
     </div>
   </div>
   <p id="org-problem" class="note bad" hidden></p>

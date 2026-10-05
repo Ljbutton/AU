@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.15**, a beta.
+The current release is **v0.1.16**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -39,7 +39,7 @@ is typed in the game chat, so there's nothing for Among Us's anti-cheat to trip 
 1. **Settings:** the app finds Among Us (Steam or Epic, any drive; or pick the folder) and
    installs the mod with the mod loader it needs (BepInEx 6 build 735, 64-bit: Among Us is
    64-bit since its 29 September 2026 patch; a 32-bit loader left from before shows as
-   "Mod needs repair", and Repair swaps it). Paste the
+   "Mod needs repair" and The Button swaps it by itself once Among Us is closed). Paste the
    setup code the organiser gave you; the page then shows the tournament and the locked
    lobby settings (point values stay with the organiser).
 2. **Start Among Us** and host a lobby. The first start takes a few minutes while BepInEx
@@ -270,19 +270,22 @@ seconds after anything changes; the Organiser tab reads them all:
   `http://localhost:8767/?full=1` adds roles, kills and task bars (for a stream on a delay
   only).
 * **Game video, RedZone style:** each host turns on **Send my game to the caster** (Home →
-  Tools). The Button opens a private VDO.Ninja page in their browser; they pick the Among Us
-  window and leave the tab open. The link is random, kept for the tournament, and only
+  Tools). The Button opens a private VDO.Ninja page in their browser; they choose **Entire
+  screen**, tick **Share system audio** (a window share has no sound on Windows) and leave
+  the tab open. The sound is everything the host's PC plays, Discord included. The link is random, kept for the tournament, and only
   written in the private results channel. In your OBS:
-  * `http://localhost:8767/video` (1920×1080): the lobby you're casting, full frame. Every
-    lobby stays connected in the background, so pressing Cast switches instantly. Put the
-    caster overlay on top of it.
+  * `http://localhost:8767/video` (1920×1080): the lobby you're casting, full frame, with its
+    game sound. Every lobby's picture stays connected in the background, so pressing Cast
+    switches instantly; the sound follows a moment later and only the lobby on air is ever
+    heard. Put the caster overlay on top of it. `?sound=0` for picture only.
   * `http://localhost:8767/multiview` (1920×1080): every lobby at once, with its name,
     phase and players alive, the one on air outlined, and a red mark on a lobby with a
-    meeting or an ejection happening.
+    meeting or an ejection happening. Silent (the video page carries the sound);
+    `?sound=1` plays the lobby on air if you use the multiview on its own.
   * The Organiser tab marks lobbies with something happening too (with **show roles**,
     kills and sabotages as well), so you know where to jump.
-  * The video has no game sound; commentate over it. Each host needs about 3-6 Mbps upload
-    spare, and you download every lobby at once, so use a wired connection.
+  * Each host needs about 3-6 Mbps upload spare, and you download every lobby at once, so
+    use a wired connection.
   * Put a delay on your public stream (OBS → Settings → Advanced → Stream Delay, 2-3
     minutes) so players in other lobbies can't watch it for information.
 

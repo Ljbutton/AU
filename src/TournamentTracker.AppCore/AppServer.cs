@@ -308,6 +308,7 @@ namespace TournamentTracker.App
                 });
             }
             var mod = ModInstaller.State(GamePath);
+            AutoRepair(mod);
             string? status = mod.Installed && GamePath != null ? await _mod.StatusAsync(GamePath).ConfigureAwait(false) : null;
             return new
             {
@@ -415,12 +416,28 @@ namespace TournamentTracker.App
             return new { ok = true, message = "Found Among Us." };
         }
 
-        private object StartInstall()
+        private DateTime _nextAutoRepair = DateTime.MinValue;
+        /// <summary>How long to wait before trying an automatic repair again after one didn't work.</summary>
+        public static readonly TimeSpan AutoRepairRetry = TimeSpan.FromMinutes(15);
+
+        /// <summary>
+        /// The mod is installed with a loader the game can't use (the 32-bit one left from before
+        /// Among Us went 64-bit): put the right one in by itself, once Among Us is closed.
+        /// </summary>
+        private void AutoRepair(ModState mod)
+        {
+            if (!mod.Installed || mod.LoaderMatchesGame || GamePath == null || _installing.Length > 0) return;
+            if (DateTime.UtcNow < _nextAutoRepair || ModInstaller.GameRunning()) return;
+            _nextAutoRepair = DateTime.UtcNow + AutoRepairRetry;
+            StartInstall(repair: true);
+        }
+
+        private object StartInstall(bool repair = false)
         {
             if (_installing.Length > 0) return new { ok = false, message = "Already installing." };
             if (GamePath == null) return new { ok = false, message = "Find Among Us first." };
             string game = GamePath;
-            _installing = "Checking for the latest version…";
+            _installing = repair ? "Repairing the mod loader (Among Us needs the 64-bit one)…" : "Checking for the latest version…";
             _installResult = "";
             _ = Task.Run(async () =>
             {
@@ -430,7 +447,9 @@ namespace TournamentTracker.App
                     if (release == null) { _installResult = "Couldn't reach GitHub to download the mod. Check your internet connection."; return; }
                     _latest = release;
                     string error = await _installer.InstallAsync(game, release, m => _installing = m).ConfigureAwait(false);
-                    _installResult = error.Length > 0 ? error : $"Installed {release.Tag}. Start Among Us: the first start takes a few minutes while BepInEx sets itself up.";
+                    _installResult = error.Length > 0 ? (repair ? "Couldn't repair the mod loader by itself: " + error + " Press Repair to try again." : error)
+                        : repair ? $"Repaired the mod loader by itself: {release.Tag} with the 64-bit loader. The next Among Us start takes a few minutes while BepInEx sets itself up."
+                        : $"Installed {release.Tag}. Start Among Us: the first start takes a few minutes while BepInEx sets itself up.";
                     KeepSetupCode();
                 }
                 finally { _installing = ""; }

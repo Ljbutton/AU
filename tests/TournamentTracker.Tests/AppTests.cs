@@ -152,6 +152,31 @@ public class AppTests : IDisposable
     }
 
     [Fact]
+    public async Task A_32_bit_loader_is_repaired_by_itself()
+    {
+        string game = Game(Path.Combine(_dir.Path, "Steam", "steamapps", "common", "Among Us"), 0x8664);
+        Directory.CreateDirectory(Path.Combine(game, "BepInEx", "plugins"));
+        File.WriteAllBytes(Path.Combine(game, "BepInEx", "plugins", "TournamentTracker.dll"), new byte[] { 9 });
+        File.WriteAllBytes(Path.Combine(game, "winhttp.dll"), Pe(0x14C));       // left from before Among Us went 64-bit
+        var env = new AppEnvironment
+        {
+            SettingsFile = Path.Combine(_dir.Path, "app", "app.json"), SteamRoot = Path.Combine(_dir.Path, "Steam"),
+            EpicManifests = Path.Combine(_dir.Path, "none"), Fallbacks = Array.Empty<string>(), Downloads = Path.Combine(_dir.Path, "Downloads"),
+        };
+        using var app = new AppServer(env, new HttpClient(ReleaseWithBothBundles(BothBundles)));
+        using var http = new HttpClient { BaseAddress = new Uri(app.Url) };
+        http.DefaultRequestHeaders.Add("X-App-Token", app.Token);
+
+        var first = await Get(http, "app/state");                               // the app notices, and repairs
+        Assert.False(first.GetProperty("mod").GetProperty("loaderMatchesGame").GetBoolean());
+        await Wait.Until(async () => (await Get(http, "app/state")).GetProperty("mod").GetProperty("installResult").GetString()!.Length > 0, 10000);
+        var after = (await Get(http, "app/state")).GetProperty("mod");
+        Assert.StartsWith("Repaired the mod loader by itself", after.GetProperty("installResult").GetString());
+        Assert.True(after.GetProperty("loaderMatchesGame").GetBoolean());
+        Assert.Equal("x64", ModInstaller.State(game).LoaderArch);
+    }
+
+    [Fact]
     public async Task An_old_release_has_only_the_32_bit_bundle()
     {
         var installer = new ModInstaller(new HttpClient(ReleaseWithBothBundles(

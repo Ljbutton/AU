@@ -63,7 +63,7 @@ namespace TournamentTracker
             if (arg == "on") { EnsureFeedId(); _feedOn = true; SaveState(); }
             else if (arg == "off") { _feedOn = false; SaveState(); }
             Reply(_feedOn
-                ? "Sending your game to the caster: in the browser page that opened, pick the Among Us window and leave the tab open while you play."
+                ? "Sending your game to the caster: in the browser page that opened, choose Entire screen and tick Share system audio (so the caster gets the game sound), then leave the tab open while you play."
                 : "Not sending your game to the caster. Close the VDO.Ninja tab in your browser.", false);
         }
     }

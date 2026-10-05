@@ -20,11 +20,15 @@ iframe{border:0;width:100%;height:100%;display:block;background:#000}
 [hidden]{display:none!important}
 </style>";
 
-        /// <summary>The lobby being cast, full frame. OBS Browser source 1920×1080.</summary>
+        /// <summary>
+        /// The lobby being cast, full frame, with its game sound. OBS Browser source 1920×1080
+        /// (tick "Control audio via OBS" to mix it). ?sound=0 for picture only.
+        /// </summary>
         public const string Video = Head + @"
 <style>
 .frame{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .15s}
 .frame.on{opacity:1}
+.sound{position:absolute;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
 </style></head><body>
 <div class=""wait"" id=""wait""><div><b>Waiting for the game</b><span id=""wait-line""></span></div></div>
 <script>
@@ -49,12 +53,28 @@ async function tick(){
   for(const [k,f] of Object.entries(frames))f.classList.toggle('on',k===d.cast);
   const on=d.cast&&frames[d.cast];
   document.getElementById('wait').hidden=!!on;
+  playSound(d);
   document.getElementById('wait-line').textContent=d.cast?d.cast+"" isn't sending their game yet."":""Pick a lobby in The Button's Organiser tab."";
 }
 tick();setInterval(tick,700);
+</script>
+<script>
+// The game sound of the lobby on air, and only that one.
+const soundOn=new URLSearchParams(location.search).get('sound')!=='0';
+let soundFrame=null;
+function playSound(d){
+  const cast=(d.lobbies||[]).find(l=>l.label===d.cast);
+  const src=soundOn&&cast&&cast.sound||null;
+  if((soundFrame&&soundFrame.dataset.src)===src)return;
+  if(soundFrame){soundFrame.remove();soundFrame=null;}
+  if(!src)return;
+  soundFrame=document.createElement('iframe');
+  soundFrame.className='sound';soundFrame.allow='autoplay';soundFrame.dataset.src=src;soundFrame.src=src;
+  document.body.appendChild(soundFrame);
+}
 </script></body></html>";
 
-        /// <summary>Every lobby at once. OBS Browser source 1920×1080.</summary>
+        /// <summary>Every lobby at once, silent (?sound=1 plays the lobby on air). OBS Browser source 1920×1080.</summary>
         public const string Multiview = Head + @"
 <style>
 .grid{display:grid;gap:6px;padding:6px;height:100%}
@@ -66,6 +86,7 @@ tick();setInterval(tick,700);
 .tile .bar .tag{margin-left:auto;font-size:13px;padding:2px 8px;border-radius:99px;background:var(--hot);color:#fff}
 .tile .bar .tag.cast{background:var(--accent);color:#06201c}
 .tile .none{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted)}
+.sound{position:absolute;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
 </style></head><body>
 <div class=""wait"" id=""wait""><div><b>No lobbies yet</b>Hosts appear here once their game is running.</div></div>
 <div class=""grid"" id=""grid""></div>
@@ -99,8 +120,24 @@ async function tick(){
       (l.label===d.cast?'<span class=""tag cast"">On air</span>':l.hot?`<span class=""tag"">${esc(l.hot)}</span>`:'');
   });
   for(const k of Object.keys(tiles))if(!seen.has(k)){tiles[k].remove();delete tiles[k];}
+  if(soundOn)playSound(d);
 }
 tick();setInterval(tick,1000);
+</script>
+<script>
+// Silent unless ?sound=1: the video page normally carries the sound, and two would double it.
+const soundOn=new URLSearchParams(location.search).get('sound')==='1';
+let soundFrame=null;
+function playSound(d){
+  const cast=(d.lobbies||[]).find(l=>l.label===d.cast);
+  const src=cast&&cast.sound||null;
+  if((soundFrame&&soundFrame.dataset.src)===src)return;
+  if(soundFrame){soundFrame.remove();soundFrame=null;}
+  if(!src)return;
+  soundFrame=document.createElement('iframe');
+  soundFrame.className='sound';soundFrame.allow='autoplay';soundFrame.dataset.src=src;soundFrame.src=src;
+  document.body.appendChild(soundFrame);
+}
 </script></body></html>";
     }
 }

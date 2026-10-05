@@ -150,6 +150,10 @@ public class OrganizerTests : IDisposable
     {
         JsonElement D(string vdo) => JsonDocument.Parse(JsonSerializer.Serialize(new { vdo })).RootElement;
         Assert.NotNull(Organizer.VideoUrl(D("ttabc:key123")));
+        // The sound is the same link without the picture; the picture never carries sound.
+        Assert.Equal("https://vdo.ninja/?view=ttabc&password=key123&novideo&cleanoutput", Organizer.SoundUrl(D("ttabc:key123")));
+        Assert.Contains("&noaudio", Organizer.VideoUrl(D("ttabc:key123")));
+        Assert.Null(Organizer.SoundUrl(D("nocolon")));
         Assert.Null(Organizer.VideoUrl(D("tt&x=1:key")));
         Assert.Null(Organizer.VideoUrl(D("nocolon")));
         Assert.Null(Organizer.VideoUrl(JsonDocument.Parse("{}").RootElement));
