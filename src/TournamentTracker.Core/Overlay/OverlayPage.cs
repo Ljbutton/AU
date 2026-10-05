@@ -45,20 +45,23 @@ const q=new URLSearchParams(location.search);
 const show=(q.get('show')||'players,standings,feed').split(',');
 const full=q.get('full')==='1';
 for(const k of ['players','standings','feed'])document.getElementById(k+'-panel').hidden=!show.includes(k);
+// Only touch a panel when it changed: rebuilding it every tick reloads the crewmate pictures and can flicker on stream.
+const shown={};
+function html(id,v){if(shown[id]!==v){shown[id]=v;document.getElementById(id).innerHTML=v;}}
 const esc=s=>String(s).replace(/[&<>""]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','""':'&quot;'}[c]));
 const PHASES={Lobby:'In the lobby',Tasks:'Game in progress',Meeting:'Meeting',GameOver:'Game over',Menu:'Offline'};
 async function tick(){
   try{
     const s=await (await fetch('/state'+(full?'?full=1':''),{cache:'no-store'})).json();
     if(!s.lobby&&!s.tournament)return;
-    document.getElementById('head').innerHTML=[s.tournament&&`<b>${esc(s.tournament)}</b>`,s.round?`Round ${s.round}`:'',s.lobby&&`${esc(s.lobby)} lobby`,s.played!=null&&s.perRound?`Game ${Math.min(s.played+(s.phase==='Tasks'||s.phase==='Meeting'?1:0),s.perRound)} of ${s.perRound}`:''].filter(Boolean).join(' · ');
+    html('head',[s.tournament&&`<b>${esc(s.tournament)}</b>`,s.round?`Round ${s.round}`:'',s.lobby&&`${esc(s.lobby)} lobby`,s.played!=null&&s.perRound?`Game ${Math.min(s.played+(s.phase==='Tasks'||s.phase==='Meeting'?1:0),s.perRound)} of ${s.perRound}`:''].filter(Boolean).join(' · '));
     const ph=document.getElementById('phase');ph.hidden=!s.phase;ph.textContent=PHASES[s.phase]||s.phase;
     // Big lobbies (up to 15) go in two columns so everything stays on a 720p screen.
     document.getElementById('players').classList.toggle('two',(s.players||[]).length>8);
-    document.getElementById('players').innerHTML=(s.players||[]).map(p=>`<div class=""p${p.dead?' dead':''}""><img class=""mate"" src=""/crew/${p.color>=0&&p.color<18?p.color:15}.png"" alt=""""><span class=""name"">${esc(p.name)}</span>${p.impostor?'<span class=""tag"">IMP</span>':'<span></span>'}${p.tasks?`<div class=""bar""><i style=""width:${Math.round(100*p.tasks[0]/Math.max(1,p.tasks[1]))}%""></i></div>`:full?'<div class=""bar"" style=""visibility:hidden""></div>':''}</div>`).join('');
+    html('players',(s.players||[]).map(p=>`<div class=""p${p.dead?' dead':''}""><img class=""mate"" src=""/crew/${p.color>=0&&p.color<18?p.color:15}.png"" alt=""""><span class=""name"">${esc(p.name)}</span>${p.impostor?'<span class=""tag"">IMP</span>':'<span></span>'}${p.tasks?`<div class=""bar""><i style=""width:${Math.round(100*p.tasks[0]/Math.max(1,p.tasks[1]))}%""></i></div>`:full?'<div class=""bar"" style=""visibility:hidden""></div>':''}</div>`).join(''));
     document.getElementById('st-title').textContent=s.standingsTitle||'Standings';
-    document.getElementById('standings').innerHTML=(s.standings||[]).slice(0,s.advance?s.advance+2:6).map((r,i)=>`<tr class=""${s.advance&&i===s.advance?'cut':''}""><td class=""n"">${i+1}.</td><td>${esc(r.name)}</td><td class=""pts"">${r.points}</td></tr>`).join('');
-    document.getElementById('feed').innerHTML=(s.feed||[]).slice(-4).map(e=>`<div><span class=""t"">${e.at}</span>${esc(e.text)}</div>`).join('');
+    html('standings',(s.standings||[]).slice(0,s.advance?s.advance+2:6).map((r,i)=>`<tr class=""${s.advance&&i===s.advance?'cut':''}""><td class=""n"">${i+1}.</td><td>${esc(r.name)}</td><td class=""pts"">${r.points}</td></tr>`).join(''));
+    html('feed',(s.feed||[]).slice(-4).map(e=>`<div><span class=""t"">${e.at}</span>${esc(e.text)}</div>`).join(''));
     // Empty panels stay off screen until there's something in them.
     document.getElementById('standings-panel').hidden=!show.includes('standings')||!(s.standings||[]).length;
     document.getElementById('feed-panel').hidden=!show.includes('feed')||!(s.feed||[]).length;

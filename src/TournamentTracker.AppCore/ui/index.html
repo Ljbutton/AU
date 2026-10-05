@@ -163,6 +163,8 @@ select{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5p
 .loader i{width:10px;height:10px;border-radius:50%;background:#7fa7ff;animation:hop 1.2s ease-in-out infinite}
 .loader i:nth-child(2){animation-delay:.12s}.loader i:nth-child(3){animation-delay:.24s}.loader i:nth-child(4){animation-delay:.36s}.loader i:nth-child(5){animation-delay:.48s}
 @keyframes hop{0%,60%,100%{transform:translateY(0);opacity:.55}30%{transform:translateY(-14px);opacity:1}}
+.stage.compact{min-height:auto;padding-bottom:24px}
+.ref-card{margin-top:14px}
 .stage .say{max-width:54ch;color:var(--muted);margin:10px 0 0}
 /* ---- Automute buttons ---- */
 .controls{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;margin:22px 0 6px}
@@ -279,6 +281,13 @@ details.advanced[open] summary h2::before{content:'▾ '}
       </div>
     </div>
   </div>
+  <div class="card ref-card" id="home-ref" hidden>
+    <h2>Referee</h2>
+    <p class="muted" style="margin:0 0 8px;font-size:12.5px">Posted to the private results channel as the administration bot, exactly like typing it there.</p>
+    <div class="row"><select id="adj-lobby"></select><input id="adj-player" placeholder="Player (colour or name)" style="width:170px"><input id="adj-points" type="number" step="0.5" placeholder="Points" style="width:90px"><input id="adj-reason" placeholder="Reason" style="flex:1;min-width:120px"><button class="b" id="adj-go">Adjust</button></div>
+    <div class="row" style="margin-top:8px"><input id="void-game" placeholder="Game (LJ-3) or lobby (LJ)" style="width:200px"><input id="void-why" placeholder="Reason" style="flex:1;min-width:120px"><button class="b danger" id="void-go">Void</button><button class="b" id="unvoid-go">Unvoid</button></div>
+    <div class="row" style="margin-top:8px"><input id="org-cmd" placeholder="Any command: !start 3 in 10, !lobbies 3, !move Soggy B…" class="mono" style="flex:1"><button class="b" id="org-cmd-go">Post</button></div>
+  </div>
 </section>
 
 <section id="points">
@@ -306,13 +315,6 @@ details.advanced[open] summary h2::before{content:'▾ '}
       <div class="row"><button class="b on" data-awards="round" id="aw-round">This round</button><button class="b" data-awards="all" id="aw-all">Whole tournament</button><button class="b" id="aw-copy">Copy for Discord</button></div></div>
     <p class="muted" style="margin:4px 0 10px;font-size:12.5px">Candidates from the counted games, top three in each. You pick the winners.</p>
     <div class="awards" id="org-awards"></div>
-  </div>
-  <div class="card">
-    <h2>Referee</h2>
-    <p class="muted" style="margin:0 0 8px;font-size:12.5px">Posted to the private results channel as the administration bot, exactly like typing it there.</p>
-    <div class="row"><select id="adj-lobby"></select><input id="adj-player" placeholder="Player (colour or name)" style="width:170px"><input id="adj-points" type="number" step="0.5" placeholder="Points" style="width:90px"><input id="adj-reason" placeholder="Reason" style="flex:1;min-width:120px"><button class="b" id="adj-go">Adjust</button></div>
-    <div class="row" style="margin-top:8px"><input id="void-game" placeholder="Game (LJ-3) or lobby (LJ)" style="width:200px"><input id="void-why" placeholder="Reason" style="flex:1;min-width:120px"><button class="b danger" id="void-go">Void</button><button class="b" id="unvoid-go">Unvoid</button></div>
-    <div class="row" style="margin-top:8px"><input id="org-cmd" placeholder="Any command: !start 3 in 10, !lobbies 3, !move Soggy B…" class="mono" style="flex:1"><button class="b" id="org-cmd-go">Post</button></div>
   </div>
 </section>
 
@@ -514,13 +516,16 @@ function renderHome() {
   const st = S.status;
   $('home-wait').hidden = !!st; $('home-live').hidden = !st;
   if (!st) {
-    const fix = !S.game.found ? ['Among Us not found', 'The Button couldn\'t find Among Us on this PC. Pick its folder in Settings.']
+    // An organiser or referee's PC needn't have Among Us: Home is their referee desk.
+    const desk = S.admin && !S.game.found;
+    const fix = desk ? ['Referee desk', 'Among Us isn\'t on this PC, and it doesn\'t need to be: the Organiser tab and the referee tools below work without it.']
+      : !S.game.found ? ['Among Us not found', 'The Button couldn\'t find Among Us on this PC. Pick its folder in Settings.']
       : !S.mod.installed ? ['Mod not installed', 'Install the mod into Among Us from Settings (it takes a minute).']
       : needsRepair(S.mod) ? ['Mod needs repair', `The mod loader in the game folder is ${bits(S.mod.loaderArch)}; the newest Among Us needs the 64-bit one. Repair it in Settings.`]
       : null;
     $('wait-title').textContent = fix ? fix[0] : 'Waiting for Among Us';
     $('wait-say').textContent = fix ? fix[1] : 'Start Among Us and host a lobby: The Button connects on its own.';
-    $('wait-fix').hidden = !fix;
+    $('wait-fix').hidden = !fix || desk;
     document.querySelector('#home-wait .loader').hidden = !!fix;
     return;
   }
@@ -639,7 +644,16 @@ const PHASE_NAMES = { Lobby: 'Lobby', Tasks: 'In game', Meeting: 'Meeting', Game
 async function loadOrganiser() {
   if (!S || !S.admin) { ORG = null; return; }
   try { ORG = await api('GET', '/app/admin'); } catch (e) { ORG = null; }
+  renderReferee();
   renderOrganiser();
+}
+// The referee tools on Home: for whoever has the administration code (lobbies come from the Organiser's data).
+function renderReferee() {
+  $('home-ref').hidden = !(S && S.admin);
+  document.querySelector('#home-wait').classList.toggle('compact', !!(S && S.admin));
+  if (!ORG) return;
+  const sel = $('adj-lobby'), cur = sel.value, labels = ORG.lobbies.map(l => l.label);
+  if (sel.dataset.labels !== labels.join('|')) { sel.dataset.labels = labels.join('|'); sel.innerHTML = labels.map(l => `<option>${esc(l)}</option>`).join(''); if (cur) sel.value = cur; }
 }
 function castLobby(label) { api('POST', '/app/admin/cast', { lobby: label }).then(r => { toast(r.message); loadOrganiser(); }); }
 document.addEventListener('keydown', e => {
@@ -711,9 +725,6 @@ function renderOrganiser() {
   const aw = awardsList();
   $('org-awards').innerHTML = !aw ? '<p class="empty">No games yet.</p>' : aw.map(c => `<div class="award"><div class="t">${esc(c.title)}</div><div class="muted" style="font-size:12px">${esc(c.note)}</div>
     ${c.top.length ? c.top.map((p, i) => `<div class="w${i === 0 ? ' first' : ''}"><img src="${head(p.color)}" alt=""><span>${esc(p.name)}</span><span class="v">${esc(p.value)}</span></div>`).join('') : '<div class="muted" style="font-size:12.5px">Nobody yet</div>'}</div>`).join('');
-  const sel = $('adj-lobby'), cur = sel.value;
-  sel.innerHTML = ORG.lobbies.map(l => `<option>${esc(l.label)}</option>`).join('');
-  if (cur) sel.value = cur;
   const st = ORG.standings, n = v => (Math.round(v * 100) / 100).toString();
   const table = (title, note, rows, cut) => `<div class="card"><h2>${esc(title)}</h2><p class="muted" style="margin:0 0 8px;font-size:12.5px">${esc(note)}</p><div class="pts-wrap"><table class="pts"><thead><tr><th></th><th class="l">Player</th><th>Points</th><th>Total</th><th>Games</th><th>W-L</th></tr></thead><tbody>
     ${rows.map(r => `<tr class="${r.advancing ? 'up' : ''}${cut && r.rank === cut ? ' cut' : ''}"><td class="rk">${r.rank}</td><td class="l"><div class="nm" style="display:flex;align-items:center;gap:7px"><img src="${head(r.color)}" alt="" style="width:22px;height:22px"><span>${esc(r.name)}</span></div></td><td class="big">${n(r.points)}</td><td>${n(r.total)}</td><td>${r.games}</td><td>${r.wins}-${r.losses}</td></tr>`).join('')}</tbody></table></div></div>`;
@@ -844,11 +855,11 @@ const REASONS = { HumansByTask: 'Tasks done', HumansByVote: 'Impostors voted out
 // ---- Refresh ------------------------------------------------------------------------------
 async function refresh() {
   try { S = await api('GET', '/app/state'); } catch (e) { return; }
-  renderAlerts(); renderHome(); renderPoints(); renderSettings();
+  renderAlerts(); renderHome(); renderPoints(); renderSettings(); renderReferee();
 }
 refresh();
 setInterval(refresh, 1500);
-setInterval(() => { if ($('organiser').classList.contains('on')) loadOrganiser(); }, 2000);
+setInterval(() => { if ($('organiser').classList.contains('on') || (S && S.admin && $('home').classList.contains('on'))) loadOrganiser(); }, 2000);
 
 // ---- Window: the header is the title bar (drag, double-click to maximise) --------------------
 (() => {
