@@ -14,7 +14,7 @@ public class OverlayTests : IDisposable
     public void Dispose() => _dir.Dispose();
 
     private TournamentSession Session(int port = 0) =>
-        new(new TrackerSettings { LiveStatus = false, ChatCommands = true, PublicChat = true, ControlPort = -1, OverlayPort = port, TournamentName = "Cup" }, _dir.Path, NullLog.Instance,
+        new(new TrackerSettings { LiveStatus = false, PublicChat = true, ControlPort = -1, OverlayPort = port, TournamentName = "Cup" }, _dir.Path, NullLog.Instance,
             new HttpClient(new FakeHttp()), () => _clock.Now, new FakeVoiceApi(), new VoicePresenceState("g1"));
 
     private static JsonElement Json(object state) => JsonDocument.Parse(JsonSerializer.Serialize(state, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })).RootElement;
@@ -54,7 +54,7 @@ public class OverlayTests : IDisposable
     public async Task Overlay_on_serves_the_page_and_state_on_this_computer()
     {
         using var s = Session(port: 0);                                // any free port
-        s.HandleChat(Players.Lobby()[0], true, "!overlay on");
+        s.RunCommand("!overlay on");
         Assert.NotNull(s.Overlay);
         Assert.Contains(s.Pump(), r => r.Text.StartsWith("Stream overlay: add a Browser source in OBS with http://localhost:"));
         s.VoiceTick(VoicePhase.Lobby, Players.Lobby());
@@ -70,7 +70,7 @@ public class OverlayTests : IDisposable
         Assert.Equal("Cup", state.GetProperty("tournament").GetString());
         Assert.Equal(6, state.GetProperty("players").GetArrayLength());
 
-        s.HandleChat(Players.Lobby()[0], true, "!overlay off");
+        s.RunCommand("!overlay off");
         Assert.Null(s.Overlay);
     }
 }

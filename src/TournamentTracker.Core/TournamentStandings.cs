@@ -26,6 +26,30 @@ namespace TournamentTracker
             await NoteTiebreaksAsync(Combined).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// The lobby played its last game of the round: post who moves on, who's out and the
+        /// highlights. From the combined results when there's a results channel, otherwise from
+        /// this PC's own games.
+        /// </summary>
+        private async Task PostRoundSummaryAsync(int round)
+        {
+            IReadOnlyList<GameRecord> games;
+            if (Shared != null)
+            {
+                await RefreshCombinedAsync().ConfigureAwait(false);
+                games = Combined?.GameRecords ?? (IReadOnlyList<GameRecord>)LocalGames();
+            }
+            else games = LocalGames();
+            string lobby = LobbyLabel();
+            var rows = Stats.Standings.Lobby(games, lobby, round, _settings.AdvanceCount, _settings.GamesPerRound);
+            if (rows.Count == 0) return;
+            Func<PlayerTotals, string>? nameFor = _settings.LeaderboardMentions
+                ? t => Links.Find(t.Key)?.DiscordUserId is string id && id.Length > 0 ? $"<@{id}>" : $"**{t.Name}**"
+                : null;
+            await PostNowAsync(StandingsFormatter.RoundSummary(_settings.TournamentName, lobby.Length > 0 ? lobby + "'s lobby" : "This lobby",
+                round, rows, _settings.AdvanceCount, nameFor)).ConfigureAwait(false);
+        }
+
         /// <summary>Everyone in the current round across every lobby.</summary>
         private async Task PostRoundStandingsAsync()
         {

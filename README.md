@@ -9,7 +9,7 @@ their Discord account with **/link** in the Discord server. It:
 * **Keeps a tournament leaderboard** with configurable points, saved between sessions.
 * **Posts to Discord** through a webhook: a live status message for the lobby, a report after
   each game (player table, impostors, points breakdown, MVP, full timeline) and the updated
-  leaderboard. You can also turn on a live play-by-play.
+  leaderboard.
 * **Automutes Discord voice**: alive players are muted (and deafened) during tasks, everyone
   alive can talk in meetings, and dead players talk among themselves during tasks, with a
   short delay at each change. It can also mute spectators. Players link themselves with
@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.16**, a beta.
+The current release is **v0.1.17**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -52,24 +52,36 @@ needs a new code) or "Referee commands not heard" (the bot's Message Content Int
 Click one to go where it's fixed.
 
 **The Button updates itself.** When a new version is out it downloads it and uses it from
-the next start (Settings → The Button: "Restart to update"). Turn **Update automatically**
-off there to update only when you choose.
+the next start (Settings → The Button: "Restart to update"). The mod in Among Us updates
+itself the same way while the game is closed (Settings → Mod). Turn **Update automatically**
+off in either place to update only when you choose.
 
 While you play, the app's pages run the lobby:
 
 * **Home:** a line at the top with the game's latest warnings (a player left and whether to
-  void, an extra game, settings put back…; "N more" opens the rest, ✕ dismisses), and the
-  whole lobby on one page, up to 15 players: code, map, round, each player
+  void, an extra game, settings put back…; "N more" opens the rest, ✕ dismisses); a
+  checklist of what the lobby needs (mod up to date, setup code, round set, Discord voice,
+  everyone linked, the lobby message, sending video), red or amber when something's
+  missing; and the whole lobby on one page, up to 15 players: code, map, round, each player
   as their crewmate with their Discord link and whether automute has them muted or deafened;
   the automute buttons (automute on/off, referee mode, spectator muting, unmute everyone);
-  start the next round; void or unvoid a game; the settings lock, referee ghost slot,
-  stream overlay and lead-lobby switches; post standings.
+  start the next round; void or unvoid a game; the settings lock, referee ghost slot and
+  stream overlay switches; post the leaderboard or server standings, or repost the lobby
+  message.
 * **Points:** the point totals, for the host and the referees (players never see them in
   the game or through the bot). In a tournament: this lobby's round standings with the cut
   line and each player's running total, every lobby's round together (with a results
-  channel), and the running total across rounds. With a preliminary code: the lobby's
-  leaderboard, to help decide who moves on.
-* **Replays:** every recorded game (and any downloaded from Discord); watch one in the app.
+  channel), and from round 2 the running total across rounds. With a preliminary code: the
+  lobby's leaderboard, to help decide who moves on.
+* **Games:** every game this PC hosted, newest first: winner and how, top scorer, map,
+  length, voided or not, and **Watch** for its replay. Replays downloaded from other lobbies
+  are listed below. It reads the saved games, so it works with Among Us closed.
+* **Settings:** the game folder and the mod; the setup code as one line (details, change or
+  remove it); in a tournament with a results channel, the **lead lobby** and the combined
+  leaderboard reset; The Button's updates; files under **Advanced**.
+
+When a lobby plays its last game of the round, it posts a **round summary** in its results
+channel: who moves on, who's out, and the round's top score, most kills and best votes.
 
 The app talks to the mod over a private connection on your computer only (port 8766, with a
 random key the mod writes in its data folder).
@@ -262,6 +274,12 @@ seconds after anything changes; the Organiser tab reads them all:
   Tick **show roles** to see impostors, kills and task bars too. A lobby that hasn't sent
   anything for a couple of minutes is shown as gone quiet.
 * **Standings:** each lobby's round standings with the cut line, and all lobbies combined.
+* **Awards:** candidates for this round or the whole tournament, the top three in each of
+  top score, most kills, best impostor, sharpest voter, impostor hunter, task machine and
+  survivor. **Copy for Discord** copies them; you pick the winners.
+* **Jump to action** (or **N**): casts the lobby worth watching now (a meeting first, then
+  whatever just happened, else the next lobby in turn). A lobby whose host has gone silent
+  for a couple of minutes gets a warning at the top.
 * **Referee:** adjust points, void or unvoid a game, or type any `!` command; it's posted in
   the results channel as the administration bot and the lead lobby carries it out.
 * **Caster overlay:** an OBS Browser source at `http://localhost:8767/` that shows whichever
@@ -343,11 +361,8 @@ The same channel gets a **live status message**: the lobby code, map, phase, and
 player's colour, name and Discord link. It updates as people join, link and play, and moves
 below each game report so it stays at the bottom. Deaths only appear once the game has
 revealed them (at a meeting or the end), so it never gives away a kill. Give it its own
-channel with `StatusWebhookUrl`, or turn it off with `LiveStatus = false`. **Status** on
-The Button's Home posts a fresh copy.
-
-If you want a live feed of kills and meetings, make a second webhook in a
-**staff-only** channel (the feed reveals the impostors) and use it for `LiveFeedWebhookUrl`.
+channel with `StatusWebhookUrl`, or turn it off with `LiveStatus = false`. **Repost lobby
+message** on The Button's Home posts a fresh copy.
 
 ### Automute (bot)
 
@@ -440,8 +455,6 @@ colour changes, and they're saved in `BepInEx/config/TournamentTracker/links.jso
   spaces and symbols) is linked for them, and the lobby chat says so. A wrong match is fixed
   with `/unlink`. Turn it off
   with `AutoLinkByName = false`.
-* Or fill in `links.json` before the event (see `links.example.json`). A player's key is their
-  friend code in lower case, e.g. `coolbean#1234`.
 
 Home shows who is linked. Unlinked players are never muted, and
 spectators only when spectator muting is on.
@@ -476,38 +489,12 @@ the log warns about it.
 message count. The older game files stay in the channel, so deleting the reset message
 brings the old standings back.
 
-## Chat commands (off by default)
+## Nothing is typed in the game
 
-The app does all of this. Typing commands in the lobby chat is off unless you set
-`ChatCommands = true` in the config (and `PublicChat = true` to send the mod's announcements
-to everyone's chat). The commands, for reference; the app runs the same ones:
-
-| Command | Who | What |
-| --- | --- | --- |
-| `!link <discord>` | anyone* | Link your Discord account (normally `/link` in Discord) |
-| `!unlink` | anyone | Remove your link |
-| `!help` | anyone | List commands |
-| `!link <player> <discord>` | host | Link someone else (player = colour or name) |
-| `!unlink <player>` | host | Unlink someone |
-| `!links` | host | Who in the lobby is linked and who isn't |
-| `!automute on\|off` | host | Pause or resume automute |
-| `!unmuteall` | host | Emergency: unmute everyone and turn automute off (**F9** does the same) |
-| `!ref on\|off` | host | Referee mode: mute everyone in voice except the referees, to explain the rules |
-| `!spectators on\|off` | host | Mute people in voice who aren't playing, during games |
-| `!refresh` | host | Post a fresh live status message at the bottom of the channel |
-| `!leaderboard` | host | Post the leaderboard to Discord now (combined across lobbies if set up) |
-| `!resetleaderboard` | host | Start the combined leaderboard over for every lobby |
-| `!r1`, `!r2`… or `!round 3` | host | Start a tournament round (points restart; running total kept) |
-| `!servers` | host | Post the server standings |
-| `!lock on\|off` | host | Keep the lobby on the tournament's settings / free it for a casual game |
-| `!lead` | host | This lobby's mod answers the results-channel commands |
-| `!overlay on\|off` | host | Stream overlay for OBS at http://localhost:8765/ |
-| `!void [reason]` / `!unvoid` | host | Throw out the current or last game (a restart) / bring it back |
-| `!refslot on\|off` | host | Referee ghost slot: the host plays as a ghost referee (experimental) |
-| `!setup` | host | Apply the setup code on the clipboard (`!setup clear` to stop using one) |
-| `!resetstats confirm` | host | Archive the stats file and start a new leaderboard |
-
-\* unless `AllowSelfLink = false`.
+Everything the host does is a button in The Button; players link in Discord. The mod never
+reads the lobby chat. It only writes to it: the host sees its notes (round progress, a
+player who left), and links are announced to everyone (`AnnounceLinks`). `PublicChat = true`
+sends the other notes to everyone too.
 
 When the game closes, the mod unmutes everyone it muted before it exits.
 
@@ -519,17 +506,13 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | --- | --- | --- | --- |
 | General | `TournamentName` | Among Us Tournament | A new name starts a new leaderboard. The old one is kept. |
 | General | `LobbyLabel` | | Names this lobby (`Game LJ-3`); empty = the host's in-game name |
-| General | `CommandPrefix` | `!` | |
-| General | `AllowSelfLink` | true | |
 | General | `RecordReplays` | true | Record a replay of every game |
 | General | `OverlayPort` | 8765 | Stream overlay port (this computer only) |
 | General | `GamesPerRound` | 3 | Tournament rounds; a setup code overrides it |
-| General | `ChatCommands` | false | Accept commands typed in the lobby chat (the app is the normal way) |
 | General | `PublicChat` | false | Send announcements to everyone's chat |
 | General | `AnnounceLinks` | true | Say in the lobby chat when a player is linked to Discord |
 | General | `ControlPort` | 8766 | The app's private connection; -1 turns it off |
 | Discord | `StatsWebhookUrl` | | Game reports and leaderboard |
-| Discord | `LiveFeedWebhookUrl` | | Optional play-by-play |
 | Discord | `PostLeaderboardAfterEachGame` | true | |
 | Discord | `LeaderboardSize` | 15 | |
 | Discord | `LeaderboardMinGames` | 1 | Games a player needs before they appear on the leaderboard |
@@ -647,7 +630,7 @@ Layout:
 
 * `src/TournamentTracker.Core` has everything that doesn't touch the game: the stat tracker,
   scoring, leaderboard, Discord REST and webhooks, the automute planner and dispatcher, and
-  chat commands. It is unit-tested.
+  the commands The Button sends. It is unit-tested.
 * `src/TournamentTracker.AppCore` is The Button's engine and pages (cross-platform, tested);
   `src/TournamentTracker.App` is the Windows window around it (WebView2), built in CI.
 * `src/TournamentTracker.Plugin` is the BepInEx plugin: Harmony hooks on the game, and a

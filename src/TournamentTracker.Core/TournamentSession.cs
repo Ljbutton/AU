@@ -71,7 +71,6 @@ namespace TournamentTracker
             if (_overlayOn) StartOverlay();
             Links = LinkRegistry.Load(Path.Combine(dataDir, "links.json"), log);
             Tracker = new GameTracker(settings.Scoring);
-            Tracker.EventRecorded += OnTimelineEvent;
 
             _rest = new DiscordRest(http ?? DiscordRest.CreateHttpClient(), log);
 
@@ -224,12 +223,14 @@ namespace TournamentTracker
                 string? linked = Links.Find(p.Key)?.DiscordUserId;
                 p.DiscordId = string.IsNullOrEmpty(linked) ? null : linked;
             }
+            bool roundDone = false;
             if (game.Counted)
             {
                 CountRoundGame(game, 1);
                 CountImpostorGames(game, 1);
-                if (_settings.Mode == TrackerMode.Tournament && _settings.GamesPerRound > 0 && GamesThisRound == _settings.GamesPerRound && game.Round == Round)
-                    Reply($"That was game {GamesThisRound} of {_settings.GamesPerRound}: round {Round} is done for this lobby.", false);
+                roundDone = _settings.Mode == TrackerMode.Tournament && _settings.GamesPerRound > 0 && GamesThisRound == _settings.GamesPerRound && game.Round == Round;
+                if (roundDone)
+                    Reply($"That was game {GamesThisRound} of {_settings.GamesPerRound}: round {Round} is done for this lobby. The round summary is posted in Discord.", false);
             }
 
             Store.Apply(game);
@@ -261,17 +262,21 @@ namespace TournamentTracker
             {
                 if (game.Counted || game.Voided)
                 {
+                    int round = game.Round;
                     Chain(async () =>
                     {
                         await Shared.PublishAsync(game).ConfigureAwait(false);
                         if (_settings.Mode == TrackerMode.Tournament) await PostLobbyStandingsAsync().ConfigureAwait(false);
                         else if (_settings.PostLeaderboardAfterEachGame) await PostCombinedAsync().ConfigureAwait(false);
+                        if (roundDone) await PostRoundSummaryAsync(round).ConfigureAwait(false);
                     });
                 }
             }
-            else if (game.Counted && _settings.PostLeaderboardAfterEachGame)
+            else
             {
-                Post(_settings.StatsWebhookUrl, LeaderboardMessage());
+                if (game.Counted && _settings.PostLeaderboardAfterEachGame) Post(_settings.StatsWebhookUrl, LeaderboardMessage());
+                int round = game.Round;
+                if (roundDone) Chain(() => PostRoundSummaryAsync(round));
             }
             // Move the live status below the report so it stays at the bottom of the channel.
             RepostStatus();
@@ -334,12 +339,8 @@ namespace TournamentTracker
 
         private void Reply(string text, bool isPublic) => Reply(text, isPublic, false);
 
-        /// <summary>
-        /// How the host does something, for messages: the chat command when chat commands are on,
-        /// otherwise the button in The Button ("press Void in The Button").
-        /// </summary>
-        private string HowTo(string command, string button) =>
-            _settings.ChatCommands ? $"type {_settings.CommandPrefix}{command}" : $"press {button} in The Button";
+        /// <summary>How the host does something, for messages: the button in The Button ("press Void in The Button").</summary>
+        private static string HowTo(string command, string button) => $"press {button} in The Button";
 
         private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s.Substring(1);
 
@@ -353,12 +354,6 @@ namespace TournamentTracker
             // Something the game said on its own (not an answer to a button): Home shows it.
             if (!_answeringApp) AddNotice(text);
             _outbox.Add(new ChatReply(text, isPublic && (_settings.PublicChat || (lobbyChat && _phase == VoicePhase.Lobby))));
-        }
-
-        private void OnTimelineEvent(TimelineEvent e)
-        {
-            if (string.IsNullOrWhiteSpace(_settings.LiveFeedWebhookUrl) || Tracker.Current == null) return;
-            Post(_settings.LiveFeedWebhookUrl, ReportFormatter.LiveEvent(Tracker.Current, e));
         }
 
         /// <summary>Queues a webhook post. Posts go out one at a time, in order, off the game thread.</summary>

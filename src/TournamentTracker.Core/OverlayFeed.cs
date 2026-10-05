@@ -39,7 +39,7 @@ namespace TournamentTracker
             }
             Reply(_overlay != null
                 ? $"Stream overlay: add a Browser source in OBS with {_overlay.Url} (spoiler-free) or {_overlay.Url}?full=1 (roles and kills: delayed streams only). Size 360×900."
-                : $"Stream overlay is off. {_settings.CommandPrefix}overlay on starts it.", false);
+                : $"Stream overlay is off. Turn on Stream overlay in The Button to start it.", false);
         }
 
         private bool _overlayOn;

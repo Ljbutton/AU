@@ -5,6 +5,7 @@ using System.Text.Json;
 using TournamentTracker.App;
 using TournamentTracker.Discord;
 using TournamentTracker.Setup;
+using TournamentTracker.Stats;
 using Xunit;
 
 namespace TournamentTracker.Tests;
@@ -149,6 +150,32 @@ public class AppTests : IDisposable
         string old = Game(Path.Combine(_dir.Path, "AU32"), 0x14C);
         Assert.Equal("", await installer.InstallAsync(old, release, _ => { }));
         Assert.Equal("x64", ModInstaller.State(old).LoaderArch);
+    }
+
+    [Fact]
+    public async Task The_games_page_lists_saved_games_with_their_replays()
+    {
+        var (app, http, game) = App();
+        using var _ = app;
+        string dir = Path.Combine(ModInstaller.DataDir(game), "games", "fall-cup");
+        Directory.CreateDirectory(dir);
+        var record = new GameRecord { Id = "LJ-2-20261003-190000", Host = "LJ", GameNumber = 2, Round = 1, Map = "Polus", Winner = "Crewmates", EndReason = "HumansByTask",
+            StartedUtc = new DateTime(2026, 10, 3, 19, 0, 0, DateTimeKind.Utc), EndedUtc = new DateTime(2026, 10, 3, 19, 8, 0, DateTimeKind.Utc),
+            Players = { new GamePlayer { Name = "Cy", ColorId = 8, Points = 6 }, new GamePlayer { Name = "Bo", ColorId = 7, Points = 2 } } };
+        File.WriteAllText(Path.Combine(dir, "game-LJ-2.json"), JsonSerializer.Serialize(record));
+        File.WriteAllBytes(Path.Combine(dir, ReplayRecorder.FileNameFor(record)), new byte[] { 1 });
+        File.WriteAllText(Path.Combine(dir, "game-LJ-1.json"), JsonSerializer.Serialize(new GameRecord { Id = "LJ-1", Host = "LJ", GameNumber = 1, Voided = true, VoidReason = "restart",
+            StartedUtc = new DateTime(2026, 10, 3, 18, 50, 0, DateTimeKind.Utc) }));
+
+        var games = await Get(http, "app/games");
+        var list = games.GetProperty("games").EnumerateArray().ToList();
+        Assert.Equal(new[] { "LJ-2", "LJ-1" }, list.Select(g => g.GetProperty("name").GetString()));
+        Assert.Equal("Cy", list[0].GetProperty("mvp").GetProperty("name").GetString());
+        Assert.Equal(8, list[0].GetProperty("minutes").GetDouble());
+        Assert.Equal(ReplayRecorder.FileNameFor(record), list[0].GetProperty("replay").GetString());
+        Assert.True(list[1].GetProperty("voided").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, list[1].GetProperty("replay").ValueKind);
+        Assert.Empty(games.GetProperty("other").EnumerateArray());   // its replay is already on its game
     }
 
     [Fact]

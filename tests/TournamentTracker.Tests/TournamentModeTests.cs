@@ -233,7 +233,7 @@ public class TournamentModeTests : IDisposable
 
     private TournamentSession Session(SetupCode code)
     {
-        var s = new TournamentSession(new TrackerSettings { LiveStatus = false, ChatCommands = true, PublicChat = true, ControlPort = -1 }, _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now,
+        var s = new TournamentSession(new TrackerSettings { LiveStatus = false, PublicChat = true, ControlPort = -1 }, _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now,
             new FakeVoiceApi(), new VoicePresenceState("g1"), code);
         _sessions.Add(s);
         return s;
@@ -268,12 +268,11 @@ public class TournamentModeTests : IDisposable
     {
         var s = Session(TournamentCode());
         var lobby = Lobby();
-        Assert.True(s.HandleChat(lobby[3], fromHost: true, "!r2"));
+        Assert.True(s.RunCommand("!r2"));
         Assert.Equal(2, s.Round);
         Assert.Contains(s.Pump(), r => r.Public && r.Text == "Round 2 starts now!" || r.Text.StartsWith("Round 2 started"));
-        Assert.False(s.HandleChat(lobby[0], fromHost: false, "!r3"));
         Assert.Equal(2, s.Round);
-        s.HandleChat(lobby[3], true, "!round 3");
+        s.RunCommand("!round 3");
         Assert.Equal(3, s.Round);
         await s.PendingPosts;
 
@@ -283,13 +282,34 @@ public class TournamentModeTests : IDisposable
     }
 
     [Fact]
+    public async Task When_a_lobby_finishes_its_round_the_summary_is_posted()
+    {
+        var s = Session(TournamentCode());
+        var lobby = Lobby();
+        s.RunCommand("!r1");
+        Play(s, lobby, "ImpostorByKill");
+        Play(s, lobby);
+        await s.PendingPosts;
+        Assert.DoesNotContain(_discord.Webhooks, w => FakeDiscord.Title(w.Payload).Contains("is done"));   // not until game 3
+        Play(s, lobby);
+        await s.PendingPosts;
+        var summary = _discord.Webhooks.Single(w => FakeDiscord.Title(w.Payload).Contains("is done"));
+        Assert.Equal("🏁 LJ's lobby — round 1 is done", FakeDiscord.Title(summary.Payload));
+        string text = FakeDiscord.Description(summary.Payload);
+        Assert.StartsWith("**Moving on (2)**", text);
+        Assert.Contains("**Out this round:**", text);
+        Assert.Contains("Top score:", text);
+        Assert.Contains(s.Pump(), r => r.Text.Contains("round 1 is done for this lobby"));
+    }
+
+    [Fact]
     public async Task After_each_game_the_lobby_standings_show_the_round_the_cut_line_and_the_running_total()
     {
         var s = Session(TournamentCode());
         var lobby = Lobby();
-        s.HandleChat(lobby[3], true, "!r1");
+        s.RunCommand("!r1");
         Play(s, lobby, "ImpostorByKill");                          // Alice and Bob win round 1
-        s.HandleChat(lobby[3], true, "!r2");
+        s.RunCommand("!r2");
         Play(s, lobby);                                            // crew wins round 2
         await s.PendingPosts;
 
@@ -307,7 +327,7 @@ public class TournamentModeTests : IDisposable
     {
         var s = Session(TournamentCode());
         var lobby = Lobby();
-        s.HandleChat(lobby[3], true, "!r1");
+        s.RunCommand("!r1");
         s.GameStarted("ABCDEF", "Polus", lobby);
         _clock.Advance(120);
         _discord.Say("results", "!adjust LJ red -2 meta call in meeting", _clock.Now);      // typed during the game
@@ -331,9 +351,9 @@ public class TournamentModeTests : IDisposable
     {
         var s = Session(TournamentCode());
         var lobby = Lobby();
-        s.HandleChat(lobby[3], true, "!r1");
+        s.RunCommand("!r1");
         s.GameStarted("ABCDEF", "Polus", lobby);
-        Assert.True(s.HandleChat(lobby[3], true, "!void lights bug"));
+        Assert.True(s.RunCommand("!void lights bug"));
         Assert.Contains(s.Pump(), r => r.Public && r.Text.StartsWith("Game LJ-1 is void"));
         s.GameAbandoned(lobby);
         var replay = Play(s, lobby);                               // the restart counts
@@ -352,18 +372,18 @@ public class TournamentModeTests : IDisposable
     {
         var s = Session(TournamentCode());
         var lobby = Lobby();
-        s.HandleChat(lobby[3], true, "!r1");
+        s.RunCommand("!r1");
         Play(s, lobby);
         await s.PendingPosts;
         Assert.Equal(1, s.Store.GamesRecorded);
 
-        s.HandleChat(lobby[3], true, "!void wrong settings");
+        s.RunCommand("!void wrong settings");
         await s.PendingPosts;
         Assert.Equal(0, s.Store.GamesRecorded);
         Assert.Empty(s.Store.Players);
         Assert.Equal(0, s.Combined!.Store.GamesRecorded);
 
-        s.HandleChat(lobby[3], true, "!unvoid");
+        s.RunCommand("!unvoid");
         await s.PendingPosts;
         Assert.Equal(1, s.Store.GamesRecorded);
         Assert.Equal(1, s.Combined!.Store.GamesRecorded);
@@ -374,12 +394,12 @@ public class TournamentModeTests : IDisposable
     {
         var s = Session(TournamentCode());
         var lobby = Lobby();
-        s.HandleChat(lobby[3], true, "!r1");
+        s.RunCommand("!r1");
         Play(s, lobby);
         await s.PendingPosts;
 
         _discord.Say("results", "!void LJ-1 restarted after a crash", _clock.Now);
-        s.HandleChat(lobby[3], true, "!lb");
+        s.RunCommand("!lb");
         await s.PendingPosts;
         Assert.Equal(0, s.Combined!.Store.GamesRecorded);
         var command = _discord.Messages.Single(m => m.Content.StartsWith("!void"));
@@ -389,13 +409,13 @@ public class TournamentModeTests : IDisposable
         Assert.Equal(0, s.Store.GamesRecorded);                    // the local totals follow
 
         _discord.Messages.Remove(command);                         // deleting it undoes nothing
-        s.HandleChat(lobby[3], true, "!lb");
+        s.RunCommand("!lb");
         await s.PendingPosts;
         Assert.Equal(0, s.Combined!.Store.GamesRecorded);
 
         _clock.Advance(60);
         _discord.Say("results", "!unvoid LJ-1", _clock.Now);
-        s.HandleChat(lobby[3], true, "!lb");
+        s.RunCommand("!lb");
         await s.PendingPosts;
         Assert.Equal(1, s.Combined!.Store.GamesRecorded);
         Assert.Equal(1, _discord.Messages.Count(m => m.Content.StartsWith("Game LJ-1 is void")));   // reposted once
@@ -408,11 +428,11 @@ public class TournamentModeTests : IDisposable
     {
         var s = Session(TournamentCode());
         var lobby = Lobby();
-        s.HandleChat(lobby[3], true, "!r1");
+        s.RunCommand("!r1");
         s.GameStarted("ABCDEF", "Polus", lobby);
         _clock.Advance(72);
         s.PlayerLeft(4);
-        Assert.Contains(s.Pump(), r => !r.Public && r.Text.StartsWith("Eve left at 1:12, before the first meeting. To restart, type !void"));
+        Assert.Contains(s.Pump(), r => !r.Public && r.Text.StartsWith("Eve left at 1:12, before the first meeting. To restart, press Void in The Button"));
         s.MeetingCalled(0, null);
         s.PlayerLeft(5);
         Assert.Contains(s.Pump(), r => r.Text.StartsWith("Finn left at 1:12. The game plays on"));
@@ -467,7 +487,7 @@ public class TournamentModeTests : IDisposable
     [Fact]
     public async Task At_a_round_start_each_lobby_says_where_to_go()
     {
-        var settings = new TrackerSettings { LiveStatus = false, ChatCommands = true, ControlPort = -1 };
+        var settings = new TrackerSettings { LiveStatus = false, ControlPort = -1 };
         settings.AutoMute.VoiceChannelId = "vc55";
         var presence = new VoicePresenceState("g1") { Connected = true };
         var s = new TournamentSession(settings, _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now, new FakeVoiceApi(), presence, TournamentCode());
@@ -488,7 +508,7 @@ public class TournamentModeTests : IDisposable
         var second = Session(TournamentCode());
         Assert.True(first.IsLead);
         second.VoiceTick(VoicePhase.Lobby, Lobby("Sam"), "ABCDEF", "Polus");
-        second.HandleChat(Lobby("Sam")[3], true, "!lead");
+        second.RunCommand("!lead");
         await second.PendingPosts;
         var note = _discord.Messages.ToList().Last(m => m.Content?.StartsWith("Lead · ") == true);   // the live data can be posted around it
         Assert.StartsWith("Lead · Sam answers channel commands", note.Content);
@@ -502,7 +522,7 @@ public class TournamentModeTests : IDisposable
     {
         var s = Session(TournamentCode());
         var lobby = Lobby();
-        s.HandleChat(lobby[3], true, "!r1");
+        s.RunCommand("!r1");
         s.GameStarted("ABCDEF", "Polus", lobby);
         s.ReplayMapLoaded(new ReplayMap { Walls = { new[] { 0f, 0f, 5f, 0f } }, Rooms = { new ReplayRoom { Name = "Office", Area = new[] { 0f, 0f, 1f, 0f, 1f, 1f } } } });
         for (int i = 0; i < 30; i++)
@@ -570,11 +590,11 @@ public class TournamentModeTests : IDisposable
 
         var s = Session(TournamentCode());
         var lobby = Players.Lobby();
-        s.HandleChat(lobby[0], true, "!r1");
+        s.RunCommand("!r1");
         Play(s, lobby);
-        s.HandleChat(lobby[0], true, "!r2");
+        s.RunCommand("!r2");
         Play(s, lobby.Where(p => p.PlayerId != 1 && p.PlayerId != 4).ToList());   // Bob and Eve knocked out
-        s.HandleChat(lobby[0], true, "!servers");
+        s.RunCommand("!servers");
         await s.PendingPosts;
 
         var post = _discord.Webhooks.Last(w => FakeDiscord.Title(w.Payload).Contains("Server standings"));
@@ -606,24 +626,21 @@ public class TournamentModeTests : IDisposable
     }
 
     [Fact]
-    public async Task Setup_reads_the_code_from_the_clipboard_and_asks_for_a_restart()
+    public async Task Setup_reloads_the_code_The_Button_saved_and_asks_for_a_restart()
     {
         var s = Session(TournamentCode());
         bool restarted = false;
         s.RestartRequested += () => restarted = true;
-        var host = Lobby()[3];
 
-        s.Clipboard = () => "nothing useful";
-        s.HandleChat(host, true, "!setup");
-        Assert.Contains(s.Pump(), r => r.Text == "Current setup: Fall Cup (tournament host, automute on).");
+        s.RunCommand("!setup");
+        Assert.Contains(s.Pump(), r => r.Text.StartsWith("Current setup: Fall Cup (tournament host, automute on)."));
         Assert.False(restarted);
 
         var prelim = new SetupCode { TournamentId = "p", TournamentName = "Prelims", Server = "S", Webhook = Webhook };
-        s.Clipboard = () => prelim.Encode();
-        s.HandleChat(host, true, "!setup");
+        SetupCode.Save(_dir.Path, prelim.Encode());
+        s.RunCommand("!setup reload");
         Assert.True(restarted);
-        Assert.True(SetupCode.TryParse(File.ReadAllText(Path.Combine(_dir.Path, SetupCode.FileName)), out var saved, out _));
-        Assert.Equal("Prelims", saved.TournamentName);
+        Assert.Contains(s.Pump(), r => r.Text.StartsWith("Setup applied: Prelims"));
         await s.PendingPosts;
     }
 }

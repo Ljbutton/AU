@@ -76,9 +76,8 @@ jobs:
           set -euo pipefail
           name="TournamentTracker-Mod-${REF//\//-}"
           root="dist/$name"
-          mkdir -p "$root/BepInEx/plugins" "$root/BepInEx/config/TournamentTracker"
+          mkdir -p "$root/BepInEx/plugins"
           cp src/TournamentTracker.Plugin/bin/Release/net6.0/TournamentTracker.dll "$root/BepInEx/plugins/"
-          cp examples/links.example.json "$root/BepInEx/config/TournamentTracker/"
           cp README.md LICENSE "$root/"
           grep -E 'AmongUs.GameLibs|BepInEx' versions.txt > "$root/BUILT-AGAINST.txt" || true
           (cd dist && zip -qr "$name.zip" "$name")

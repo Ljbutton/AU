@@ -44,14 +44,17 @@ namespace TournamentTracker
             catch (Exception) { return new List<FileInfo>(); }
         }
 
+        /// <summary>This PC's saved games for the tournament (every game file in the games folder).</summary>
+        private List<GameRecord> LocalGames(List<FileInfo>? files = null) => (files ?? LocalGameFiles()).Select(f =>
+        {
+            try { return JsonSerializer.Deserialize<GameRecord>(File.ReadAllText(f.FullName)); }
+            catch (Exception) { return null; }
+        }).Where(g => g != null).Select(g => g!).ToList();
+
         private object BuildPoints(List<FileInfo> files)
         {
             bool combined = Combined != null;
-            IReadOnlyList<GameRecord> games = Combined?.GameRecords ?? files.Select(f =>
-            {
-                try { return JsonSerializer.Deserialize<GameRecord>(File.ReadAllText(f.FullName)); }
-                catch (Exception) { return null; }
-            }).Where(g => g != null).Select(g => g!).ToList();
+            IReadOnlyList<GameRecord> games = Combined?.GameRecords ?? LocalGames(files);
             var counted = games.Where(g => g.Counted).ToList();
             var sections = new List<object>();
             string lobby = LobbyLabel();
@@ -73,7 +76,10 @@ namespace TournamentTracker
                 : _settings.Mode == TrackerMode.Preliminary
                     ? "Every counted game in this lobby. The organiser's bot posts the combined preliminary board every 10 minutes."
                     : "Every counted game in this lobby.";
-            sections.Add(Section(_settings.Mode == TrackerMode.Tournament ? "Running total" : "Leaderboard", allNote, all, 0, withTotal: false));
+            // In the first round the running total is the round table again: only show it once there's more.
+            bool sameAsRound = _settings.Mode == TrackerMode.Tournament && Round > 0 && counted.All(g => g.Round == Round);
+            if (!sameAsRound)
+                sections.Add(Section(_settings.Mode == TrackerMode.Tournament ? "Running total" : "Leaderboard", allNote, all, 0, withTotal: false));
 
             return new
             {

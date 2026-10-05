@@ -20,7 +20,7 @@ public class RefSlotTests : IDisposable
 
     private TournamentSession Session()
     {
-        var settings = new TrackerSettings { TournamentName = "Cup", LiveStatus = false, ChatCommands = true, PublicChat = true, ControlPort = -1 };
+        var settings = new TrackerSettings { TournamentName = "Cup", LiveStatus = false, PublicChat = true, ControlPort = -1 };
         settings.AutoMute.Enabled = true;
         settings.AutoMute.GuildId = "g1";
         settings.AutoMute.BotTokens.Add("tok");
@@ -48,16 +48,15 @@ public class RefSlotTests : IDisposable
         var s = Session();
         var lobby = ElevenPlayers();
         s.VoiceTick(VoicePhase.Lobby, lobby);
-        Assert.True(s.HandleChat(lobby[10], fromHost: true, "!refslot on"));
+        Assert.True(s.RunCommand("!refslot on"));
         Assert.Equal((byte)10, s.RefSlotPlayerId(lobby));
         Assert.Contains("Referee ghost slot ON", s.Pump().First().Text);
 
-        s.HandleChat(lobby[10], true, "!refslot green");        // picking someone else isn't a thing
+        s.RunCommand("!refslot green");        // picking someone else isn't a thing
         Assert.Equal((byte)10, s.RefSlotPlayerId(lobby));
         Assert.Contains("is ON: you become a ghost", s.Pump().Single().Text);
 
-        Assert.False(s.HandleChat(lobby[0], false, "!refslot on"));
-        s.HandleChat(lobby[10], true, "!refslot off");
+        s.RunCommand("!refslot off");
         Assert.Null(s.RefSlotPlayerId(lobby));
     }
 
@@ -66,7 +65,8 @@ public class RefSlotTests : IDisposable
     {
         var s = Session();
         var lobby = ElevenPlayers();
-        s.HandleChat(lobby[10], true, "!refslot on");
+        s.VoiceTick(VoicePhase.Lobby, lobby);
+        s.RunCommand("!refslot on");
         s.GameStarted("ABCDEF", "Polus", lobby);
         lobby[10].IsDead = true;                                   // the ghost
         var game = s.GameEnded("HumansByTask", lobby)!;
@@ -84,7 +84,8 @@ public class RefSlotTests : IDisposable
         s.Links.Link(lobby[0].Key, "Alice", "100", "alice");
         _presence.Dispatch("GUILD_CREATE", System.Text.Json.JsonDocument.Parse(
             """{"id":"g1","voice_states":[{"user_id":"300","channel_id":"vc"},{"user_id":"100","channel_id":"vc"},{"user_id":"900","channel_id":"vc"}],"members":[]}""").RootElement);
-        s.HandleChat(lobby[10], true, "!refslot on");
+        s.VoiceTick(VoicePhase.Lobby, lobby);
+        s.RunCommand("!refslot on");
         lobby[10].IsDead = true;
         s.VoiceTick(VoicePhase.Meeting, lobby);                   // dead players are muted in meetings…
         await Wait.Until(() => _voice.Calls.Any(c => c.User == "900") && _voice.Calls.Any(c => c.User == "100"));

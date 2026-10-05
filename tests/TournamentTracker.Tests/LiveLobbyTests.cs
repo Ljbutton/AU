@@ -142,7 +142,7 @@ public class LiveLobbyTests : IDisposable
 
     private TournamentSession Session(Action<TrackerSettings>? configure = null)
     {
-        var settings = new TrackerSettings { TournamentName = "Cup", StatsWebhookUrl = Webhook, LiveStatus = false, ChatCommands = true, PublicChat = true, ControlPort = -1, PostLeaderboardAfterEachGame = false };
+        var settings = new TrackerSettings { TournamentName = "Cup", StatsWebhookUrl = Webhook, LiveStatus = false, PublicChat = true, ControlPort = -1, PostLeaderboardAfterEachGame = false };
         settings.AutoMute.Enabled = true;
         settings.AutoMute.GuildId = "g1";
         settings.AutoMute.BotTokens.Add("tok");
@@ -193,7 +193,7 @@ public class LiveLobbyTests : IDisposable
         s.VoiceTick(VoicePhase.Lobby, _lobby);
         Assert.NotNull(s.Links.Find(_lobby[0].Key));
 
-        s.HandleChat(_lobby[0], false, "!unlink");
+        s.HandleSlashCommand(Slash("unlink", "100", "alice"));
         _clock.Advance(5);
         s.VoiceTick(VoicePhase.Lobby, _lobby);
         Assert.Null(s.Links.Find(_lobby[0].Key));
@@ -340,7 +340,7 @@ public class LiveLobbyTests : IDisposable
         Assert.DoesNotContain(_voice.Calls, c => c.User == "950");   // a different channel
         Assert.Contains(_voice.Calls, c => c.User == "100" && c.State == new VoiceState(true, true));
 
-        Assert.True(s.HandleChat(_lobby[0], true, "!spectators off"));
+        Assert.True(s.RunCommand("!spectators off"));
         Assert.Contains("OFF", s.Pump().Single().Text);
         s.VoiceTick(VoicePhase.Tasks, _lobby);
         await Wait.Until(() => _voice.Calls.Any(c => c.User == "900" && c.State == VoiceState.Open));
@@ -357,12 +357,13 @@ public class LiveLobbyTests : IDisposable
             c.AutoMute.RefereeUserIds.Add("800");                  // a co-referee
         });
         s.Links.Link(_lobby[0].Key, "Alice", "100", "alice");      // Alice is the host
+        _lobby[0].IsHost = true;
         s.Links.Link(_lobby[2].Key, "Carl", "102", "carl");
         InVoice("vc", ("100", "alice"), ("102", "carl"), ("800", "coref"), ("900", "viewer"));
         s.VoiceTick(VoicePhase.Lobby, _lobby);
         await Wait.Until(() => _voice.Calls.Any(c => c.User == "102"));
 
-        Assert.True(s.HandleChat(_lobby[0], fromHost: true, "!ref on"));
+        Assert.True(s.RunCommand("!ref on"));
         var replies = s.Pump();
         Assert.Contains(replies, r => !r.Public && r.Text.StartsWith("Referee mode ON"));
         Assert.Contains(replies, r => r.Public && r.Text.Contains("muted for now"));
@@ -373,7 +374,7 @@ public class LiveLobbyTests : IDisposable
         Assert.DoesNotContain(_voice.Calls, c => c.User == "100" && c.State.Mute);                      // the host talks
         Assert.DoesNotContain(_voice.Calls, c => c.User == "800" && c.State.Mute);                      // so does the co-ref
 
-        s.HandleChat(_lobby[0], true, "!ref off");
+        s.RunCommand("!ref off");
         s.VoiceTick(VoicePhase.Lobby, _lobby);
         await Wait.Until(() => _voice.Calls.LastOrDefault(c => c.User == "900").State == VoiceState.Open
                             && _voice.Calls.LastOrDefault(c => c.User == "102").State == VoiceState.Open);
@@ -383,10 +384,9 @@ public class LiveLobbyTests : IDisposable
     public void Referee_mode_is_host_only_and_ends_when_the_game_starts()
     {
         var s = Session(c => c.AutoMute.AutoLinkByName = false);
-        Assert.False(s.HandleChat(_lobby[2], fromHost: false, "!ref on"));
         Assert.False(s.AutoMute!.RefereeMode);
 
-        s.HandleChat(_lobby[0], true, "!ref on");
+        s.RunCommand("!ref on");
         Assert.True(s.AutoMute.RefereeMode);
         s.Pump();
         s.VoiceTick(VoicePhase.Tasks, _lobby);
@@ -398,8 +398,8 @@ public class LiveLobbyTests : IDisposable
     public void Unmuteall_also_ends_referee_mode()
     {
         var s = Session(c => c.AutoMute.AutoLinkByName = false);
-        s.HandleChat(_lobby[0], true, "!ref on");
-        s.HandleChat(_lobby[0], true, "!unmuteall");
+        s.RunCommand("!ref on");
+        s.RunCommand("!unmuteall");
         Assert.False(s.AutoMute!.RefereeMode);
     }
 

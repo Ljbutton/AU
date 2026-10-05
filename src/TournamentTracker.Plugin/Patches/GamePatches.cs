@@ -154,16 +154,4 @@ namespace TournamentTracker.Plugin.Patches
         public static void Postfix(EndGameResult __0) => Hook.Run("Game end", () =>
             Driver.EndGame(__0 == null ? "Unknown" : __0.GameOverReason.ToString()));
     }
-
-    [HarmonyPatch(typeof(ChatController), nameof(ChatController.AddChat))]
-    internal static class ChatPatch
-    {
-        public static void Postfix(PlayerControl __0, string __1) => Hook.Run("Chat", () =>
-        {
-            if (__0 == null || __0.Data == null || string.IsNullOrEmpty(__1)) return;
-            var local = PlayerControl.LocalPlayer;
-            bool fromHost = local != null && __0.PlayerId == local.PlayerId;
-            TournamentPlugin.Session.HandleChat(Game.Snapshot(__0.Data), fromHost, __1);
-        });
-    }
 }

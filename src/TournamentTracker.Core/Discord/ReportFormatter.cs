@@ -151,12 +151,6 @@ namespace TournamentTracker.Discord
         private static string NoPlayersYet(int minGames) =>
             minGames > 1 ? $"No one has played {minGames} games yet." : "No games recorded yet.";
 
-        public static WebhookMessage LiveEvent(GameRecord game, TimelineEvent e) => new WebhookMessage
-        {
-            Username = BotName,
-            Content = Clip($"`{game.Name} {Clock(e.AtSeconds)}` {Icon(e.Kind)} {Escape(e.Text)}", 2000),
-        };
-
         public static string PlayerTable(GameRecord game)
         {
             var sb = new StringBuilder("```\n");

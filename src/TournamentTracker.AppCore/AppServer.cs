@@ -26,6 +26,9 @@ namespace TournamentTracker.App
         /// <summary>Download and install new versions of The Button by itself.</summary>
         public bool AutoUpdateApp { get; set; } = true;
 
+        /// <summary>Install new versions of the mod in Among Us by themselves (while the game is closed).</summary>
+        public bool AutoUpdateMod { get; set; } = true;
+
         /// <summary>The administration code that unlocks the organiser's view (null: locked).</summary>
         public string? AdminCode { get; set; }
 
@@ -260,6 +263,7 @@ namespace TournamentTracker.App
                     return Text(200, "application/json", activity ?? "{\"last\":0,\"lines\":[]}");
                 }
                 case ("GET", "/app/replays"): return Ok(Replays());
+                case ("GET", "/app/games"): return Ok(Games());
                 case ("GET", "/app/replay"):
                 {
                     string name = HttpRequest.Query(query, "name");
@@ -285,6 +289,11 @@ namespace TournamentTracker.App
                     if (_appReady == null) return Ok(new { ok = false, message = "No update is waiting." });
                     _ = Task.Run(async () => { await Task.Delay(300).ConfigureAwait(false); _env.Restart(); });
                     return Ok(new { ok = true, message = "Restarting…" });
+                case ("POST", "/app/modauto"):
+                    _settings.AutoUpdateMod = Arg("on") == "true";
+                    TrySave();
+                    _nextAutoModUpdate = DateTime.MinValue;
+                    return Ok(new { ok = true, message = _settings.AutoUpdateMod ? "The mod updates itself while Among Us is closed." : "Automatic mod updates are off: Settings shows when a new version is out." });
                 case ("POST", "/app/autoupdate"):
                     _settings.AutoUpdateApp = Arg("on") == "true";
                     TrySave();
@@ -309,6 +318,7 @@ namespace TournamentTracker.App
             }
             var mod = ModInstaller.State(GamePath);
             AutoRepair(mod);
+            AutoUpdateMod(mod);
             string? status = mod.Installed && GamePath != null ? await _mod.StatusAsync(GamePath).ConfigureAwait(false) : null;
             return new
             {
@@ -318,7 +328,8 @@ namespace TournamentTracker.App
                 {
                     mod.Installed, mod.InstalledVersion, mod.GameArch, mod.LoaderArch, mod.LoaderMatchesGame,
                     Latest = _latest?.Tag,
-                    UpdateAvailable = _latest != null && mod.Installed && Newer(_latest.Tag, mod.InstalledVersion),
+                    UpdateAvailable = ModUpdateAvailable(mod),
+                    Auto = _settings.AutoUpdateMod,
                     Installing = _installing,
                     InstallResult = _installResult,
                 },
@@ -416,7 +427,18 @@ namespace TournamentTracker.App
             return new { ok = true, message = "Found Among Us." };
         }
 
-        private DateTime _nextAutoRepair = DateTime.MinValue;
+        private DateTime _nextAutoRepair = DateTime.MinValue, _nextAutoModUpdate = DateTime.MinValue;
+
+        private bool ModUpdateAvailable(ModState mod) => _latest != null && mod.Installed && Newer(_latest.Tag, mod.InstalledVersion);
+
+        /// <summary>A new version of the mod is out: install it by itself once Among Us is closed (unless switched off).</summary>
+        private void AutoUpdateMod(ModState mod)
+        {
+            if (!_settings.AutoUpdateMod || !ModUpdateAvailable(mod) || !mod.LoaderMatchesGame || GamePath == null || _installing.Length > 0) return;
+            if (DateTime.UtcNow < _nextAutoModUpdate || ModInstaller.GameRunning()) return;
+            _nextAutoModUpdate = DateTime.UtcNow + AutoRepairRetry;
+            StartInstall(update: true);
+        }
         /// <summary>How long to wait before trying an automatic repair again after one didn't work.</summary>
         public static readonly TimeSpan AutoRepairRetry = TimeSpan.FromMinutes(15);
 
@@ -432,12 +454,12 @@ namespace TournamentTracker.App
             StartInstall(repair: true);
         }
 
-        private object StartInstall(bool repair = false)
+        private object StartInstall(bool repair = false, bool update = false)
         {
             if (_installing.Length > 0) return new { ok = false, message = "Already installing." };
             if (GamePath == null) return new { ok = false, message = "Find Among Us first." };
             string game = GamePath;
-            _installing = repair ? "Repairing the mod loader (Among Us needs the 64-bit one)…" : "Checking for the latest version…";
+            _installing = repair ? "Repairing the mod loader (Among Us needs the 64-bit one)…" : update ? "Updating the mod by itself…" : "Checking for the latest version…";
             _installResult = "";
             _ = Task.Run(async () =>
             {
@@ -447,7 +469,9 @@ namespace TournamentTracker.App
                     if (release == null) { _installResult = "Couldn't reach GitHub to download the mod. Check your internet connection."; return; }
                     _latest = release;
                     string error = await _installer.InstallAsync(game, release, m => _installing = m).ConfigureAwait(false);
-                    _installResult = error.Length > 0 ? (repair ? "Couldn't repair the mod loader by itself: " + error + " Press Repair to try again." : error)
+                    _installResult = error.Length > 0 ? (repair ? "Couldn't repair the mod loader by itself: " + error + " Press Repair to try again."
+                            : update ? "Couldn't update the mod by itself: " + error + " It tries again in a while, or press Update." : error)
+                        : update ? $"Updated the mod to {release.Tag} by itself."
                         : repair ? $"Repaired the mod loader by itself: {release.Tag} with the 64-bit loader. The next Among Us start takes a few minutes while BepInEx sets itself up."
                         : $"Installed {release.Tag}. Start Among Us: the first start takes a few minutes while BepInEx sets itself up.";
                     KeepSetupCode();
@@ -514,11 +538,11 @@ namespace TournamentTracker.App
             return JsonDocument.Parse(answer).RootElement;
         }
 
-        private List<FileInfo> ReplayFiles()
+        private List<FileInfo> ReplayFiles(int max = 50)
         {
             var folders = new List<string> { _env.Downloads };
             if (GamePath != null) folders.Add(Path.Combine(ModInstaller.DataDir(GamePath), "games"));
-            return ReplayLibrary.Find(folders, 50);
+            return ReplayLibrary.Find(folders, max);
         }
 
         private object Replays() => ReplayFiles().Select(f => new
@@ -526,6 +550,55 @@ namespace TournamentTracker.App
             f.Name, Label = ReplayLibrary.Label(f), When = f.LastWriteTimeUtc.ToString("o"), Size = f.Length,
             Downloaded = f.FullName.StartsWith(_env.Downloads, StringComparison.OrdinalIgnoreCase),
         }).ToList();
+
+        /// <summary>
+        /// The Games page: this PC's games (newest first) from the saved game files, each with its
+        /// replay when there is one, plus replays from elsewhere (downloaded from another lobby).
+        /// Read from the files, so it works with Among Us closed.
+        /// </summary>
+        private object Games()
+        {
+            var replays = ReplayFiles(200);
+            var byName = replays.GroupBy(f => f.Name, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            var games = new List<GameRecord>();
+            if (GamePath != null)
+            {
+                try
+                {
+                    var dir = new DirectoryInfo(Path.Combine(ModInstaller.DataDir(GamePath), "games"));
+                    if (dir.Exists)
+                        foreach (var f in dir.EnumerateFiles("game-*.json", SearchOption.AllDirectories).OrderByDescending(f => f.LastWriteTimeUtc).Take(60))
+                        {
+                            try { if (JsonSerializer.Deserialize<GameRecord>(File.ReadAllText(f.FullName)) is GameRecord g) games.Add(g); }
+                            catch (Exception) { /* a damaged file */ }
+                        }
+                }
+                catch (Exception) { }
+            }
+            var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var list = games.OrderByDescending(g => g.EndedUtc ?? g.StartedUtc).Select(g =>
+            {
+                string file = ReplayRecorder.FileNameFor(g);
+                bool hasReplay = byName.ContainsKey(file);
+                if (hasReplay) used.Add(file);
+                var mvp = g.Counted ? g.Players.OrderByDescending(p => p.Points).FirstOrDefault() : null;
+                return new
+                {
+                    g.Id, g.Name, g.Round, g.Map, g.Winner, g.EndReason,
+                    When = (g.EndedUtc ?? g.StartedUtc).ToString("o"),
+                    Minutes = g.EndedUtc == null ? (double?)null : Math.Round((g.EndedUtc.Value - g.StartedUtc).TotalMinutes, 1),
+                    g.Voided, g.VoidReason, Players = g.Players.Count,
+                    Mvp = mvp == null ? null : new { mvp.Name, Color = mvp.ColorId, Points = Math.Round(mvp.Points, 2) },
+                    Replay = hasReplay ? file : null,
+                };
+            }).ToList();
+            var other = replays.Where(f => !used.Contains(f.Name)).Select(f => new
+            {
+                f.Name, Label = ReplayLibrary.Label(f), When = f.LastWriteTimeUtc.ToString("o"),
+                Downloaded = f.FullName.StartsWith(_env.Downloads, StringComparison.OrdinalIgnoreCase),
+            }).Take(30).ToList();
+            return new { Games = list, Other = other };
+        }
 
         private object Open(string what)
         {

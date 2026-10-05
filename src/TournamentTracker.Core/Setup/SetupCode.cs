@@ -163,7 +163,6 @@ namespace TournamentTracker.Setup
                 s.Mode = TrackerMode.Preliminary;
                 s.ServerName = Server ?? "";
                 s.LiveStatus = false;
-                s.LiveFeedWebhookUrl = "";
                 s.PostLeaderboardAfterEachGame = false;
                 s.ResultsChannelId = "";
 

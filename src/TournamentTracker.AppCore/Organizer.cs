@@ -336,6 +336,39 @@ namespace TournamentTracker.App
                 },
                 Advance = adv,
                 PerRound = per,
+                Awards = load == null ? null : new
+                {
+                    Round = round == 0 ? null : Awards(load.GameRecords.Where(g => g.Round == round)),
+                    All = Awards(load.GameRecords),
+                },
+            };
+        }
+
+        /// <summary>
+        /// Candidates for the organiser's awards (picked by hand): the top three in each category,
+        /// over the counted games given. Public for tests.
+        /// </summary>
+        public static List<object> Awards(IEnumerable<GameRecord> games)
+        {
+            var players = Stats.Standings.Build(games.Where(g => g.Counted), "").Leaderboard().Where(p => p.Games > 0).ToList();
+            object Category(string title, string note, Func<PlayerTotals, double> score, Func<PlayerTotals, string> value, Func<PlayerTotals, bool>? eligible = null) => new
+            {
+                Title = title, Note = note,
+                Top = players.Where(p => (eligible == null || eligible(p)) && score(p) > 0)
+                    .OrderByDescending(score).ThenByDescending(p => p.Points).Take(3)
+                    .Select(p => new { p.Name, Color = p.LastColorId, Value = value(p) }).ToList(),
+            };
+            static string N(double v) => Math.Round(v, 2).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return new List<object>
+            {
+                Category("Top score", "Most points", p => p.Points, p => $"{N(p.Points)} pts"),
+                Category("Most kills", "As impostor", p => p.Kills, p => $"{p.Kills} kill{(p.Kills == 1 ? "" : "s")}"),
+                Category("Best impostor", "Impostor wins, then kills", p => p.ImpostorWins * 100 + p.Kills, p => $"{p.ImpostorWins}/{p.ImpostorGames} wins"),
+                Category("Sharpest voter", "Right votes, at least 3 cast", p => p.CorrectVotes + p.VoteAccuracy, p => $"{p.CorrectVotes} right ({Math.Round(p.VoteAccuracy * 100)}%)",
+                    p => p.CorrectVotes + p.IncorrectVotes >= 3),
+                Category("Impostor hunter", "Impostors voted out with their vote", p => p.KillersCaught, p => $"{p.KillersCaught} caught"),
+                Category("Task machine", "Tasks done", p => p.TasksCompleted, p => $"{p.TasksCompleted} tasks"),
+                Category("Survivor", "Games survived", p => p.Survived, p => $"{p.Survived} of {p.Games}"),
             };
         }
 

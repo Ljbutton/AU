@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -42,6 +43,51 @@ namespace TournamentTracker.Discord
             });
         }
 
+
+        /// <summary>
+        /// A lobby's round is played out: who moves on, who's out, and the round's highlights.
+        /// <paramref name="nameFor"/> shows a player (an @mention when linked and wanted; embeds never ping).
+        /// </summary>
+        public static WebhookMessage RoundSummary(string tournament, string lobby, int round, IReadOnlyList<StandingRow> rows, int advance,
+            Func<PlayerTotals, string>? nameFor = null)
+        {
+            string Name(PlayerTotals t) => nameFor?.Invoke(t) ?? $"**{t.Name}**";
+            var up = rows.Where(r => r.Advancing).ToList();
+            if (up.Count == 0) up = rows.Take(advance).ToList();
+            var outRows = rows.Except(up).ToList();
+            var sb = new StringBuilder();
+            sb.AppendLine($"**Moving on ({up.Count})**");
+            for (int i = 0; i < up.Count; i++)
+                sb.AppendLine($"{i + 1}. {Name(up[i].Stats)} · {ReportFormatter.Pts(up[i].Total)} pts");
+            if (outRows.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine($"**Out this round:** {string.Join(", ", outRows.Select(r => r.Stats.Name))}");
+            }
+            var highlights = new List<string>();
+            var all = rows.Select(r => r.Stats).ToList();
+            if (all.Count > 0)
+            {
+                var top = all.OrderByDescending(t => t.Points).First();
+                highlights.Add($"Top score: {top.Name} ({ReportFormatter.Pts(top.Points)})");
+                var killer = all.OrderByDescending(t => t.Kills).First();
+                if (killer.Kills > 0) highlights.Add($"Most kills: {killer.Name} ({killer.Kills})");
+                var voter = all.OrderByDescending(t => t.CorrectVotes).ThenByDescending(t => t.VoteAccuracy).First();
+                if (voter.CorrectVotes > 0) highlights.Add($"Best votes: {voter.Name} ({voter.CorrectVotes} right)");
+            }
+            if (highlights.Count > 0)
+            {
+                sb.AppendLine();
+                sb.Append(string.Join(" · ", highlights));
+            }
+            return Message(new Embed
+            {
+                Title = ReportFormatter.Clip($"🏁 {lobby} — round {round} is done", Embed.TitleLimit),
+                Color = RoundColor,
+                Description = ReportFormatter.Clip(sb.ToString().TrimEnd(), Embed.DescriptionLimit),
+                Footer = new EmbedFooter { Text = $"{tournament} · top {advance} of each lobby move on" },
+            });
+        }
 
         public static string Table(IReadOnlyList<StandingRow> rows, int advance)
         {

@@ -33,7 +33,7 @@ public class MultiHostTests : IDisposable
 
     private TournamentSession Session(Action<TrackerSettings>? configure = null, string? dir = null)
     {
-        var settings = new TrackerSettings { TournamentName = "Fall Cup", StatsWebhookUrl = Webhook, LiveStatus = false, ChatCommands = true, PublicChat = true, ControlPort = -1 };
+        var settings = new TrackerSettings { TournamentName = "Fall Cup", StatsWebhookUrl = Webhook, LiveStatus = false, PublicChat = true, ControlPort = -1 };
         settings.AutoMute.Enabled = true;
         settings.AutoMute.GuildId = "g1";
         settings.AutoMute.BotTokens.Add("tok");
@@ -89,7 +89,7 @@ public class MultiHostTests : IDisposable
     public async Task The_game_channel_is_the_one_the_host_is_in()
     {
         var voice = new FakeVoiceApi();
-        var settings = new TrackerSettings { TournamentName = "Cup", LiveStatus = false, ChatCommands = true, PublicChat = true, ControlPort = -1 };
+        var settings = new TrackerSettings { TournamentName = "Cup", LiveStatus = false, PublicChat = true, ControlPort = -1 };
         settings.AutoMute.Enabled = true;
         settings.AutoMute.GuildId = "g1";
         settings.AutoMute.BotTokens.Add("tok");
@@ -219,7 +219,7 @@ public class MultiHostTests : IDisposable
         Assert.True(s.Combined.SinceReset);
 
         channel.Messages.RemoveAll(m => m.Content == "!resetleaderboard");
-        Assert.True(s.HandleChat(Lobby()[3], fromHost: true, "!leaderboard"));
+        Assert.True(s.RunCommand("!leaderboard"));
         await s.PendingPosts;
         Assert.Equal(2, s.Combined!.Games);
     }
@@ -233,11 +233,10 @@ public class MultiHostTests : IDisposable
         var s = Session(c => c.ResultsChannelId = "results");
         s.VoiceTick(VoicePhase.Lobby, Lobby());
 
-        Assert.True(s.HandleChat(Lobby()[3], fromHost: true, "!resetleaderboard"));
+        Assert.True(s.RunCommand("!resetleaderboard"));
         await s.PendingPosts;
         Assert.StartsWith("!resetleaderboard\n(Leaderboard reset by LJ.", channel.Messages[0].Content);
         Assert.Equal(0, s.Combined!.Games);
-        Assert.False(s.HandleChat(Lobby()[0], fromHost: false, "!resetleaderboard"));
     }
 
     [Fact]

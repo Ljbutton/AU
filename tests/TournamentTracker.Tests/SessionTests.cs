@@ -24,7 +24,7 @@ public class SessionTests : IDisposable
 
     private TournamentSession Session(bool bot = true, Action<TrackerSettings>? configure = null)
     {
-        var settings = new TrackerSettings { TournamentName = "Fall Cup", StatsWebhookUrl = Webhook, LiveStatus = false, ChatCommands = true, PublicChat = true, ControlPort = -1 };
+        var settings = new TrackerSettings { TournamentName = "Fall Cup", StatsWebhookUrl = Webhook, LiveStatus = false, PublicChat = true, ControlPort = -1 };
         if (bot)
         {
             settings.AutoMute.Enabled = true;
@@ -76,92 +76,6 @@ public class SessionTests : IDisposable
     }
 
     [Fact]
-    public async Task Live_feed_posts_every_event_when_configured()
-    {
-        var s = Session(configure: c => c.LiveFeedWebhookUrl = "https://discord.test/api/webhooks/2/live");
-        s.GameStarted("ABCDEF", "Polus", Players.Lobby());
-        s.Kill(0, 2);
-        await s.PendingPosts;
-        var live = _http.Requests.Where(r => r.Url.Contains("/webhooks/2/")).ToList();
-        Assert.Equal(2, live.Count);
-        Assert.Contains("killed", live[1].Body);
-    }
-
-    [Fact]
-    public async Task Player_links_themselves_by_discord_id()
-    {
-        var s = Session();
-        var carl = Players.Lobby()[2];
-        _http.Responses.Enqueue(_ => FakeHttp.Json(HttpStatusCode.OK, """{"user":{"id":"123456789012345678","username":"carl"},"nick":"Carl C"}"""));
-
-        Assert.True(s.HandleChat(carl, fromHost: false, "!link <@123456789012345678>"));
-        var replies = await PumpUntilReply(s);
-
-        var reply = Assert.Single(replies);
-        Assert.True(reply.Public);
-        Assert.Equal("Linked Green (Carl) to @Carl C.", reply.Text);
-        Assert.Equal("123456789012345678", s.Links.Find(carl.Key)!.DiscordUserId);
-        Assert.True(File.Exists(Path.Combine(_dir.Path, "links.json")));
-    }
-
-    [Fact]
-    public async Task Linking_by_name_needs_one_clear_match()
-    {
-        var s = Session();
-        var carl = Players.Lobby()[2];
-        _http.Responses.Enqueue(_ => FakeHttp.Json(HttpStatusCode.OK,
-            """[{"user":{"id":"1","username":"carl"}},{"user":{"id":"2","username":"carlos"}}]"""));
-        s.HandleChat(carl, false, "!link @carl");
-        await PumpUntilReply(s);
-        Assert.Equal("1", s.Links.Find(carl.Key)!.DiscordUserId);
-
-        _http.Responses.Enqueue(_ => FakeHttp.Json(HttpStatusCode.OK,
-            """[{"user":{"id":"1","username":"carl"}},{"user":{"id":"2","username":"carlos"}}]"""));
-        s.HandleChat(carl, false, "!link car");
-        var replies = await PumpUntilReply(s);
-        Assert.Contains("matches 2 people", replies.Single().Text);
-    }
-
-    [Fact]
-    public async Task Host_links_another_player_by_colour()
-    {
-        var s = Session();
-        var lobby = Players.Lobby();
-        s.VoiceTick(VoicePhase.Lobby, lobby);
-        _http.Responses.Enqueue(_ => FakeHttp.Json(HttpStatusCode.OK, """{"user":{"id":"555555555555555555","username":"alice"}}"""));
-
-        s.HandleChat(lobby[3], fromHost: true, "!link red 555555555555555555");
-        var reply = (await PumpUntilReply(s)).Single();
-
-        Assert.True(reply.Public);  // Alice has to see it
-        Assert.Equal("555555555555555555", s.Links.Find(lobby[0].Key)!.DiscordUserId);
-        Assert.Null(s.Links.Find(lobby[3].Key));
-    }
-
-    [Fact]
-    public void Without_a_bot_only_numeric_ids_can_be_linked()
-    {
-        var s = Session(bot: false);
-        var carl = Players.Lobby()[2];
-        s.HandleChat(carl, false, "!link carl");
-        Assert.Contains("numeric Discord user ID", s.Pump().Single().Text);
-        s.HandleChat(carl, false, "!link 123456789012345678");
-        Assert.Equal("Linked Green (Carl) to Discord ID 123456789012345678.", s.Pump().Single().Text);
-        Assert.Empty(_http.Requests);
-    }
-
-    [Fact]
-    public void Host_commands_are_ignored_from_players_and_plain_chat_passes_through()
-    {
-        var s = Session();
-        var carl = Players.Lobby()[2];
-        Assert.False(s.HandleChat(carl, false, "!unmuteall"));
-        Assert.False(s.HandleChat(carl, false, "where was the body"));
-        Assert.False(s.HandleChat(carl, false, "!"));
-        Assert.True(s.AutoMute!.Enabled);
-    }
-
-    [Fact]
     public void Switching_automute_off_is_remembered()
     {
         var s = Session();
@@ -184,28 +98,13 @@ public class SessionTests : IDisposable
         s.VoiceTick(VoicePhase.Tasks, lobby);
         await Wait.Until(() => _voice.Calls.Any(c => c.State.Mute));
 
-        s.HandleChat(lobby[0], fromHost: true, "!unmuteall");
+        s.RunCommand("!unmuteall");
         Assert.False(s.AutoMute!.Enabled);
         await Wait.Until(() => _voice.Calls.LastOrDefault().State == VoiceState.Open);
 
-        s.HandleChat(lobby[0], true, "!automute on");
+        s.RunCommand("!automute on");
         Assert.True(s.AutoMute.Enabled);
         Assert.Equal("Automute is ON.", s.Pump().Last().Text);
-    }
-
-    [Fact]
-    public void Resetstats_needs_confirmation_and_archives()
-    {
-        var s = Session();
-        var lobby = Players.Lobby();
-        s.GameStarted("X", "Polus", lobby);
-        s.GameEnded("HumansByTask", lobby);
-
-        s.HandleChat(lobby[0], true, "!resetstats");
-        Assert.Equal(1, s.Store.GamesRecorded);
-        s.HandleChat(lobby[0], true, "!resetstats confirm");
-        Assert.Equal(0, s.Store.GamesRecorded);
-        Assert.Single(Directory.GetFiles(_dir.Path, "stats-fall-cup-archived-*.json"));
     }
 
     [Fact]
@@ -213,19 +112,8 @@ public class SessionTests : IDisposable
     {
         var s = Session(bot: false, configure: c => c.AutoMute.Enabled = true);
         Assert.Null(s.AutoMute);
-        s.HandleChat(Players.Lobby()[0], true, "!automute on");
+        s.RunCommand("!automute on");
         Assert.Contains("isn't set up", s.Pump().Single().Text);
     }
 
-    [Fact]
-    public void Replies_never_look_like_commands()
-    {
-        // Public replies go out as the host's chat and come back through the chat hook.
-        var s = Session();
-        var lobby = Players.Lobby();
-        s.HandleChat(lobby[2], false, "!help");
-        s.HandleChat(lobby[0], true, "!help");
-        s.HandleChat(lobby[2], false, "!link");
-        Assert.All(s.Pump(), r => Assert.False(r.Text.StartsWith("!")));
-    }
 }

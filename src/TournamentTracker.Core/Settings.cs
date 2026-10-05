@@ -49,12 +49,6 @@ namespace TournamentTracker
         /// <summary>Tournaments with a results channel: keep a live data message there for the organiser's view and casters.</summary>
         public bool PublishLive { get; set; } = true;
 
-        /// <summary>
-        /// Chat commands (!r2, !void…). Off: everything is done from the Tournament Tracker app,
-        /// so nothing is typed in the lobby chat.
-        /// </summary>
-        public bool ChatCommands { get; set; }
-
         /// <summary>Send announcements to the whole lobby's chat. Off: only the host sees them (and the app).</summary>
         public bool PublicChat { get; set; }
 
@@ -88,9 +82,6 @@ namespace TournamentTracker
         /// <summary>Discord webhook that receives the end-of-game report and leaderboard.</summary>
         public string StatsWebhookUrl { get; set; } = "";
 
-        /// <summary>Optional webhook for a live play-by-play (kills, meetings, ejections). Keep it in a staff-only channel.</summary>
-        public string LiveFeedWebhookUrl { get; set; } = "";
-
         /// <summary>Keep one live message in Discord showing the lobby, its players and their links, and the phase.</summary>
         public bool LiveStatus { get; set; } = true;
 
@@ -112,10 +103,8 @@ namespace TournamentTracker
         /// <summary>Show linked players as Discord @mentions on the leaderboard (no one gets pinged).</summary>
         public bool LeaderboardMentions { get; set; }
 
+        /// <summary>How The Button's commands start internally ("!r2", "!void"); nothing is typed in the game chat.</summary>
         public string CommandPrefix { get; set; } = "!";
-
-        /// <summary>Lets players link their own Discord account with "!link" from the lobby chat.</summary>
-        public bool AllowSelfLink { get; set; } = true;
 
         public AutoMuteSettings AutoMute { get; set; } = new AutoMuteSettings();
         public ScoringRules Scoring { get; set; } = new ScoringRules();

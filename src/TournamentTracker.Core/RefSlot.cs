@@ -25,13 +25,12 @@ namespace TournamentTracker
         /// <summary>!refslot on|off. Only the host can be the referee ghost.</summary>
         private void RefSlotCommand(PlayerSnapshot sender, string[] args)
         {
-            string p = _settings.CommandPrefix;
             string arg = string.Join(" ", args).Trim().ToLowerInvariant();
             if (arg != "on" && arg != "off")
             {
                 Reply(RefSlotKey == null
-                    ? $"Referee ghost slot is OFF. {p}refslot on makes you (the host) a ghost referee each game."
-                    : $"Referee ghost slot is ON: you become a ghost each game. {p}refslot off to stop.", false);
+                    ? $"Referee ghost slot is OFF. Turn on Referee ghost slot in The Button to be a ghost referee each game."
+                    : $"Referee ghost slot is ON: you become a ghost each game. Turn it off in The Button to stop.", false);
                 return;
             }
             if (Tracker.InGame)

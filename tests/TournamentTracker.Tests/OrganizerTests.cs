@@ -146,6 +146,28 @@ public class OrganizerTests : IDisposable
     }
 
     [Fact]
+    public void Awards_list_the_top_three_in_each_category()
+    {
+        var t = new TournamentTracker.Stats.GameTracker(new TournamentTracker.ScoringRules());
+        var lobby = Players.Lobby();
+        var start = new DateTime(2026, 10, 3, 19, 0, 0, DateTimeKind.Utc);
+        var g = t.Start(1, "Cup", "X", "Polus", lobby, start);
+        t.Kill(0, 2, start.AddSeconds(30));                          // Alice (impostor) kills Carl
+        lobby[2].IsDead = true;
+        var game = t.End("ImpostorByKill", TournamentTracker.Stats.Outcome.Impostors, lobby, start.AddMinutes(5))!;
+        game.Round = 1;
+
+        var awards = JsonSerializer.SerializeToElement(Organizer.Awards(new[] { game }), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        var byTitle = awards.EnumerateArray().ToDictionary(a => a.GetProperty("title").GetString()!, a => a.GetProperty("top"));
+        Assert.Equal(7, byTitle.Count);
+        Assert.Equal("Alice", byTitle["Most kills"][0].GetProperty("name").GetString());
+        Assert.Equal("1 kill", byTitle["Most kills"][0].GetProperty("value").GetString());
+        Assert.Equal(1, byTitle["Most kills"].GetArrayLength());     // nobody else killed
+        Assert.True(byTitle["Top score"].GetArrayLength() <= 3);
+        Assert.Empty(byTitle["Sharpest voter"].EnumerateArray());   // no meetings, no votes
+    }
+
+    [Fact]
     public void Only_a_well_formed_video_link_is_used()
     {
         JsonElement D(string vdo) => JsonDocument.Parse(JsonSerializer.Serialize(new { vdo })).RootElement;

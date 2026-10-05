@@ -18,14 +18,9 @@ public class ControlApiTests : IDisposable
             new HttpClient(new FakeHttp()), () => _clock.Now, new FakeVoiceApi(), new VoicePresenceState("g1"));
 
     [Fact]
-    public void Chat_commands_are_off_by_default_and_nothing_goes_to_the_lobby_chat()
+    public void Commands_from_the_app_never_go_to_the_lobby_chat()
     {
         using var s = Session(port: -1);
-        var host = Players.Lobby()[0];
-        host.IsHost = true;
-        Assert.False(s.HandleChat(host, true, "!r2"));
-        Assert.Equal(0, s.Round);
-
         s.VoiceTick(Voice.VoicePhase.Lobby, Players.Lobby());
         Assert.True(s.RunCommand("r2"));                          // from the app, no "!" needed
         Assert.Equal(2, s.Round);
@@ -59,6 +54,14 @@ public class ControlApiTests : IDisposable
         Assert.Equal("Alice", top.GetProperty("name").GetString());
         Assert.Equal(6, top.GetProperty("points").GetDouble());
         Assert.True(top.GetProperty("advancing").GetBoolean());
+        Assert.Equal(1, sections.GetArrayLength());                 // in round 1 the running total would only repeat it
+
+        s.RunCommand("r2");
+        s.GameStarted("X", "Polus", lobby);
+        s.GameEnded("HumansByTask", lobby);
+        _clock.Advance(5);
+        s.VoiceTick(Voice.VoicePhase.Lobby, lobby);
+        sections = JsonDocument.Parse(await http.GetStringAsync("api/status")).RootElement.GetProperty("points").GetProperty("sections");
         Assert.Equal("Running total", sections[1].GetProperty("title").GetString());
         Assert.Equal(6, sections[1].GetProperty("rows").GetArrayLength());
     }

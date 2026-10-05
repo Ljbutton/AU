@@ -11,15 +11,6 @@ namespace TournamentTracker
 {
     public sealed partial class TournamentSession
     {
-        private static readonly Regex MentionOrId = new Regex(@"^(?:<@!?(\d{15,21})>|(\d{15,21}))$");
-
-        /// <summary>
-        /// Handles a chat line if it is a command. Returns false for ordinary chat.
-        /// Replies to players are public so they see them; host-only commands answer privately.
-        /// </summary>
-        public bool HandleChat(PlayerSnapshot sender, bool fromHost, string text) =>
-            _settings.ChatCommands && HandleCommand(sender, fromHost, text);
-
         private bool HandleCommand(PlayerSnapshot sender, bool fromHost, string text)
         {
             string prefix = _settings.CommandPrefix;
@@ -40,18 +31,6 @@ namespace TournamentTracker
                     return true;
                 case "setup" when fromHost:
                     SetupCommand(args);
-                    return true;
-                case "help":
-                    Help(fromHost);
-                    return true;
-                case "link":
-                    LinkCommand(sender, fromHost, args);
-                    return true;
-                case "unlink":
-                    UnlinkCommand(sender, fromHost, args);
-                    return true;
-                case "links" when fromHost:
-                    LinksCommand();
                     return true;
                 case "automute" when fromHost:
                     AutoMuteCommand(args);
@@ -102,151 +81,9 @@ namespace TournamentTracker
                 case "resetleaderboard" when fromHost:
                     ResetLeaderboardCommand();
                     return true;
-                case "resetstats" when fromHost:
-                    ResetStatsCommand(args);
-                    return true;
                 default:
                     return false;
             }
-        }
-
-        private void Help(bool fromHost)
-        {
-            string p = _settings.CommandPrefix;
-            Reply($"Commands: {p}link <discord name or id> · {p}unlink", !fromHost);
-            if (fromHost)
-            {
-                Reply($"Host: {p}link <player> <discord> · {p}unlink <player> · {p}links · {p}automute on|off · " +
-                      $"{p}unmuteall · {p}ref on|off · {p}refslot on|off · {p}spectators on|off · {p}refresh · {p}r1 {p}r2… · {p}void [reason] · {p}unvoid · {p}lock on|off · {p}lead · {p}overlay on|off · {p}servers · {p}setup · {p}leaderboard · {p}resetleaderboard · {p}resetstats confirm", false);
-            }
-        }
-
-        private void LinkCommand(PlayerSnapshot sender, bool fromHost, string[] args)
-        {
-            string p = _settings.CommandPrefix;
-            if (args.Length == 0)
-            {
-                Reply(fromHost ? $"Usage: {p}link [player] <discord name or id>" : $"Usage: {p}link <discord name or id>", !fromHost);
-                return;
-            }
-
-            PlayerSnapshot target = sender;
-            string discordArg;
-            if (fromHost && args.Length >= 2 && FindPlayer(args[0]) is PlayerSnapshot named)
-            {
-                target = named;
-                discordArg = string.Join(" ", args.Skip(1));
-            }
-            else
-            {
-                discordArg = string.Join(" ", args);
-            }
-
-            if (!fromHost && !_settings.AllowSelfLink)
-            {
-                Reply("Ask the host to link your Discord account.", true);
-                return;
-            }
-
-            bool isPublic = !fromHost || target.Key != sender.Key;
-            var mute = _settings.AutoMute;
-            var match = MentionOrId.Match(discordArg);
-            string? id = match.Success ? (match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value) : null;
-
-            if (mute.BotTokens.Count == 0 || mute.GuildId.Length == 0)
-            {
-                if (id == null)
-                {
-                    Reply("Linking by name needs the bot set up; use the numeric Discord user ID.", isPublic);
-                    return;
-                }
-                Links.Link(target.Key, target.Name, id, id);
-                Reply($"Linked {target} to Discord ID {id}.", isPublic);
-                return;
-            }
-
-            string token = mute.BotTokens[0];
-            string guild = mute.GuildId;
-            Task.Run(async () =>
-            {
-                try
-                {
-                    GuildMember? member;
-                    string? problem = null;
-                    if (id != null)
-                    {
-                        member = await _rest.GetMemberAsync(token, guild, id).ConfigureAwait(false);
-                        if (member == null) problem = "That Discord user isn't in the server.";
-                    }
-                    else
-                    {
-                        string query = discordArg.TrimStart('@');
-                        var found = await _rest.SearchMembersAsync(token, guild, query).ConfigureAwait(false);
-                        member = PickMember(found, query);
-                        if (member == null)
-                        {
-                            problem = found.Count == 0
-                                ? $"No one in the Discord server is called \"{query}\"."
-                                : $"\"{query}\" matches {found.Count} people; use the exact username or the user ID.";
-                        }
-                    }
-
-                    _mainThread.Enqueue(() =>
-                    {
-                        if (member == null)
-                        {
-                            Reply(problem!, isPublic);
-                            return;
-                        }
-                        Links.Link(target.Key, target.Name, member.Id, member.DisplayName);
-                        Reply($"Linked {target} to @{member.DisplayName}.", isPublic);
-                    });
-                }
-                catch (Exception e)
-                {
-                    _log.Error("Link lookup failed: " + e.Message);
-                    _mainThread.Enqueue(() => Reply("Couldn't reach Discord, try again.", isPublic));
-                }
-            });
-        }
-
-        internal static GuildMember? PickMember(IReadOnlyList<GuildMember> found, string query)
-        {
-            if (found.Count == 1) return found[0];
-            bool Same(string? s) => string.Equals(s, query, StringComparison.OrdinalIgnoreCase);
-            var exact = found.Where(m => Same(m.Username) || Same(m.Nick) || Same(m.GlobalName)).ToList();
-            return exact.Count == 1 ? exact[0] : null;
-        }
-
-        private void UnlinkCommand(PlayerSnapshot sender, bool fromHost, string[] args)
-        {
-            var target = sender;
-            if (fromHost && args.Length > 0)
-            {
-                var named = FindPlayer(string.Join(" ", args));
-                if (named == null)
-                {
-                    Reply($"No player matches \"{string.Join(" ", args)}\".", false);
-                    return;
-                }
-                target = named;
-            }
-            bool isPublic = !fromHost || target.Key != sender.Key;
-            BlockAutoLink(target.Key);
-            Reply(Links.Unlink(target.Key) ? $"Unlinked {target}." : $"{target} wasn't linked.", isPublic);
-        }
-
-        private void LinksCommand()
-        {
-            if (Players.Count == 0)
-            {
-                Reply($"{Links.All.Count} Discord links saved.", false);
-                return;
-            }
-            var linked = Players.Where(p => Links.Find(p.Key) != null).Select(p => $"{Colors.Name(p.ColorId)}→@{Links.Find(p.Key)!.DiscordName}");
-            var unlinked = Players.Where(p => Links.Find(p.Key) == null).Select(p => p.ToString()).ToList();
-            Reply("Linked: " + (linked.Any() ? string.Join(", ", linked) : "nobody"), false);
-            if (unlinked.Count > 0) Reply("Not linked: " + string.Join(", ", unlinked), false);
         }
 
         private void AutoMuteCommand(string[] args)
@@ -296,7 +133,7 @@ namespace TournamentTracker
             }
             else
             {
-                Reply($"Referee mode is {(AutoMute.RefereeMode ? "ON" : "OFF")}. Use {_settings.CommandPrefix}ref on or {_settings.CommandPrefix}ref off.", false);
+                Reply($"Referee mode is {(AutoMute.RefereeMode ? "ON" : "OFF")}. Switch it with Referee in The Button.", false);
             }
         }
 
@@ -342,7 +179,7 @@ namespace TournamentTracker
         {
             if (Shared == null)
             {
-                Reply($"There's no combined leaderboard (ResultsChannelId isn't set). To reset this PC's stats use {_settings.CommandPrefix}resetstats confirm.", false);
+                Reply($"There's no combined leaderboard (ResultsChannelId isn't set).", false);
                 return;
             }
             string who = LobbyLabel();
@@ -352,23 +189,6 @@ namespace TournamentTracker
                     await PostCombinedAsync().ConfigureAwait(false);
             });
             Reply("Combined leaderboard reset for every lobby. Delete the reset message in the results channel to undo.", false);
-        }
-
-        private void ResetStatsCommand(string[] args)
-        {
-            if (args.FirstOrDefault()?.ToLowerInvariant() != "confirm")
-            {
-                Reply($"This archives {Store.GamesRecorded} games and starts the leaderboard over. Type {_settings.CommandPrefix}resetstats confirm", false);
-                return;
-            }
-            TrySave(() =>
-            {
-                if (File.Exists(_statsPath))
-                    File.Move(_statsPath, _statsPath.Replace(".json", $"-archived-{_clock():yyyyMMdd-HHmmss}.json"));
-            }, "stats archive");
-            Store = new StatsStore { Tournament = _settings.TournamentName };
-            TrySave(() => Store.Save(_statsPath), "stats");
-            Reply("Stats reset. The old file was archived next to the new one.", false);
         }
 
         /// <summary>Finds a present player by colour, exact name or unique name prefix.</summary>

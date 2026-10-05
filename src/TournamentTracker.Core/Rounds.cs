@@ -128,9 +128,6 @@ namespace TournamentTracker
 
         // ---- Setup code -----------------------------------------------------------------
 
-        /// <summary>Reads the clipboard (set by the plugin). Setup codes are too long to type in chat.</summary>
-        public Func<string?>? Clipboard { get; set; }
-
         /// <summary>Raised after the setup changed; the plugin then starts a fresh session with it.</summary>
         public event Action? RestartRequested;
 
@@ -159,21 +156,7 @@ namespace TournamentTracker
                 RestartRequested?.Invoke();
                 return;
             }
-            string? text = Clipboard?.Invoke();
-            if (!SetupCode.TryParse(text, out var code, out var error))
-            {
-                Reply(Setup != null ? $"Current setup: {Setup.Describe()}." : "No setup code in use.", false);
-                Reply($"To change it, copy the new code, then type {_settings.CommandPrefix}setup. ({error})", false);
-                return;
-            }
-            if (code.IsAdmin)
-            {
-                Reply("That's an administration code: paste it into The Button's Setup code box, not the game.", false);
-                return;
-            }
-            SetupCode.Save(_dataDir, code.Encode());
-            Reply($"Setup applied: {code.Describe()}. Restarting the tracker…", false);
-            RestartRequested?.Invoke();
+            Reply(Setup != null ? $"Current setup: {Setup.Describe()}. Paste a new code into The Button to change it." : "No setup code in use: paste one into The Button.", false);
         }
     }
 }

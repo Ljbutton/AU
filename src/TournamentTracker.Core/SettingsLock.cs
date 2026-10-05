@@ -48,7 +48,6 @@ namespace TournamentTracker
 
         private void LockCommand(string[] args)
         {
-            string p = _settings.CommandPrefix;
             if (_settings.LobbySettings == null || _settings.Mode == TrackerMode.Standard)
             {
                 Reply("No tournament settings to lock: they come with a tournament or preliminary setup code.", false);
@@ -57,8 +56,8 @@ namespace TournamentTracker
             string arg = args.FirstOrDefault()?.ToLowerInvariant() ?? "";
             if (arg == "on" || arg == "off") _lockOn = arg == "on";
             Reply(_lockOn
-                ? $"Settings locked to the tournament's ({_settings.LobbySettings.Describe()}). {p}lock off for a casual game."
-                : $"Settings unlocked until you restart Among Us or type {p}lock on. Games still count for {_settings.TournamentName} while its setup code is in use ({p}setup clear to stop).", false);
+                ? $"Settings locked to the tournament's ({_settings.LobbySettings.Describe()}). Turn Settings lock off in The Button for a casual game."
+                : $"Settings unlocked until you restart Among Us or turn Settings lock back on. Games still count for {_settings.TournamentName} while its setup code is in use (remove the code in The Button to stop).", false);
         }
     }
 }

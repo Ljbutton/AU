@@ -25,7 +25,6 @@ namespace TournamentTracker
 
         private void VoidCommand(bool makeVoid, string[] args)
         {
-            string p = _settings.CommandPrefix;
             string reason = string.Join(" ", args).Trim();
 
             var current = Tracker.Current;
@@ -42,7 +41,7 @@ namespace TournamentTracker
             var game = LastGame;
             if (game == null)
             {
-                Reply($"No game to {(makeVoid ? "void" : "unvoid")} since the mod started. A referee can type {p}{(makeVoid ? "void" : "unvoid")} <game> in the results channel.", false);
+                Reply($"No game to {(makeVoid ? "void" : "unvoid")} since the mod started. A referee can type !{(makeVoid ? "void" : "unvoid")} <game> in the results channel.", false);
                 return;
             }
             if (game.Voided == makeVoid)

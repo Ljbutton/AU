@@ -16,8 +16,6 @@ namespace TournamentTracker.Plugin
                 "Stats are kept per tournament. Change the name to start a fresh leaderboard (the old one is kept).").Value;
             s.LobbyLabel = config.Bind("General", "LobbyLabel", "",
                 "Names this host's lobby in Discord and in game numbers (\"Game LJ-3\"). Leave empty to use the host's in-game name. All hosts can then share one TournamentName.").Value.Trim();
-            s.ChatCommands = config.Bind("General", "ChatCommands", d.ChatCommands,
-                "Accept commands typed in the lobby chat (!r2, !void…). Off: use the Tournament Tracker app instead, so nothing is typed in chat.").Value;
             s.PublicChat = config.Bind("General", "PublicChat", d.PublicChat,
                 "Send announcements to everyone's chat. Off: only you (and the app) see them.").Value;
             s.AnnounceLinks = config.Bind("General", "AnnounceLinks", d.AnnounceLinks,
@@ -32,15 +30,9 @@ namespace TournamentTracker.Plugin
                 "Port for the stream overlay (!overlay on), reachable from this computer only.").Value;
             s.GamesPerRound = config.Bind("General", "GamesPerRound", d.GamesPerRound,
                 "Tournament rounds: games each lobby plays per round. A setup code overrides it.").Value;
-            s.CommandPrefix = config.Bind("General", "CommandPrefix", d.CommandPrefix,
-                "Prefix for chat commands, e.g. !link").Value;
-            s.AllowSelfLink = config.Bind("General", "AllowSelfLink", d.AllowSelfLink,
-                "Let players link their own Discord account with !link in the lobby chat. The host can always link anyone.").Value;
 
             s.StatsWebhookUrl = config.Bind("Discord", "StatsWebhookUrl", d.StatsWebhookUrl,
                 "Webhook URL for game reports and the leaderboard (Server Settings > Integrations > Webhooks).").Value.Trim();
-            s.LiveFeedWebhookUrl = config.Bind("Discord", "LiveFeedWebhookUrl", d.LiveFeedWebhookUrl,
-                "Optional webhook for a live play-by-play of kills, meetings and ejections. It reveals the impostors: use a staff-only channel.").Value.Trim();
             s.LiveStatus = config.Bind("Discord", "LiveStatus", s.LiveStatus,
                 "Keep one live message in Discord showing the lobby code, map, phase, and each player's colour, name and Discord link. Deaths only show once the game has revealed them.").Value;
             s.StatusWebhookUrl = config.Bind("Discord", "StatusWebhookUrl", "",

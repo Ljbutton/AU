@@ -15,7 +15,7 @@ namespace TournamentTracker.Plugin
     public sealed class TournamentPlugin : BasePlugin
     {
         public const string Id = "com.ljbutton.tournamenttracker";
-        public const string Version = "0.1.16";
+        public const string Version = "0.1.17";
 
         internal static TournamentSession Session = null!;
         internal static ILog Logger = NullLog.Instance;
@@ -62,7 +62,6 @@ namespace TournamentTracker.Plugin
             var settings = ConfigBinder.Bind(_config!);
             var setup = SetupCode.Load(DataDir, Logger);
             var session = new TournamentSession(settings, DataDir, Logger, setup: setup);
-            session.Clipboard = () => GUIUtility.systemCopyBuffer;
             session.RestartRequested += () => Driver.RestartRequested = true;
             Session = session;
             Logger.Info(setup != null ? $"Using setup code: {setup.Describe()}" : "No setup code; using the settings file.");
