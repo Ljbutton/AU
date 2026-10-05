@@ -75,7 +75,7 @@ namespace TournamentTracker
             {
                 ["type"] = type,
                 ["kind"] = kind,
-                ["lobby"] = LobbyLabel(),
+                ["lobby"] = FeedLobby(game),
                 ["round"] = Round,
                 ["game"] = game?.Name,
                 ["t"] = new DateTimeOffset(now).ToUnixTimeMilliseconds(),
@@ -92,6 +92,15 @@ namespace TournamentTracker
         }
 
         private void Event(string kind, Dictionary<string, object?> data) => Emit("event", kind, data);
+
+        /// <summary>The lobby's name for the caster: the host's lobby label, else the lobby code.</summary>
+        private string FeedLobby(GameRecord? game)
+        {
+            string label = LobbyLabel();
+            if (label.Length > 0) return label;
+            if (!string.IsNullOrEmpty(game?.LobbyCode)) return game!.LobbyCode;
+            return _lobbyCode.Length > 0 ? _lobbyCode : "Lobby";
+        }
 
         private object? Who(byte? id)
         {
