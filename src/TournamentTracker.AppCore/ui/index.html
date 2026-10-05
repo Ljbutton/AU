@@ -8,9 +8,11 @@
 <style>
 @font-face{font-family:"Amatic SC";font-weight:700;font-display:swap;src:url(/fonts/amatic-sc-700.woff2) format("woff2")}
 @font-face{font-family:"Varela Round";font-weight:400;font-display:swap;src:url(/fonts/varela-round.woff2) format("woff2")}
+@font-face{font-family:"Teko";font-weight:700;font-display:swap;src:url(/fonts/teko-700.woff2) format("woff2")}
+@font-face{font-family:"Rajdhani";font-weight:700;font-display:swap;src:url(/fonts/rajdhani-700.woff2) format("woff2")}
 :root{
   --bg:#000;--panel:rgba(14,17,24,.78);--panel-solid:#0e1118;--sunk:rgba(255,255,255,.07);--fg:#f2f4f7;--muted:#9aa4b2;--line:rgba(255,255,255,.16);--edge:rgba(255,255,255,.75);
-  --accent:#2fb350;--accent-fg:#04120a;--good:#46c28b;--good-soft:rgba(70,194,139,.16);--warn:#ffc15a;--warn-soft:rgba(255,193,90,.14);
+  --accent:#ff2d55;--accent-2:#d01a3c;--accent-fg:#fff;--accent-soft:rgba(255,45,85,.14);--gold:#f0a92c;--gold-soft:rgba(240,169,44,.14);--good:#46c28b;--good-soft:rgba(70,194,139,.16);--warn:#ffc15a;--warn-soft:rgba(255,193,90,.14);
   --danger:#ff6b61;--danger-soft:rgba(255,107,97,.15);color-scheme:dark;
 }
 :root{--hand:"Amatic SC","Segoe Print",cursive;--round:"Varela Round","Segoe UI",system-ui,sans-serif;--mono:"Cascadia Mono",Consolas,ui-monospace,monospace}
@@ -19,8 +21,13 @@ html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--round);display:grid;grid-template-columns:172px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);overflow:hidden}
 #space{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
 header,nav,main{position:relative;z-index:1}
-header{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:8px 18px;border-bottom:1px solid var(--line);background:rgba(0,0,0,.35);backdrop-filter:blur(2px)}
-.brand{font:700 34px/1 var(--hand);letter-spacing:.04em;display:flex;align-items:center;gap:10px}
+header{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:8px 18px;border-bottom:2px solid rgba(255,45,85,.55);background:linear-gradient(90deg,rgba(255,45,85,.12),rgba(0,0,0,.35) 45%);backdrop-filter:blur(2px)}
+.brand{display:flex;align-items:center;gap:10px}
+/* The name in the tournament type: white "THE", red "BUTTON", and the tagline in the game's hand-drawn type. */
+.brand .word{display:flex;flex-direction:column;line-height:.86}
+.brand .word b{font:700 38px/1 "Teko","Rajdhani",sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#fff}
+.brand .word b span{color:var(--accent)}
+.brand .word i{font:700 19px/1 var(--hand);font-style:normal;letter-spacing:.14em;color:var(--gold)}
 .logo{width:40px;height:40px;object-fit:contain}
 .alerts{display:flex;flex-wrap:wrap;gap:8px;margin-left:8px}
 /* Window buttons (The Button's window has no frame of its own; the header is its title bar). */
@@ -36,9 +43,10 @@ body.maxed .winctl .i-restore{display:block}
 .alert.bad{border-color:var(--danger);color:var(--danger);background:var(--danger-soft)}
 .alert:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 nav{padding:14px 10px;display:flex;flex-direction:column;gap:4px;border-right:1px solid var(--line);background:rgba(0,0,0,.25)}
-nav button{all:unset;cursor:pointer;padding:6px 14px;border-radius:10px;font:700 27px/1.15 var(--hand);letter-spacing:.05em;color:var(--muted);border:2px solid transparent}
-nav button:hover{color:var(--fg)}
-nav button.on{color:var(--fg);border-color:var(--edge)}
+nav button{all:unset;cursor:pointer;padding:6px 14px;border-radius:4px;font:700 27px/1.15 var(--hand);letter-spacing:.05em;color:var(--muted);border-left:4px solid transparent;transform:skewX(-8deg)}
+nav button:hover{color:var(--fg);background:rgba(255,255,255,.04)}
+/* The page you're on: a red bar and a red glow fading to the right. */
+nav button.on{color:#fff;border-left-color:var(--accent);background:linear-gradient(90deg,rgba(255,45,85,.38),rgba(255,45,85,.05))}
 nav button:focus-visible{outline:2px solid var(--accent)}
 main{overflow:auto;padding:16px 22px 22px}
 section{display:none}
@@ -46,15 +54,15 @@ section.on{display:grid;gap:14px;align-content:start}
 h1,.title{font:700 44px/1 var(--hand);letter-spacing:.05em;margin:0}
 h2{font:700 27px/1 var(--hand);letter-spacing:.05em;margin:0 0 8px}
 .sub{color:var(--muted);margin:0}
-.card{background:var(--panel);border:1.5px solid var(--line);border-radius:14px;padding:12px 14px}
+.card{background:var(--panel);border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:inset 0 2px 0 rgba(255,45,85,.35)}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:5px 14px;margin:0}
 .kv dt{color:var(--muted)}.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
 button.b{font:700 21px/1 var(--hand);letter-spacing:.05em;white-space:nowrap;padding:6px 14px 5px;border-radius:10px;border:2px solid var(--edge);background:transparent;color:var(--fg);cursor:pointer}
 button.b:hover{background:var(--sunk)}
-button.b.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+button.b.primary{background:linear-gradient(180deg,#ff3b5c,var(--accent-2));border-color:var(--accent);color:var(--accent-fg)}
 button.b.danger{border-color:var(--danger);color:var(--danger)}
-button.b.on{border-color:var(--good);color:var(--good);background:var(--good-soft)}
+button.b.on{border-color:var(--gold);color:var(--gold);background:var(--gold-soft)}
 button.b:disabled{opacity:.4;cursor:default}
 button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 input,textarea{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5px solid var(--line);border-radius:9px;padding:6px 10px;min-width:0}
@@ -79,7 +87,7 @@ tr:last-child td{border-bottom:0}
 /* ---- Home (the lobby): everything on one screen ---- */
 .lobby-head{display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap}
 .facts{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:4px}
-.fact .k{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.fact .k{font-size:11.5px;color:var(--gold);text-transform:uppercase;letter-spacing:.08em}
 .fact .v{font:700 30px/1 var(--hand);letter-spacing:.05em}
 .home-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(290px,1fr);gap:14px;align-items:start}
 @media (max-width:980px){.home-grid{grid-template-columns:minmax(0,1fr)}}
@@ -118,7 +126,7 @@ tr:last-child td{border-bottom:0}
 .cast-card{display:grid;gap:4px;font-size:13.5px}
 .org-lobbies{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
 .lob{display:grid;gap:6px;border:1.5px solid var(--line);border-radius:14px;padding:10px 12px;background:var(--panel)}
-.lob.casting{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.lob.casting{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
 .lob.quiet{opacity:.55}
 .lob.hot{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger) inset}
 .lob .badges{display:flex;gap:6px;flex-wrap:wrap;font-size:12px}
@@ -150,8 +158,8 @@ select{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5p
 .pts td{text-align:right;white-space:nowrap}
 .pts .nm span{max-width:170px;overflow:hidden;text-overflow:ellipsis}
 .pts td.big{font-weight:700;color:var(--fg);font-size:14.5px}
-.pts tr.up td{background:var(--good-soft)}
-.pts tr.cut td{border-bottom:2px dashed var(--good)}
+.pts tr.up td{background:var(--accent-soft)}
+.pts tr.cut td{border-bottom:2px dashed var(--gold)}
 .pts .rk{color:var(--muted);width:2.2em}
 .side .card{padding:10px 14px}
 .side h2{font-size:25px;margin-bottom:6px}
@@ -168,8 +176,8 @@ select{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5p
 .stage .say{max-width:54ch;color:var(--muted);margin:10px 0 0}
 /* ---- Automute buttons ---- */
 .controls{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;margin:22px 0 6px}
-.round{all:unset;cursor:pointer;display:grid;justify-items:center;gap:6px;font:700 20px/1 var(--hand);letter-spacing:.06em}
-.round span.ring{width:52px;height:52px;border-radius:50%;border:2px solid var(--edge);display:grid;place-items:center;transition:.15s}
+.round{all:unset;cursor:pointer;display:grid;justify-items:center;gap:6px;font:700 17px/1 "Rajdhani",var(--round);letter-spacing:.04em}
+.round span.ring{width:52px;height:52px;border-radius:9px;border:2px solid var(--edge);display:grid;place-items:center;transition:.15s}
 .round:hover span.ring{background:var(--sunk)}
 .round.on span.ring{border-color:#46c28b;color:#46c28b;box-shadow:0 0 16px rgba(70,194,139,.35)}
 .round.alarm span.ring{border-color:#ff6b6b;color:#ff6b6b}
@@ -206,7 +214,7 @@ details.advanced[open] summary h2::before{content:'▾ '}
 <body>
 <canvas id="space" aria-hidden="true"></canvas>
 <header>
-  <div class="brand"><img class="logo" src="/logo.png" alt="">The Button</div>
+  <div class="brand"><img class="logo" src="/logo.png" alt=""><span class="word"><b>The <span>Button</span></b><i>Tournament Control</i></span></div>
   <div class="alerts" id="alerts"></div>
   <div class="winctl" id="winctl" hidden>
     <button data-win="min" title="Minimise" aria-label="Minimise"><svg viewBox="0 0 12 12"><path d="M2 6.5h8"/></svg></button>
@@ -516,9 +524,9 @@ function renderHome() {
   const st = S.status;
   $('home-wait').hidden = !!st; $('home-live').hidden = !st;
   if (!st) {
-    // An organiser or referee's PC needn't have Among Us: Home is their referee desk.
+    // An organiser or referee's PC needn't have Among Us: it just waits, with the referee tools below.
     const desk = S.admin && !S.game.found;
-    const fix = desk ? ['Referee desk', 'Among Us isn\'t on this PC, and it doesn\'t need to be: the Organiser tab and the referee tools below work without it.']
+    const fix = desk ? null
       : !S.game.found ? ['Among Us not found', 'The Button couldn\'t find Among Us on this PC. Pick its folder in Settings.']
       : !S.mod.installed ? ['Mod not installed', 'Install the mod into Among Us from Settings (it takes a minute).']
       : needsRepair(S.mod) ? ['Mod needs repair', `The mod loader in the game folder is ${bits(S.mod.loaderArch)}; the newest Among Us needs the 64-bit one. Repair it in Settings.`]

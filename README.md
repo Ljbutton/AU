@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.19**, a beta.
+The current release is **v0.1.20**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -286,8 +286,8 @@ seconds after anything changes; the Organiser tab reads them all:
   for a couple of minutes gets a warning at the top.
 * **Referee** (on **Home**, for whoever has the administration code): adjust points, void or
   unvoid a game, or type any `!` command; it's posted in the results channel as the
-  administration bot and the lead lobby carries it out. On a PC without Among Us, Home is
-  the referee desk.
+  administration bot and the lead lobby carries it out. On a PC without Among Us, Home
+  waits for the game as usual, with the referee tools below.
 * **Caster overlay:** an OBS Browser source at `http://localhost:8767/` that shows whichever
   lobby you pick with **Cast** (or the number keys 1-9 while the tab is open), switching
   live: players, round standings and the latest meetings and ejections for that game.
