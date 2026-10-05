@@ -28,6 +28,7 @@ namespace TournamentTracker
         private readonly List<(long Seq, DateTime At, string Text)> _notices = new List<(long, DateTime, string)>();
         private long _noticeSeq;
         private bool _answeringApp;
+        private volatile Task? _pendingForApp;
         private static readonly TimeSpan NoticeLife = TimeSpan.FromMinutes(20);
 
         private void AddNotice(string text)
@@ -99,6 +100,10 @@ namespace TournamentTracker
                 done.TrySetResult(0);
             });
             var finished = await Task.WhenAny(done.Task, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(false);
+            // A command that looks something up in Discord answers when that's done.
+            var pending = _pendingForApp;
+            _pendingForApp = null;
+            if (finished == done.Task && pending != null) await Task.WhenAny(pending, Task.Delay(TimeSpan.FromSeconds(8))).ConfigureAwait(false);
             if (finished != done.Task) return JsonSerializer.Serialize(new { ok = false, replies = new[] { "Among Us didn't answer: is the game frozen or loading?" } });
             lock (_activityLock)
                 return JsonSerializer.Serialize(new { ok = true, replies = _activity.Where(a => a.Seq > before).Select(a => a.Text).ToList() });

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using TournamentTracker.Discord;
@@ -224,6 +225,90 @@ namespace TournamentTracker
             RefreshStatus(force: true);
             Reply($"Linked {player} to @{userName}{was}.", true, _settings.AnnounceLinks);
             return $"Linked {(other != null ? "@" + userName : "you")} to {player} in {lobbyName}{was}. Automute will follow {(other != null ? "them" : "you")} from now on.";
+        }
+    
+        /// <summary>
+        /// link &lt;player id&gt; &lt;Discord name&gt;: the host links a player from The Button. The name is
+        /// looked up in the Discord server (username or server nickname), and the answer waits
+        /// for the lookup so the app shows it.
+        /// </summary>
+        private void LinkCommand(string[] args)
+        {
+            if (args.Length < 2 || !int.TryParse(args[0], out int id))
+            {
+                Reply("Type the player's Discord name after the @.", false);
+                return;
+            }
+            var player = Players.FirstOrDefault(p => p.PlayerId == id);
+            if (player == null)
+            {
+                Reply("That player isn't in the lobby any more.", false);
+                return;
+            }
+            string query = string.Join(" ", args.Skip(1)).Trim().TrimStart('@').Trim();
+            string? token = _settings.AutoMute.BotTokens.FirstOrDefault();
+            string guild = _settings.AutoMute.GuildId;
+            if (token == null || guild.Length == 0)
+            {
+                Reply("Linking needs a bot and a Discord server (from your setup code).", false);
+                return;
+            }
+            if (query.Length == 0)
+            {
+                Reply("Type the player's Discord name after the @.", false);
+                return;
+            }
+            var finished = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _pendingForApp = finished.Task;
+            Task.Run(async () =>
+            {
+                IReadOnlyList<GuildMember> found;
+                try { found = await _rest.SearchMembersAsync(token, guild, query).ConfigureAwait(false); }
+                catch (Exception) { found = Array.Empty<GuildMember>(); }
+                _mainThread.Enqueue(() =>
+                {
+                    _answeringApp = true;
+                    try { FinishLink(player, query, found); }
+                    finally { _answeringApp = false; finished.TrySetResult(true); }
+                });
+            });
+        }
+
+        private void FinishLink(PlayerSnapshot player, string query, IReadOnlyList<GuildMember> found)
+        {
+            // An exact username or nickname wins; otherwise it has to be the only match.
+            var exact = found.Where(m => string.Equals(m.Username, query, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(m.Nick, query, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(m.GlobalName, query, StringComparison.OrdinalIgnoreCase)).ToList();
+            var pick = exact.Count == 1 ? exact[0] : exact.Count == 0 && found.Count == 1 ? found[0] : null;
+            if (pick == null)
+            {
+                Reply(found.Count == 0
+                    ? $"Nobody called @{query} is in the Discord server."
+                    : $"More than one person matches @{query}: {string.Join(", ", found.Take(5).Select(m => "@" + m.Username))}. Type more of the name.", false);
+                return;
+            }
+            var taken = Links.Find(player.Key);
+            string was = taken != null && taken.DiscordUserId != pick.Id ? $" (replacing @{taken.DiscordName})" : "";
+            Links.Link(player.Key, player.Name, pick.Id, pick.Username);
+            RefreshStatus(force: true);
+            Reply($"Linked {player} to @{pick.Username}{was}.", true, _settings.AnnounceLinks);
+        }
+
+        /// <summary>unlink &lt;player id&gt;, from The Button.</summary>
+        private void UnlinkCommand(string[] args)
+        {
+            var player = args.Length > 0 && int.TryParse(args[0], out int id) ? Players.FirstOrDefault(p => p.PlayerId == id) : null;
+            var link = player == null ? null : Links.Find(player.Key);
+            if (player == null || link == null)
+            {
+                Reply("That player isn't linked.", false);
+                return;
+            }
+            Links.Unlink(player.Key);
+            BlockAutoLink(player.Key);
+            RefreshStatus(force: true);
+            Reply($"Unlinked {player} from @{link.DiscordName}.", false);
         }
     }
 }

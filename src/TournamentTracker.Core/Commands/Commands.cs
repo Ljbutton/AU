@@ -78,6 +78,12 @@ namespace TournamentTracker
                 case "unvoid" when fromHost:
                     VoidCommand(command == "void", args);
                     return true;
+                case "link" when fromHost:
+                    LinkCommand(args);
+                    return true;
+                case "unlink" when fromHost:
+                    UnlinkCommand(args);
+                    return true;
                 case "resetleaderboard" when fromHost:
                     ResetLeaderboardCommand();
                     return true;

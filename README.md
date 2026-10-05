@@ -13,7 +13,7 @@ their Discord account with **/link** in the Discord server. It:
 * **Automutes Discord voice**: alive players are muted (and deafened) during tasks, everyone
   alive can talk in meetings, and dead players talk among themselves during tasks, with a
   short delay at each change. It can also mute spectators. Players link themselves with
-  `/link` in Discord, or are linked automatically when their name matches. It works like AutoMuteUs, but the host's game drives it directly, so no
+  `/link` in Discord, the host links them from The Button, or they're linked automatically when their name matches. It works like AutoMuteUs, but the host's game drives it directly, so no
   capture app is needed.
 
 **Platforms:** the host plays the Windows PC version from Steam or Epic Games (the Xbox app /
@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.21**, a beta.
+The current release is **v0.1.22**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -134,7 +134,7 @@ but can have one for automute (see below).
 
 ### 3. Setup codes
 
-Once your administration code is in, Settings → Administration → **Make setup codes** opens the setup code generator in your browser (it's also `docs/setup-codes.html` in this repository). Fill it in:
+Download **`setup-codes.html`** from the [latest release](https://github.com/Ljbutton/AU/releases/latest) and open it in your browser (it runs on your PC only; nothing you type is sent anywhere). Once your administration code is in, Settings → Administration → **Make setup codes** opens the same page. Fill it in:
 
 * **Preliminary code:** the tournament name, the preliminary server's name and the
   preliminary channel's webhook. Make one per preliminary server (the server name is what
@@ -421,14 +421,18 @@ and referees in `SpectatorExemptUserIds` so they're never muted. Off by default.
 
 ### Linking players to Discord
 
-Automute only touches players linked to a Discord account. Linking happens in Discord, not
-in the app or the game chat. Links are keyed by friend code, so a link survives name and
+Automute only touches players linked to a Discord account. Linking happens in Discord or
+in The Button, never in the game chat. Links are keyed by friend code, so a link survives name and
 colour changes, and they're saved in `BepInEx/config/TournamentTracker/links.json`.
 
 * **`/link`**: in any channel of the server, a player types `/link` and their in-game name
   or colour (`/link Red`, `/link Soggy Dingus`). Only they see the answer. A colour works
   when they're in the lobby's voice channel; a name works from anywhere. With several
   lobbies running, the lobby that has that player (or that voice channel) answers.
+* **In The Button** (hosts): on Home, press **Link** under a player (or their @name to change
+  it). An `@` is already in the box: type the rest of their Discord name (username or server
+  nickname) and press Link. If more than one person matches, The Button lists them so you
+  can type more. The Points page shows each player's @ next to their name.
 * **`/new`** (hosts): picks where your lobby's live message goes. Type `/new` in the text
   channel you want (for example each lobby's own channel when several games run at once):
   your game moves the message there, removes the old one, and the bot posts it with the

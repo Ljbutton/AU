@@ -171,6 +171,9 @@ jobs:
             echo "setup code, rounds, automute, voids, links and replays. Nothing is typed in the game chat."
             echo "If Windows says it protected your PC, click More info, then Run anyway."
             echo
+            echo "Organisers: download **setup-codes.html** below and open it in your browser to make the"
+            echo "setup codes (it runs on your PC only; nothing you type leaves it)."
+            echo
             echo "Already have the app? It shows \"New version available\" at the top; update from Settings."
             echo
             echo "The Button installs the 64-bit mod loader the newest Among Us needs (the game is 64-bit"
@@ -182,5 +185,5 @@ jobs:
           } > notes.md
           # Creates the tag on GitHub at this commit if it doesn't exist yet.
           gh release create "$TAG" "$PKG_ZIP" dist/TournamentTracker-Full-x86.zip dist/TournamentTracker-Full-x64.zip \
-            dist/TournamentTracker-Full.zip dist/Install-TheButton.bat dist/app/TheButton.exe \
+            dist/TournamentTracker-Full.zip dist/Install-TheButton.bat dist/app/TheButton.exe docs/setup-codes.html \
             --target "$GITHUB_SHA" --title "The Button $TAG" --notes-file notes.md --latest

@@ -26,7 +26,7 @@ namespace TournamentTracker
             _nextPoints = now + PointsInterval;
 
             var local = LocalGameFiles();
-            string key = $"{Combined?.GameRecords.Count}|{Combined?.GetHashCode()}|{Round}|{LobbyLabel()}|{local.Count}|{(local.Count > 0 ? local.Max(f => f.LastWriteTimeUtc).Ticks : 0)}";
+            string key = $"{Combined?.GameRecords.Count}|{Combined?.GetHashCode()}|{Round}|{LobbyLabel()}|{Links.Version}|{local.Count}|{(local.Count > 0 ? local.Max(f => f.LastWriteTimeUtc).Ticks : 0)}";
             if (_points != null && key == _pointsKey) return _points;
             _pointsKey = key;
             try { _points = BuildPoints(local); }
@@ -90,7 +90,7 @@ namespace TournamentTracker
             };
         }
 
-        private static object Section(string title, string note, List<StandingRow> rows, int cut, bool withTotal) => new
+        private object Section(string title, string note, List<StandingRow> rows, int cut, bool withTotal) => new
         {
             Title = title,
             Note = note,
@@ -100,6 +100,7 @@ namespace TournamentTracker
             {
                 Rank = i + 1,
                 r.Stats.Name,
+                Discord = Links.Find(r.Stats.Key)?.DiscordName is { Length: > 0 } d ? d : null,
                 Color = r.Stats.LastColorId,
                 Points = Math.Round(r.Stats.Points, 2),
                 Total = Math.Round(r.Total, 2),

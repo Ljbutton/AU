@@ -32,6 +32,9 @@ namespace TournamentTracker.Voice
 
         public IReadOnlyCollection<PlayerLink> All => _byKey.Values;
 
+        /// <summary>Goes up on every change, so views built from the links know to rebuild.</summary>
+        public int Version { get; private set; }
+
         public PlayerLink? Find(string playerKey) => _byKey.TryGetValue(playerKey, out var link) ? link : null;
 
         public PlayerLink? FindByDiscordId(string discordUserId) =>
@@ -94,6 +97,7 @@ namespace TournamentTracker.Voice
 
         private void Save()
         {
+            Version++;
             if (_path == null) return;
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
             File.WriteAllText(_path, JsonSerializer.Serialize(_byKey.Values.OrderBy(l => l.PlayerName).ToList(), Json));

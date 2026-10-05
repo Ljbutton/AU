@@ -253,6 +253,34 @@ public class LiveLobbyTests : IDisposable
     }
 
     [Fact]
+    public void Host_links_a_player_from_the_app_by_Discord_name()
+    {
+        var s = SlashSession();
+        _http.Default = r => r.RequestUri!.AbsoluteUri.Contains("/members/search")
+            ? FakeHttp.Json(HttpStatusCode.OK, r.RequestUri.Query.Contains("query=da", StringComparison.OrdinalIgnoreCase)
+                ? """[{"user":{"id":"300","username":"dana_x"}},{"user":{"id":"301","username":"danny"},"nick":"Dan"}]"""
+                : "[]")
+            : FakeHttp.Json(HttpStatusCode.OK, "{}");
+        var dana = _lobby[3];
+
+        List<string> Run(string command)
+        {
+            s.RunCommand(command);
+            var said = new List<string>();
+            for (int i = 0; i < 200 && said.Count == 0; i++) { said.AddRange(s.Pump().Select(r => r.Text)); if (said.Count == 0) Thread.Sleep(10); }
+            return said;
+        }
+
+        Assert.Contains("More than one person matches @da", Run($"link {dana.PlayerId} @da")[0]);
+        Assert.Null(s.Links.Find(dana.Key));
+        Assert.StartsWith("Nobody called @zed", Run($"link {dana.PlayerId} zed")[0]);
+        Assert.StartsWith("Linked Pink (Dana) to @danny", Run($"link {dana.PlayerId} @Dan")[0]);   // the nickname matches exactly
+        Assert.Equal("301", s.Links.Find(dana.Key)?.DiscordUserId);
+        Assert.StartsWith("Unlinked Pink (Dana) from @danny", Run($"unlink {dana.PlayerId}")[0]);
+        Assert.Null(s.Links.Find(dana.Key));
+    }
+
+    [Fact]
     public void Other_lobbies_stay_quiet_unless_the_name_is_theirs()
     {
         var s = SlashSession();

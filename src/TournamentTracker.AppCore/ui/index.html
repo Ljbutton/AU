@@ -12,7 +12,7 @@
 @font-face{font-family:"Rajdhani";font-weight:700;font-display:swap;src:url(/fonts/rajdhani-700.woff2) format("woff2")}
 :root{
   --bg:#000;--panel:rgba(14,17,24,.78);--panel-solid:#0e1118;--sunk:rgba(255,255,255,.07);--fg:#f2f4f7;--muted:#9aa4b2;--line:rgba(255,255,255,.16);--edge:rgba(255,255,255,.75);
-  --accent:#2fb350;--accent-2:#1f8a3c;--accent-fg:#04120a;--accent-soft:rgba(47,179,80,.14);--hi:#ff2d55;--hi-soft:rgba(47,179,80,.14);--good:#46c28b;--good-soft:rgba(70,194,139,.16);--warn:#ffc15a;--warn-soft:rgba(255,193,90,.14);
+  --accent:#1fa143;--accent-2:#147a2c;--accent-fg:#03140a;--accent-soft:rgba(22,128,46,.16);--hi:#ff2d55;--hi-soft:rgba(255,45,85,.14);--good:#46c28b;--good-soft:rgba(70,194,139,.16);--warn:#ffc15a;--warn-soft:rgba(255,193,90,.14);
   --danger:#ff6b61;--danger-soft:rgba(255,107,97,.15);color-scheme:dark;
 }
 :root{--hand:"Amatic SC","Segoe Print",cursive;--round:"Varela Round","Segoe UI",system-ui,sans-serif;--mono:"Cascadia Mono",Consolas,ui-monospace,monospace}
@@ -21,13 +21,12 @@ html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--round);display:grid;grid-template-columns:172px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);overflow:hidden}
 #space{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
 header,nav,main{position:relative;z-index:1}
-header{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:8px 18px;border-bottom:2px solid rgba(47,179,80,.55);background:linear-gradient(90deg,rgba(47,179,80,.12),rgba(0,0,0,.35) 45%);backdrop-filter:blur(2px)}
+header{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:8px 18px;border-bottom:2px solid rgba(22,128,46,.55);background:linear-gradient(90deg,rgba(22,128,46,.12),rgba(0,0,0,.35) 45%);backdrop-filter:blur(2px)}
 .brand{display:flex;align-items:center;gap:10px}
 /* The name in the tournament type: white "THE", red "BUTTON", and the tagline in the game's hand-drawn type. */
 .brand .word{display:flex;flex-direction:column;line-height:.86}
-.brand .word b{font:700 38px/1 "Teko","Rajdhani",sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#fff}
+.brand .word b{font:700 42px/1 "Teko","Rajdhani",sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#fff}
 .brand .word b span{color:var(--accent)}
-.brand .word i{font:700 24px/1 var(--hand);font-style:normal;letter-spacing:.14em;color:var(--hi)}
 .logo{width:40px;height:40px;object-fit:contain}
 .alerts{display:flex;flex-wrap:wrap;gap:8px;margin-left:8px}
 /* Window buttons (The Button's window has no frame of its own; the header is its title bar). */
@@ -43,10 +42,10 @@ body.maxed .winctl .i-restore{display:block}
 .alert.bad{border-color:var(--danger);color:var(--danger);background:var(--danger-soft)}
 .alert:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 nav{padding:14px 10px;display:flex;flex-direction:column;gap:4px;border-right:1px solid var(--line);background:rgba(0,0,0,.25)}
-nav button{all:unset;cursor:pointer;padding:6px 14px 6px 18px;border-radius:12px;font:700 27px/1.15 var(--hand);letter-spacing:.05em;color:var(--muted);transform:skewX(-8deg)}
+nav button{all:unset;cursor:pointer;padding:6px 14px 6px 18px;border-radius:12px;font:700 27px/1.15 var(--hand);letter-spacing:.05em;color:var(--muted)}
 nav button:hover{color:var(--fg);background:rgba(255,255,255,.04)}
 /* The page you're on: a rounded green bar and a green glow fading to the right. */
-nav button.on{color:#fff;box-shadow:inset 5px 0 0 var(--accent);background:linear-gradient(90deg,rgba(47,179,80,.38),rgba(47,179,80,.05))}
+nav button.on{color:#fff;box-shadow:inset 5px 0 0 var(--accent);background:linear-gradient(90deg,rgba(22,128,46,.38),rgba(22,128,46,.05))}
 nav button:focus-visible{outline:2px solid var(--accent)}
 main{overflow:auto;padding:16px 22px 22px}
 section{display:none}
@@ -54,13 +53,13 @@ section.on{display:grid;gap:14px;align-content:start}
 h1,.title{font:700 44px/1 var(--hand);letter-spacing:.05em;margin:0}
 h2{font:700 27px/1 var(--hand);letter-spacing:.05em;margin:0 0 8px}
 .sub{color:var(--muted);margin:0}
-.card{background:var(--panel);border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:inset 0 2px 0 rgba(47,179,80,.35)}
+.card{background:var(--panel);border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:inset 0 2px 0 rgba(22,128,46,.35)}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:5px 14px;margin:0}
 .kv dt{color:var(--muted)}.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
 button.b{font:700 21px/1 var(--hand);letter-spacing:.05em;white-space:nowrap;padding:6px 14px 5px;border-radius:10px;border:2px solid var(--edge);background:transparent;color:var(--fg);cursor:pointer}
 button.b:hover{background:var(--sunk)}
-button.b.primary{background:linear-gradient(180deg,#3fc764,var(--accent-2));border-color:var(--accent);color:var(--accent-fg)}
+button.b.primary{background:linear-gradient(180deg,#22aa48,var(--accent-2));border-color:var(--accent);color:var(--accent-fg)}
 button.b.danger{border-color:var(--danger);color:var(--danger)}
 button.b.on{border-color:var(--hi);color:var(--hi);background:var(--hi-soft)}
 button.b:disabled{opacity:.4;cursor:default}
@@ -98,6 +97,13 @@ tr:last-child td{border-bottom:0}
 .pl .nm{font:15px/1.2 var(--round);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl .dc{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl .dc.none{color:var(--warn)}
+.pl button.dc{all:unset;cursor:pointer;display:block;max-width:100%;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl button.dc:hover{color:var(--fg);text-decoration:underline}
+.pl button.dc.none{color:var(--accent);font-weight:600}
+.pl button.dc:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.link-row{margin-top:8px;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:var(--sunk)}
+.link-row #link-who{font:15px/1.2 var(--round);white-space:nowrap}
+.pts .at{color:var(--muted);font-size:12.5px}
 .pl.dead{opacity:.55}
 .left,.side{display:grid;gap:12px;align-content:start}
 .notices{display:grid;gap:6px;margin-bottom:6px}
@@ -214,7 +220,7 @@ details.advanced[open] summary h2::before{content:'▾ '}
 <body>
 <canvas id="space" aria-hidden="true"></canvas>
 <header>
-  <div class="brand"><img class="logo" src="/logo.png" alt=""><span class="word"><b>The <span>Button</span></b><i>Tournament Control</i></span></div>
+  <div class="brand"><img class="logo" src="/logo.png" alt=""><span class="word"><b>The <span>Button</span></b></span></div>
   <div class="alerts" id="alerts"></div>
   <div class="winctl" id="winctl" hidden>
     <button data-win="min" title="Minimise" aria-label="Minimise"><svg viewBox="0 0 12 12"><path d="M2 6.5h8"/></svg></button>
@@ -249,8 +255,9 @@ details.advanced[open] summary h2::before{content:'▾ '}
     <div class="home-grid" style="margin-top:8px">
       <div class="left">
       <div class="card">
-        <div class="row" style="justify-content:space-between;align-items:baseline"><h2>Players</h2><span class="muted" style="font-size:12.5px">Players link themselves in Discord: <b>/link</b> and their name or colour</span></div>
+        <div class="row" style="justify-content:space-between;align-items:baseline"><h2>Players</h2><span class="muted" style="font-size:12.5px">Press <b>Link</b> under a player, or players type <b>/link</b> in Discord</span></div>
         <div class="players" id="players"></div>
+        <form class="row link-row" id="link-row" hidden><span id="link-who"></span><input id="link-name" autocomplete="off" spellcheck="false" style="flex:1;min-width:120px"><button class="b primary">Link</button><button class="b" type="button" id="link-unlink">Unlink</button><button class="b" type="button" id="link-cancel">Cancel</button></form>
       </div>
       <div class="card automute">
         <div class="am-head"><h2>Automute</h2><span class="muted" id="mute-say"></span></div>
@@ -562,10 +569,37 @@ function renderHome() {
   $('players').innerHTML = st.players.length ? st.players.map(p => `<div class="pl${p.dead || p.disconnected ? ' dead' : ''}">
       <img src="${head(p.color)}" alt="">
       <div style="min-width:0"><div class="nm">${esc(p.name)}${p.isHost ? ' <span class="pill">you</span>' : ''}${p.referee ? ' <span class="pill">ref</span>' : ''}${p.disconnected ? ' <span class="pill">left</span>' : ''}</div>
-        <div class="dc${p.discordId ? '' : ' none'}">${p.discordId ? '@' + esc(p.discordName || p.discordId) : 'not linked yet'}</div></div>
+        <button class="dc${p.discordId ? '' : ' none'}" data-link="${p.playerId}" title="Link to a Discord account">${p.discordId ? '@' + esc(p.discordName || p.discordId) : 'Link'}</button></div>
       ${p.voice ? `<span class="voice ${p.voice}" title="${p.voice}">${VOICE[p.voice]}</span>` : '<span></span>'}</div>`).join('')
     : '<p class="empty">Nobody in the lobby yet.</p>';
+  $('players').querySelectorAll('[data-link]').forEach(b => b.onclick = () => startLink(+b.dataset.link));
 }
+
+// Linking from the app: "@" is filled in, the host types the rest of the Discord name.
+let linking = null;
+function startLink(id) {
+  const p = S.status.players.find(x => x.playerId === id);
+  if (!p) return;
+  linking = id;
+  $('link-who').innerHTML = `<img src="${head(p.color)}" alt="" style="width:22px;height:22px;vertical-align:middle"> ${esc(p.name)}`;
+  const box = $('link-name');
+  box.value = '@'; box.placeholder = '@discord name';
+  $('link-unlink').hidden = !p.discordId;
+  $('link-row').hidden = false;
+  box.focus(); box.setSelectionRange(1, 1);
+}
+function stopLink() { linking = null; $('link-row').hidden = true; }
+$('link-name').oninput = e => { if (!e.target.value.startsWith('@')) { e.target.value = '@' + e.target.value.replace(/^@*/, ''); } };
+$('link-name').onkeydown = e => { if (e.key === 'Escape') stopLink(); };
+$('link-cancel').onclick = stopLink;
+$('link-unlink').onclick = async () => { const id = linking; stopLink(); await cmd('unlink ' + id); };
+$('link-row').onsubmit = async e => {
+  e.preventDefault();
+  const name = $('link-name').value.replace(/^@+/, '').trim();
+  if (!name) return $('link-name').focus();
+  const id = linking; stopLink();
+  await cmd(`link ${id} ${name}`);
+};
 
 // ---- Warnings from the game (a player left, extra game, settings put back…) --------------------
 let dismissedNotice = 0;
@@ -635,7 +669,7 @@ function renderPoints() {
     <h2>${esc(sec.title)}</h2><p class="muted" style="margin:0 0 8px;font-size:12.5px">${esc(sec.note)}</p>
     ${sec.rows.length ? `<div class="pts-wrap"><table class="pts"><thead><tr><th></th><th class="l">Player</th><th>Points</th>${sec.withTotal ? '<th>Total</th>' : ''}<th>Games</th><th>W-L</th><th>Imp wins</th><th>Kills</th><th>Votes</th></tr></thead><tbody>
       ${sec.rows.map(r => `<tr class="${r.advancing ? 'up' : ''}${sec.cut && r.rank === sec.cut ? ' cut' : ''}"><td class="rk">${r.rank}</td>
-        <td class="l"><div class="nm" style="display:flex;align-items:center;gap:7px"><img src="${head(r.color)}" alt="" style="width:22px;height:22px"><span>${esc(r.name)}</span></div></td>
+        <td class="l"><div class="nm" style="display:flex;align-items:center;gap:7px"><img src="${head(r.color)}" alt="" style="width:22px;height:22px"><span>${esc(r.name)}</span>${r.discord ? `<span class="at">@${esc(r.discord)}</span>` : ''}</div></td>
         <td class="big">${n(r.points)}</td>${sec.withTotal ? `<td>${n(r.total)}</td>` : ''}<td>${r.games}</td><td>${r.wins}-${r.losses}</td><td>${esc(r.impostor)}</td><td>${r.kills}</td><td>${esc(r.votes)}</td></tr>`).join('')}
     </tbody></table></div>` : '<p class="empty">No counted games yet.</p>'}</div>`).join('')
     + (pts.voided ? `<p class="muted" style="font-size:12.5px">${pts.voided} voided game${pts.voided === 1 ? '' : 's'} left out.</p>` : '');
