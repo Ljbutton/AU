@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.20**, a beta.
+The current release is **v0.1.21**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -52,9 +52,9 @@ needs a new code) or "Referee commands not heard" (the bot's Message Content Int
 Click one to go where it's fixed.
 
 **The Button updates itself.** When a new version is out it downloads it and uses it from
-the next start (Settings → The Button: "Restart to update"). The mod in Among Us updates
-itself the same way while the game is closed (Settings → Mod). Turn **Update automatically**
-off in either place to update only when you choose.
+the next start ("Restart to update" in Settings → Mod and updates). The mod in Among Us
+updates itself the same way while the game is closed. Turn **Update automatically** off
+there to update both only when you choose.
 
 While you play, the app's pages run the lobby:
 
@@ -76,9 +76,9 @@ While you play, the app's pages run the lobby:
 * **Games:** every game this PC hosted, newest first: winner and how, top scorer, map,
   length, voided or not, and **Watch** for its replay. Replays downloaded from other lobbies
   are listed below. It reads the saved games, so it works with Among Us closed.
-* **Settings:** the game folder and the mod; the setup code as one line (details, change or
+* **Settings:** the game folder; the mod and The Button's updates; the setup code as one line (details, change or
   remove it); in a tournament with a results channel, the **lead lobby** and the combined
-  leaderboard reset; The Button's updates; files under **Advanced**.
+  leaderboard reset; files under **Advanced**.
 
 When a lobby plays its last game of the round, its bot posts the **round's scores** in the
 private results channel (staff only, so lobbies without a bot don't post it): every player's
