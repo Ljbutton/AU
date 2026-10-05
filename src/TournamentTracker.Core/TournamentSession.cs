@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
+using TournamentTracker.Broadcast;
 using TournamentTracker.Discord;
 using TournamentTracker.Stats;
 using TournamentTracker.Voice;
@@ -168,6 +169,7 @@ namespace TournamentTracker
             game.Id = $"{(label.Length > 0 ? FileSafe(label) + "-" : "")}{game.GameNumber}-{game.StartedUtc:yyyyMMdd-HHmmss}";
             _log.Info($"Tracking game {game.Name} on {map} with {players.Count} players");
             StartReplay(game);
+            FeedGameStarted(game);
             if (_settings.Mode == TrackerMode.Tournament && Round == 0)
                 Reply($"No round set, so this game counts as round 0. {Cap(HowTo("r1", "Next round"))} before the next game.", false);
             else if (_settings.Mode == TrackerMode.Tournament && _settings.GamesPerRound > 0 && GamesThisRound >= _settings.GamesPerRound)
@@ -175,12 +177,44 @@ namespace TournamentTracker
                       $"If it shouldn't count, {HowTo("void", "Void")}. If a new round has started, {HowTo($"r{Round + 1}", "Next round")} before the next game.", false);
         }
 
-        public void Kill(byte killerId, byte victimId) => Tracker.Kill(killerId, victimId, _clock());
-        public void MeetingCalled(byte? callerId, byte? bodyId) => Tracker.MeetingCalled(callerId, bodyId, _clock());
-        public void VotingComplete(IReadOnlyList<VoteCast> votes, byte? exiledId, bool tie) => Tracker.VotingComplete(votes, exiledId, tie, _clock());
-        public void MeetingClosed() => Tracker.MeetingClosed();
-        public void TaskCompleted(byte playerId) => Tracker.TaskCompleted(playerId, _clock());
-        public void Sabotage(byte playerId, string system) => Tracker.Sabotage(playerId, system, _clock());
+        /// <summary>A kill. <paramref name="at"/>: where it happened (for the caster's feed), when the plugin can tell.</summary>
+        public void Kill(byte killerId, byte victimId, FeedPlace? at = null)
+        {
+            bool before = Tracker.Current?.ById(victimId)?.DeathCause == null;
+            Tracker.Kill(killerId, victimId, _clock());
+            if (before) FeedKill(killerId, victimId, at);
+        }
+
+        public void MeetingCalled(byte? callerId, byte? bodyId)
+        {
+            int before = Tracker.Current?.Meetings.Count ?? 0;
+            Tracker.MeetingCalled(callerId, bodyId, _clock());
+            FeedMeeting(before, callerId, bodyId);
+        }
+
+        public void VotingComplete(IReadOnlyList<VoteCast> votes, byte? exiledId, bool tie)
+        {
+            Tracker.VotingComplete(votes, exiledId, tie, _clock());
+            if (Tracker.InGame) FeedVote(0);
+        }
+
+        public void MeetingClosed()
+        {
+            Tracker.MeetingClosed();
+            if (Tracker.InGame) FeedMeetingClosed();
+        }
+
+        public void TaskCompleted(byte playerId)
+        {
+            Tracker.TaskCompleted(playerId, _clock());
+            if (Tracker.InGame) FeedTask();
+        }
+
+        public void Sabotage(byte playerId, string system)
+        {
+            Tracker.Sabotage(playerId, system, _clock());
+            FeedSabotageBy(playerId, system);
+        }
         /// <summary>A player left mid-game: recorded, and the host is told what their options are.</summary>
         public void PlayerLeft(byte playerId)
         {
@@ -217,6 +251,7 @@ namespace TournamentTracker
             players = WithoutReferee(players);
             var game = Tracker.End(reason, winner, players, _clock());
             if (game == null) return null;
+            FeedGameEnded(game, reason);
             LastGame = game;
             foreach (var p in game.Players)
             {

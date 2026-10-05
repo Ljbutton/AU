@@ -18,6 +18,7 @@ namespace TournamentTracker.Control
     /// <item>GET /api/status: the lobby, players, round, automute and the rest.</item>
     /// <item>GET /api/activity?since=N: what the mod has said since line N.</item>
     /// <item>POST /api/command {"command":"r2"}: runs a host command; answers with what the mod said.</item>
+    /// <item>GET /api/feed?since=N: the broadcast feed (events and snapshots) for the caster.</item>
     /// </list>
     /// </summary>
     public sealed class ControlServer : IDisposable
@@ -28,13 +29,15 @@ namespace TournamentTracker.Control
         private readonly Func<string> _status;
         private readonly Func<long, string> _activity;
         private readonly Func<string, Task<string>> _command;
+        private readonly Func<long, string>? _feed;
         private readonly ILog _log;
 
         public int Port { get; }
         public string Token { get; }
 
-        public ControlServer(int port, string dataDir, Func<string> status, Func<long, string> activity, Func<string, Task<string>> command, ILog log)
+        public ControlServer(int port, string dataDir, Func<string> status, Func<long, string> activity, Func<string, Task<string>> command, ILog log, Func<long, string>? feed = null)
         {
+            _feed = feed;
             _status = status;
             _activity = activity;
             _command = command;
@@ -102,6 +105,8 @@ namespace TournamentTracker.Control
                     else if (method == "GET" && route == "/api/status") reply = _status();
                     else if (method == "GET" && route == "/api/activity")
                         reply = _activity(long.TryParse(HttpRequest.Query(query, "since"), out var since) ? since : 0);
+                    else if (method == "GET" && route == "/api/feed" && _feed != null)
+                        reply = _feed(long.TryParse(HttpRequest.Query(query, "since"), out var from) ? from : 0);
                     else if (method == "POST" && route == "/api/command")
                     {
                         string command = "";

@@ -23,6 +23,7 @@ namespace TournamentTracker.Plugin
         private static float _nextLockCheck;
         private static bool _loggedReplay;
         private static bool _loggedTheater;
+        private static bool _loggedFeed;
 
         /// <summary>Set once a game has ended, until the lobby returns, so the start fallback can't reopen it.</summary>
         private static bool _roundOver;
@@ -107,6 +108,9 @@ namespace TournamentTracker.Plugin
             if (phase == VoicePhase.Menu) session.VoiceTick(phase, players);
             else session.VoiceTick(phase, players, Game.LobbyCode(), Game.MapName());
             _lastPhase = phase;
+
+            try { session.FeedTick(FeedReader.Frame(phase)); }
+            catch (Exception e) { if (!_loggedFeed) TournamentPlugin.Logger.Error("Caster feed failed: " + e); _loggedFeed = true; }
         }
 
         /// <summary>Starts tracking a game if it isn't tracked yet. Safe to call from any hook.</summary>

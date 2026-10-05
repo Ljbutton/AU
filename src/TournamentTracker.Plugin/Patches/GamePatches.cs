@@ -60,7 +60,10 @@ namespace TournamentTracker.Plugin.Patches
             // A kill blocked by a guardian angel shield still calls MurderPlayer; only count real deaths.
             if (__instance == null || __0 == null || __0.Data == null || !__0.Data.IsDead) return;
             Driver.StartGame();
-            TournamentPlugin.Session.Kill(__instance.PlayerId, __0.PlayerId);
+            TournamentTracker.Broadcast.FeedPlace? place = null;
+            try { place = FeedReader.Place(__0); }
+            catch (Exception e) { TournamentPlugin.Logger.Warn("Caster feed: couldn't read where the kill was (" + e.Message + ")."); }
+            TournamentPlugin.Session.Kill(__instance.PlayerId, __0.PlayerId, place);
         });
     }
 
