@@ -295,6 +295,10 @@ namespace TournamentTracker.App
             int adv = _code.AdvanceCount ?? 5, per = _code.GamesPerRound ?? 3;
             int round = lobbies.Select(l => l.Data.TryGetProperty("round", out var r) ? r.GetInt32() : 0).DefaultIfEmpty(0).Max();
             if (load != null && round == 0) round = load.GameRecords.Select(g => g.Round).DefaultIfEmpty(0).Max();
+            // A round that hasn't had a game yet would show empty tables: keep the last round with games (its final standings) until then.
+            int shown = round;
+            if (load != null && !load.GameRecords.Any(g => g.Counted && g.Round == round))
+                shown = load.GameRecords.Where(g => g.Counted && g.Round > 0).Select(g => g.Round).DefaultIfEmpty(round).Max();
             return new
             {
                 Tournament = _code.TournamentName,
@@ -303,6 +307,8 @@ namespace TournamentTracker.App
                 CasterProblem,
                 Cast = cast,
                 Round = round,
+                StandingsRound = shown,
+                StandingsFinal = shown != round || (load != null && per > 0 && load.GameRecords.Where(g => g.Counted && g.Round == shown).GroupBy(g => g.Host).All(g => g.Count() >= per)),
                 StandingsAt = load == null ? null : _loadedUtc.ToString("o"),
                 Lobbies = lobbies
                     .OrderBy(l => l.Label, StringComparer.OrdinalIgnoreCase)
@@ -321,24 +327,24 @@ namespace TournamentTracker.App
                             Data = l.Data,
                         };
                     }).ToList(),
-                Standings = load == null || round == 0 ? null : new
+                Standings = load == null || shown == 0 ? null : new
                 {
-                    Games = load.GameRecords.Count(g => g.Counted && g.Round == round),
-                    Lobbies = load.GameRecords.Where(g => g.Round == round).Select(g => g.Host).Distinct(StringComparer.OrdinalIgnoreCase)
+                    Games = load.GameRecords.Count(g => g.Counted && g.Round == shown),
+                    Lobbies = load.GameRecords.Where(g => g.Round == shown).Select(g => g.Host).Distinct(StringComparer.OrdinalIgnoreCase)
                         .OrderBy(h => h, StringComparer.OrdinalIgnoreCase)
                         .Select(h => new
                         {
                             Lobby = h,
-                            Played = Stats.Standings.GamesPlayed(load.GameRecords, h, round),
-                            Rows = Rows(Stats.Standings.Lobby(load.GameRecords, h, round, adv, per)),
+                            Played = Stats.Standings.GamesPlayed(load.GameRecords, h, shown),
+                            Rows = Rows(Stats.Standings.Lobby(load.GameRecords, h, shown, adv, per)),
                         }).ToList(),
-                    All = Rows(Stats.Standings.Round(load.GameRecords, round, adv, per)),
+                    All = Rows(Stats.Standings.Round(load.GameRecords, shown, adv, per)),
                 },
                 Advance = adv,
                 PerRound = per,
                 Awards = load == null ? null : new
                 {
-                    Round = round == 0 ? null : Awards(load.GameRecords.Where(g => g.Round == round)),
+                    Round = shown == 0 ? null : Awards(load.GameRecords.Where(g => g.Round == shown)),
                     All = Awards(load.GameRecords),
                 },
             };

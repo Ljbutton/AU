@@ -45,49 +45,78 @@ namespace TournamentTracker.Discord
 
 
         /// <summary>
-        /// A lobby's round is played out: who moves on, who's out, and the round's highlights.
-        /// <paramref name="nameFor"/> shows a player (an @mention when linked and wanted; embeds never ping).
+        /// A lobby's round is played out: every player's score for the round, in order, with where
+        /// the points came from (each source added up over the round's games). For the staff
+        /// channel: it doesn't say who moves on.
         /// </summary>
-        public static WebhookMessage RoundSummary(string tournament, string lobby, int round, IReadOnlyList<StandingRow> rows, int advance,
-            Func<PlayerTotals, string>? nameFor = null)
+        public static WebhookMessage RoundSummary(string tournament, string lobby, int round, IReadOnlyList<StandingRow> rows,
+            IReadOnlyList<GameRecord> roundGames)
         {
-            string Name(PlayerTotals t) => nameFor?.Invoke(t) ?? $"**{t.Name}**";
-            var up = rows.Where(r => r.Advancing).ToList();
-            if (up.Count == 0) up = rows.Take(advance).ToList();
-            var outRows = rows.Except(up).ToList();
+            var sources = PointSources(roundGames);
+            bool withTotal = rows.Any(r => Math.Abs(r.Total - r.Stats.Points) > 0.001);
             var sb = new StringBuilder();
-            sb.AppendLine($"**Moving on ({up.Count})**");
-            for (int i = 0; i < up.Count; i++)
-                sb.AppendLine($"{i + 1}. {Name(up[i].Stats)} · {ReportFormatter.Pts(up[i].Total)} pts");
-            if (outRows.Count > 0)
+            for (int i = 0; i < rows.Count; i++)
             {
-                sb.AppendLine();
-                sb.AppendLine($"**Out this round:** {string.Join(", ", outRows.Select(r => r.Stats.Name))}");
+                var r = rows[i];
+                sb.Append($"**{i + 1}. {r.Stats.Name}** · {ReportFormatter.Pts(r.Stats.Points)} pts");
+                if (withTotal) sb.Append($" (total {ReportFormatter.Pts(r.Total)})");
+                sb.Append($" · {r.Stats.Wins}-{r.Stats.Losses}").AppendLine();
+                var lines = sources.TryGetValue(r.Stats.Key, out var found) ? new List<(string Source, double Points)>(found) : new List<(string Source, double Points)>();
+                // Anything the games don't explain (a referee's !adjust, a tiebreak) shows as its own item.
+                double rest = r.Stats.Points - lines.Sum(l => l.Points);
+                if (Math.Abs(rest) > 0.001) lines.Add(("Referee adjustment", rest));
+                sb.AppendLine(lines.Count == 0 ? "↳ no points" : "↳ " + string.Join(" · ", lines.Select(l => $"{l.Source} {Signed(l.Points)}")));
             }
             var highlights = new List<string>();
             var all = rows.Select(r => r.Stats).ToList();
             if (all.Count > 0)
             {
-                var top = all.OrderByDescending(t => t.Points).First();
-                highlights.Add($"Top score: {top.Name} ({ReportFormatter.Pts(top.Points)})");
                 var killer = all.OrderByDescending(t => t.Kills).First();
                 if (killer.Kills > 0) highlights.Add($"Most kills: {killer.Name} ({killer.Kills})");
                 var voter = all.OrderByDescending(t => t.CorrectVotes).ThenByDescending(t => t.VoteAccuracy).First();
                 if (voter.CorrectVotes > 0) highlights.Add($"Best votes: {voter.Name} ({voter.CorrectVotes} right)");
             }
-            if (highlights.Count > 0)
-            {
-                sb.AppendLine();
-                sb.Append(string.Join(" · ", highlights));
-            }
+            if (highlights.Count > 0) sb.AppendLine().Append(string.Join(" · ", highlights));
+            int games = roundGames.Count(g => g.Counted);
             return Message(new Embed
             {
-                Title = ReportFormatter.Clip($"🏁 {lobby} — round {round} is done", Embed.TitleLimit),
+                Title = ReportFormatter.Clip($"{lobby} — round {round} scores", Embed.TitleLimit),
                 Color = RoundColor,
                 Description = ReportFormatter.Clip(sb.ToString().TrimEnd(), Embed.DescriptionLimit),
-                Footer = new EmbedFooter { Text = $"{tournament} · top {advance} of each lobby move on" },
+                Footer = new EmbedFooter { Text = $"{tournament} · {games} game{(games == 1 ? "" : "s")} · staff only" },
             });
         }
+
+        /// <summary>Each player's points by source over the given games: "Kill x2" and "Kill" both count as Kill.</summary>
+        public static Dictionary<string, List<(string Source, double Points)>> PointSources(IEnumerable<GameRecord> games)
+        {
+            var bySource = new Dictionary<string, Dictionary<string, double>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var g in games.Where(g => g.Counted))
+                foreach (var p in g.Players)
+                {
+                    if (!bySource.TryGetValue(p.Key, out var mine)) bySource[p.Key] = mine = new Dictionary<string, double>();
+                    foreach (var line in p.PointBreakdown)
+                    {
+                        string source = SourceOf(line.Rule);
+                        mine[source] = (mine.TryGetValue(source, out var v) ? v : 0) + line.Points;
+                    }
+                }
+            return bySource.ToDictionary(kv => kv.Key, kv => kv.Value.Where(x => Math.Abs(x.Value) > 0.001)
+                .OrderByDescending(x => x.Value).Select(x => (x.Key, x.Value)).ToList(), StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>A point rule without its per-game detail: "Kill x2" → "Kill", "Tasks 80%" → "Tasks", "Reads 3/4 on impostors" → "Reads".</summary>
+        public static string SourceOf(string rule)
+        {
+            string s = System.Text.RegularExpressions.Regex.Replace(rule ?? "", @" x\d+$", "");
+            s = s.Replace(" (left the game)", "");
+            if (s.StartsWith("Tasks ")) return "Tasks";
+            if (s.StartsWith("Reads ")) return "Reads";
+            if (s.StartsWith("Died first")) return "Died first";
+            return s;
+        }
+
+        private static string Signed(double v) => (v > 0 ? "+" : "") + ReportFormatter.Pts(v);
 
         public static string Table(IReadOnlyList<StandingRow> rows, int advance)
         {

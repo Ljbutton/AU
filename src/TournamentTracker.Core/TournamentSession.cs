@@ -230,7 +230,7 @@ namespace TournamentTracker
                 CountImpostorGames(game, 1);
                 roundDone = _settings.Mode == TrackerMode.Tournament && _settings.GamesPerRound > 0 && GamesThisRound == _settings.GamesPerRound && game.Round == Round;
                 if (roundDone)
-                    Reply($"That was game {GamesThisRound} of {_settings.GamesPerRound}: round {Round} is done for this lobby. The round summary is posted in Discord.", false);
+                    Reply($"That was game {GamesThisRound} of {_settings.GamesPerRound}: round {Round} is done for this lobby." + (Shared != null ? " The round's scores are posted in the results channel." : ""), false);
             }
 
             Store.Apply(game);
@@ -272,11 +272,9 @@ namespace TournamentTracker
                     });
                 }
             }
-            else
+            else if (game.Counted && _settings.PostLeaderboardAfterEachGame)
             {
-                if (game.Counted && _settings.PostLeaderboardAfterEachGame) Post(_settings.StatsWebhookUrl, LeaderboardMessage());
-                int round = game.Round;
-                if (roundDone) Chain(() => PostRoundSummaryAsync(round));
+                Post(_settings.StatsWebhookUrl, LeaderboardMessage());
             }
             // Move the live status below the report so it stays at the bottom of the channel.
             RepostStatus();

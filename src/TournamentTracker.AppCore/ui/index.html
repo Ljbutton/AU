@@ -666,7 +666,7 @@ document.querySelectorAll('[data-awards]').forEach(b => b.addEventListener('clic
 function awardsList() { const a = ORG && ORG.awards; return a ? (awardsScope === 'round' && a.round ? a.round : a.all) : null; }
 $('aw-copy').addEventListener('click', async () => {
   const list = awardsList(); if (!list) return;
-  const text = `**${ORG.tournament} awards${awardsScope === 'round' && ORG.awards.round ? ` · round ${ORG.round}` : ''}**\n` + list.filter(c => c.top.length)
+  const text = `**${ORG.tournament} awards${awardsScope === 'round' && ORG.awards.round ? ` · round ${ORG.standingsRound}` : ''}**\n` + list.filter(c => c.top.length)
     .map(c => `${c.title}: ${c.top.map((p, i) => `${i === 0 ? '**' + p.name + '**' : p.name} (${p.value})`).join(', ')}`).join('\n');
   try { await navigator.clipboard.writeText(text); toast('Copied. Paste it in Discord and keep the winners you choose.'); } catch (e) { toast('Couldn\'t copy.'); }
 });
@@ -718,8 +718,8 @@ function renderOrganiser() {
   const table = (title, note, rows, cut) => `<div class="card"><h2>${esc(title)}</h2><p class="muted" style="margin:0 0 8px;font-size:12.5px">${esc(note)}</p><div class="pts-wrap"><table class="pts"><thead><tr><th></th><th class="l">Player</th><th>Points</th><th>Total</th><th>Games</th><th>W-L</th></tr></thead><tbody>
     ${rows.map(r => `<tr class="${r.advancing ? 'up' : ''}${cut && r.rank === cut ? ' cut' : ''}"><td class="rk">${r.rank}</td><td class="l"><div class="nm" style="display:flex;align-items:center;gap:7px"><img src="${head(r.color)}" alt="" style="width:22px;height:22px"><span>${esc(r.name)}</span></div></td><td class="big">${n(r.points)}</td><td>${n(r.total)}</td><td>${r.games}</td><td>${r.wins}-${r.losses}</td></tr>`).join('')}</tbody></table></div></div>`;
   $('org-standings').innerHTML = !st ? '<div class="card"><p class="empty">No games in this round yet.</p></div>'
-    : st.lobbies.map(l => table(`${l.lobby}'s lobby`, `Round ${ORG.round} · after game ${l.played} of ${ORG.perRound} · top ${ORG.advance} move on`, l.rows, ORG.advance)).join('')
-      + table('Every lobby', `Round ${ORG.round} · ${st.games} games`, st.all, 0);
+    : st.lobbies.map(l => table(`${l.lobby}'s lobby`, `Round ${ORG.standingsRound} · ${l.played >= ORG.perRound ? 'final' : `after game ${l.played} of ${ORG.perRound}`} · top ${ORG.advance} move on`, l.rows, ORG.advance)).join('')
+      + table('Every lobby', `Round ${ORG.standingsRound}${ORG.standingsFinal ? ' · final' : ''} · ${st.games} games`, st.all, 0);
 }
 
 // ---- Settings -------------------------------------------------------------------------------

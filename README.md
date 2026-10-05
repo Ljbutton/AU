@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.17**, a beta.
+The current release is **v0.1.18**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -80,8 +80,11 @@ While you play, the app's pages run the lobby:
   remove it); in a tournament with a results channel, the **lead lobby** and the combined
   leaderboard reset; The Button's updates; files under **Advanced**.
 
-When a lobby plays its last game of the round, it posts a **round summary** in its results
-channel: who moves on, who's out, and the round's top score, most kills and best votes.
+When a lobby plays its last game of the round, its bot posts the **round's scores** in the
+private results channel (staff only, so lobbies without a bot don't post it): every player's
+points for the round, in order, and under each one where the points came from, added up over
+the round's games ("Kill +3 · Task win +5 · Lost -2…"; a referee's adjustment shows as its
+own item). It doesn't say who moves on.
 
 The app talks to the mod over a private connection on your computer only (port 8766, with a
 random key the mod writes in its data folder).
@@ -274,6 +277,7 @@ seconds after anything changes; the Organiser tab reads them all:
   Tick **show roles** to see impostors, kills and task bars too. A lobby that hasn't sent
   anything for a couple of minutes is shown as gone quiet.
 * **Standings:** each lobby's round standings with the cut line, and all lobbies combined.
+  Until the new round's first game, the last round's final standings stay up.
 * **Awards:** candidates for this round or the whole tournament, the top three in each of
   top score, most kills, best impostor, sharpest voter, impostor hunter, task machine and
   survivor. **Copy for Discord** copies them; you pick the winners.

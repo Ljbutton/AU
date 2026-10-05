@@ -282,7 +282,7 @@ public class TournamentModeTests : IDisposable
     }
 
     [Fact]
-    public async Task When_a_lobby_finishes_its_round_the_summary_is_posted()
+    public async Task When_a_lobby_finishes_its_round_its_scores_go_to_the_staff_channel()
     {
         var s = Session(TournamentCode());
         var lobby = Lobby();
@@ -290,16 +290,39 @@ public class TournamentModeTests : IDisposable
         Play(s, lobby, "ImpostorByKill");
         Play(s, lobby);
         await s.PendingPosts;
-        Assert.DoesNotContain(_discord.Webhooks, w => FakeDiscord.Title(w.Payload).Contains("is done"));   // not until game 3
+        bool Summary(FakeDiscord.Msg m) => m.Embeds.HasValue && m.Embeds.Value.GetArrayLength() > 0
+            && (m.Embeds.Value[0].TryGetProperty("title", out var t) ? t.GetString() ?? "" : "").Contains("round 1 scores");
+        Assert.DoesNotContain(_discord.Messages.ToList(), Summary);   // not until game 3
         Play(s, lobby);
         await s.PendingPosts;
-        var summary = _discord.Webhooks.Single(w => FakeDiscord.Title(w.Payload).Contains("is done"));
-        Assert.Equal("🏁 LJ's lobby — round 1 is done", FakeDiscord.Title(summary.Payload));
-        string text = FakeDiscord.Description(summary.Payload);
-        Assert.StartsWith("**Moving on (2)**", text);
-        Assert.Contains("**Out this round:**", text);
-        Assert.Contains("Top score:", text);
+
+        var summary = Assert.Single(_discord.Messages.ToList(), Summary);
+        Assert.True(summary.Bot);                                                    // the bot, in the private results channel
+        Assert.DoesNotContain(_discord.Webhooks, w => FakeDiscord.Title(w.Payload).Contains("scores"));   // never the players' channel
+        var embed = summary.Embeds!.Value[0];
+        Assert.Equal("LJ's lobby — round 1 scores", embed.GetProperty("title").GetString());
+        string text = embed.GetProperty("description").GetString()!;
+        Assert.DoesNotContain("Moving on", text);
+        Assert.DoesNotContain("move on", text);
+        foreach (var p in lobby) Assert.Contains($". {p.Name}** · ", text);          // everyone's score
+        Assert.Contains("↳ ", text);
+        Assert.Contains("Kill win +", text);                                         // where the points came from
         Assert.Contains(s.Pump(), r => r.Text.Contains("round 1 is done for this lobby"));
+    }
+
+    [Fact]
+    public void Point_sources_add_up_each_rule_over_the_round()
+    {
+        Assert.Equal("Kill", StandingsFormatter.SourceOf("Kill x2"));
+        Assert.Equal("Tasks", StandingsFormatter.SourceOf("Tasks 80%"));
+        Assert.Equal("Reads", StandingsFormatter.SourceOf("Reads 3/4 on impostors"));
+        Assert.Equal("Died first", StandingsFormatter.SourceOf("Died first: 50% of crew average 4.2"));
+        Assert.Equal("Lost to tasks", StandingsFormatter.SourceOf("Lost to tasks (left the game)"));
+        var game = new GameRecord { Winner = "Crewmates", Players = { new GamePlayer { Key = "a", PointBreakdown = { new PointLine("Kill x2", 4), new PointLine("Kill win", 3) } } } };
+        var again = new GameRecord { Winner = "Impostors", Players = { new GamePlayer { Key = "a", PointBreakdown = { new PointLine("Kill", 2) } } } };
+        var sources = StandingsFormatter.PointSources(new[] { game, again })["a"];
+        Assert.Equal(("Kill", 6.0), sources[0]);
+        Assert.Equal(("Kill win", 3.0), sources[1]);
     }
 
     [Fact]

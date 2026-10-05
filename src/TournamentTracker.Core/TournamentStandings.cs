@@ -27,27 +27,21 @@ namespace TournamentTracker
         }
 
         /// <summary>
-        /// The lobby played its last game of the round: post who moves on, who's out and the
-        /// highlights. From the combined results when there's a results channel, otherwise from
-        /// this PC's own games.
+        /// The lobby played its last game of the round: post every player's score and where it
+        /// came from in the private results channel (staff only, so it needs the bot).
         /// </summary>
         private async Task PostRoundSummaryAsync(int round)
         {
-            IReadOnlyList<GameRecord> games;
-            if (Shared != null)
-            {
-                await RefreshCombinedAsync().ConfigureAwait(false);
-                games = Combined?.GameRecords ?? (IReadOnlyList<GameRecord>)LocalGames();
-            }
-            else games = LocalGames();
+            if (Shared == null) return;
+            await RefreshCombinedAsync().ConfigureAwait(false);
+            IReadOnlyList<GameRecord> games = Combined?.GameRecords ?? (IReadOnlyList<GameRecord>)LocalGames();
             string lobby = LobbyLabel();
             var rows = Stats.Standings.Lobby(games, lobby, round, _settings.AdvanceCount, _settings.GamesPerRound);
             if (rows.Count == 0) return;
-            Func<PlayerTotals, string>? nameFor = _settings.LeaderboardMentions
-                ? t => Links.Find(t.Key)?.DiscordUserId is string id && id.Length > 0 ? $"<@{id}>" : $"**{t.Name}**"
-                : null;
-            await PostNowAsync(StandingsFormatter.RoundSummary(_settings.TournamentName, lobby.Length > 0 ? lobby + "'s lobby" : "This lobby",
-                round, rows, _settings.AdvanceCount, nameFor)).ConfigureAwait(false);
+            var roundGames = games.Where(g => g.Round == round && string.Equals(g.Host, lobby, StringComparison.OrdinalIgnoreCase)).ToList();
+            var message = StandingsFormatter.RoundSummary(_settings.TournamentName, lobby.Length > 0 ? lobby + "'s lobby" : "This lobby", round, rows, roundGames);
+            var result = await _rest.PostEmbedsAsync(Shared.Token, Shared.ChannelId, message).ConfigureAwait(false);
+            if (!result.Ok) _log.Warn("Couldn't post the round summary: " + result);
         }
 
         /// <summary>Everyone in the current round across every lobby.</summary>
