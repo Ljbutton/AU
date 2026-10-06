@@ -102,11 +102,11 @@ public class BroadcastObsTests : IAsyncLifetime
     public async Task The_graphics_are_the_top_layer_of_every_TT_scene_even_after_new_lobbies()
     {
         foreach (var scene in new[] { "TT Full", "TT 2-up", "TT Quad", "TT Replay" })
-            Assert.Equal("TT Broadcast", _obs.Scenes[scene].Last().Source);
+            Assert.Equal(new[] { "TT Broadcast", "TT Swoosh" }, _obs.Scenes[scene].TakeLast(2).Select(i => i.Source));
         _feeds.Add(("MAL", "https://vdo.ninja/?view=b&password=x&cleanoutput"));
         await _director.BuildAsync();
         Assert.Contains(_obs.Scenes["TT Quad"], i => i.Source == "TT Lobby MAL");
-        Assert.Equal("TT Broadcast", _obs.Scenes["TT Quad"].Last().Source);
+        Assert.Equal(new[] { "TT Broadcast", "TT Swoosh" }, _obs.Scenes["TT Quad"].TakeLast(2).Select(i => i.Source));
         Assert.Equal("http://127.0.0.1:8767/broadcast", _obs.Inputs["TT Broadcast"]["url"]!.ToString());
     }
 }

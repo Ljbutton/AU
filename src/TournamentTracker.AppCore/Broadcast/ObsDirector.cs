@@ -33,6 +33,8 @@ namespace TournamentTracker.App.Broadcast
         public string Audio { get; set; } = "slot1";
         /// <summary>Replays: clip lengths, zoom, where clips are saved, and the replay keys.</summary>
         public ReplaySettings Replay { get; set; } = new ReplaySettings();
+        /// <summary>The swoosh on every switch (Part 17).</summary>
+        public SwooshSettings Swoosh { get; set; } = new SwooshSettings();
         /// <summary>Lobby → OBS source, as built. The Button keeps this up to date.</summary>
         public Dictionary<string, string> Sources { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -50,6 +52,7 @@ namespace TournamentTracker.App.Broadcast
                     var s = JsonSerializer.Deserialize<ObsSettings>(File.ReadAllText(path), Json) ?? new ObsSettings();
                     s.Sources = new Dictionary<string, string>(s.Sources ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
                     s.Replay ??= new ReplaySettings();
+                    s.Swoosh ??= new SwooshSettings();
                     foreach (var kv in ReplaySettings.DefaultHotkeys()) if (!s.Replay.Hotkeys.ContainsKey(kv.Key)) s.Replay.Hotkeys[kv.Key] = kv.Value;
                     var d = new ObsSettings();
                     foreach (var kv in d.Scenes) if (!s.Scenes.ContainsKey(kv.Key)) s.Scenes[kv.Key] = kv.Value;
@@ -144,6 +147,7 @@ namespace TournamentTracker.App.Broadcast
                 await BuildAsync().ConfigureAwait(false);
                 await EnsureReplaySceneAsync().ConfigureAwait(false);
                 await EnsureBroadcastAsync().ConfigureAwait(false);
+                await EnsureSwooshAsync().ConfigureAwait(false);
                 await ReadBackAsync().ConfigureAwait(false);
                 return $"Connected to OBS{(ObsVersion != null ? " " + ObsVersion : "")}. The TT scenes are ready.";
             }
@@ -315,7 +319,11 @@ namespace TournamentTracker.App.Broadcast
             }
             finally { _busy.Release(); }
             // New lobby pictures go on top: put the graphics back above them.
-            if (newSources) await EnsureBroadcastAsync().ConfigureAwait(false);
+            if (newSources)
+            {
+                await EnsureBroadcastAsync().ConfigureAwait(false);
+                await EnsureSwooshAsync().ConfigureAwait(false);
+            }
         }
 
         private sealed class Item
@@ -353,6 +361,10 @@ namespace TournamentTracker.App.Broadcast
             var obs = _obs;
             if (obs == null || !Settings.Scenes.TryGetValue(air.Layout, out var scene)) return;
             await AddSourcesAsync().ConfigureAwait(false);
+            // A swoosh when what's on stream changes (a new scene, or pictures moving in this one).
+            string key = AirKey(air);
+            if (key != _airKey || Scene != scene) await SwooshAsync(Scene != scene).ConfigureAwait(false);
+            _airKey = key;
             await _busy.WaitAsync().ConfigureAwait(false);
             try
             {
@@ -462,6 +474,7 @@ namespace TournamentTracker.App.Broadcast
             Scenes = Settings.Scenes,
             Sources = Settings.Sources,
             Canvas = $"{Width}×{Height}",
+            Swoosh = new { Settings.Swoosh.On, Stinger = _stinger, Problem = SwooshProblem, File = SwooshFile, Count = Swooshes },
         };
 
         public async ValueTask DisposeAsync()

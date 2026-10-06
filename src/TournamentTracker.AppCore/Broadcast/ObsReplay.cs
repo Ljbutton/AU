@@ -207,6 +207,8 @@ namespace TournamentTracker.App.Broadcast
         public async Task ShowReplaySceneAsync()
         {
             var obs = _obs ?? throw new InvalidOperationException("Not connected to OBS.");
+            if (Scene != Settings.Replay.Scene) await SwooshAsync(true).ConfigureAwait(false);
+            _airKey = null;
             _ignoreSceneUntil = DateTime.UtcNow.AddSeconds(1.5);
             _lastAppliedScene = Settings.Replay.Scene;
             await obs.RequestAsync("SetCurrentProgramScene", new { sceneName = Settings.Replay.Scene }).ConfigureAwait(false);

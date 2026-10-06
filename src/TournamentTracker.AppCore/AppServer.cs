@@ -135,6 +135,7 @@ namespace TournamentTracker.App
                 if (organizer.CasterUrl != null) obs.BroadcastUrl = organizer.CasterUrl + "broadcast";
                 organizer.MorePages = path => BroadcastPage(broadcast, path) ?? SponsorPage(desk, path);
                 var builder = new MontageBuilder(() => obs.Settings.Replay, () => obs.ClipFolder, SideFolder() is { } side ? Path.Combine(side, "tools") : null);
+                obs.MakeSwoosh = builder.SwooshAsync;
                 var replays = _replays = new ReplayManager(desk, obs) { TagChanged = json => organizer.ReplayNow = json, Builder = builder, Sponsors = desk.Sponsors };
                 _montages = new MontageManager(desk, replays, builder, desk.Sponsors, () => obs.Settings.Replay);
                 obs.Start();
@@ -418,12 +419,18 @@ namespace TournamentTracker.App
                     if (_obs == null) return Ok(new { ok = false, message = "Administration is locked." });
                     switch (Arg("action"))
                     {
+                        case "swoosh":
+                            _obs.Settings.Swoosh.On = Arg("on") == "true";
+                            _obs.SaveSettings();
+                            if (_obs.Settings.Swoosh.On && _obs.Connected) await _obs.EnsureSwooshAsync().ConfigureAwait(false);
+                            return Ok(new { ok = true, message = _obs.Settings.Swoosh.On ? "Swoosh on every switch." : "Swoosh off: straight cuts." });
                         case "disconnect":
                             await _obs.DisconnectAsync().ConfigureAwait(false);
                             return Ok(new { ok = true, message = "Disconnected from OBS." });
                         case "build":
                             if (!_obs.Connected) return Ok(new { ok = false, message = "Connect to OBS first." });
                             await _obs.BuildAsync().ConfigureAwait(false);
+                            await _obs.EnsureSwooshAsync().ConfigureAwait(false);
                             if (_desk != null && _desk.OnAir.Layout != "none") await _obs.ApplyAsync(_desk.OnAir).ConfigureAwait(false);
                             return Ok(new { ok = true, message = "The TT scenes are up to date." });
                         default:

@@ -168,7 +168,7 @@ public class ReplayObsTests : IAsyncLifetime
         Assert.Equal(0, f["record_mode"].GetInt32());
         Assert.Contains("TT LJ", f["replay_filename_formatting"].GetString());
         Assert.True(_obs.Filters.ContainsKey("TT Lobby MAL|TT Replay"));
-        Assert.Equal(new[] { "TT Replay Clip", "TT Replay Tag" }, _obs.Scenes["TT Replay"].Select(i => i.Source));
+        Assert.Equal(new[] { "TT Replay Clip", "TT Replay Tag", "TT Swoosh" }, _obs.Scenes["TT Replay"].Select(i => i.Source));
         Assert.Equal("ffmpeg_source", "ffmpeg_source");
         Assert.Null(_director.ReplayProblem);
     }

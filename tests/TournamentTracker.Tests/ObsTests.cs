@@ -37,6 +37,10 @@ public sealed class FakeObs : IAsyncDisposable
     public string MediaState = "OBS_MEDIA_STATE_NONE";
     public double MediaCursorMs, MediaDurationMs = 30000;
     public string? MediaFile;
+    public int SwooshPlays;
+    public List<(string Name, string Kind)> Transitions = new() { ("Fade", "fade_transition"), ("Cut", "cut_transition") };
+    public string CurrentTransition = "Fade";
+    public JsonElement TransitionSettings;
 
     public FakeObs()
     {
@@ -191,10 +195,15 @@ public sealed class FakeObs : IAsyncDisposable
                 return new { mediaState = MediaState, mediaDuration = MediaFile == null ? (double?)null : MediaDurationMs, mediaCursor = MediaFile == null ? (double?)null : MediaCursorMs };
             case "TriggerMediaInputAction":
             {
+                if (S(d, "inputName") == "TT Swoosh") { SwooshPlays++; return null; }
                 string a = S(d, "mediaAction");
                 MediaState = a.EndsWith("PLAY") ? "OBS_MEDIA_STATE_PLAYING" : a.EndsWith("PAUSE") ? "OBS_MEDIA_STATE_PAUSED" : MediaState;
                 return null;
             }
+            case "GetSceneTransitionList":
+                return new { currentSceneTransitionName = CurrentTransition, transitions = Transitions.Select(t => new { transitionName = t.Name, transitionKind = t.Kind }).ToArray() };
+            case "SetCurrentSceneTransition": CurrentTransition = S(d, "transitionName"); return null;
+            case "SetCurrentSceneTransitionSettings": TransitionSettings = d.GetProperty("transitionSettings").Clone(); return null;
             case "SetMediaInputCursor": MediaCursorMs = d.GetProperty("mediaCursor").GetDouble(); return null;
             case "SetCurrentProgramScene": Program = S(d, "sceneName"); return null;
             case "SetSceneItemIndex":
@@ -216,7 +225,7 @@ public sealed class FakeObs : IAsyncDisposable
     /// <summary>Someone switches scene in OBS by hand.</summary>
     public Task SwitchTo(string scene) { lock (this) Program = scene; return Event("CurrentProgramSceneChanged", new { sceneName = scene }); }
 
-    public List<Item> Shown(string scene) { lock (this) return Scenes[scene].Where(i => i.Enabled).ToList(); }
+    public List<Item> Shown(string scene) { lock (this) return Scenes[scene].Where(i => i.Enabled && i.Source != "TT Swoosh").ToList(); }
 
     public async ValueTask DisposeAsync()
     {
@@ -289,11 +298,12 @@ public class ObsTests : IAsyncLifetime
     {
         Assert.StartsWith("Connected to OBS 31.0.0", await Connect());
         foreach (var scene in new[] { "TT Full", "TT 2-up", "TT Quad" })
-            Assert.Equal(new[] { "TT Lobby LJ", "TT Lobby MAL", "TT Lobby Soggy" }, _obs.Scenes[scene].Select(i => i.Source).OrderBy(x => x));
+            Assert.Equal(new[] { "TT Lobby LJ", "TT Lobby MAL", "TT Lobby Soggy" }, _obs.Scenes[scene].Select(i => i.Source).Where(x => x.StartsWith("TT Lobby ")).OrderBy(x => x));
+        Assert.Equal("TT Swoosh", _obs.Scenes["TT Full"].Last().Source);        // the swoosh plays on top
         Assert.Empty(_obs.Scenes["Starting soon"]);
         Assert.Equal("https://vdo.ninja/?view=a&password=x&cleanoutput", _obs.Inputs["TT Lobby LJ"]["url"]!.ToString());
         Assert.Equal("True", _obs.Inputs["TT Lobby LJ"]["reroute_audio"]!.ToString());
-        Assert.All(_obs.Scenes["TT Full"], i => Assert.False(i.Enabled));     // hidden until put on
+        Assert.All(_obs.Scenes["TT Full"].Where(i => i.Source.StartsWith("TT Lobby ")), i => Assert.False(i.Enabled));     // hidden until put on
 
         // The mapping and the connection are saved for next time (the password stays on this PC).
         var saved = ObsSettings.Load(SettingsPath);
@@ -304,7 +314,7 @@ public class ObsTests : IAsyncLifetime
         // Building again adds nothing twice; a new lobby gets its source.
         _feeds.Add(("Kai", "https://vdo.ninja/?view=d&password=x&cleanoutput"));
         await _director.BuildAsync();
-        Assert.Equal(4, _obs.Scenes["TT Quad"].Count);
+        Assert.Equal(4, _obs.Scenes["TT Quad"].Count(i => i.Source.StartsWith("TT Lobby ")));
         Assert.Equal(4, _obs.Inputs.Keys.Count(k => k.StartsWith("TT Lobby ")));
     }
 
@@ -320,6 +330,41 @@ public class ObsTests : IAsyncLifetime
         Assert.False(_obs.Muted["TT Lobby MAL"]);
         Assert.True(_obs.Muted["TT Lobby LJ"]);
         Assert.True(_obs.Muted["TT Lobby Soggy"]);
+    }
+
+    [Fact]
+    public async Task Every_switch_swooshes_once_and_a_Stinger_transition_takes_scene_changes()
+    {
+        await Connect();
+        _director.Settings.Swoosh.DedupeSeconds = 0.3;
+        _director.Settings.Swoosh.TransitionPointMs = 0;
+        OnAir Air(string layout, params string?[] slots) => new() { Layout = layout, Slots = slots.ToList() };
+        int plays = _obs.SwooshPlays;
+        await _director.ApplyAsync(Air("full", "LJ"));
+        Assert.Equal(plays + 1, _obs.SwooshPlays);
+        await Task.Delay(350);
+        await _director.ApplyAsync(Air("full", "LJ"));                 // nothing changed: no swoosh
+        Assert.Equal(plays + 1, _obs.SwooshPlays);
+        await _director.ApplyAsync(Air("full", "MAL"));                // same scene, another picture: swoosh
+        Assert.Equal(plays + 2, _obs.SwooshPlays);
+        await _director.ApplyAsync(Air("4up", "LJ", "MAL", "Soggy", null));   // straight after: shares that swoosh
+        Assert.Equal(plays + 2, _obs.SwooshPlays);
+        Assert.Equal("TT Quad", _obs.Program);
+
+        // With a Stinger transition called TT Swoosh, scene changes use it (and its video is set).
+        _obs.Transitions.Add(("TT Swoosh", "obs_stinger_transition"));
+        await _director.EnsureSwooshAsync();
+        Assert.Equal("TT Swoosh", _obs.CurrentTransition);
+        Assert.Equal(_director.SwooshFile, _obs.TransitionSettings.GetProperty("path").GetString());
+        await Task.Delay(350);
+        int count = _director.Swooshes;
+        await _director.ApplyAsync(Air("2up", "LJ", "MAL"));
+        Assert.Equal(plays + 2, _obs.SwooshPlays);                       // OBS played the stinger itself
+        Assert.Equal(count + 1, _director.Swooshes);
+        await Task.Delay(350);
+        _director.Settings.Swoosh.On = false;
+        await _director.ApplyAsync(Air("2up", "MAL", "LJ"));
+        Assert.Equal(count + 1, _director.Swooshes);
     }
 
     [Fact]

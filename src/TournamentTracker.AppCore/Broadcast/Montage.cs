@@ -161,6 +161,27 @@ namespace TournamentTracker.App.Broadcast
             return true;
         }
 
+        /// <summary>
+        /// The placeholder swoosh: a green wipe with a gold edge across a transparent picture (WebM with
+        /// alpha), covering the whole screen around 0.45 s, and a whoosh of filtered noise.
+        /// </summary>
+        public async Task<bool> SwooshAsync(string file)
+        {
+            if (Ffmpeg == null) return false;
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            var (ok, _) = await RunAsync(new[]
+            {
+                "-hide_banner", "-y",
+                "-f", "lavfi", "-i", "color=c=black@0.0:s=1920x1080:r=60:d=0.9,format=rgba",
+                "-f", "lavfi", "-i", "color=c=0x1fa143:s=2400x1080:r=60:d=0.9,format=rgba",
+                "-f", "lavfi", "-i", "color=c=0xffc15a:s=140x1080:r=60:d=0.9,format=rgba",
+                "-f", "lavfi", "-i", "anoisesrc=d=0.9:c=pink:a=0.6",
+                "-filter_complex", "[0][1]overlay=x='-2400+t/0.9*4320':y=0:shortest=1[a];[a][2]overlay=x='t/0.9*4320':y=0:shortest=1,format=yuva420p[v];[3]highpass=f=400,lowpass=f=6000,afade=t=in:d=0.4,afade=t=out:st=0.45:d=0.45[au]",
+                "-map", "[v]", "-map", "[au]", "-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-auto-alt-ref", "0", "-b:v", "1M", "-deadline", "realtime", "-c:a", "libopus", file,
+            }).ConfigureAwait(false);
+            return ok;
+        }
+
         // ---- Planning ---------------------------------------------------------------------------
 
         /// <summary>The lower third for a clip: "[swatch] Jake → [swatch] Maria, Electrical" for kills, the play's text otherwise.</summary>

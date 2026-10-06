@@ -466,7 +466,7 @@ details.advanced[open] summary h2::before{content:'▾ '}
   </div>
   <div class="card obs-card" id="obs-card">
     <div class="row" style="justify-content:space-between"><div><b>OBS</b> <span class="muted" id="obs-line">Not connected</span></div>
-      <div class="row" id="obs-on" hidden><button class="b" id="obs-build" title="Make any missing TT scenes and lobby sources">Rebuild TT scenes</button><button class="b" id="obs-off">Disconnect</button></div></div>
+      <div class="row" id="obs-on" hidden><button class="b" id="obs-swoosh" title="A stinger swoosh on every switch">Swoosh</button><button class="b" id="obs-build" title="Make any missing TT scenes and lobby sources">Rebuild TT scenes</button><button class="b" id="obs-off">Disconnect</button></div></div>
     <form class="row" id="obs-form" style="margin-top:8px">
       <input id="obs-host" placeholder="127.0.0.1" style="width:130px" autocomplete="off"><input id="obs-port" placeholder="4455" style="width:80px" inputmode="numeric" autocomplete="off">
       <input id="obs-pass" type="password" placeholder="Password (Tools → WebSocket Server Settings)" style="flex:1;min-width:200px" autocomplete="off">
@@ -1286,6 +1286,9 @@ function renderObs() {
   $('obs-card').classList.toggle('ok', o.connected);
   $('obs-line').textContent = o.connected ? `Connected${o.version ? ' · OBS ' + o.version : ''} · ${o.canvas}${o.scene ? ' · live scene: ' + o.scene : ''} · ${Object.keys(o.sources || {}).length} lobby sources` : (o.problem || 'Not connected');
   $('obs-line').classList.toggle('bad-text', !o.connected && !!o.problem);
+  const sw = o.swoosh || {};
+  $('obs-swoosh').classList.toggle('on', !!sw.on);
+  $('obs-swoosh').title = sw.on ? `Swoosh on every switch${sw.stinger ? ' (OBS Stinger transition "TT Swoosh" for scene changes)' : ' (add a Stinger transition called "TT Swoosh" in OBS to use it for scene changes)'}${sw.problem ? ' · ' + sw.problem : ''}` : 'Swoosh off: straight cuts';
   $('obs-on').hidden = !o.connected; $('obs-form').hidden = o.connected; $('obs-help').hidden = o.connected;
   if (!$('obs-form').contains(document.activeElement)) { $('obs-host').value = o.host || ''; $('obs-port').value = o.port || ''; $('obs-pass').placeholder = o.hasPassword ? 'Password saved (type to change)' : 'Password (Tools → WebSocket Server Settings)'; }
 }
@@ -1298,6 +1301,7 @@ $('obs-form').addEventListener('submit', async e => {
   toast(r.message); $('obs-pass').value = ''; loadDesk();
 });
 $('obs-off').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'disconnect' }); toast(r.message); loadDesk(); });
+$('obs-swoosh').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'swoosh', on: String(!(OBS && OBS.swoosh && OBS.swoosh.on)) }); toast(r.message); loadDesk(); });
 $('obs-build').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'build' }); toast(r.message); loadDesk(); });
 // ---- Standings & storylines ---------------------------------------------------------------------
 let r_story = null, storyKey = '';

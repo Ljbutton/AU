@@ -96,6 +96,19 @@ public class MontageTests : IDisposable
         Assert.True(new FileInfo(jpg).Length > 1000);
     }
 
+    [Fact]
+    public async Task The_placeholder_swoosh_is_a_short_see_through_video_with_sound()
+    {
+        if (Ffmpeg() == null) return;
+        var b = Builder();
+        string file = Path.Combine(_dir.Path, "tools", ObsDirector.PlaceholderName);
+        Assert.True(await b.SwooshAsync(file));
+        var (_, info) = await b.RunAsync(new[] { "-hide_banner", "-i", file });
+        Assert.Contains("vp9", info);
+        Assert.Contains("opus", info);
+        Assert.InRange((await b.ProbeAsync(file))!.Value, 0.8, 1.0);
+    }
+
     // ---- In simulation: stand-in clips, the end-of-game montage, a custom one that goes once played ----
 
     [Fact]
