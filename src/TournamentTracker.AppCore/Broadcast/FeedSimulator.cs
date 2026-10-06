@@ -14,6 +14,24 @@ namespace TournamentTracker.App.Broadcast
     {
         private static readonly string[] Colours = { "Red", "Blue", "Green", "Pink", "Orange", "Yellow", "Black", "White", "Purple", "Brown", "Cyan", "Lime" };
         private static readonly string[] Names = { "Soggy", "Mal", "Kai", "Ana", "Fred", "Zed", "Bo", "Cy", "Di", "Millie", "Rex", "Ivy" };
+        // The simulated tournament's players: matched by Discord for most, by friend code for some, one left unmatched.
+        private static readonly string[] RealNames = { "Jake Rivera", "Maria Lopez", "Sam Okafor", "Priya Shah", "Leo Brandt", "Nina Park", "Omar Haddad", "Chloe Martin", "Theo Grant", "Zoe Ito", "Ravi Kumar" };
+
+        /// <summary>Roster entries for the simulated players (simulation mode adds them to the roster, not to the file).</summary>
+        public static List<RosterEntry> SimRoster()
+        {
+            var list = new List<RosterEntry>();
+            for (int i = 0; i < RealNames.Length; i++)
+                list.Add(new RosterEntry
+                {
+                    Name = RealNames[i],
+                    DiscordId = i % 4 == 3 ? null : (900000000000000000L + i).ToString(),
+                    FriendCodes = new List<string> { $"simfox{i}#{1000 + i}" },
+                    InGameNames = new List<string> { Names[i % Names.Length] },
+                    Pronunciation = i == 0 ? "JAKE rih-VAIR-uh" : null,
+                });
+            return list;
+        }
         private static readonly Dictionary<string, string[]> Rooms = new Dictionary<string, string[]>
         {
             ["The Skeld"] = new[] { "Cafeteria", "Weapons", "O2", "Navigation", "Shields", "Communications", "Storage", "Admin", "Electrical", "Lower Engine", "Upper Engine", "Security", "Reactor", "MedBay" },
@@ -74,8 +92,11 @@ namespace TournamentTracker.App.Broadcast
             public string Name = "";
             public int Color;
             public bool Imp, Dead;
+            public string Key = "";
+            public string? Discord;
             public double X = 0.5, Y = 0.5, Vx, Vy;
             public object Who => new { id = Id, name = Name, color = Color, colorName = Colours[Color], imp = Imp };
+            public object Roster(bool game) => new { id = Id, name = Name, color = Color, key = Key, discord = Discord, imp = game ? Imp : (bool?)null, dead = game ? Dead : (bool?)null };
         }
 
         private sealed class SimLobby
@@ -191,6 +212,7 @@ namespace TournamentTracker.App.Broadcast
                     ["sabotage"] = _sab == null ? null : new { system = _sab, critical = _sabLeft.HasValue, timeLeft = _sabLeft.HasValue ? Math.Round(_sabLeft.Value, 1) : (double?)null },
                     ["danger"] = _danger,
                     ["video"] = true,
+                    ["players"] = _players.Select(p => p.Roster(_phase != "lobby")).ToList(),
                     ["spec"] = new { lit = SpecLit, vision = SpecVision, report = SpecReport, eye = SpecEye, focus = SpecFocus, focusing = SpecFocus ?? Alive(false).Select(p => (int?)p.Id).FirstOrDefault(), on = true },
                 });
             }
@@ -221,7 +243,17 @@ namespace TournamentTracker.App.Broadcast
                 _map = Rooms.Keys.ElementAt(_r.Next(Rooms.Count));
                 _players.Clear();
                 var colours = Enumerable.Range(0, Colours.Length).OrderBy(_ => _r.Next()).Take(10).ToList();
-                for (int i = 0; i < 10; i++) _players.Add(new SimPlayer { Id = (byte)i, Name = Names[(i + Label.Length) % Names.Length], Color = colours[i] });
+                for (int i = 0; i < 10; i++)
+                {
+                    // Players 0–10 of the simulated roster; the 11th spot is someone not on it.
+                    int who = (i + Label.Length) % 12;
+                    _players.Add(new SimPlayer
+                    {
+                        Id = (byte)i, Name = Names[who % Names.Length], Color = colours[i],
+                        Key = who < 11 ? $"simfox{who}#{1000 + who}" : "stranger#9999",
+                        Discord = who < 11 && who % 4 != 3 ? (900000000000000000L + who).ToString() : null,
+                    });
+                }
                 foreach (var i in Enumerable.Range(0, 10).OrderBy(_ => _r.Next()).Take(2)) _players[i].Imp = true;
                 foreach (var p in _players) { p.X = Rand(0.1, 0.9); p.Y = Rand(0.1, 0.9); }
                 _tasks = 0;
@@ -230,7 +262,7 @@ namespace TournamentTracker.App.Broadcast
                 _gameStart = _now;
                 Event("gameStart", new Dictionary<string, object?>
                 {
-                    ["map"] = _map, ["players"] = _players.Select(p => p.Who).ToList(), ["crewAlive"] = 8, ["impAlive"] = 2,
+                    ["map"] = _map, ["players"] = _players.Select(p => p.Who).ToList(), ["roster"] = _players.Select(p => p.Roster(true)).ToList(), ["crewAlive"] = 8, ["impAlive"] = 2,
                 });
             }
 

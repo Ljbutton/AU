@@ -197,6 +197,14 @@ public sealed class FakeObs : IAsyncDisposable
             }
             case "SetMediaInputCursor": MediaCursorMs = d.GetProperty("mediaCursor").GetDouble(); return null;
             case "SetCurrentProgramScene": Program = S(d, "sceneName"); return null;
+            case "SetSceneItemIndex":
+            {
+                var list = Scenes[S(d, "sceneName")];
+                var item = list.Single(i => i.Id == d.GetProperty("sceneItemId").GetInt32());
+                list.Remove(item);
+                list.Insert(Math.Min(list.Count, d.GetProperty("sceneItemIndex").GetInt32()), item);
+                return null;
+            }
             case "GetCurrentProgramScene": return new { currentProgramSceneName = Program, sceneName = Program };
             default: throw new Exception("unknown request " + type);
         }

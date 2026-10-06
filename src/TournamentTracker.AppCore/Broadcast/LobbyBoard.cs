@@ -25,6 +25,18 @@ namespace TournamentTracker.App.Broadcast
         public JsonElement? Source { get; set; }
     }
 
+    /// <summary>A player in a lobby, with what's needed to match them to the roster.</summary>
+    public sealed class LobbyPlayer
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public int Color { get; set; }
+        public string Key { get; set; } = "";
+        public string? Discord { get; set; }
+        public bool? Imp { get; set; }
+        public bool? Dead { get; set; }
+    }
+
     /// <summary>A lobby as the caster sees it: the latest snapshot plus what's been happening.</summary>
     public sealed class LobbyLive
     {
@@ -40,6 +52,7 @@ namespace TournamentTracker.App.Broadcast
         public string? Sabotage { get; set; }
         public bool SabotageCritical { get; set; }
         public double? SabotageLeft { get; set; }
+        public double? SabotageFixing { get; set; }
         public bool Danger { get; set; }
         public string? DangerText { get; set; }
         public string? MeetingText { get; set; }
@@ -49,6 +62,8 @@ namespace TournamentTracker.App.Broadcast
         public JsonElement? Spec { get; set; }
         /// <summary>This game's players (from its start), for picking whose vision to show.</summary>
         public List<JsonElement> Players { get; set; } = new List<JsonElement>();
+        /// <summary>Everyone in the lobby now (from the snapshots), by player id.</summary>
+        public Dictionary<int, LobbyPlayer> People { get; } = new Dictionary<int, LobbyPlayer>();
         public Dictionary<string, Play> Plays { get; } = new Dictionary<string, Play>();
     }
 
@@ -68,6 +83,14 @@ namespace TournamentTracker.App.Broadcast
         public int Round { get; set; }
         public JsonElement? Spec { get; set; }
         public List<JsonElement> Players { get; set; } = new List<JsonElement>();
+        public List<LobbyPlayer> People { get; set; } = new List<LobbyPlayer>();
+        public string? Map { get; set; }
+        public string? Sabotage { get; set; }
+        public bool SabotageCritical { get; set; }
+        public double? SabotageLeft { get; set; }
+        public double? SabotageFixing { get; set; }
+        public bool Danger { get; set; }
+        public double? Clock { get; set; }
         public List<Play> Plays { get; set; } = new List<Play>();
     }
 
@@ -87,6 +110,9 @@ namespace TournamentTracker.App.Broadcast
             _config = config;
             _clock = clock ?? (() => DateTime.UtcNow);
         }
+
+        /// <summary>A player's roster name (key, Discord ID, in-game name), or null to use the game's name.</summary>
+        public Func<string, string?, string, string?>? RosterName { get; set; }
 
         /// <summary>Raised for every new or updated play, for the notification cards.</summary>
         public event Action<string, Play>? PlayChanged;
@@ -132,16 +158,19 @@ namespace TournamentTracker.App.Broadcast
             l.Danger = Bool(m, "danger") ?? false;
             l.Video = Bool(m, "video") ?? false;
             if (m.TryGetProperty("spec", out var spec) && spec.ValueKind == JsonValueKind.Object) l.Spec = spec.Clone();
+            if (m.TryGetProperty("players", out var people) && people.ValueKind == JsonValueKind.Array) People(l, people, replace: true);
             if (m.TryGetProperty("sabotage", out var s) && s.ValueKind == JsonValueKind.Object)
             {
                 l.Sabotage = Str(s, "system");
                 l.SabotageCritical = Bool(s, "critical") ?? false;
                 l.SabotageLeft = Dbl(s, "timeLeft");
+                l.SabotageFixing = Dbl(s, "fixing");
             }
             else
             {
                 l.Sabotage = null;
                 l.SabotageLeft = null;
+                l.SabotageFixing = null;
                 l.SabotageCritical = false;
             }
             States(l, now);
@@ -193,10 +222,42 @@ namespace TournamentTracker.App.Broadcast
             }
         }
 
+        private void People(LobbyLive l, JsonElement list, bool replace)
+        {
+            if (replace) l.People.Clear();
+            foreach (var p in list.EnumerateArray())
+            {
+                int id = Int(p, "id") ?? -1;
+                if (id < 0) continue;
+                l.People[id] = new LobbyPlayer
+                {
+                    Id = id, Name = Str(p, "name") ?? "", Color = Int(p, "color") ?? 0, Key = Str(p, "key") ?? "",
+                    Discord = Str(p, "discord"), Imp = Bool(p, "imp"), Dead = Bool(p, "dead"),
+                };
+            }
+        }
+
+        /// <summary>A player's name as the caster shows it: the roster's, else the game's.</summary>
+        public string DisplayName(LobbyLive l, int id, string fallback)
+        {
+            if (l.People.TryGetValue(id, out var p) && RosterName?.Invoke(p.Key, p.Discord, p.Name) is { } real) return real;
+            return fallback;
+        }
+
+        /// <summary>A name tag ([[colour|name]]) for a player object in an event.</summary>
+        private string? Tag(LobbyLive l, JsonElement m, string prop)
+        {
+            if (!m.TryGetProperty(prop, out var p) || p.ValueKind != JsonValueKind.Object) return null;
+            int id = Int(p, "id") ?? -1;
+            string fallback = Str(p, "display") ?? Str(p, "name") ?? Str(p, "colorName") ?? "?";
+            return NameTag.Make(Int(p, "color") ?? 0, DisplayName(l, id, fallback));
+        }
+
         private void Event(LobbyLive l, JsonElement m, DateTime now)
         {
             string kind = Str(m, "kind") ?? "";
-            string? Name(string prop) => m.TryGetProperty(prop, out var p) && p.ValueKind == JsonValueKind.Object ? Str(p, "colorName") ?? Str(p, "name") : null;
+            string? Name(string prop) => Tag(l, m, prop);
+            string Id(string prop) => m.TryGetProperty(prop, out var p) && p.ValueKind == JsonValueKind.Object ? (Int(p, "id") ?? -1).ToString() : "?";
             string In(string? room) => room == null ? "" : " in " + room;
             switch (kind)
             {
@@ -230,17 +291,18 @@ namespace TournamentTracker.App.Broadcast
                     break;
                 case "vent":
                     if (Str(m, "action") == "enter")
-                        Add(l, now, $"vent:{Name("player")}", "vent", $"{Name("player") ?? "Someone"} vented{In(Str(m, "room"))}", m);
+                        Add(l, now, $"vent:{Id("player")}", "vent", $"{Name("player") ?? "Someone"} vented{In(Str(m, "room"))}", m);
                     break;
                 case "witnessed_kill":
                     Add(l, now, $"witnessed:{Long(m, "t")}", "witnessedKill", $"{Name("witness") ?? "Someone"} SAW {Name("impostor") ?? "the impostor"} kill{In(Str(m, "room"))}", m);
                     break;
                 case "witnessed_vent":
-                    Add(l, now, $"witnessedVent:{Name("witness")}:{Name("impostor")}", "witnessedVent", $"{Name("witness") ?? "Someone"} SAW {Name("impostor") ?? "the impostor"} vent{In(Str(m, "room"))}", m);
+                    Add(l, now, $"witnessedVent:{Id("witness")}:{Id("impostor")}", "witnessedVent", $"{Name("witness") ?? "Someone"} SAW {Name("impostor") ?? "the impostor"} vent{In(Str(m, "room"))}", m);
                     break;
                 case "gameStart":
                     l.Map = Str(m, "map") ?? l.Map;
                     l.Players = m.TryGetProperty("players", out var ps) && ps.ValueKind == JsonValueKind.Array ? ps.EnumerateArray().Select(x => x.Clone()).ToList() : new List<JsonElement>();
+                    if (m.TryGetProperty("roster", out var rs) && rs.ValueKind == JsonValueKind.Array) People(l, rs, replace: true);
                     l.DangerText = l.MeetingText = null;
                     foreach (var key in l.Plays.Keys.Where(k => !l.Plays[k].IsState).ToList()) l.Plays.Remove(key);
                     Add(l, now, "gameStart", "gameStart", $"Game started on {l.Map ?? "the map"}", m);
@@ -322,6 +384,14 @@ namespace TournamentTracker.App.Broadcast
                         Round = l.Round,
                         Spec = l.Spec,
                         Players = l.Players,
+                        People = l.People.Values.OrderBy(p => p.Id).ToList(),
+                        Map = l.Map,
+                        Sabotage = l.Sabotage,
+                        SabotageCritical = l.SabotageCritical,
+                        SabotageLeft = l.SabotageLeft,
+                        SabotageFixing = l.SabotageFixing,
+                        Danger = l.Danger,
+                        Clock = l.Clock,
                         Plays = plays.Select(Copy).ToList(),
                     });
                 }

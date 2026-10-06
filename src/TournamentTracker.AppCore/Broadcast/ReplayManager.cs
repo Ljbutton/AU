@@ -149,7 +149,7 @@ namespace TournamentTracker.App.Broadcast
                 _desk.ReplayOn(clip.Lobby);
                 TagChanged?.Invoke(JsonSerializer.Serialize(new { on = true, lobby = clip.Lobby, title = clip.Title }));
                 Problem = null;
-                return $"Replay: {clip.Lobby} · {clip.Title}.";
+                return $"Replay: {clip.Lobby} · {NameTag.Plain(clip.Title)}.";
             }
             catch (Exception e)
             {

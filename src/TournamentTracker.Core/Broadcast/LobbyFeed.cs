@@ -106,7 +106,40 @@ namespace TournamentTracker
         {
             var p = id.HasValue ? FeedGame?.ById(id.Value) : null;
             if (p == null) return null;
-            return new { id = p.PlayerId, name = p.Name, color = p.ColorId, colorName = Colors.Name(p.ColorId), imp = p.IsImpostor };
+            return new { id = p.PlayerId, name = p.Name, display = DisplayName(p.Key) ?? p.Name, color = p.ColorId, colorName = Colors.Name(p.ColorId), imp = p.IsImpostor };
+        }
+
+        // Real names from the caster's roster (friend-code key → name), for events and the referee's nameplates.
+        private readonly object _namesLock = new object();
+        private Dictionary<string, string> _displayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>The caster's roster names for this lobby's players, by player key. Replaces the last set.</summary>
+        public void SetDisplayNames(IDictionary<string, string> names)
+        {
+            lock (_namesLock) _displayNames = new Dictionary<string, string>(names.Where(kv => !string.IsNullOrWhiteSpace(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value.Trim()), StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>A player's roster name, or null when the caster hasn't matched them.</summary>
+        public string? DisplayName(string key)
+        {
+            lock (_namesLock) return _displayNames.TryGetValue(key, out var n) ? n : null;
+        }
+
+        /// <summary>Everyone in the lobby with what the caster needs to match them to the roster.</summary>
+        private List<object> PlayersForFeed()
+        {
+            var game = FeedGame;
+            return WithoutReferee(Players).Select(p =>
+            {
+                var rec = game?.ById(p.PlayerId);
+                string? discord = Links.Find(p.Key)?.DiscordUserId;
+                return (object)new
+                {
+                    id = p.PlayerId, name = p.Name, display = DisplayName(p.Key), color = p.ColorId, key = p.Key,
+                    discord = string.IsNullOrEmpty(discord) ? null : discord,
+                    imp = rec?.IsImpostor, dead = rec == null ? (bool?)null : rec.DeathCause != null,
+                };
+            }).ToList();
         }
 
         private (int Crew, int Imps) AliveCounts()
@@ -191,6 +224,7 @@ namespace TournamentTracker
             {
                 ["map"] = game.Map,
                 ["players"] = game.Players.Select(p => Who(p.PlayerId)).ToList(),
+                ["roster"] = PlayersForFeed(),
                 ["crewAlive"] = crew,
                 ["impAlive"] = imps,
             });
@@ -386,6 +420,7 @@ namespace TournamentTracker
                     ["state"] = "start",
                     ["critical"] = s.TimeLeft.HasValue,
                     ["timeLeft"] = s.TimeLeft.HasValue ? Math.Round(s.TimeLeft.Value, 1) : (double?)null,
+                    ["fixing"] = s.Fixing,
                     ["by"] = Who(by),
                 });
             }
@@ -479,11 +514,13 @@ namespace TournamentTracker
                     system = SabotageName(sab.System),
                     critical = sab.TimeLeft.HasValue,
                     timeLeft = sab.TimeLeft.HasValue ? Math.Round(sab.TimeLeft.Value, 1) : (double?)null,
+                    fixing = sab.Fixing,
                 },
                 ["killReady"] = game == null ? null : _killReadyAt.Where(k => KillIsReady(k.Key, _clock()) && game.ById(k.Key) is { DeathCause: null }).Select(k => (int)k.Key).ToList(),
                 ["danger"] = _danger.Count > 0,
                 ["video"] = FeedForLive != null,
                 ["spec"] = SpectatorForFeed(),
+                ["players"] = PlayersForFeed(),
             });
         }
     }

@@ -21,6 +21,8 @@ namespace TournamentTracker.Broadcast
     {
         public string System { get; set; } = "";
         public float? TimeLeft { get; set; }
+        /// <summary>How far the fix is (0–1): hands on the reactor panels, O2 codes entered. Null when the game doesn't say.</summary>
+        public float? Fixing { get; set; }
     }
 
     /// <summary>What the host's camera shows, in world units: its centre and half its width and height.</summary>

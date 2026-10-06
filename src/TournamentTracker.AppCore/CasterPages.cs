@@ -192,6 +192,8 @@ async function pump(){
 addEventListener('message',e=>{
   if(e.source!==v.contentWindow)return;
   const got=e.data&&e.data.dataReceived;const cmd=got&&got.ttc;
+  // Roster names for this lobby's players, for the referee's nameplates.
+  if(got&&got.ttn&&typeof got.ttn==='object'){fetch('/app/names?token='+encodeURIComponent(token),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({names:got.ttn})}).catch(()=>{});return;}
   if(typeof cmd!=='string'||!/^spec [a-z]+( [a-z0-9.]+)?$/.test(cmd))return;
   fetch('/app/command?token='+encodeURIComponent(token),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:cmd})}).catch(()=>{});
 });

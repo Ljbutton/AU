@@ -19,7 +19,7 @@ public class CasterDeskTests : IDisposable
 
     public void Dispose() => _desk.Dispose();
 
-    private static object P(string colour, bool imp = false) => new { id = 1, name = colour.ToLower(), color = 0, colorName = colour, imp };
+    private static object P(string colour, bool imp = false) => new { id = 1, name = colour, color = 0, colorName = colour, imp };
 
     private void Send(string lobby, string type, string? kind, object data)
     {
@@ -48,7 +48,7 @@ public class CasterDeskTests : IDisposable
         Assert.Equal("B", cards[0].GetProperty("lobby").GetString());          // very high first
         Assert.Equal("veryHigh", cards[0].GetProperty("tier").GetString());
         var kill = cards[1];
-        Assert.Equal("Purple killed Lime in Electrical", kill.GetProperty("text").GetString());
+        Assert.Equal("Purple killed Lime in Electrical", kill.GetProperty("text").GetString()!.Plain());
         Assert.Equal(7, kill.GetProperty("crew").GetInt32());
         Assert.Equal(2, kill.GetProperty("imps").GetInt32());
         Assert.Equal(40, kill.GetProperty("taskPct").GetInt32());
@@ -65,7 +65,7 @@ public class CasterDeskTests : IDisposable
         _clock.Advance(1);
         Snap("A", sabotage: new { system = "Reactor", critical = true, timeLeft = 12.0 });
         var card = Cards().Single();
-        Assert.Equal("Reactor 12s, nobody fixing", card.GetProperty("text").GetString());
+        Assert.Equal("Reactor 12s, nobody fixing", card.GetProperty("text").GetString()!.Plain());
         Assert.Equal(2, card.GetProperty("ago").GetInt32());
 
         Send("A", "event", "vent", new { player = P("Purple", true), action = "enter", room = "MedBay" });
@@ -87,7 +87,7 @@ public class CasterDeskTests : IDisposable
 
         _clock.Advance(60); Snap("A");
         Assert.Empty(Cards());
-        Assert.Equal("Purple killed Lime in Electrical", History()[0].GetProperty("text").GetString());
+        Assert.Equal("Purple killed Lime in Electrical", History()[0].GetProperty("text").GetString()!.Plain());
     }
 
     [Fact]

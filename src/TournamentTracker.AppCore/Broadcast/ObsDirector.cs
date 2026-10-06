@@ -143,6 +143,7 @@ namespace TournamentTracker.App.Broadcast
                 Height = video.GetProperty("baseHeight").GetDouble();
                 await BuildAsync().ConfigureAwait(false);
                 await EnsureReplaySceneAsync().ConfigureAwait(false);
+                await EnsureBroadcastAsync().ConfigureAwait(false);
                 await ReadBackAsync().ConfigureAwait(false);
                 return $"Connected to OBS{(ObsVersion != null ? " " + ObsVersion : "")}. The TT scenes are ready.";
             }
@@ -239,6 +240,7 @@ namespace TournamentTracker.App.Broadcast
         {
             var obs = _obs;
             if (obs == null) return;
+            bool newSources = false;
             await _busy.WaitAsync().ConfigureAwait(false);
             try
             {
@@ -272,7 +274,10 @@ namespace TournamentTracker.App.Broadcast
                     {
                         var items = await ItemsAsync(obs, scene).ConfigureAwait(false);
                         if (!items.Any(i => i.Source == name))
+                        {
                             await obs.RequestAsync("CreateSceneItem", new { sceneName = scene, sourceName = name, sceneItemEnabled = false }).ConfigureAwait(false);
+                            newSources = true;
+                        }
                     }
                     if (!Settings.Sources.TryGetValue(lobby, out var mapped) || mapped != name) { Settings.Sources[lobby] = name; changed = true; }
                     await EnsureReplayFilterAsync(obs, lobby, name).ConfigureAwait(false);
@@ -280,6 +285,8 @@ namespace TournamentTracker.App.Broadcast
                 if (changed) Save();
             }
             finally { _busy.Release(); }
+            // New lobby pictures go on top: put the graphics back above them.
+            if (newSources) await EnsureBroadcastAsync().ConfigureAwait(false);
         }
 
         private sealed class Item

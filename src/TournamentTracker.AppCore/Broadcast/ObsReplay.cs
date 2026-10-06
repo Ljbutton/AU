@@ -25,6 +25,44 @@ namespace TournamentTracker.App.Broadcast
         public string? ReplayProblem { get; private set; }
         /// <summary>The page shown on top of replays (the REPLAY tag).</summary>
         public string? TagUrl { get; set; }
+        /// <summary>The on-stream graphics app, on top of every TT scene.</summary>
+        public string? BroadcastUrl { get; set; }
+        public const string BroadcastSource = "TT Broadcast";
+
+        /// <summary>The graphics app in every TT scene (and the replay scene), always the top layer.</summary>
+        public async Task EnsureBroadcastAsync()
+        {
+            var obs = _obs;
+            if (obs == null || BroadcastUrl == null) return;
+            await _busy.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                var inputs = (await obs.RequestAsync("GetInputList").ConfigureAwait(false)).GetProperty("inputs").EnumerateArray().Select(i => i.GetProperty("inputName").GetString()).ToHashSet();
+                var scenes = Settings.Scenes.Values.Concat(new[] { Settings.Replay.Scene }).ToList();
+                var have = (await obs.RequestAsync("GetSceneList").ConfigureAwait(false)).GetProperty("scenes").EnumerateArray().Select(x => x.GetProperty("sceneName").GetString()).ToHashSet();
+                foreach (var scene in scenes.Where(have.Contains))
+                {
+                    if (!inputs.Contains(BroadcastSource))
+                    {
+                        await obs.RequestAsync("CreateInput", new
+                        {
+                            sceneName = scene, inputName = BroadcastSource, inputKind = "browser_source",
+                            inputSettings = new { url = BroadcastUrl, width = (int)Width, height = (int)Height, shutdown = false, restart_when_active = false, reroute_audio = true },
+                            sceneItemEnabled = true,
+                        }).ConfigureAwait(false);
+                        inputs.Add(BroadcastSource);
+                    }
+                    var items = await ItemsAsync(obs, scene).ConfigureAwait(false);
+                    var mine = items.FirstOrDefault(i => i.Source == BroadcastSource);
+                    int id = mine?.Id ?? (await obs.RequestAsync("CreateSceneItem", new { sceneName = scene, sourceName = BroadcastSource, sceneItemEnabled = true }).ConfigureAwait(false)).GetProperty("sceneItemId").GetInt32();
+                    int count = mine == null ? items.Count + 1 : items.Count;
+                    // OBS lists the bottom layer first: the top is the last index.
+                    await obs.RequestAsync("SetSceneItemIndex", new { sceneName = scene, sceneItemId = id, sceneItemIndex = count - 1 }).ConfigureAwait(false);
+                }
+            }
+            catch (Exception e) { Problem = "OBS graphics layer: " + e.Message; }
+            finally { _busy.Release(); }
+        }
 
         public string ClipFolder => Settings.Replay.Folder.Length > 0 ? Settings.Replay.Folder
             : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos) is { Length: > 0 } v ? v : Path.GetTempPath(), "TT Replays");

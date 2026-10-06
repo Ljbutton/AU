@@ -97,6 +97,7 @@ namespace TournamentTracker.App
         private CasterDesk? _desk;
         private ObsDirector? _obs;
         private ReplayManager? _replays;
+        private BroadcastApp? _broadcast;
 
         /// <summary>Starts (or stops) the organiser's view for the saved administration code.</summary>
         private void StartOrganizer()
@@ -114,7 +115,7 @@ namespace TournamentTracker.App
             {
                 _organizer = new Organizer(code, _http, casterPort: _env.CasterPort);
                 var organizer = _organizer;
-                var desk = _desk = new CasterDesk(DeskConfigPath);
+                var desk = _desk = new CasterDesk(DeskConfigPath, rosterPath: SideFile(Roster.FileName));
                 var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(organizer, desk));
                 // The overlay and video page follow the lobby in the first slot; OBS (when connected) shows the whole layout.
                 desk.Switch = air =>
@@ -124,9 +125,24 @@ namespace TournamentTracker.App
                     if (obs.Connected) _ = obs.ApplyAsync(air);
                 };
                 if (organizer.CasterUrl != null) obs.TagUrl = organizer.CasterUrl + "replaytag";
+                var broadcast = _broadcast = new BroadcastApp(desk, () => _obs, SideFile(BroadcastSettings.FileName));
+                if (organizer.CasterUrl != null) obs.BroadcastUrl = organizer.CasterUrl + "broadcast";
+                organizer.MorePages = path => BroadcastPage(broadcast, path);
                 _replays = new ReplayManager(desk, obs) { TagChanged = json => organizer.ReplayNow = json };
                 obs.Start();
             }
+        }
+
+        /// <summary>The on-stream graphics app and what it reads, on the caster port (OBS loads it from there).</summary>
+        private static (string Type, byte[] Body)? BroadcastPage(BroadcastApp app, string path)
+        {
+            string route = path.Split('?')[0];
+            if (route == "/broadcast") return ("text/html; charset=utf-8", Encoding.UTF8.GetBytes(Resource("ui/broadcast.html")));
+            if (route == "/broadcast/state") return ("application/json", JsonSerializer.SerializeToUtf8Bytes(app.State(), Json));
+            if (route == "/broadcast/logo") return app.Logo();
+            var font = Regex.Match(route, @"^/fonts/([a-z0-9-]+\.woff2)$");
+            if (font.Success) { var b = ResourceBytes("ui/fonts/" + font.Groups[1].Value); return b.Length > 0 ? ("font/woff2", b) : null; }
+            return null;
         }
 
         /// <summary>caster-priority.json, next to The Button's settings.</summary>
@@ -326,7 +342,9 @@ namespace TournamentTracker.App
                     return Ok(new { ok = true, message = $"Casting {Arg("lobby")}." });
                 case ("GET", "/app/admin/desk"):
                     if (_desk == null || _organizer == null) return Text(404, "application/json", "{\"error\":\"locked\"}");
-                    return Ok(new { desk = _desk.State(), obs = _obs?.Status(), replay = _replays?.State(), receivers = _organizer.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList() });
+                    return Ok(new { desk = _desk.State(), obs = _obs?.Status(), replay = _replays?.State(), roster = _desk.RosterState(),
+                        broadcast = _broadcast == null ? null : new { url = _organizer.CasterUrl == null ? null : _organizer.CasterUrl + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem },
+                        names = _organizer.DataLinks().ToDictionary(d => d.Lobby, d => _desk.NamesFor(d.Lobby)), receivers = _organizer.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList() });
                 case ("POST", "/app/admin/feedin"):
                     if (_desk == null) return Ok(new { ok = false });
                     if (input.ValueKind == JsonValueKind.Object && input.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
@@ -353,7 +371,7 @@ namespace TournamentTracker.App
                         return Ok(new { ok = true, message = played });
                     }
                     _desk.Show(card.Lobby, _desk.OnAir.Layout == "none" ? "full" : _desk.OnAir.Layout, 1);
-                    return Ok(new { ok = true, message = $"Back to {card.Lobby}: {card.Text}." });
+                    return Ok(new { ok = true, message = $"Back to {card.Lobby}: {NameTag.Plain(card.Text)}." });
                 }
                 case ("POST", "/app/admin/obs"):
                 {
@@ -392,7 +410,7 @@ namespace TournamentTracker.App
                             if (card == null) return Ok(new { ok = false, message = "That card is gone." });
                             if (!_obs.Connected) return Ok(new { ok = false, message = "Connect OBS first: replays come from its replay buffer." });
                             _ = Task.Run(() => _replays.SaveAsync(card));
-                            return Ok(new { ok = true, message = $"Saving a replay of {card.Lobby}: {card.Text}." });
+                            return Ok(new { ok = true, message = $"Saving a replay of {card.Lobby}: {NameTag.Plain(card.Text)}." });
                         }
                         case "play":
                         {
@@ -424,6 +442,42 @@ namespace TournamentTracker.App
                     string cmd = Arg("command");
                     if (_desk == null || !cmd.StartsWith("spec ", StringComparison.Ordinal)) return Ok(new { ok = false });
                     return Ok(new { ok = _desk.SimSpec(Arg("lobby"), cmd) });
+                }
+                case ("POST", "/app/admin/roster"):
+                {
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    if (Arg("action") == "open")
+                    {
+                        if (_desk.Roster.Path != null) try { _env.Open(_desk.Roster.Path); } catch (Exception) { }
+                        return Ok(new { ok = true, message = "Opening the roster file." });
+                    }
+                    string key = Arg("key");
+                    if (key.Length == 0) return Ok(new { ok = false, message = "Which player?" });
+                    // "auto" goes back to automatic matching; "" means nobody on the roster.
+                    string pick = Arg("name");
+                    _desk.Roster.Override(key, pick == "auto" ? null : pick);
+                    return Ok(new { ok = true, message = pick == "auto" ? "Matched automatically again." : pick.Length == 0 ? "Not on the roster." : $"Now {pick}." });
+                }
+                case ("POST", "/app/names"):
+                {
+                    // From the caster, over VDO.Ninja (this host's send page): roster names for this lobby's players.
+                    if (GamePath == null) return Ok(new { ok = false });
+                    string json = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("names", out var nm) && nm.ValueKind == JsonValueKind.Object ? nm.GetRawText() : "{}";
+                    bool sent = await _mod.NamesAsync(GamePath, json).ConfigureAwait(false) != null;
+                    return Ok(new { ok = sent });
+                }
+                case ("POST", "/app/admin/broadcast"):
+                {
+                    if (_broadcast == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    if (Arg("action") == "theme")
+                    {
+                        if (_broadcast.Settings.Path != null) try { _env.Open(_broadcast.Settings.Path); } catch (Exception) { }
+                        return Ok(new { ok = true, message = "Opening the theme (broadcast.json)." });
+                    }
+                    string element = Arg("element");
+                    if (!BroadcastSettings.DefaultElements().ContainsKey(element)) return Ok(new { ok = false, message = "Unknown element." });
+                    _broadcast.Settings.Set(element, Arg("on") == "true");
+                    return Ok(new { ok = true, message = $"{BroadcastSettings.ElementNames[element]} {(Arg("on") == "true" ? "on" : "off")}." });
                 }
                 case ("POST", "/app/admin/dismiss"):
                     _desk?.Dismiss(Arg("id"));

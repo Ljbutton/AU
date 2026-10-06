@@ -43,6 +43,8 @@ namespace TournamentTracker.App.Broadcast
         public string By { get; set; } = "button";
         /// <summary>The OBS scene that's live, when OBS is connected.</summary>
         public string? Scene { get; set; }
+        /// <summary>Where each slot is on the canvas, when the layout has its own (the grid); otherwise the standard slots.</summary>
+        public List<Box>? Boxes { get; set; }
         public DateTime Since { get; set; }
 
         public static int SlotsFor(string layout) => layout == "4up" ? 4 : layout == "2up" ? 2 : layout == "full" ? 1 : 0;
@@ -94,8 +96,12 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Called to put lobbies on stream (Part 4 drives OBS here). Gets the new on-air state.</summary>
         public Action<OnAir>? Switch { get; set; }
 
-        public CasterDesk(string? configPath, Func<DateTime>? clock = null, PriorityConfig? config = null)
+        /// <summary>The tournament's players: real names for everyone in the lobbies.</summary>
+        public Roster Roster { get; }
+
+        public CasterDesk(string? configPath, Func<DateTime>? clock = null, PriorityConfig? config = null, string? rosterPath = null)
         {
+            Roster = new Roster(rosterPath);
             _clock = clock ?? (() => DateTime.UtcNow);
             if (config != null) _config = () => config;
             else
@@ -103,7 +109,7 @@ namespace TournamentTracker.App.Broadcast
                 _file = configPath == null ? null : new PriorityConfigFile(configPath);
                 _config = () => _file?.Refresh() ?? new PriorityConfig();
             }
-            Board = new LobbyBoard(_config, _clock);
+            Board = new LobbyBoard(_config, _clock) { RosterName = (key, discord, name) => Roster.Match(key, discord, name).Entry?.Name };
             Board.PlayChanged += OnPlay;
         }
 
@@ -203,6 +209,8 @@ namespace TournamentTracker.App.Broadcast
                 _simTimer?.Dispose();
                 _simTimer = null;
                 _sim = on ? new FeedSimulator(_clock(), 4, Environment.TickCount) : null;
+                Roster.Extra.Clear();
+                if (on) Roster.Extra.AddRange(FeedSimulator.SimRoster());
                 if (_sim != null) _simTimer = new Timer(_ => SimTick(), null, 0, 500);
             }
         }
@@ -219,6 +227,41 @@ namespace TournamentTracker.App.Broadcast
         }
 
         public void SimOffline(string lobby, bool offline) => _sim?.SetOffline(lobby, offline);
+
+        /// <summary>Roster names for a lobby's players (player key → name), for its referee's nameplates and events.</summary>
+        public Dictionary<string, string> NamesFor(string lobby)
+        {
+            var names = new Dictionary<string, string>();
+            var l = Board.Lobby(lobby);
+            if (l == null) return names;
+            foreach (var p in l.People.Values.ToList())
+                if (p.Key.Length > 0 && Roster.Match(p.Key, p.Discord, p.Name).Entry is { } e) names[p.Key] = e.Name;
+            return names;
+        }
+
+        /// <summary>Everyone in every lobby and who they are on the roster, for the caster tab.</summary>
+        public object RosterState()
+        {
+            var entries = Roster.Entries;
+            var lobbies = Board.Ranking().Select(r => new
+            {
+                r.Lobby,
+                Players = r.People.Select(p =>
+                {
+                    var (e, how) = Roster.Match(p.Key, p.Discord, p.Name);
+                    return new { p.Id, p.Name, p.Color, p.Key, p.Discord, Roster = e?.Name, Say = e?.Pronunciation, How = how.ToString(), p.Imp, p.Dead };
+                }).ToList(),
+            }).ToList();
+            return new
+            {
+                Path = Roster.Path,
+                Problem = Roster.Problem,
+                Count = entries.Count,
+                Names = entries.Select(e => e.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList(),
+                Unmatched = lobbies.Sum(l => l.Players.Count(p => p.Roster == null)),
+                Lobbies = lobbies,
+            };
+        }
 
         /// <summary>A spectator view command for a simulated lobby (real lobbies get it over VDO.Ninja from the tab).</summary>
         public bool SimSpec(string lobby, string command) => _sim?.Spec(lobby, command) ?? false;

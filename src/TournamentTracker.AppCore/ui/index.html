@@ -161,6 +161,17 @@ tr:last-child td{border-bottom:0}
 .off{font:700 11px/1 var(--round);padding:3px 7px;border-radius:6px;background:var(--sunk);color:var(--muted)}
 .tier-must{--tier:#ff2d55}.tier-veryHigh{--tier:#ff8a3d}.tier-high{--tier:#ffc15a}.tier-medium{--tier:#5aa9ff}.tier-low{--tier:#56606e}.tier-offline{--tier:#3a404a}
 .desk-lobbies{display:grid;gap:6px}
+.who{white-space:nowrap}
+i.sw{display:inline-block;width:.72em;height:.72em;border-radius:3px;margin:0 .28em 0 .05em;vertical-align:-.04em;box-shadow:0 0 0 1px rgba(255,255,255,.35)}
+.roster-card{margin-top:10px}
+.roster-card summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.roster-card summary::-webkit-details-marker{display:none}
+.rl{display:grid;gap:4px;margin-top:8px}
+.rl h3{margin:6px 0 2px;font:600 14px/1.2 var(--round)}
+.rp{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) auto;gap:8px;align-items:center;padding:4px 8px;border-radius:8px;background:var(--sunk);font-size:13px}
+.rp .how{font-size:11.5px;color:var(--muted)}
+.rp .how.none{color:var(--warn)}
+.rp select{font-size:12.5px;max-width:190px}
 .dcard .t3 .rpb{all:unset;cursor:pointer;font:700 11px/1 var(--round);letter-spacing:.04em;padding:4px 8px;border-radius:6px;border:1.5px solid var(--line);color:var(--fg)}
 .dcard .t3 .rpb:hover{border-color:var(--hi)}
 .dcard .t3 .rpb.ready{background:var(--hi);border-color:var(--hi);color:#fff}
@@ -425,6 +436,18 @@ details.advanced[open] summary h2::before{content:'▾ '}
     </form>
     <p class="muted" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. The Button then builds the scenes TT Full, TT 2-up and TT Quad, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
   </div>
+  <details class="card roster-card" id="gfx-card">
+    <summary><div><b>On-stream graphics</b> <span class="muted" id="gfx-line"></span></div><button class="b" id="gfx-theme" title="Colours, fonts and logo (broadcast.json)">Edit theme</button></summary>
+    <p class="note bad" id="gfx-problem" hidden></p>
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">One transparent page with every graphic, placed on each lobby's picture in every layout. The Button puts it on top of the TT scenes in OBS (source "TT Broadcast"); to add it by hand, use the link at 1920×1080.</p>
+    <div class="row" id="gfx-els" style="margin-top:8px"></div>
+  </details>
+  <details class="card roster-card" id="roster-card">
+    <summary><div><b>Players</b> <span class="muted" id="roster-line"></span></div><button class="b" id="roster-open" title="Open roster.csv">Edit roster</button></summary>
+    <p class="note bad" id="roster-problem" hidden></p>
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Matched by the Discord account automute links them to, then friend code, then in-game name. Pick someone by hand to override; "Automatic" goes back.</p>
+    <div class="rl" id="roster-list"></div>
+  </details>
   <p id="desk-problem" class="note bad" hidden></p>
   <div class="card rp-card" id="rp-card" hidden>
     <div class="row" style="justify-content:space-between;align-items:center"><div class="rp-title"><span class="rp-badge">REPLAY</span> <b id="rp-what"></b></div>
@@ -1029,6 +1052,12 @@ const REASONS = { HumansByTask: 'Tasks done', HumansByVote: 'Impostors voted out
 // Every lobby's live data arrives through VDO.Ninja (hidden links below, data only), is ranked by
 // The Button, and shows here as cards. Clicking puts a lobby on stream.
 let DESK = null, deskKey = '';
+// Among Us colours, for the swatch next to every player's name.
+const CREW = ['#c51111','#132ed1','#117f2d','#ed54ba','#ef7d0d','#f5f557','#3f474e','#d6e0f0','#6b2fbb','#71491e','#38fedc','#50ef39','#5f1d2e','#ecc0d3','#f0e7a8','#758593','#918877','#d76464'];
+const sw = c => `<i class="sw" style="background:${CREW[c] || '#888'}"></i>`;
+// "[[6|Jake]]" in a text → a colour swatch and the name.
+const rich = t => esc(t || '').replace(/\[\[(\d+)\|([^\]]*)\]\]/g, (m, c, n) => `<span class="who">${sw(+c)}${n}</span>`);
+const plain = t => (t || '').replace(/\[\[(\d+)\|([^\]]*)\]\]/g, '$2');
 const TIER_NAME = { must: 'Must show', veryHigh: 'Very high', high: 'High', medium: 'Medium', low: 'Low', offline: 'Offline' };
 const ago = s => s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s / 60)}m ${s % 60 < 10 ? '0' : ''}${s % 60}s ago` : `${Math.floor(s / 3600)}h ago`;
 const clock = iso => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
@@ -1036,8 +1065,9 @@ async function loadDesk() {
   if (!S || !S.admin) { DESK = null; return; }
   let r; try { r = await api('GET', '/app/admin/desk'); } catch (e) { return; }
   if (!r || !r.desk) return;
-  DESK = r.desk; OBS = r.obs || null; RP = r.replay || null; rpSync = performance.now();
+  DESK = r.desk; OBS = r.obs || null; RP = r.replay || null; ROSTER = r.roster || null; r_broadcast = r.broadcast || null; rpSync = performance.now();
   receivers(r.receivers || []);
+  sendNames(r.names || {});
   if ($('caster').classList.contains('on')) renderDesk();
 }
 // One hidden VDO.Ninja link per sending lobby, for its data. Only messages from these frames are taken.
@@ -1068,11 +1098,13 @@ function replayButton(c) {
   if (st === 'ready') return `<button class="rpb ready" data-rplay="${c.id}" title="Play the replay">▶ REPLAY</button>`;
   if (st === 'saving') return '<span class="rpb saving">Saving replay…</span>';
   const fail = st === 'failed' && RP && (RP.clips.find(x => x.id === c.clip.id) || {}).problem;
-  return `<button class="rpb${st === 'failed' ? ' failed' : ''}" data-rsave="${c.id}" title="${esc(fail || 'Save a replay of this play')}">${st === 'failed' ? 'Replay failed · retry' : 'Save replay'}</button>`;
+  return `<button class="rpb${st === 'failed' ? ' failed' : ''}" data-rsave="${c.id}" title="${esc(plain(fail) || 'Save a replay of this play')}">${st === 'failed' ? 'Replay failed · retry' : 'Save replay'}</button>`;
 }
 function renderDesk() {
   if (!DESK) return;
   renderReplay();
+  renderRoster();
+  renderGfx(r_broadcast);
   const key = JSON.stringify([DESK, OBS, RP && RP.clips]);
   if (key === deskKey) return;
   deskKey = key;
@@ -1097,18 +1129,18 @@ function renderDesk() {
   $('desk-cards').innerHTML = d.cards.length ? d.cards.map(c => `<div class="dcard tier-${c.tier}" data-card="${c.id}" data-lobby="${esc(c.lobby)}" title="Put ${esc(c.lobby)} on stream">
       <button class="x" data-dismiss="${c.id}" title="Dismiss">×</button>
       <div class="t1"><span class="tier">${TIER_NAME[c.tier] || c.tier}</span><b>${esc(c.lobby)}</b>${c.onAir ? `<span class="live">${esc(c.onAir)}</span>` : ''}${c.shown ? `<span class="shown" title="${esc(c.shownHow || '')}">SHOWN ${clock(c.shown)}</span>` : ''}${c.offline ? '<span class="off">OFFLINE</span>' : ''}</div>
-      <div class="play">${esc(c.text)}${c.repeats > 1 ? ` <span class="muted" style="font-size:14px">×${c.repeats}</span>` : ''}</div>
+      <div class="play">${rich(c.text)}${c.repeats > 1 ? ` <span class="muted" style="font-size:14px">×${c.repeats}</span>` : ''}</div>
       <div class="t3">${counts(c)}<span>${ago(c.ago)}</span>${c.updatedAgo < c.ago - 1 ? `<span>updated ${ago(c.updatedAgo)}</span>` : ''}${replayButton(c)}</div>
     </div>`).join('') : `<div class="card"><p class="empty">${d.lobbies.length ? 'Quiet right now.' : 'No lobbies yet. Hosts appear here when they turn on "Send my game to the caster", or try Simulation.'}</p></div>`;
   $('desk-lobbies').innerHTML = d.lobbies.length ? d.lobbies.map((l, i) => `<div class="dlob tier-${l.tier}${l.online ? '' : ' offline'}" data-lobby="${esc(l.lobby)}" title="Put ${esc(l.lobby)} on stream (full)">
       <div class="sc">${l.online ? Math.round(l.score) : '–'}</div>
-      <div style="min-width:0"><div class="nm">${esc(l.lobby)}${l.onAir ? `<span class="live">${esc(l.onAir)}</span>` : ''}${l.online ? '' : '<span class="off">OFFLINE</span>'}</div><div class="ln">${esc(l.line)}</div></div>
+      <div style="min-width:0"><div class="nm">${esc(l.lobby)}${l.onAir ? `<span class="live">${esc(l.onAir)}</span>` : ''}${l.online ? '' : '<span class="off">OFFLINE</span>'}</div><div class="ln">${rich(l.line)}</div></div>
       <div class="lay"><button data-put="full" title="Full screen">Full</button><button data-put="2up" title="2-up, slot 1">2-up</button><button data-put="4up" title="Quad, slot 1">Quad</button></div>
       ${specRow(l)}
     </div>`).join('') : '<p class="empty">No lobbies.</p>';
   $('desk-history').innerHTML = d.history.length ? d.history.map(c => `<div class="hrow tier-${c.tier}">
       <span class="tm">${clock(c.at)}</span>
-      <span class="tx"><b>${esc(c.lobby)}</b> · ${esc(c.text)}${c.shown ? ' <span class="shown">SHOWN</span>' : ''}</span>
+      <span class="tx"><b>${esc(c.lobby)}</b> · ${rich(c.text)}${c.shown ? ' <span class="shown">SHOWN</span>' : ''}</span>
       <button data-watch="${c.id}" title="Bring this lobby back up (the replay comes later)">Watch again</button>
     </div>`).join('') : '<p class="empty" style="font-size:13px">Plays that have calmed down move here.</p>';
 }
@@ -1137,7 +1169,7 @@ function specRow(l) {
     <button data-spec="vision" class="${sp.vision !== 'off' ? 'on' : ''}" title="Off → focus → rings (key ${keyName('specVision')})">${vis}</button>
     <button data-spec="report" class="${sp.report ? 'on' : ''}" title="&quot;!&quot; when someone can report (key ${keyName('specReport')})">!</button>
     <button data-spec="eye" class="${sp.eye ? 'on' : ''}" title="Eye when a crewmate sees an impostor (key ${keyName('specEye')})">Eye</button>
-    ${sp.vision === 'focus' ? `<select data-specfocus title="Whose vision"><option value="auto">Focus: auto${sp.focusing != null && sp.focus == null ? ' (' + esc((crew.find(p => p.id === sp.focusing) || {}).colour || '') + ')' : ''}</option>${crew.map(p => `<option value="${p.id}"${sp.focus === p.id ? ' selected' : ''}>${esc(p.colour)} (${esc(p.name)})</option>`).join('')}</select>` : ''}
+    ${sp.vision === 'focus' ? `<select data-specfocus title="Whose vision"><option value="auto">Focus: auto${sp.focusing != null && sp.focus == null ? ' (' + esc(realName(l.lobby, sp.focusing, (crew.find(p => p.id === sp.focusing) || {}).colour || '')) + ')' : ''}</option>${crew.map(p => `<option value="${p.id}"${sp.focus === p.id ? ' selected' : ''}>${esc(p.colour)} · ${esc(realName(l.lobby, p.id, p.name))}</option>`).join('')}</select>` : ''}
   </div>`;
 }
 const keyName = k => ((RP && RP.hotkeys && RP.hotkeys[k]) || '').replace(/^Key|^Digit/, '');
@@ -1187,6 +1219,61 @@ $('obs-form').addEventListener('submit', async e => {
 });
 $('obs-off').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'disconnect' }); toast(r.message); loadDesk(); });
 $('obs-build').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'build' }); toast(r.message); loadDesk(); });
+// ---- On-stream graphics ------------------------------------------------------------------------
+let r_broadcast = null, gfxKey = '';
+function renderGfx(g) {
+  if (!g) return;
+  $('gfx-line').innerHTML = g.url ? `<span class="mono">${esc(g.url)}</span>` : '';
+  $('gfx-problem').hidden = !g.problem; $('gfx-problem').textContent = g.problem || '';
+  const key = JSON.stringify(g.elements); if (key === gfxKey) return; gfxKey = key;
+  $('gfx-els').innerHTML = Object.keys(g.names).map(k => `<button class="b${g.elements[k] ? ' on' : ''}" data-gfx="${k}">${esc(g.names[k])}</button>`).join('');
+}
+$('gfx-els').addEventListener('click', async e => {
+  const b = e.target.closest('[data-gfx]'); if (!b) return;
+  const r = await api('POST', '/app/admin/broadcast', { element: b.dataset.gfx, on: String(!b.classList.contains('on')) });
+  toast(r.message); gfxKey = ''; loadDesk();
+});
+$('gfx-theme').addEventListener('click', e => { e.preventDefault(); api('POST', '/app/admin/broadcast', { action: 'theme' }).then(r => toast(r.message)); });
+
+// ---- Roster: real names ----------------------------------------------------------------------
+let ROSTER = null, rosterKey = '';
+const sentNames = {};
+// Each lobby's referee gets its players' roster names (nameplates on their screen, names in events).
+function sendNames(all) {
+  const now = Date.now();
+  for (const [lobby, names] of Object.entries(all)) {
+    const f = RECV[lobby], json = JSON.stringify(names), was = sentNames[lobby];
+    if (!f || !f.contentWindow || (was && was.json === json && now - was.at < 20000)) continue;
+    f.contentWindow.postMessage({ sendData: { ttn: names }, type: 'rpcs' }, '*');
+    sentNames[lobby] = { json, at: now };
+  }
+}
+function realName(lobby, id, fallback) {
+  const l = ROSTER && ROSTER.lobbies.find(x => x.lobby === lobby);
+  const p = l && l.players.find(x => x.id === id);
+  return (p && p.roster) || (p && p.name) || fallback;
+}
+const HOW = { Discord: 'via Discord link', FriendCode: 'via friend code', InGameName: 'via in-game name', Manual: 'picked by hand', None: 'not on the roster' };
+function renderRoster() {
+  const r = ROSTER; if (!r) return;
+  $('roster-line').textContent = `${r.count} on the roster${r.unmatched ? ` · ${r.unmatched} in lobbies not matched` : ' · everyone matched'}`;
+  $('roster-problem').hidden = !r.problem; $('roster-problem').textContent = r.problem || '';
+  if ($('roster-list').contains(document.activeElement)) return;
+  const key = JSON.stringify(r); if (key === rosterKey) return; rosterKey = key;
+  const opts = (cur, how) => `<option value="auto"${how !== 'Manual' ? ' selected' : ''}>Automatic</option><option value=""${how === 'Manual' && !cur ? ' selected' : ''}>Not on the roster</option>` +
+    r.names.map(n => `<option${how === 'Manual' && n === cur ? ' selected' : ''}>${esc(n)}</option>`).join('');
+  $('roster-list').innerHTML = r.lobbies.filter(l => l.players.length).map(l => `<h3>${esc(l.lobby)}</h3>` + l.players.map(p => `<div class="rp">
+      <span>${sw(p.color)}${esc(p.name)} <span class="muted mono" style="font-size:11px">${esc(p.key)}</span></span>
+      <span>${p.roster ? `<b>${esc(p.roster)}</b>` : '<span class="muted">—</span>'}${p.say ? ` <span class="muted" style="font-size:11.5px">(say: ${esc(p.say)})</span>` : ''} <span class="how${p.how === 'None' ? ' none' : ''}">${HOW[p.how] || p.how}</span></span>
+      <select data-rkey="${esc(p.key)}">${opts(p.roster, p.how)}</select></div>`).join('')).join('') || '<p class="empty" style="font-size:13px">Nobody in the lobbies yet.</p>';
+}
+$('roster-list').addEventListener('change', async e => {
+  const sel = e.target.closest('[data-rkey]'); if (!sel) return;
+  const r = await api('POST', '/app/admin/roster', { key: sel.dataset.rkey, name: sel.value });
+  toast(r.message); rosterKey = ''; sel.blur(); loadDesk();
+});
+$('roster-open').addEventListener('click', e => { e.preventDefault(); api('POST', '/app/admin/roster', { action: 'open' }).then(r => toast(r.message)); });
+
 // ---- Replay controls -------------------------------------------------------------------------
 let RP = null, rpSync = 0, keyWait = null;
 const RP_NAMES = { specLit: 'View: lit map', specVision: 'View: vision mode', specReport: 'View: "!"', specEye: 'View: eye', playPause: 'Play / pause', back: 'Back 1 s', forward: 'Forward 1 s', frameBack: 'Back a frame', frameForward: 'Forward a frame', restart: 'Restart', zoomIn: 'Zoom in', zoomOut: 'Zoom out', panLeft: 'Pan left', panRight: 'Pan right', panUp: 'Pan up', panDown: 'Pan down', follow: 'Follow players', live: 'Back to live' };
@@ -1196,7 +1283,7 @@ function renderReplay() {
   const n = RP && RP.now;
   $('rp-card').hidden = !n;
   if (!n) return;
-  $('rp-what').textContent = `${n.lobby} · ${n.title}`;
+  $('rp-what').innerHTML = `${esc(n.lobby)} · ${rich(n.title)}`;
   $('rp-play').textContent = n.playing ? 'Pause' : n.ended ? 'Replay again' : 'Play';
   $('rp-zoom').textContent = '×' + (n.view ? n.view.zoom : 1).toFixed(1);
   $('rp-follow').classList.toggle('on', n.follow);

@@ -142,7 +142,7 @@ public class ReplayObsTests : IAsyncLifetime
         _dir.Dispose();
     }
 
-    private static object P(string colour, int id, bool imp = false) => new { id, name = colour.ToLower(), color = 0, colorName = colour, imp };
+    private static object P(string colour, int id, bool imp = false) => new { id, name = colour, color = 0, colorName = colour, imp };
 
     private void Send(string lobby, string type, string? kind, object data)
     {

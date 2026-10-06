@@ -18,7 +18,7 @@ public class PriorityTests : IDisposable
     public PriorityTests() => _board = new LobbyBoard(() => _config, () => _clock.Now);
     public void Dispose() => _dir.Dispose();
 
-    private static object P(string colour, bool imp = false) => new { id = 1, name = colour.ToLower(), color = 0, colorName = colour, imp };
+    private static object P(string colour, bool imp = false) => new { id = 1, name = colour, color = 0, colorName = colour, imp };
 
     private void Send(string lobby, string type, string? kind, object data)
     {
@@ -63,9 +63,9 @@ public class PriorityTests : IDisposable
         Snap("close", crew: 4, imps: 2);
 
         Assert.Equal("veryHigh", Rank("danger").Tier);
-        Assert.Equal("Purple alone with Lime in Electrical, kill ready", Rank("danger").Plays[0].Text);
+        Assert.Equal("Purple alone with Lime in Electrical, kill ready", Rank("danger").Plays[0].Text.Plain());
         Assert.Equal("veryHigh", Rank("reactor").Tier);
-        Assert.Equal("Reactor 12s, nobody fixing", Rank("reactor").Plays[0].Text);
+        Assert.Equal("Reactor 12s, nobody fixing", Rank("reactor").Plays[0].Text.Plain());
         Assert.Equal("medium", Rank("o2slow").Tier);
         Assert.Equal("high", Rank("tasks").Tier);
         Assert.Equal("high", Rank("final").Tier);       // final 3 and one kill from winning: tops out in high
@@ -81,16 +81,16 @@ public class PriorityTests : IDisposable
         Snap("A");
         Send("A", "event", "eject", new { ejected = P("Purple", true), wasImpostor = true, skipped = false, tie = false });
         Assert.Equal("must", Rank("A").Tier);
-        Assert.Equal("Purple ejected: Impostor", Rank("A").Plays[0].Text);
+        Assert.Equal("Purple ejected: Impostor", Rank("A").Plays[0].Text.Plain());
 
         Snap("B");
         Send("B", "event", "kill", new { killer = P("Red", true), victim = P("Blue"), room = "MedBay", winning = true });
         Assert.Equal("must", Rank("B").Tier);
-        Assert.Equal("Red killed Blue in MedBay: impostors win", Rank("B").Plays[0].Text);
+        Assert.Equal("Red killed Blue in MedBay: impostors win", Rank("B").Plays[0].Text.Plain());
 
         Send("C", "event", "gameEnd", new { winner = "Crewmates", how = "tasks", abandoned = false });
         Assert.Equal("must", Rank("C").Tier);
-        Assert.Equal("Crewmates win on tasks", Rank("C").Plays[0].Text);
+        Assert.Equal("Crewmates win on tasks", Rank("C").Plays[0].Text.Plain());
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class PriorityTests : IDisposable
         Send("A", "event", "kill", new { killer = P("Purple", true), victim = P("Lime"), room = "Electrical", winning = false });
         var first = Rank("A");
         Assert.Equal("medium", first.Tier);
-        Assert.Equal("Purple killed Lime in Electrical", first.Plays[0].Text);
+        Assert.Equal("Purple killed Lime in Electrical", first.Plays[0].Text.Plain());
 
         _clock.Advance(5);  Snap("A");
         Assert.Equal(40, Rank("A").Plays.Single(p => p.Rule == "kill").Value);      // held
@@ -149,12 +149,12 @@ public class PriorityTests : IDisposable
         Send("A", "event", "vent", new { player = P("Purple", true), action = "enter", room = "Admin" });
         var vent = Rank("A").Plays.Single(p => p.Rule == "vent");
         Assert.Equal(2, vent.Repeats);
-        Assert.Equal("Purple vented in Admin", vent.Text);
+        Assert.Equal("Purple vented in Admin", vent.Text.Plain());
 
         // A sabotage counting down is one play whose text changes.
         Snap("A", sabotage: new { system = "Reactor", critical = true, timeLeft = 14.0 });
         Snap("A", sabotage: new { system = "Reactor", critical = true, timeLeft = 13.0 });
-        Assert.Equal("Reactor 13s, nobody fixing", Rank("A").Plays.Single(p => p.Rule == "criticalSabotage").Text);
+        Assert.Equal("Reactor 13s, nobody fixing", Rank("A").Plays.Single(p => p.Rule == "criticalSabotage").Text.Plain());
     }
 
     [Fact]
@@ -179,11 +179,11 @@ public class PriorityTests : IDisposable
         Snap("A");
         Send("A", "event", "witnessed_kill", new { witness = P("Lime"), impostor = P("Purple", true), room = "MedBay" });
         Assert.Equal("veryHigh", Rank("A").Tier);
-        Assert.Equal("Lime SAW Purple kill in MedBay", Rank("A").Plays[0].Text);
+        Assert.Equal("Lime SAW Purple kill in MedBay", Rank("A").Plays[0].Text.Plain());
         Snap("B");
         Send("B", "event", "witnessed_vent", new { witness = P("Lime"), impostor = P("Purple", true), room = "MedBay" });
         Assert.Equal("high", Rank("B").Tier);
-        Assert.Equal("Lime SAW Purple vent in MedBay", Rank("B").Plays[0].Text);
+        Assert.Equal("Lime SAW Purple vent in MedBay", Rank("B").Plays[0].Text.Plain());
     }
 
     [Fact]
@@ -269,9 +269,9 @@ public class PriorityTests : IDisposable
         foreach (var item in doc.RootElement.GetProperty("items").EnumerateArray()) _board.Apply(item);
         var rank = _board.Ranking().Single();
         Assert.Equal("high", rank.Tier);               // a meeting with 3 crew v 2: one kill from an impostor win
-        Assert.Contains(rank.Plays, p => p.Text == "Pink reported Green's body");
+        Assert.Contains(rank.Plays, p => p.Text.Plain() == "Dana reported Carl's body");
         Assert.Contains(rank.Plays, p => p.Rule == "oneKillFromWin");
-        Assert.Contains(rank.Plays, p => p.Text == "Red killed Green in Electrical");
+        Assert.Contains(rank.Plays, p => p.Text.Plain() == "Alice killed Carl in Electrical");
         Assert.Equal(3, rank.Crew);
     }
 }

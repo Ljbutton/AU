@@ -67,6 +67,9 @@ namespace TournamentTracker.App
         public string? CasterProblem { get; }
         public string? CasterUrl => _caster?.Url;
 
+        /// <summary>More pages on the caster port (the broadcast overlay app), by path.</summary>
+        public Func<string, (string Type, byte[] Body)?>? MorePages { get; set; }
+
         /// <summary>What the REPLAY tag on stream says (set by the replays).</summary>
         public string ReplayNow { get; set; } = "{\"on\":false}";
 
@@ -272,7 +275,7 @@ namespace TournamentTracker.App
                 "/sim" => ("text/html; charset=utf-8", B(CasterPages.SimFeed)),
                 "/replaytag" => ("text/html; charset=utf-8", B(CasterPages.ReplayTag)),
                 "/replaynow" => ("application/json", B(ReplayNow)),
-                _ => null,
+                _ => MorePages?.Invoke(path),
             };
         }
 
