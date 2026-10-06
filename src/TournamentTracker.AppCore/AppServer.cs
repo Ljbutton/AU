@@ -16,6 +16,8 @@ using TournamentTracker.Control;
 using TournamentTracker.Setup;
 using TournamentTracker.Stats;
 
+using TournamentTracker.App.Broadcast;
+
 namespace TournamentTracker.App
 {
     /// <summary>Where the app keeps its own settings (the Among Us folder).</summary>
@@ -92,15 +94,28 @@ namespace TournamentTracker.App
         private readonly HttpClient _http;
         private Release? _latest;
         private Organizer? _organizer;
+        private CasterDesk? _desk;
 
         /// <summary>Starts (or stops) the organiser's view for the saved administration code.</summary>
         private void StartOrganizer()
         {
             _organizer?.Dispose();
             _organizer = null;
+            _desk?.Dispose();
+            _desk = null;
             if (_settings.AdminCode != null && SetupCode.TryParse(_settings.AdminCode, out var code, out _) && code.IsAdmin)
+            {
                 _organizer = new Organizer(code, _http, casterPort: _env.CasterPort);
+                var organizer = _organizer;
+                _desk = new CasterDesk(DeskConfigPath);
+                // Until OBS is connected: the caster's video page follows the lobby in the first slot.
+                _desk.Switch = air => { var first = air.Slots.FirstOrDefault(x => x != null); if (first != null) organizer.Cast(first); };
+            }
         }
+
+        /// <summary>caster-priority.json, next to The Button's settings.</summary>
+        private string? DeskConfigPath =>
+            string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.Combine(Path.GetDirectoryName(_env.SettingsFile) ?? ".", PriorityConfig.FileName);
 
         private object SetAdminCode(string text)
         {
@@ -225,6 +240,8 @@ namespace TournamentTracker.App
                 return Text(200, "text/html; charset=utf-8",
                     "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head><body style=\"margin:0\">"
                     + Resource("ui/viewer-body.html") + "</body></html>");
+            if (method == "GET" && route == "/send")
+                return Text(200, "text/html; charset=utf-8", CasterPages.Send);
             if (method == "GET" && route == "/generator")
                 return Text(200, "text/html; charset=utf-8", Resource("docs/setup-codes.html"));
             var font = Regex.Match(route, @"^/fonts/([a-z0-9-]+\.woff2)$");
@@ -278,6 +295,54 @@ namespace TournamentTracker.App
                     if (_organizer == null) return Ok(new { ok = false, message = "Administration is locked." });
                     _organizer.Cast(Arg("lobby"));
                     return Ok(new { ok = true, message = $"Casting {Arg("lobby")}." });
+                case ("GET", "/app/admin/desk"):
+                    if (_desk == null || _organizer == null) return Text(404, "application/json", "{\"error\":\"locked\"}");
+                    return Ok(new { desk = _desk.State(), receivers = _organizer.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList() });
+                case ("POST", "/app/admin/feedin"):
+                    if (_desk == null) return Ok(new { ok = false });
+                    if (input.ValueKind == JsonValueKind.Object && input.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
+                        foreach (var item in items.EnumerateArray()) _desk.Apply(item);
+                    return Ok(new { ok = true });
+                case ("POST", "/app/admin/show"):
+                {
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    string layout = Arg("layout").Length > 0 ? Arg("layout") : "full";
+                    int? slot = int.TryParse(Arg("slot"), out var sl) ? sl : (int?)null;
+                    List<string>? slots = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("slots", out var ss) && ss.ValueKind == JsonValueKind.Array
+                        ? ss.EnumerateArray().Select(x => x.ValueKind == JsonValueKind.String ? x.GetString() ?? "" : "").ToList() : null;
+                    var air = _desk.Show(Arg("lobby"), layout, slot, slots);
+                    return Ok(new { ok = true, message = air.Layout == "full" ? $"{Arg("lobby")} is on stream." : $"On stream: {string.Join(", ", air.Slots.Select(x => x ?? "empty"))}." });
+                }
+                case ("POST", "/app/admin/watch"):
+                {
+                    var card = _desk?.Find(Arg("id"));
+                    if (_desk == null || card == null) return Ok(new { ok = false, message = "That card is gone." });
+                    _desk.Show(card.Lobby, _desk.OnAir.Layout == "none" ? "full" : _desk.OnAir.Layout, 1);
+                    return Ok(new { ok = true, message = $"Back to {card.Lobby}: {card.Text}." });
+                }
+                case ("POST", "/app/admin/dismiss"):
+                    _desk?.Dismiss(Arg("id"));
+                    return Ok(new { ok = true });
+                case ("POST", "/app/admin/sim"):
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    _desk.Simulate(Arg("on") == "true");
+                    return Ok(new { ok = true, message = _desk.Simulating ? "Simulation on: four fake lobbies are playing." : "Simulation off." });
+                case ("GET", "/app/sendinfo"):
+                {
+                    string? push = null;
+                    if (GamePath != null)
+                    {
+                        string? status = await _mod.StatusAsync(GamePath).ConfigureAwait(false);
+                        if (status != null && JsonDocument.Parse(status).RootElement.TryGetProperty("feed", out var feed)
+                            && feed.TryGetProperty("pushUrl", out var pu) && pu.ValueKind == JsonValueKind.String) push = pu.GetString();
+                    }
+                    return Ok(new { pushUrl = push != null && push.StartsWith(TournamentSession.VdoNinja, StringComparison.Ordinal) ? push : null });
+                }
+                case ("GET", "/app/sendfeed"):
+                {
+                    string? feed = GamePath == null ? null : await _mod.FeedAsync(GamePath, long.TryParse(HttpRequest.Query(query, "since"), out var since) ? since : 0).ConfigureAwait(false);
+                    return Text(200, "application/json", feed ?? "{\"last\":-1,\"items\":[]}");
+                }
                 case ("POST", "/app/admin/command"):
                     if (_organizer == null) return Ok(new { ok = false, message = "Administration is locked." });
                     return Ok(new { ok = true, message = await _organizer.CommandAsync(Arg("text")).ConfigureAwait(false) });
@@ -524,8 +589,9 @@ namespace TournamentTracker.App
                 if (status != null && JsonDocument.Parse(status).RootElement.TryGetProperty("feed", out var feed)
                     && feed.TryGetProperty("pushUrl", out var push) && push.ValueKind == JsonValueKind.String)
                     url = push.GetString();
+                // The Button's own page shares the screen through VDO.Ninja and sends the lobby's live data with it.
                 if (url != null && url.StartsWith(TournamentSession.VdoNinja, StringComparison.Ordinal))
-                    try { _env.Open(url); } catch (Exception) { }
+                    try { _env.Open($"{Url}send?token={Token}"); } catch (Exception) { }
             }
             return JsonDocument.Parse(answer).RootElement;
         }
@@ -639,6 +705,7 @@ namespace TournamentTracker.App
         {
             _cts.Cancel();
             _organizer?.Dispose();
+            _desk?.Dispose();
             try { _listener.Stop(); } catch (Exception) { }
         }
     }

@@ -195,6 +195,19 @@ namespace TournamentTracker.App
         }
 
         /// <summary>
+        /// Each sending lobby's VDO.Ninja link with neither picture nor sound: the caster tab joins
+        /// it only for the lobby's live data, which the host's Button sends alongside the video.
+        /// </summary>
+        public List<(string Lobby, string Url)> DataLinks()
+        {
+            lock (_lock)
+                return _lobbies.Select(kv => (kv.Key, VideoUrl(kv.Value.Data)))
+                    .Where(x => x.Item2 != null)
+                    .Select(x => (x.Key, x.Item2!.Replace("&noaudio&cleanoutput", "&novideo&noaudio&cleanoutput")))
+                    .ToList();
+        }
+
+        /// <summary>
         /// The same host's game sound on its own (no picture). The caster's video page plays only
         /// the lobby on air: the pictures stay connected silently, and this moves with the cast,
         /// so two lobbies' sound can never play at once. Public for tests.

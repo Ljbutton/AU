@@ -290,6 +290,21 @@ public class AppTests : IDisposable
     }
 
     [Fact]
+    public async Task The_send_page_needs_the_token_and_the_caster_desk_needs_administration()
+    {
+        var (app, http, _) = App();
+        using var _ = app;
+        using var anon = new HttpClient { BaseAddress = new Uri(app.Url) };
+        string page = await anon.GetStringAsync("/send");
+        Assert.Contains("sendData", page);
+        Assert.DoesNotContain(app.Token, page);                                   // the token only comes in the link The Button opens
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync("app/sendfeed?since=0")).StatusCode);
+        Assert.Equal(-1, (await Get(http, "app/sendfeed?since=0")).GetProperty("last").GetInt32());   // no game running
+        Assert.Equal(HttpStatusCode.NotFound, (await http.GetAsync("app/admin/desk")).StatusCode);    // locked without the code
+        Assert.False((await Post(http, "app/admin/show", new { lobby = "A" })).GetProperty("ok").GetBoolean());
+    }
+
+    [Fact]
     public async Task Finds_the_game_takes_a_setup_code_and_shows_what_is_in_it()
     {
         var (app, http, game) = App();

@@ -130,6 +130,46 @@ tr:last-child td{border-bottom:0}
 .org-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,430px);gap:14px;align-items:start}
 @media (max-width:900px){.org-head{grid-template-columns:minmax(0,1fr)}}
 .cast-card{display:grid;gap:4px;font-size:13.5px}
+.desk-head{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.air-card{min-width:340px;display:grid;gap:8px}
+.air-slots{display:flex;gap:6px;flex-wrap:wrap}
+.air-slots span{padding:3px 10px;border-radius:8px;background:var(--hi-soft);border:1.5px solid var(--hi);font:600 13px/1.3 var(--round);color:#fff}
+.air-slots span.empty{background:var(--sunk);border-color:var(--line);color:var(--muted)}
+.desk-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;margin-top:10px}
+@media (max-width:900px){.desk-grid{grid-template-columns:minmax(0,1fr)}}
+.desk-col{display:grid;gap:8px;align-content:start;min-width:0}
+.desk-col h2{margin:0}
+.desk-cards{display:grid;gap:8px}
+.dcard{--tier:var(--line);position:relative;display:grid;gap:4px;padding:10px 12px 10px 16px;border-radius:12px;background:var(--panel);border:1.5px solid var(--line);cursor:pointer;transition:transform .12s}
+.dcard::before{content:"";position:absolute;left:5px;top:8px;bottom:8px;width:5px;border-radius:5px;background:var(--tier)}
+.dcard:hover{transform:translateX(2px);border-color:var(--tier)}
+.dcard .t1{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+.dcard .t1 b{color:#fff;font:600 14px/1.2 var(--round)}
+.dcard .play{font:600 18px/1.25 var(--round);color:#fff}
+.dcard .t3{display:flex;gap:10px;align-items:center;font-size:12.5px;color:var(--muted);flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.dcard .x{position:absolute;right:8px;top:6px;all:unset;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:2px 6px;position:absolute;right:6px;top:4px}
+.dcard .x:hover{color:#fff}
+.tier{font:700 11px/1 var(--round);letter-spacing:.06em;text-transform:uppercase;padding:3px 7px;border-radius:6px;background:var(--tier);color:#06080c}
+.live{font:700 11px/1 var(--round);letter-spacing:.04em;padding:3px 7px;border-radius:6px;background:var(--hi);color:#fff}
+.shown{font:700 11px/1 var(--round);letter-spacing:.04em;padding:3px 7px;border-radius:6px;border:1.5px solid var(--muted);color:var(--fg)}
+.off{font:700 11px/1 var(--round);padding:3px 7px;border-radius:6px;background:var(--sunk);color:var(--muted)}
+.tier-must{--tier:#ff2d55}.tier-veryHigh{--tier:#ff8a3d}.tier-high{--tier:#ffc15a}.tier-medium{--tier:#5aa9ff}.tier-low{--tier:#56606e}.tier-offline{--tier:#3a404a}
+.desk-lobbies{display:grid;gap:6px}
+.dlob{--tier:var(--line);display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:12px;background:var(--panel);border:1.5px solid var(--line);cursor:pointer}
+.dlob:hover{border-color:var(--tier)}
+.dlob .sc{font:700 20px/1 var(--round);text-align:center;color:var(--tier);font-variant-numeric:tabular-nums}
+.dlob .nm{display:flex;gap:8px;align-items:center;font:600 15px/1.2 var(--round);color:#fff;flex-wrap:wrap}
+.dlob .ln{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dlob .lay{display:flex;gap:4px}
+.dlob .lay button{all:unset;cursor:pointer;font:600 11px/1 var(--round);padding:5px 7px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
+.dlob .lay button:hover{color:#fff;border-color:var(--accent)}
+.dlob.offline{opacity:.55}
+.desk-history{display:grid;gap:4px}
+.hrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 8px;border-radius:10px;background:var(--sunk);font-size:13px}
+.hrow .tx{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hrow .tm{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
+.hrow button{all:unset;cursor:pointer;font:600 12px/1 var(--round);padding:5px 8px;border-radius:7px;border:1px solid var(--line);white-space:nowrap}
+.hrow button:hover{border-color:var(--accent)}
 .org-lobbies{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
 .lob{display:grid;gap:6px;border:1.5px solid var(--line);border-radius:14px;padding:10px 12px;background:var(--panel)}
 .lob.casting{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
@@ -233,6 +273,7 @@ details.advanced[open] summary h2::before{content:'▾ '}
   <button data-page="points">Points</button>
   <button data-page="replays">Games</button>
   <button data-page="organiser" id="nav-organiser" hidden>Organiser</button>
+  <button data-page="caster" id="nav-caster" hidden>Caster</button>
   <button data-page="settings">Settings</button>
 </nav>
 <main>
@@ -331,6 +372,32 @@ details.advanced[open] summary h2::before{content:'▾ '}
     <p class="muted" style="margin:4px 0 10px;font-size:12.5px">Candidates from the counted games, top three in each. You pick the winners.</p>
     <div class="awards" id="org-awards"></div>
   </div>
+</section>
+
+<section id="caster">
+  <div class="desk-head">
+    <div><h1>Caster</h1><p class="sub" id="desk-sub">Only on this PC. It shows who the impostors are, so keep it off stream.</p></div>
+    <div class="card air-card">
+      <div class="row" style="justify-content:space-between"><b>On stream</b><span class="muted" id="air-by"></span></div>
+      <div class="air-slots" id="air-slots"></div>
+      <div class="row"><span class="muted" style="font-size:12.5px">Layout</span><button class="b" data-layout="full">Full</button><button class="b" data-layout="2up">2-up</button><button class="b" data-layout="4up">Quad</button>
+        <span style="flex:1"></span><button class="b" id="desk-sim" title="Four fake lobbies, for trying it out">Simulation</button></div>
+    </div>
+  </div>
+  <p id="desk-problem" class="note bad" hidden></p>
+  <div class="desk-grid">
+    <div class="desk-col">
+      <h2>Happening now</h2>
+      <div class="desk-cards" id="desk-cards"></div>
+    </div>
+    <div class="desk-col">
+      <h2>Lobbies</h2>
+      <div class="desk-lobbies" id="desk-lobbies"></div>
+      <h2 style="margin-top:14px">Earlier</h2>
+      <div class="desk-history" id="desk-history"></div>
+    </div>
+  </div>
+  <div id="desk-receivers" hidden></div>
 </section>
 
 <section id="replays">
@@ -455,6 +522,7 @@ function go(page) {
   document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === page));
   if (page === 'replays') loadReplays();
   if (page === 'organiser') loadOrganiser();
+  if (page === 'caster') loadDesk();
 }
 $('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (b) go(b.dataset.page); });
 document.addEventListener('click', e => {
@@ -823,7 +891,8 @@ function renderAdmin() {
   $('admin-card').hidden = !on;
   $('admin-line').textContent = on ? `Unlocked: ${S.admin.tournament}. The Organiser tab is open.` : '';
   $('nav-organiser').hidden = !on;
-  if (!on && $('organiser').classList.contains('on')) go('settings');
+  $('nav-caster').hidden = !on;
+  if (!on && ($('organiser').classList.contains('on') || $('caster').classList.contains('on'))) go('settings');
 }
 $('admin-lock').addEventListener('click', async () => { const r = await api('POST', '/app/admin/code', { code: '' }); toast(r.message); refresh(); });
 
@@ -897,6 +966,95 @@ async function loadReplays() {
 const REASONS = { HumansByTask: 'Tasks done', HumansByVote: 'Impostors voted out', ImpostorByKill: 'Kills', ImpostorByVote: 'Vote', ImpostorBySabotage: 'Sabotage', ImpostorDisconnect: 'Impostor left', HumansDisconnect: 'Crewmates left' };
 
 // ---- Refresh ------------------------------------------------------------------------------
+// ---- Caster desk (administration code) --------------------------------------------------------
+// Every lobby's live data arrives through VDO.Ninja (hidden links below, data only), is ranked by
+// The Button, and shows here as cards. Clicking puts a lobby on stream.
+let DESK = null, deskKey = '';
+const TIER_NAME = { must: 'Must show', veryHigh: 'Very high', high: 'High', medium: 'Medium', low: 'Low', offline: 'Offline' };
+const ago = s => s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s / 60)}m ${s % 60 < 10 ? '0' : ''}${s % 60}s ago` : `${Math.floor(s / 3600)}h ago`;
+const clock = iso => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+async function loadDesk() {
+  if (!S || !S.admin) { DESK = null; return; }
+  let r; try { r = await api('GET', '/app/admin/desk'); } catch (e) { return; }
+  if (!r || !r.desk) return;
+  DESK = r.desk;
+  receivers(r.receivers || []);
+  if ($('caster').classList.contains('on')) renderDesk();
+}
+// One hidden VDO.Ninja link per sending lobby, for its data. Only messages from these frames are taken.
+const RECV = {};
+function receivers(list) {
+  const want = new Map(list.map(x => [x.lobby, x.url]));
+  for (const [lobby, f] of Object.entries(RECV)) if (want.get(lobby) !== f.dataset.src) { f.remove(); delete RECV[lobby]; }
+  for (const [lobby, url] of want) if (!RECV[lobby]) {
+    const f = document.createElement('iframe');
+    f.dataset.src = url; f.src = url; f.allow = 'autoplay'; f.title = 'data ' + lobby;
+    $('desk-receivers').appendChild(f); RECV[lobby] = f;
+  }
+}
+addEventListener('message', e => {
+  const from = Object.values(RECV).some(f => f.contentWindow === e.source);
+  const got = e.data && e.data.dataReceived;
+  if (!from || !got) return;
+  const items = Array.isArray(got.tt) ? got.tt : got.overlayNinja && Array.isArray(got.overlayNinja.tt) ? got.overlayNinja.tt : null;
+  if (items && items.length) api('POST', '/app/admin/feedin', { items });
+});
+async function show(lobby, layout, slot) {
+  const r = await api('POST', '/app/admin/show', { lobby, layout: layout || 'full', slot: slot ? String(slot) : '' });
+  toast(r.message); loadDesk();
+}
+function renderDesk() {
+  if (!DESK) return;
+  const key = JSON.stringify(DESK);
+  if (key === deskKey) return;
+  deskKey = key;
+  const d = DESK, air = d.onAir;
+  $('desk-sub').textContent = `${d.lobbies.filter(l => l.online).length} lobbies sending${d.simulating ? ' · simulation (fake lobbies)' : ''} · only on this PC: it shows who the impostors are.`;
+  $('desk-sim').classList.toggle('on', d.simulating);
+  $('desk-problem').hidden = !d.problem; $('desk-problem').textContent = d.problem || '';
+  document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === air.layout));
+  $('air-slots').innerHTML = air.layout === 'none' ? '<span class="empty">Nothing yet: click a card or lobby</span>'
+    : air.slots.map((l, i) => `<span class="${l ? '' : 'empty'}">${air.slots.length > 1 ? (i + 1) + ' · ' : ''}${esc(l || 'empty')}</span>`).join('');
+  $('air-by').textContent = air.since ? `${air.by === 'obs' ? 'switched in OBS' : 'from here'} · ${clock(air.since)}` : '';
+  const counts = c => c.crew != null ? `<span>${c.crew} crew v ${c.imps} imp</span><span>tasks ${c.taskPct ?? 0}%</span>` : '';
+  $('desk-cards').innerHTML = d.cards.length ? d.cards.map(c => `<div class="dcard tier-${c.tier}" data-card="${c.id}" data-lobby="${esc(c.lobby)}" title="Put ${esc(c.lobby)} on stream">
+      <button class="x" data-dismiss="${c.id}" title="Dismiss">×</button>
+      <div class="t1"><span class="tier">${TIER_NAME[c.tier] || c.tier}</span><b>${esc(c.lobby)}</b>${c.onAir ? `<span class="live">${esc(c.onAir)}</span>` : ''}${c.shown ? `<span class="shown" title="${esc(c.shownHow || '')}">SHOWN ${clock(c.shown)}</span>` : ''}${c.offline ? '<span class="off">OFFLINE</span>' : ''}</div>
+      <div class="play">${esc(c.text)}${c.repeats > 1 ? ` <span class="muted" style="font-size:14px">×${c.repeats}</span>` : ''}</div>
+      <div class="t3">${counts(c)}<span>${ago(c.ago)}</span>${c.updatedAgo < c.ago - 1 ? `<span>updated ${ago(c.updatedAgo)}</span>` : ''}</div>
+    </div>`).join('') : `<div class="card"><p class="empty">${d.lobbies.length ? 'Quiet right now.' : 'No lobbies yet. Hosts appear here when they turn on "Send my game to the caster", or try Simulation.'}</p></div>`;
+  $('desk-lobbies').innerHTML = d.lobbies.length ? d.lobbies.map((l, i) => `<div class="dlob tier-${l.tier}${l.online ? '' : ' offline'}" data-lobby="${esc(l.lobby)}" title="Put ${esc(l.lobby)} on stream (full)">
+      <div class="sc">${l.online ? Math.round(l.score) : '–'}</div>
+      <div style="min-width:0"><div class="nm">${esc(l.lobby)}${l.onAir ? `<span class="live">${esc(l.onAir)}</span>` : ''}${l.online ? '' : '<span class="off">OFFLINE</span>'}</div><div class="ln">${esc(l.line)}</div></div>
+      <div class="lay"><button data-put="full" title="Full screen">Full</button><button data-put="2up" title="2-up, slot 1">2-up</button><button data-put="4up" title="Quad, slot 1">Quad</button></div>
+    </div>`).join('') : '<p class="empty">No lobbies.</p>';
+  $('desk-history').innerHTML = d.history.length ? d.history.map(c => `<div class="hrow tier-${c.tier}">
+      <span class="tm">${clock(c.at)}</span>
+      <span class="tx"><b>${esc(c.lobby)}</b> · ${esc(c.text)}${c.shown ? ' <span class="shown">SHOWN</span>' : ''}</span>
+      <button data-watch="${c.id}" title="Bring this lobby back up (the replay comes later)">Watch again</button>
+    </div>`).join('') : '<p class="empty" style="font-size:13px">Plays that have calmed down move here.</p>';
+}
+$('desk-cards').addEventListener('click', e => {
+  const x = e.target.closest('[data-dismiss]');
+  if (x) { api('POST', '/app/admin/dismiss', { id: x.dataset.dismiss }).then(loadDesk); return; }
+  const c = e.target.closest('[data-card]'); if (c) show(c.dataset.lobby, 'full');
+});
+$('desk-lobbies').addEventListener('click', e => {
+  const row = e.target.closest('[data-lobby]'); if (!row) return;
+  const put = e.target.closest('[data-put]');
+  show(row.dataset.lobby, put ? put.dataset.put : 'full', 1);
+});
+$('desk-history').addEventListener('click', e => {
+  const w = e.target.closest('[data-watch]'); if (!w) return;
+  api('POST', '/app/admin/watch', { id: w.dataset.watch }).then(r => { toast(r.message); loadDesk(); });
+});
+document.querySelectorAll('[data-layout]').forEach(b => b.addEventListener('click', () => {
+  const first = DESK && DESK.onAir.slots.find(x => x) || (DESK && DESK.lobbies[0] && DESK.lobbies[0].lobby) || '';
+  show(first, b.dataset.layout, 1);
+}));
+$('desk-sim').addEventListener('click', async () => { const r = await api('POST', '/app/admin/sim', { on: String(!(DESK && DESK.simulating)) }); toast(r.message); loadDesk(); });
+setInterval(() => { if (S && S.admin && ($('caster').classList.contains('on') || Object.keys(RECV).length || !DESK)) loadDesk(); }, 800);
+
 async function refresh() {
   try { S = await api('GET', '/app/state'); } catch (e) { return; }
   renderAlerts(); renderHome(); renderPoints(); renderSettings(); renderReferee();

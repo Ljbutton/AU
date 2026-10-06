@@ -139,5 +139,56 @@ function playSound(d){
   document.body.appendChild(soundFrame);
 }
 </script></body></html>";
+    
+        /// <summary>
+        /// The host's "send to the caster" page, opened by The Button in their browser: VDO.Ninja
+        /// shares the screen inside it, and the lobby's live data (events and snapshots from the
+        /// mod) rides along on the same private connection, so only the caster, who has the
+        /// password, ever receives it. Needs The Button's token (in the link it opens).
+        /// </summary>
+        public const string Send = @"<!doctype html>
+<html><head><meta charset=""utf-8""><title>Sending to the caster</title>
+<style>
+:root{--bg:#0b0e13;--fg:#f3f5f7;--muted:#9aa6b2;--good:#46c28b;--bad:#ff6b6b}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:15px/1.4 ""Segoe UI"",system-ui,sans-serif}
+body{display:grid;grid-template-rows:auto 1fr auto}
+header,footer{padding:10px 16px}
+header b{color:#fff}
+iframe{border:0;width:100%;height:100%;background:#000}
+footer{color:var(--muted);font-size:13px;display:flex;gap:14px}
+.ok{color:var(--good)}.bad{color:var(--bad)}
+</style></head><body>
+<header>Sending your game to the caster. Below, press the share button, pick <b>Entire screen</b> and tick <b>Share system audio</b>. Then leave this tab open while you play.</header>
+<iframe id=""v"" allow=""camera;microphone;display-capture;autoplay;fullscreen;clipboard-write""></iframe>
+<footer><span id=""link"">Connecting to Among Us…</span><span id=""data""></span></footer>
+<script>
+const token=new URLSearchParams(location.search).get('token')||'';
+const v=document.getElementById('v');
+let pushUrl=null,since=null,sent=0,lastOk=0;
+async function info(){
+  try{
+    const r=await (await fetch('/app/sendinfo?token='+encodeURIComponent(token),{cache:'no-store'})).json();
+    if(r.pushUrl&&r.pushUrl!==pushUrl){pushUrl=r.pushUrl;v.src=pushUrl;}
+    document.getElementById('link').textContent=pushUrl?'Video link ready.':'Waiting for Among Us with ""Send my game to the caster"" on.';
+  }catch(e){}
+}
+async function pump(){
+  try{
+    const d=await (await fetch('/app/sendfeed?since='+(since??0)+'&token='+encodeURIComponent(token),{cache:'no-store'})).json();
+    if(d.last<0)return;
+    if(since===null||d.last<since){since=d.last;return;}   // start from now (and again if Among Us restarted)
+    since=d.last;
+    if(d.items&&d.items.length&&v.contentWindow){
+      // VDO.Ninja's iframe API: sends to everyone viewing this stream (only the caster has the password).
+      v.contentWindow.postMessage({sendData:{tt:d.items},type:'pcs'},'*');
+      sent+=d.items.length;lastOk=Date.now();
+    }
+  }catch(e){}
+  const el=document.getElementById('data');
+  el.textContent=lastOk?`Live data: ${sent} sent`:'';el.className=lastOk&&Date.now()-lastOk<5000?'ok':'';
+}
+info();setInterval(info,5000);setInterval(pump,500);
+</script></body></html>";
     }
 }
