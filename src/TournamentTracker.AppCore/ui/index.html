@@ -161,6 +161,26 @@ tr:last-child td{border-bottom:0}
 .off{font:700 11px/1 var(--round);padding:3px 7px;border-radius:6px;background:var(--sunk);color:var(--muted)}
 .tier-must{--tier:#ff2d55}.tier-veryHigh{--tier:#ff8a3d}.tier-high{--tier:#ffc15a}.tier-medium{--tier:#5aa9ff}.tier-low{--tier:#56606e}.tier-offline{--tier:#3a404a}
 .desk-lobbies{display:grid;gap:6px}
+.dcard .t3 .rpb{all:unset;cursor:pointer;font:700 11px/1 var(--round);letter-spacing:.04em;padding:4px 8px;border-radius:6px;border:1.5px solid var(--line);color:var(--fg)}
+.dcard .t3 .rpb:hover{border-color:var(--hi)}
+.dcard .t3 .rpb.ready{background:var(--hi);border-color:var(--hi);color:#fff}
+.dcard .t3 .rpb.saving{color:var(--muted)}
+.dcard .t3 .rpb.failed{color:var(--danger);border-color:var(--danger)}
+.rp-card{margin-top:10px;border-color:var(--hi);box-shadow:inset 0 2px 0 rgba(255,45,85,.45);display:grid;gap:8px}
+.rp-title{font:600 16px/1.3 var(--round)}
+.rp-badge{display:inline-block;background:var(--hi);color:#fff;font:700 12px/1 var(--round);letter-spacing:.12em;padding:4px 8px;border-radius:6px}
+.rp-scrub{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center}
+.rp-bar{position:relative;height:14px;border-radius:7px;background:var(--sunk);cursor:pointer}
+.rp-fill{position:absolute;left:0;top:0;bottom:0;border-radius:7px;background:rgba(255,45,85,.45)}
+.rp-mark{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--muted)}
+.rp-mark.ev{background:#ffc15a;width:3px}
+.rp-head{position:absolute;top:-4px;width:6px;height:22px;margin-left:-3px;border-radius:3px;background:#fff;box-shadow:0 0 0 2px var(--hi)}
+.rp-ctl .b{min-width:44px}
+.rp-play{min-width:90px}
+.rp-keys{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px}
+.rp-keys label{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:12.5px;padding:4px 8px;border-radius:8px;background:var(--sunk)}
+.rp-keys button{all:unset;cursor:pointer;font:600 12px/1 var(--mono, monospace);padding:4px 8px;border-radius:6px;border:1px solid var(--line);min-width:60px;text-align:center}
+.rp-keys button.wait{border-color:var(--hi);color:var(--hi)}
 .dlob{--tier:var(--line);display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:12px;background:var(--panel);border:1.5px solid var(--line);cursor:pointer}
 .dlob:hover{border-color:var(--tier)}
 .dlob .sc{font:700 20px/1 var(--round);text-align:center;color:var(--tier);font-variant-numeric:tabular-nums}
@@ -402,6 +422,24 @@ details.advanced[open] summary h2::before{content:'▾ '}
     <p class="muted" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. The Button then builds the scenes TT Full, TT 2-up and TT Quad, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
   </div>
   <p id="desk-problem" class="note bad" hidden></p>
+  <div class="card rp-card" id="rp-card" hidden>
+    <div class="row" style="justify-content:space-between;align-items:center"><div class="rp-title"><span class="rp-badge">REPLAY</span> <b id="rp-what"></b></div>
+      <div class="row"><button class="b" id="rp-keys" title="Change the replay keys">Keys</button><button class="b primary" data-rp="live" title="Back to live">Back to live</button></div></div>
+    <div class="rp-scrub"><span class="mono" id="rp-time">0:00.0</span><div class="rp-bar" id="rp-bar"><div class="rp-fill" id="rp-fill"></div><div class="rp-mark" id="rp-start" title="Replay start"></div><div class="rp-mark ev" id="rp-ev" title="The play"></div><div class="rp-head" id="rp-head"></div></div><span class="mono muted" id="rp-len">0:00</span></div>
+    <div class="row rp-ctl">
+      <button class="b" data-rp="restart" title="Restart">⟲ Restart</button>
+      <button class="b" data-rp="frameBack" title="Back one frame">◁|</button>
+      <button class="b" data-rp="back" title="Back 1 s">−1s</button>
+      <button class="b primary rp-play" data-rp="toggle" id="rp-play" title="Play / pause">Pause</button>
+      <button class="b" data-rp="forward" title="Forward 1 s">+1s</button>
+      <button class="b" data-rp="frameForward" title="Forward one frame">|▷</button>
+      <span style="flex:1"></span>
+      <button class="b" data-rp="zoomOut" title="Zoom out">−</button><span class="mono muted" id="rp-zoom">×1.0</span><button class="b" data-rp="zoomIn" title="Zoom in">+</button>
+      <button class="b" data-rp="pan" data-dx="-1" data-dy="0" title="Pan left">←</button><button class="b" data-rp="pan" data-dx="0" data-dy="-1" title="Pan up">↑</button><button class="b" data-rp="pan" data-dx="0" data-dy="1" title="Pan down">↓</button><button class="b" data-rp="pan" data-dx="1" data-dy="0" title="Pan right">→</button>
+      <button class="b" data-rp="follow" id="rp-follow" title="Follow the players again">Follow</button>
+    </div>
+    <div class="rp-keys" id="rp-keymap" hidden></div>
+  </div>
   <div class="desk-grid">
     <div class="desk-col">
       <h2>Happening now</h2>
@@ -994,7 +1032,7 @@ async function loadDesk() {
   if (!S || !S.admin) { DESK = null; return; }
   let r; try { r = await api('GET', '/app/admin/desk'); } catch (e) { return; }
   if (!r || !r.desk) return;
-  DESK = r.desk; OBS = r.obs || null;
+  DESK = r.desk; OBS = r.obs || null; RP = r.replay || null; rpSync = performance.now();
   receivers(r.receivers || []);
   if ($('caster').classList.contains('on')) renderDesk();
 }
@@ -1020,9 +1058,18 @@ async function show(lobby, layout, slot) {
   const r = await api('POST', '/app/admin/show', { lobby, layout: layout || 'full', slot: slot ? String(slot) : '' });
   toast(r.message); loadDesk();
 }
+// Replay button on a card: save one now, or play it once saved.
+function replayButton(c) {
+  const st = c.clip && c.clip.state;
+  if (st === 'ready') return `<button class="rpb ready" data-rplay="${c.id}" title="Play the replay">▶ REPLAY</button>`;
+  if (st === 'saving') return '<span class="rpb saving">Saving replay…</span>';
+  const fail = st === 'failed' && RP && (RP.clips.find(x => x.id === c.clip.id) || {}).problem;
+  return `<button class="rpb${st === 'failed' ? ' failed' : ''}" data-rsave="${c.id}" title="${esc(fail || 'Save a replay of this play')}">${st === 'failed' ? 'Replay failed · retry' : 'Save replay'}</button>`;
+}
 function renderDesk() {
   if (!DESK) return;
-  const key = JSON.stringify([DESK, OBS]);
+  renderReplay();
+  const key = JSON.stringify([DESK, OBS, RP && RP.clips]);
   if (key === deskKey) return;
   deskKey = key;
   const d = DESK, air = d.onAir;
@@ -1030,7 +1077,7 @@ function renderDesk() {
   $('desk-sim').classList.toggle('on', d.simulating);
   $('desk-problem').hidden = !d.problem; $('desk-problem').textContent = d.problem || '';
   document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === air.layout));
-  $('air-slots').innerHTML = air.layout === 'none' ? '<span class="empty">Nothing yet: click a card or lobby</span>'
+  $('air-slots').innerHTML = air.layout === 'replay' ? `<span>REPLAY · ${esc(air.slots[0] || '')}</span>` : air.layout === 'none' ? '<span class="empty">Nothing yet: click a card or lobby</span>'
     : air.slots.map((l, i) => `<span class="${l ? '' : 'empty'}">${air.slots.length > 1 ? (i + 1) + ' · ' : ''}${esc(l || 'empty')}</span>`).join('');
   $('air-by').textContent = air.since ? `${air.by === 'obs' ? 'switched in OBS' : 'from here'}${air.scene ? ' · ' + air.scene : ''} · ${clock(air.since)}` : '';
   if (air.layout === 'none' && air.scene) $('air-slots').innerHTML = `<span class="empty">OBS is on ${esc(air.scene)}: no lobby on stream</span>`;
@@ -1047,7 +1094,7 @@ function renderDesk() {
       <button class="x" data-dismiss="${c.id}" title="Dismiss">×</button>
       <div class="t1"><span class="tier">${TIER_NAME[c.tier] || c.tier}</span><b>${esc(c.lobby)}</b>${c.onAir ? `<span class="live">${esc(c.onAir)}</span>` : ''}${c.shown ? `<span class="shown" title="${esc(c.shownHow || '')}">SHOWN ${clock(c.shown)}</span>` : ''}${c.offline ? '<span class="off">OFFLINE</span>' : ''}</div>
       <div class="play">${esc(c.text)}${c.repeats > 1 ? ` <span class="muted" style="font-size:14px">×${c.repeats}</span>` : ''}</div>
-      <div class="t3">${counts(c)}<span>${ago(c.ago)}</span>${c.updatedAgo < c.ago - 1 ? `<span>updated ${ago(c.updatedAgo)}</span>` : ''}</div>
+      <div class="t3">${counts(c)}<span>${ago(c.ago)}</span>${c.updatedAgo < c.ago - 1 ? `<span>updated ${ago(c.updatedAgo)}</span>` : ''}${replayButton(c)}</div>
     </div>`).join('') : `<div class="card"><p class="empty">${d.lobbies.length ? 'Quiet right now.' : 'No lobbies yet. Hosts appear here when they turn on "Send my game to the caster", or try Simulation.'}</p></div>`;
   $('desk-lobbies').innerHTML = d.lobbies.length ? d.lobbies.map((l, i) => `<div class="dlob tier-${l.tier}${l.online ? '' : ' offline'}" data-lobby="${esc(l.lobby)}" title="Put ${esc(l.lobby)} on stream (full)">
       <div class="sc">${l.online ? Math.round(l.score) : '–'}</div>
@@ -1061,6 +1108,10 @@ function renderDesk() {
     </div>`).join('') : '<p class="empty" style="font-size:13px">Plays that have calmed down move here.</p>';
 }
 $('desk-cards').addEventListener('click', e => {
+  const rp = e.target.closest('[data-rplay]');
+  if (rp) { api('POST', '/app/admin/replay', { action: 'play', id: rp.dataset.rplay }).then(r => { toast(r.message); loadDesk(); }); return; }
+  const rs = e.target.closest('[data-rsave]');
+  if (rs) { api('POST', '/app/admin/replay', { action: 'save', id: rs.dataset.rsave }).then(r => { toast(r.message); loadDesk(); }); return; }
   const x = e.target.closest('[data-dismiss]');
   if (x) { api('POST', '/app/admin/dismiss', { id: x.dataset.dismiss }).then(loadDesk); return; }
   const c = e.target.closest('[data-card]'); if (c) show(c.dataset.lobby, 'full');
@@ -1103,8 +1154,76 @@ $('obs-form').addEventListener('submit', async e => {
 });
 $('obs-off').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'disconnect' }); toast(r.message); loadDesk(); });
 $('obs-build').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'build' }); toast(r.message); loadDesk(); });
+// ---- Replay controls -------------------------------------------------------------------------
+let RP = null, rpSync = 0, keyWait = null;
+const RP_NAMES = { playPause: 'Play / pause', back: 'Back 1 s', forward: 'Forward 1 s', frameBack: 'Back a frame', frameForward: 'Forward a frame', restart: 'Restart', zoomIn: 'Zoom in', zoomOut: 'Zoom out', panLeft: 'Pan left', panRight: 'Pan right', panUp: 'Pan up', panDown: 'Pan down', follow: 'Follow players', live: 'Back to live' };
+const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
+function rpCursor() { const n = RP && RP.now; if (!n) return 0; return Math.min(n.duration || 0, n.cursor + (n.playing ? (performance.now() - rpSync) / 1000 : 0)); }
+function renderReplay() {
+  const n = RP && RP.now;
+  $('rp-card').hidden = !n;
+  if (!n) return;
+  $('rp-what').textContent = `${n.lobby} · ${n.title}`;
+  $('rp-play').textContent = n.playing ? 'Pause' : n.ended ? 'Replay again' : 'Play';
+  $('rp-zoom').textContent = '×' + (n.view ? n.view.zoom : 1).toFixed(1);
+  $('rp-follow').classList.toggle('on', n.follow);
+  const d = n.duration || 1;
+  $('rp-len').textContent = fmt(d);
+  $('rp-start').style.left = (100 * n.start / d) + '%';
+  $('rp-ev').hidden = n.event == null; if (n.event != null) $('rp-ev').style.left = (100 * n.event / d) + '%';
+  if (!$('rp-keymap').hidden) renderKeys();
+}
+(function rpLoop() {
+  const n = RP && RP.now;
+  if (n && !$('rp-card').hidden) {
+    const c = rpCursor(), d = n.duration || 1;
+    $('rp-head').style.left = (100 * c / d) + '%'; $('rp-fill').style.width = (100 * c / d) + '%';
+    $('rp-time').textContent = fmt(c);
+  }
+  requestAnimationFrame(rpLoop);
+})();
+async function rpDo(action, extra) {
+  const r = await api('POST', '/app/admin/replay', Object.assign({ action }, extra || {}));
+  if (r.message) toast(r.message);
+  loadDesk();
+}
+$('rp-card').addEventListener('click', e => {
+  const b = e.target.closest('[data-rp]'); if (!b) return;
+  rpDo(b.dataset.rp, b.dataset.rp === 'pan' ? { value: +b.dataset.dx, value2: +b.dataset.dy } : null);
+});
+$('rp-bar').addEventListener('click', e => {
+  const n = RP && RP.now; if (!n || !n.duration) return;
+  const r = $('rp-bar').getBoundingClientRect();
+  rpDo('seek', { value: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * n.duration });
+});
+// Keys: work on the Caster tab while a replay is up (not while typing). Change them under Keys.
+const KEY_ACTION = { playPause: ['toggle'], back: ['back'], forward: ['forward'], frameBack: ['frameBack'], frameForward: ['frameForward'], restart: ['restart'], zoomIn: ['zoomIn'], zoomOut: ['zoomOut'],
+  panLeft: ['pan', -1, 0], panRight: ['pan', 1, 0], panUp: ['pan', 0, -1], panDown: ['pan', 0, 1], follow: ['follow'], live: ['live'] };
+document.addEventListener('keydown', e => {
+  if (!$('caster').classList.contains('on') || !RP) return;
+  if (keyWait) {
+    e.preventDefault();
+    const map = {}; map[keyWait] = e.code; keyWait = null;
+    api('POST', '/app/admin/replay', { action: 'hotkeys', map }).then(r => { toast(r.message); loadDesk().then(renderKeys); });
+    return;
+  }
+  const f = document.activeElement;
+  if (!RP.now || /INPUT|TEXTAREA|SELECT/.test(f.tagName)) return;
+  const name = Object.keys(RP.hotkeys || {}).find(k => RP.hotkeys[k] === e.code);
+  if (!name) return;
+  e.preventDefault();
+  const [act, dx, dy] = KEY_ACTION[name];
+  rpDo(act, act === 'pan' ? { value: dx, value2: dy } : null);
+});
+function renderKeys() {
+  const hk = RP && RP.hotkeys || {};
+  $('rp-keymap').innerHTML = Object.keys(RP_NAMES).map(k => `<label>${RP_NAMES[k]}<button data-key="${k}" class="${keyWait === k ? 'wait' : ''}">${keyWait === k ? 'Press a key' : esc((hk[k] || '').replace(/^Key|^Digit/, ''))}</button></label>`).join('');
+}
+$('rp-keys').addEventListener('click', () => { $('rp-keymap').hidden = !$('rp-keymap').hidden; renderKeys(); });
+$('rp-keymap').addEventListener('click', e => { const b = e.target.closest('[data-key]'); if (!b) return; keyWait = b.dataset.key; renderKeys(); });
 $('desk-sim').addEventListener('click', async () => { const r = await api('POST', '/app/admin/sim', { on: String(!(DESK && DESK.simulating)) }); toast(r.message); loadDesk(); });
 setInterval(() => { if (S && S.admin && ($('caster').classList.contains('on') || Object.keys(RECV).length || !DESK)) loadDesk(); }, 800);
+setInterval(() => { if (RP && RP.now && $('caster').classList.contains('on')) loadDesk(); }, 250);
 
 async function refresh() {
   try { S = await api('GET', '/app/state'); } catch (e) { return; }

@@ -27,6 +27,9 @@ namespace TournamentTracker.App.Broadcast
         public bool Dismissed { get; set; }
         /// <summary>The event behind it, as the lobby sent it (kill positions etc., for the replay later).</summary>
         public JsonElement? Source { get; set; }
+        /// <summary>The replay clip saved for it, and how that's going ("saving", "ready", "failed").</summary>
+        public string? ClipId { get; set; }
+        public string? ClipState { get; set; }
         internal string PlayKey = "";
     }
 
@@ -44,7 +47,7 @@ namespace TournamentTracker.App.Broadcast
 
         public static int SlotsFor(string layout) => layout == "4up" ? 4 : layout == "2up" ? 2 : layout == "full" ? 1 : 0;
 
-        /// <summary>"LIVE (full)", "LIVE (2-up, slot 1)", "LIVE (quad, slot 2)", or null when not on.</summary>
+        /// <summary>"LIVE (full)", "LIVE (2-up, slot 1)", "LIVE (quad, slot 2)", "REPLAY", or null when not on.</summary>
         public string? Label(string lobby)
         {
             int i = Slots.FindIndex(s => string.Equals(s, lobby, StringComparison.OrdinalIgnoreCase));
@@ -54,6 +57,7 @@ namespace TournamentTracker.App.Broadcast
                 "full" => "LIVE (full)",
                 "2up" => $"LIVE (2-up, slot {i + 1})",
                 "4up" => $"LIVE (quad, slot {i + 1})",
+                "replay" => "REPLAY",
                 _ => null,
             };
         }
@@ -82,6 +86,10 @@ namespace TournamentTracker.App.Broadcast
         private Timer? _simTimer;
 
         public LobbyBoard Board { get; }
+        /// <summary>Every lobby's recent screen positions, for replays.</summary>
+        public Tracks Tracks { get; } = new Tracks();
+        /// <summary>A new card (replays save a clip for kills from here).</summary>
+        public event Action<Card>? CardMade;
 
         /// <summary>Called to put lobbies on stream (Part 4 drives OBS here). Gets the new on-air state.</summary>
         public Action<OnAir>? Switch { get; set; }
@@ -106,12 +114,28 @@ namespace TournamentTracker.App.Broadcast
 
         public void Apply(string json)
         {
-            try { Board.Apply(json); } catch (Exception) { /* one bad message doesn't stop the rest */ }
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                Apply(doc.RootElement);
+            }
+            catch (Exception) { /* one bad message doesn't stop the rest */ }
         }
 
         public void Apply(JsonElement item)
         {
-            try { Board.Apply(item); } catch (Exception) { }
+            try
+            {
+                string lobby = item.TryGetProperty("lobby", out var l) && l.ValueKind == JsonValueKind.String ? l.GetString() ?? "" : "";
+                if (lobby.Length > 0 && item.TryGetProperty("t", out var t) && t.ValueKind == JsonValueKind.Number) Tracks.Arrived(lobby, t.GetInt64(), _clock());
+                if (item.TryGetProperty("type", out var type) && type.GetString() == "track")
+                {
+                    if (lobby.Length > 0) Tracks.Add(lobby, item, _clock());
+                    return;
+                }
+                Board.Apply(item);
+            }
+            catch (Exception) { }
         }
 
         private void OnPlay(string lobby, Play play)
@@ -122,12 +146,13 @@ namespace TournamentTracker.App.Broadcast
             if (!rule.On || rule.Points < c.Tiers.Medium) return;
             var now = _clock();
             var live = Board.Lobby(lobby);
+            Card? made = null;
             lock (_lock)
             {
                 string key = lobby + "|" + play.Key + "|" + play.At.Ticks;
                 if (!_byPlay.TryGetValue(key, out var card))
                 {
-                    card = new Card { Id = "c" + (++_cardSeq), Lobby = lobby, Rule = play.Rule, At = play.At, PlayKey = key };
+                    card = made = new Card { Id = "c" + (++_cardSeq), Lobby = lobby, Rule = play.Rule, At = play.At, PlayKey = key };
                     _byPlay[key] = card;
                     _cards.Add(card);
                 }
@@ -141,12 +166,31 @@ namespace TournamentTracker.App.Broadcast
                 card.TaskPct = live?.TaskPct;
                 card.Value = rule.Points;
                 card.Dismissed = false;
-                if (card.ShownAt == null && _onAir.Has(lobby))
+                if (card.ShownAt == null && _onAir.Has(lobby) && _onAir.Layout != "replay")
                 {
                     card.ShownAt = now;
                     card.ShownHow = _onAir.Label(lobby);
                 }
             }
+            if (made != null) CardMade?.Invoke(made);
+        }
+
+        /// <summary>Notes a card's replay clip.</summary>
+        public void SetClip(string cardId, string clipId, string state)
+        {
+            lock (_lock)
+            {
+                var card = _cards.FirstOrDefault(c => c.Id == cardId) ?? _history.FirstOrDefault(c => c.Id == cardId);
+                if (card == null) return;
+                card.ClipId = clipId;
+                card.ClipState = state;
+            }
+        }
+
+        /// <summary>A replay of <paramref name="lobby"/> is on stream.</summary>
+        public void ReplayOn(string lobby)
+        {
+            lock (_lock) _onAir = new OnAir { Layout = "replay", Slots = new List<string?> { lobby }, By = "button", Since = _clock() };
         }
 
         // ---- Simulation -----------------------------------------------------------------------
@@ -234,6 +278,7 @@ namespace TournamentTracker.App.Broadcast
         private void MarkShown(OnAir state)
         {
             var now = _clock();
+            if (state.Layout == "replay") return;
             foreach (var card in _cards.Where(c => c.ShownAt == null && state.Has(c.Lobby)))
             {
                 card.ShownAt = now;
@@ -289,6 +334,7 @@ namespace TournamentTracker.App.Broadcast
                     Shown = x.ShownAt?.ToString("o"),
                     x.ShownHow,
                     OnAir = _onAir.Label(x.Lobby),
+                    Clip = x.ClipId == null ? null : new { Id = x.ClipId, State = x.ClipState },
                     Offline = online.TryGetValue(x.Lobby, out var on) && !on,
                 };
                 return new

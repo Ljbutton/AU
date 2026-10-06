@@ -31,6 +31,8 @@ namespace TournamentTracker.App.Broadcast
         public int Gap { get; set; } = 8;
         /// <summary>Whose game sound plays: "slot1" (the full-screen lobby, or slot 1) or "none".</summary>
         public string Audio { get; set; } = "slot1";
+        /// <summary>Replays: clip lengths, zoom, where clips are saved, and the replay keys.</summary>
+        public ReplaySettings Replay { get; set; } = new ReplaySettings();
         /// <summary>Lobby → OBS source, as built. The Button keeps this up to date.</summary>
         public Dictionary<string, string> Sources { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -47,6 +49,8 @@ namespace TournamentTracker.App.Broadcast
                 {
                     var s = JsonSerializer.Deserialize<ObsSettings>(File.ReadAllText(path), Json) ?? new ObsSettings();
                     s.Sources = new Dictionary<string, string>(s.Sources ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
+                    s.Replay ??= new ReplaySettings();
+                    foreach (var kv in ReplaySettings.DefaultHotkeys()) if (!s.Replay.Hotkeys.ContainsKey(kv.Key)) s.Replay.Hotkeys[kv.Key] = kv.Value;
                     var d = new ObsSettings();
                     foreach (var kv in d.Scenes) if (!s.Scenes.ContainsKey(kv.Key)) s.Scenes[kv.Key] = kv.Value;
                     return s;
@@ -79,7 +83,7 @@ namespace TournamentTracker.App.Broadcast
     /// slot 1's game sound, and reads back what's on when you switch in OBS yourself. Only
     /// touches scenes and sources it made (named TT …).
     /// </summary>
-    public sealed class ObsDirector : IAsyncDisposable
+    public sealed partial class ObsDirector : IAsyncDisposable
     {
         private readonly string? _path;
         private readonly CasterDesk _desk;
@@ -138,6 +142,7 @@ namespace TournamentTracker.App.Broadcast
                 Width = video.GetProperty("baseWidth").GetDouble();
                 Height = video.GetProperty("baseHeight").GetDouble();
                 await BuildAsync().ConfigureAwait(false);
+                await EnsureReplaySceneAsync().ConfigureAwait(false);
                 await ReadBackAsync().ConfigureAwait(false);
                 return $"Connected to OBS{(ObsVersion != null ? " " + ObsVersion : "")}. The TT scenes are ready.";
             }
@@ -163,6 +168,8 @@ namespace TournamentTracker.App.Broadcast
             _obs = null;
             if (old != null) await old.DisposeAsync().ConfigureAwait(false);
         }
+
+        public void SaveSettings() => Save();
 
         private void Save()
         {
@@ -268,6 +275,7 @@ namespace TournamentTracker.App.Broadcast
                             await obs.RequestAsync("CreateSceneItem", new { sceneName = scene, sourceName = name, sceneItemEnabled = false }).ConfigureAwait(false);
                     }
                     if (!Settings.Sources.TryGetValue(lobby, out var mapped) || mapped != name) { Settings.Sources[lobby] = name; changed = true; }
+                    await EnsureReplayFilterAsync(obs, lobby, name).ConfigureAwait(false);
                 }
                 if (changed) Save();
             }
@@ -366,6 +374,8 @@ namespace TournamentTracker.App.Broadcast
 
         private void OnEvent(string type, JsonElement data)
         {
+            if (type == "VendorEvent") { OnVendorEvent(data); return; }
+            if (type == "CurrentProgramSceneChanged" && data.TryGetProperty("sceneName", out var sn) && sn.GetString() == Settings.Replay.Scene) return;
             if (type != "CurrentProgramSceneChanged" && type != "SceneItemEnableStateChanged" && type != "SceneItemTransformChanged") return;
             if (type == "CurrentProgramSceneChanged" && DateTime.UtcNow < _ignoreSceneUntil
                 && data.TryGetProperty("sceneName", out var n) && n.GetString() == _lastAppliedScene) return;
@@ -381,6 +391,7 @@ namespace TournamentTracker.App.Broadcast
             var cur = await obs.RequestAsync("GetCurrentProgramScene").ConfigureAwait(false);
             string scene = cur.TryGetProperty("currentProgramSceneName", out var s) ? s.GetString() ?? "" : cur.GetProperty("sceneName").GetString() ?? "";
             Scene = scene;
+            if (scene == Settings.Replay.Scene) return;           // the replay manager keeps track of replays
             string? layout = Settings.Scenes.FirstOrDefault(kv => kv.Value == scene).Key;
             if (layout == null)
             {

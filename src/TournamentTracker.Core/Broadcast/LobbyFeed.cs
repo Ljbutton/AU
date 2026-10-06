@@ -323,6 +323,38 @@ namespace TournamentTracker
                 _nextSnapshot = now.AddSeconds(Tuning.SnapshotSeconds);
                 Snapshot(frame);
             }
+            Track(game, frame, now);
+        }
+
+        // Where everyone is on the host's screen, a few times a second, for the caster's replays
+        // (the crop follows the players even when the camera moves). Sent once a second.
+        private readonly List<object> _track = new List<object>();
+        private DateTime _nextTrackSample, _nextTrackSend;
+
+        private void Track(GameRecord? game, FeedFrame frame, DateTime now)
+        {
+            bool playing = game != null && (frame.Phase == VoicePhase.Tasks || frame.Phase == VoicePhase.Meeting);
+            if (!playing || frame.Camera == null) { _track.Clear(); return; }
+            if (now >= _nextTrackSample)
+            {
+                _nextTrackSample = now.AddSeconds(Tuning.TrackSeconds);
+                var points = new List<int[]>();
+                foreach (var p in frame.Players)
+                {
+                    if (p.Dead || p.Disconnected || game!.ById(p.Id) is not { DeathCause: null }) continue;
+                    var sp = ScreenPoint(frame.Camera, p.X, p.Y);
+                    if (sp == null) continue;
+                    // id, x and y in thousandths of the screen (can be off screen), in a vent
+                    points.Add(new[] { p.Id, (int)Math.Round(sp.Value.X * 1000), (int)Math.Round(sp.Value.Y * 1000), p.InVent ? 1 : 0 });
+                }
+                _track.Add(new { t = new DateTimeOffset(now).ToUnixTimeMilliseconds(), p = points });
+            }
+            if (now >= _nextTrackSend && _track.Count > 0)
+            {
+                _nextTrackSend = now.AddSeconds(1);
+                Emit("track", null, new Dictionary<string, object?> { ["samples"] = _track.ToList() });
+                _track.Clear();
+            }
         }
 
         private void Vents(GameRecord game, FeedFrame frame)

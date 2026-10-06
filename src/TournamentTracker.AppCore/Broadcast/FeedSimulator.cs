@@ -54,6 +54,7 @@ namespace TournamentTracker.App.Broadcast
             public string Name = "";
             public int Color;
             public bool Imp, Dead;
+            public double X = 0.5, Y = 0.5, Vx, Vy;
             public object Who => new { id = Id, name = Name, color = Color, colorName = Colours[Color], imp = Imp };
         }
 
@@ -100,10 +101,12 @@ namespace TournamentTracker.App.Broadcast
                     _now = _now.AddSeconds(0.5);
                     if (Offline) continue;
                     Step(0.5);
+                    Move(0.5);
                     if (_now >= _nextSnap)
                     {
                         _nextSnap = _now.AddSeconds(1);
                         Snap();
+                        TrackOut();
                     }
                 }
                 return _out.ToList();
@@ -127,6 +130,29 @@ namespace TournamentTracker.App.Broadcast
             }
 
             private void Event(string kind, Dictionary<string, object?> data) => Emit("event", kind, data);
+
+            // Everyone wanders around the host's screen, for replays.
+            private readonly List<object> _samples = new List<object>();
+            private void Move(double dt)
+            {
+                if (_phase != "ingame") return;
+                foreach (var p in Alive())
+                {
+                    p.Vx = Math.Max(-0.12, Math.Min(0.12, p.Vx + (_r.NextDouble() - 0.5) * 0.08));
+                    p.Vy = Math.Max(-0.12, Math.Min(0.12, p.Vy + (_r.NextDouble() - 0.5) * 0.08));
+                    p.X += p.Vx * dt; p.Y += p.Vy * dt;
+                    if (p.X < 0.05 || p.X > 0.95) { p.Vx = -p.Vx; p.X = Math.Max(0.05, Math.Min(0.95, p.X)); }
+                    if (p.Y < 0.05 || p.Y > 0.95) { p.Vy = -p.Vy; p.Y = Math.Max(0.05, Math.Min(0.95, p.Y)); }
+                }
+                _samples.Add(new { t = new DateTimeOffset(_now).ToUnixTimeMilliseconds(), p = Alive().Select(p => new[] { (int)p.Id, (int)(p.X * 1000), (int)(p.Y * 1000), 0 }).ToList() });
+            }
+
+            private void TrackOut()
+            {
+                if (_samples.Count == 0) return;
+                Emit("track", null, new Dictionary<string, object?> { ["samples"] = _samples.ToList() });
+                _samples.Clear();
+            }
 
             private void Snap()
             {
@@ -173,6 +199,7 @@ namespace TournamentTracker.App.Broadcast
                 var colours = Enumerable.Range(0, Colours.Length).OrderBy(_ => _r.Next()).Take(10).ToList();
                 for (int i = 0; i < 10; i++) _players.Add(new SimPlayer { Id = (byte)i, Name = Names[(i + Label.Length) % Names.Length], Color = colours[i] });
                 foreach (var i in Enumerable.Range(0, 10).OrderBy(_ => _r.Next()).Take(2)) _players[i].Imp = true;
+                foreach (var p in _players) { p.X = Rand(0.1, 0.9); p.Y = Rand(0.1, 0.9); }
                 _tasks = 0;
                 _sab = null; _sabLeft = null; _danger = false; _bodyToReport = null;
                 _phase = "ingame";
@@ -225,6 +252,7 @@ namespace TournamentTracker.App.Broadcast
                     string room = Room();
                     _danger = true;
                     _dangerPair = (imp, crew, room);
+                    imp.X = Math.Min(0.95, crew.X + 0.04); imp.Y = crew.Y;
                     _dangerEnds = _now.AddSeconds(Rand(2, 7));
                     Event("danger", new Dictionary<string, object?> { ["state"] = "start", ["impostor"] = imp.Who, ["crewmate"] = crew.Who, ["room"] = room, ["distance"] = Math.Round(Rand(0.8, 2.5), 2) });
                 }
@@ -257,7 +285,8 @@ namespace TournamentTracker.App.Broadcast
             {
                 victim.Dead = true;
                 int crew = Alive(false).Count, imps = Alive(true).Count;
-                double sx = Math.Round(Rand(0.3, 0.7), 3), sy = Math.Round(Rand(0.3, 0.7), 3);
+                double sx = Math.Round(victim.X, 3), sy = Math.Round(victim.Y, 3);
+                imp.X = victim.X; imp.Y = victim.Y;
                 Event("kill", new Dictionary<string, object?>
                 {
                     ["killer"] = imp.Who, ["victim"] = victim.Who, ["room"] = room, ["crewAlive"] = crew, ["impAlive"] = imps,

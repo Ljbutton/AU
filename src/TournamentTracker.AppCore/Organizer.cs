@@ -67,6 +67,9 @@ namespace TournamentTracker.App
         public string? CasterProblem { get; }
         public string? CasterUrl => _caster?.Url;
 
+        /// <summary>What the REPLAY tag on stream says (set by the replays).</summary>
+        public string ReplayNow { get; set; } = "{\"on\":false}";
+
         private async Task LoopAsync()
         {
             DateTime nextStandings = DateTime.MinValue;
@@ -267,6 +270,8 @@ namespace TournamentTracker.App
                 "/video" => ("text/html; charset=utf-8", B(CasterPages.Video)),
                 "/multiview" => ("text/html; charset=utf-8", B(CasterPages.Multiview)),
                 "/sim" => ("text/html; charset=utf-8", B(CasterPages.SimFeed)),
+                "/replaytag" => ("text/html; charset=utf-8", B(CasterPages.ReplayTag)),
+                "/replaynow" => ("application/json", B(ReplayNow)),
                 _ => null,
             };
         }

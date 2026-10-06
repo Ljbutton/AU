@@ -70,5 +70,7 @@ namespace TournamentTracker.Broadcast
         public float FirstKillCooldown { get; set; } = 10;
         /// <summary>A snapshot of the lobby every this many seconds.</summary>
         public float SnapshotSeconds { get; set; } = 1;
+        /// <summary>Everyone's screen position is sampled this often for replays (sent once a second).</summary>
+        public float TrackSeconds { get; set; } = 0.2f;
     }
 }

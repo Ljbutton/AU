@@ -30,6 +30,13 @@ public sealed class FakeObs : IAsyncDisposable
     public readonly Dictionary<string, bool> Muted = new();
     public string Program = "Starting soon";
     public readonly List<string> Requests = new();
+    // Source Record and media playback.
+    public bool SourceRecordInstalled = true;
+    public readonly Dictionary<string, Dictionary<string, JsonElement>> Filters = new();   // "source|filter" → settings
+    public readonly List<string> Saved = new();
+    public string MediaState = "OBS_MEDIA_STATE_NONE";
+    public double MediaCursorMs, MediaDurationMs = 30000;
+    public string? MediaFile;
 
     public FakeObs()
     {
@@ -104,6 +111,14 @@ public sealed class FakeObs : IAsyncDisposable
             }
             await Send(ws, new { op = 7, d = new { requestType = type, requestId = id, requestStatus = new { result = ok, code = ok ? 100 : 600, comment }, responseData = response } });
             if (ok && type == "SetCurrentProgramScene") await Event("CurrentProgramSceneChanged", new { sceneName = Program });
+            if (ok && type == "CallVendorRequest")
+            {
+                string source = data.GetProperty("requestData").GetProperty("source").GetString()!;
+                string path = $"/clips/{source.Replace(' ', '_')}-{Saved.Count + 1}.mp4";
+                lock (this) Saved.Add(path);
+                await Task.Delay(50);
+                await Event("VendorEvent", new { vendorName = "source-record", eventType = "replay_buffer_saved", eventData = new { path, filter = "TT Replay", source } });
+            }
         }
     }
 
@@ -130,6 +145,7 @@ public sealed class FakeObs : IAsyncDisposable
             case "GetInputSettings": return new { inputSettings = Inputs[S(d, "inputName")], inputKind = "browser_source" };
             case "SetInputSettings":
                 foreach (var p in d.GetProperty("inputSettings").EnumerateObject()) Inputs[S(d, "inputName")][p.Name] = p.Value.ToString();
+                if (d.GetProperty("inputSettings").TryGetProperty("local_file", out var lf)) { MediaFile = lf.GetString(); MediaCursorMs = 0; MediaState = "OBS_MEDIA_STATE_PAUSED"; }
                 return null;
             case "CreateSceneItem":
             {
@@ -158,6 +174,28 @@ public sealed class FakeObs : IAsyncDisposable
                 Scenes[S(d, "sceneName")].Single(i => i.Id == d.GetProperty("sceneItemId").GetInt32()).Enabled = d.GetProperty("sceneItemEnabled").GetBoolean();
                 return null;
             case "SetInputMute": Muted[S(d, "inputName")] = d.GetProperty("inputMuted").GetBoolean(); return null;
+            case "GetSourceFilterList":
+                return new { filters = Filters.Keys.Where(k => k.StartsWith(S(d, "sourceName") + "|")).Select(k => new { filterName = k.Split('|')[1], filterKind = "source_record_filter" }).ToList() };
+            case "CreateSourceFilter":
+                if (!SourceRecordInstalled || S(d, "filterKind") != "source_record_filter") throw new Exception("Your specified filter kind is not supported by OBS.");
+                Filters[S(d, "sourceName") + "|" + S(d, "filterName")] = d.GetProperty("filterSettings").EnumerateObject().ToDictionary(p => p.Name, p => p.Value.Clone());
+                return null;
+            case "SetSourceFilterSettings":
+                foreach (var p in d.GetProperty("filterSettings").EnumerateObject()) Filters[S(d, "sourceName") + "|" + S(d, "filterName")][p.Name] = p.Value.Clone();
+                return null;
+            case "CallVendorRequest":
+                if (!SourceRecordInstalled) throw new Exception("No vendor was found by that name.");
+                if (S(d, "vendorName") != "source-record" || S(d, "requestType") != "replay_buffer_save") throw new Exception("bad vendor request");
+                return new { vendorName = "source-record", requestType = "replay_buffer_save", responseData = new { success = true } };
+            case "GetMediaInputStatus":
+                return new { mediaState = MediaState, mediaDuration = MediaFile == null ? (double?)null : MediaDurationMs, mediaCursor = MediaFile == null ? (double?)null : MediaCursorMs };
+            case "TriggerMediaInputAction":
+            {
+                string a = S(d, "mediaAction");
+                MediaState = a.EndsWith("PLAY") ? "OBS_MEDIA_STATE_PLAYING" : a.EndsWith("PAUSE") ? "OBS_MEDIA_STATE_PAUSED" : MediaState;
+                return null;
+            }
+            case "SetMediaInputCursor": MediaCursorMs = d.GetProperty("mediaCursor").GetDouble(); return null;
             case "SetCurrentProgramScene": Program = S(d, "sceneName"); return null;
             case "GetCurrentProgramScene": return new { currentProgramSceneName = Program, sceneName = Program };
             default: throw new Exception("unknown request " + type);
@@ -259,7 +297,7 @@ public class ObsTests : IAsyncLifetime
         _feeds.Add(("Kai", "https://vdo.ninja/?view=d&password=x&cleanoutput"));
         await _director.BuildAsync();
         Assert.Equal(4, _obs.Scenes["TT Quad"].Count);
-        Assert.Equal(4, _obs.Inputs.Count);
+        Assert.Equal(4, _obs.Inputs.Keys.Count(k => k.StartsWith("TT Lobby ")));
     }
 
     [Fact]

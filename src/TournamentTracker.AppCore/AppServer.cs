@@ -96,6 +96,7 @@ namespace TournamentTracker.App
         private Organizer? _organizer;
         private CasterDesk? _desk;
         private ObsDirector? _obs;
+        private ReplayManager? _replays;
 
         /// <summary>Starts (or stops) the organiser's view for the saved administration code.</summary>
         private void StartOrganizer()
@@ -104,6 +105,8 @@ namespace TournamentTracker.App
             _organizer = null;
             _desk?.Dispose();
             _desk = null;
+            _replays?.Dispose();
+            _replays = null;
             var oldObs = _obs;
             _obs = null;
             if (oldObs != null) _ = oldObs.DisposeAsync().AsTask();
@@ -120,6 +123,8 @@ namespace TournamentTracker.App
                     if (first != null) organizer.Cast(first);
                     if (obs.Connected) _ = obs.ApplyAsync(air);
                 };
+                if (organizer.CasterUrl != null) obs.TagUrl = organizer.CasterUrl + "replaytag";
+                _replays = new ReplayManager(desk, obs) { TagChanged = json => organizer.ReplayNow = json };
                 obs.Start();
             }
         }
@@ -321,7 +326,7 @@ namespace TournamentTracker.App
                     return Ok(new { ok = true, message = $"Casting {Arg("lobby")}." });
                 case ("GET", "/app/admin/desk"):
                     if (_desk == null || _organizer == null) return Text(404, "application/json", "{\"error\":\"locked\"}");
-                    return Ok(new { desk = _desk.State(), obs = _obs?.Status(), receivers = _organizer.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList() });
+                    return Ok(new { desk = _desk.State(), obs = _obs?.Status(), replay = _replays?.State(), receivers = _organizer.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList() });
                 case ("POST", "/app/admin/feedin"):
                     if (_desk == null) return Ok(new { ok = false });
                     if (input.ValueKind == JsonValueKind.Object && input.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
@@ -341,6 +346,12 @@ namespace TournamentTracker.App
                 {
                     var card = _desk?.Find(Arg("id"));
                     if (_desk == null || card == null) return Ok(new { ok = false, message = "That card is gone." });
+                    // A card with a saved replay plays it; otherwise its lobby comes back up.
+                    if (_replays != null && card.ClipId != null && _replays.Find(card.ClipId)?.State == "ready")
+                    {
+                        string played = await _replays.PlayAsync(card.ClipId).ConfigureAwait(false);
+                        return Ok(new { ok = true, message = played });
+                    }
                     _desk.Show(card.Lobby, _desk.OnAir.Layout == "none" ? "full" : _desk.OnAir.Layout, 1);
                     return Ok(new { ok = true, message = $"Back to {card.Lobby}: {card.Text}." });
                 }
@@ -364,6 +375,46 @@ namespace TournamentTracker.App
                             string message = await _obs.ConnectAsync(Arg("host").Length > 0 ? Arg("host") : null, port, password).ConfigureAwait(false);
                             if (_obs.Connected && _desk != null && _desk.OnAir.Layout != "none" && _desk.OnAir.By == "button") await _obs.ApplyAsync(_desk.OnAir).ConfigureAwait(false);
                             return Ok(new { ok = _obs.Connected, message });
+                        }
+                    }
+                }
+                case ("POST", "/app/admin/replay"):
+                {
+                    if (_replays == null || _desk == null || _obs == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    string action = Arg("action");
+                    double Num(string name) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty(name, out var n)
+                        ? n.ValueKind == JsonValueKind.Number ? n.GetDouble() : double.TryParse(n.GetString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0 : 0;
+                    switch (action)
+                    {
+                        case "save":
+                        {
+                            var card = _desk.Find(Arg("id"));
+                            if (card == null) return Ok(new { ok = false, message = "That card is gone." });
+                            if (!_obs.Connected) return Ok(new { ok = false, message = "Connect OBS first: replays come from its replay buffer." });
+                            _ = Task.Run(() => _replays.SaveAsync(card));
+                            return Ok(new { ok = true, message = $"Saving a replay of {card.Lobby}: {card.Text}." });
+                        }
+                        case "play":
+                        {
+                            string id = Arg("id");
+                            var card = _desk.Find(id);
+                            if (card?.ClipId != null) id = card.ClipId;
+                            return Ok(new { ok = true, message = await _replays.PlayAsync(id).ConfigureAwait(false) });
+                        }
+                        case "hotkeys":
+                        {
+                            if (input.TryGetProperty("map", out var map) && map.ValueKind == JsonValueKind.Object)
+                            {
+                                foreach (var kv in map.EnumerateObject())
+                                    if (kv.Value.ValueKind == JsonValueKind.String && _obs.Settings.Replay.Hotkeys.ContainsKey(kv.Name)) _obs.Settings.Replay.Hotkeys[kv.Name] = kv.Value.GetString() ?? "";
+                                _obs.SaveSettings();
+                            }
+                            return Ok(new { ok = true, message = "Replay keys saved." });
+                        }
+                        default:
+                        {
+                            string? said = await _replays.ControlAsync(action, Num("value"), Num("value2")).ConfigureAwait(false);
+                            return Ok(new { ok = said == null || action == "live", message = said ?? "" });
                         }
                     }
                 }
@@ -753,6 +804,7 @@ namespace TournamentTracker.App
             _cts.Cancel();
             _organizer?.Dispose();
             _desk?.Dispose();
+            _replays?.Dispose();
             if (_obs != null) try { _obs.DisposeAsync().AsTask().Wait(1500); } catch (Exception) { }
             try { _listener.Stop(); } catch (Exception) { }
         }

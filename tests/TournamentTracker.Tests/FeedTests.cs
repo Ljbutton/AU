@@ -296,6 +296,32 @@ public class FeedTests : IDisposable
     }
 
     [Fact]
+    public void Screen_positions_are_tracked_for_replays()
+    {
+        Start();
+        Read();
+        for (int i = 0; i < 6; i++)
+        {
+            _clock.Advance(0.2);
+            _s.FeedTick(Frame(move: p => { p[0].X = 0; p[0].Y = 0; p[2].X = 2.665f; p[2].Y = -1.5f; p[1].InVent = true; }));
+        }
+        var track = Read().Where(e => e.GetProperty("type").GetString() == "track").ToList();
+        Assert.NotEmpty(track);
+        var samples = track.SelectMany(t => t.GetProperty("samples").EnumerateArray()).ToList();
+        Assert.True(samples.Count >= 5);
+        var last = samples.Last().GetProperty("p").EnumerateArray().ToDictionary(p => p[0].GetInt32(), p => p);
+        Assert.Equal(500, last[0][1].GetInt32());              // centre of the screen
+        Assert.Equal(750, last[2][1].GetInt32());
+        Assert.Equal(750, last[2][2].GetInt32());
+        Assert.Equal(1, last[1][3].GetInt32());                // Bob in a vent
+        _s.Kill(0, 3);
+        _clock.Advance(1.2);
+        _s.FeedTick(Frame());
+        var after = Read().Where(e => e.GetProperty("type").GetString() == "track").SelectMany(t => t.GetProperty("samples").EnumerateArray()).Last();
+        Assert.DoesNotContain(after.GetProperty("p").EnumerateArray(), p => p[0].GetInt32() == 3);   // the dead aren't tracked
+    }
+
+    [Fact]
     public void Screen_points_are_measured_from_the_top_left_of_the_view()
     {
         var cam = new FeedCamera { X = 10, Y = 5, HalfWidth = 4, HalfHeight = 2 };

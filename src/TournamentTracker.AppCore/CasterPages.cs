@@ -214,5 +214,33 @@ function f(){for(const o of dots){o.x+=o.vx;o.y+=o.vy;if(o.x<0||o.x>1850)o.vx*=-
 document.getElementById('t').textContent='SIMULATED · '+new Date().toLocaleTimeString();requestAnimationFrame(f);}
 f();
 </script></body></html>";
+    
+        /// <summary>
+        /// The REPLAY tag over replays in OBS (TT Replay scene, transparent): a pulsing REPLAY badge
+        /// and what happened. Reads /replaynow.
+        /// </summary>
+        public const string ReplayTag = @"<!doctype html>
+<html><head><meta charset=""utf-8""><title>Replay tag</title>
+<style>
+html,body{margin:0;height:100%;background:transparent;overflow:hidden;font:700 34px/1.2 ""Segoe UI"",system-ui,sans-serif;color:#fff}
+.tag{position:absolute;left:48px;top:40px;display:flex;align-items:center;gap:18px;opacity:0;transform:translateX(-30px);transition:opacity .35s,transform .35s}
+.tag.on{opacity:1;transform:none}
+.badge{background:#ff2d55;padding:10px 22px 10px 18px;border-radius:12px;letter-spacing:.12em;display:flex;align-items:center;gap:12px;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+.dot{width:16px;height:16px;border-radius:50%;background:#fff;animation:p 1.1s infinite}
+@keyframes p{50%{opacity:.25}}
+.what{background:rgba(5,7,11,.72);padding:10px 18px;border-radius:12px;font-weight:600;font-size:30px;text-shadow:0 2px 6px #000}
+</style></head><body>
+<div class=""tag"" id=""tag""><div class=""badge""><span class=""dot""></span>REPLAY</div><div class=""what"" id=""what""></div></div>
+<script>
+async function tick(){
+  try{
+    const d=await (await fetch('/replaynow',{cache:'no-store'})).json();
+    document.getElementById('tag').classList.toggle('on',!!d.on);
+    document.getElementById('what').textContent=d.on?`${d.lobby} · ${d.title}`:'';
+    document.getElementById('what').hidden=!d.on;
+  }catch(e){}
+}
+tick();setInterval(tick,400);
+</script></body></html>";
     }
 }

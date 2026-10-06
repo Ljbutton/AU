@@ -342,6 +342,15 @@ the caster's PC and off stream.
   the lobbies in their slots, plays only slot 1's game sound, and switches scene when you click.
   It never touches your other scenes. Switch in OBS yourself and the LIVE labels follow.
   Settings and the lobby → source mapping are in `obs.json` next to The Button's settings.
+* **Replays** (needs the free **Source Record** plugin for OBS, by Exeldro): The Button puts a
+  Source Record replay buffer (last 30 s) on every lobby source. Every kill saves a clip by itself
+  (8 s before to 2 s after); any card can save one with **Save replay**, while OBS still has it.
+  **▶ REPLAY** on the card (or **Watch again**) plays it in the **TT Replay** scene: a Media
+  Source, so you can pause and scrub, cropped and zoomed (up to 2.5×) to keep the killer and
+  victim in frame, following them if the host's camera moves, with a slow push-in from the wide
+  shot and a REPLAY tag. Controls: play/pause, ±1 s, frame step, scrub bar, restart, zoom, pan,
+  follow, back to live; every one has a key (change them under **Keys**). Clip lengths, zoom,
+  folder (default Videos\TT Replays) and keys are in the `replay` part of `obs.json`.
 * **Simulation:** the Simulation button plays four fake lobbies (with stand-in video in OBS), to
   try the tab and OBS switching without real games.
 
