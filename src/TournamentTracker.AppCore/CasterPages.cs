@@ -369,16 +369,17 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden;font:700 3
 .dot{width:16px;height:16px;border-radius:50%;background:#fff;animation:p 1.1s infinite}
 @keyframes p{50%{opacity:.25}}
 .what{background:rgba(5,7,11,.72);padding:10px 18px;border-radius:12px;font-weight:600;font-size:30px;text-shadow:0 2px 6px #000}
-.sw{display:inline-block;width:.8em;height:.8em;border-radius:4px;margin:0 .3em -.06em 0;border:2px solid rgba(255,255,255,.55)}
+.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 0;vertical-align:-.25em;filter:drop-shadow(0 .05em .08em rgba(0,0,0,.6))}
 .by{background:rgba(5,7,11,.72);padding:8px 16px;border-radius:12px;font-size:22px;font-weight:600;color:#cfd6e2;display:flex;align-items:center;gap:12px;letter-spacing:.06em}
 .by b{color:#fff;font-size:28px;letter-spacing:0}
 .by img{height:44px;max-width:180px;object-fit:contain}
+.by[hidden]{display:none}
 </style></head><body>
 <div class=""tag"" id=""tag""><div class=""badge"" id=""badge""><span class=""dot""></span><span id=""label"">REPLAY</span></div><div class=""what"" id=""what""></div><div class=""by"" id=""by"" hidden></div></div>
 <script>
 const CREW=['#c51111','#132ed1','#117f2d','#ed54ba','#ef7d0d','#f5f557','#3f474e','#d6e0f0','#6b2fbb','#71491e','#38fedc','#50ef39','#5f1d2e','#ecc0d3','#f0e7a8','#758593','#918877','#d76464'];
 const esc=s=>String(s??'').replace(/[&<>""]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','""':'&quot;'}[c]));
-const rich=s=>esc(s).replace(/\[\[(\d+)\|([^\]]*)\]\]/g,(m,c,n)=>`<i class=""sw"" style=""background:${CREW[+c]||'#888'}""></i>${n}`);
+const rich=s=>esc(s).replace(/\[\[(\d+)\|([^\]]*)\]\]/g,(m,c,n)=>`<img class=""sw"" src=""/crew/${+c>=0&&+c<18?+c:15}.png"" alt="""">${n}`);
 async function tick(){
   try{
     const d=await (await fetch('/replaynow',{cache:'no-store'})).json();

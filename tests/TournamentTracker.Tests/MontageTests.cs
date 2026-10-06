@@ -65,9 +65,12 @@ public class MontageTests : IDisposable
         var cmd = b.Command(segs, "out.mp4");
         string graph = cmd[cmd.IndexOf("-filter_complex") + 1];
         Assert.Contains("crop=w=iw/2:h=ih/2:x=iw*0.6-iw/2/2:y=ih*0.4-ih/2/2", graph);
-        Assert.Contains("text='Jake'", graph);
-        Assert.Contains("text='Maria'", graph);
-        Assert.Contains("color=0xef7d0d", graph);         // Jake's orange swatch
+        Assert.Contains("text='Jake → ", graph);                  // one line, with room for each head before its name
+        Assert.Contains("  Maria\\, Electrical'", graph);
+        Assert.Contains(cmd, a => a.EndsWith(Path.Combine("tt-crew", "4.png")));   // Jake's orange crewmate head
+        Assert.Contains(cmd, a => a.EndsWith(Path.Combine("tt-crew", "1.png")));
+        Assert.True(File.Exists(MontageBuilder.HeadFile(4)));
+        Assert.Matches(@"overlay=x=11\d", graph);                // the first head, in the room left for it
         Assert.Contains("text='PRESENTED BY'", graph);
         Assert.Equal(2, graph.Split("xfade=transition=wiperight").Length - 1);
         Assert.Equal(13.2, MontageBuilder.Length(segs), 3);

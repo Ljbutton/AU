@@ -8,7 +8,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent
 #stage{position:absolute;left:0;top:0;transform-origin:0 0;color:var(--text);font:700 26px/1.15 var(--font),"Segoe UI",system-ui,sans-serif}
 .el{position:absolute;transition:opacity .45s ease}
 .hide{opacity:0!important;pointer-events:none}
-i.sw{display:inline-block;width:.72em;height:.72em;border-radius:.18em;margin-right:.3em;vertical-align:-.02em;box-shadow:0 0 0 .07em rgba(255,255,255,.55)}
+img.sw{display:inline-block;height:1.1em;width:auto;margin-right:.25em;vertical-align:-.22em;filter:drop-shadow(0 .05em .08em rgba(0,0,0,.6))}
 /* Lobby label */
 .label{display:flex;align-items:center;gap:.4em;padding:.18em .55em .12em;border-radius:.3em;background:var(--panel);border-left:.22em solid var(--primary);font:700 1em/1 var(--head),sans-serif;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
 .label .num{color:var(--primary)}
@@ -134,16 +134,18 @@ i.sw{display:inline-block;width:.72em;height:.72em;border-radius:.18em;margin-ri
 <script>
 const CREW = ['#c51111','#132ed1','#117f2d','#ed54ba','#ef7d0d','#f5f557','#3f474e','#d6e0f0','#6b2fbb','#71491e','#38fedc','#50ef39','#5f1d2e','#ecc0d3','#f0e7a8','#758593','#918877','#d76464'];
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const sw = c => `<i class="sw" style="background:${CREW[c] || '#888'}"></i>`;
+// A player's colour is their crewmate head (the same pictures as The Button), never a plain swatch.
+const head = c => `/crew/${c >= 0 && c < 18 ? c : 15}.png`;
+const sw = c => `<img class="sw" src="${head(+c)}" alt="">`;
 const rich = t => esc(t).replace(/\[\[(\d+)\|([^\]]*)\]\]/g, (m, c, n) => `${sw(+c)}${n}`);
 const ICON = {
-  crew: c => `<svg viewBox="0 0 20 22"><path fill="${c}" d="M5 3a5 5 0 0 1 10 0v15a2 2 0 0 1-2 2h-1.5a1.5 1.5 0 0 1-1.5-1.5V17H9v1.5A1.5 1.5 0 0 1 7.5 20H6a2 2 0 0 1-2-2v-6H2a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h3z"/><rect x="9" y="3.5" width="7" height="4" rx="2" fill="#9fd3ff"/></svg>`,
   reactor: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.4" fill="currentColor"/><path fill="currentColor" d="M12 2a10 10 0 0 1 8.66 5l-5.2 3a4 4 0 0 0-3.46-2zm8.66 15A10 10 0 0 1 12 22v-6a4 4 0 0 0 3.46-2zM3.34 17A10 10 0 0 1 3.34 7l5.2 3a4 4 0 0 0 0 4z"/></svg>`,
   o2: `<svg viewBox="0 0 24 24"><circle cx="9" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2.4"/><text x="15.5" y="21" font-size="9" font-weight="700" fill="currentColor">2</text></svg>`,
   lights: `<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 1 4 12.7V17H8v-2.3A7 7 0 0 1 12 2zM9 19h6v1.5a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 20.5z"/></svg>`,
   comms: `<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M5 19 12 7l7 12M8.5 13h7M4 8a9 9 0 0 1 3-4M20 8a9 9 0 0 0-3-4"/></svg>`,
   other: `<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 1 21h22zm-1 7h2v6h-2zm0 8h2v2h-2z"/></svg>`,
 };
+const CNT = { crew: `<img class="sw" src="/crew/7.png" alt="crew">`, imp: `<img class="sw" src="/crew/0.png" alt="impostors">` };
 const sabIcon = s => ({ Reactor: ICON.reactor, 'Seismic stabilizers': ICON.reactor, 'Crash course': ICON.reactor, O2: ICON.o2, Lights: ICON.lights, Comms: ICON.comms }[s] || ICON.other);
 const PH = { ingame: 'In game', meeting: 'Meeting', ended: 'Game over', lobby: 'Lobby', menu: 'Offline' };
 
@@ -195,7 +197,7 @@ ELEMENTS.gridTiles = (slot, l, k) => {
   const hot = l.tier === 'must' || l.tier === 'veryHigh', high = l.tier === 'high';
   put(`tile-${slot.slot}`, `<div class="tile${hot ? ' hot' : high ? ' high' : ''}" style="width:${slot.w}px;height:${slot.h}px"></div>`, { left: slot.x + 'px', top: slot.y + 'px', fontSize: 30 + 'px' });
   const playing = l.phase === 'ingame' || l.phase === 'meeting';
-  put(`mini-${slot.slot}`, `<div class="mini"><span class="ph ${l.phase}">${(PH[l.phase] || l.phase).toUpperCase()}</span>${playing && l.crew != null ? `<span>${ICON.crew('#d6e0f0')} ${l.crew}</span><span>${ICON.crew('#ff2d55')} ${l.imps}</span><span>tasks ${l.tasks ?? 0}%</span>` : ''}${l.sabotage ? `<span style="color:var(--danger)">${esc(l.sabotage.system)}${l.sabotage.left != null ? ' ' + Math.ceil(l.sabotage.left) + 's' : ''}</span>` : ''}</div>`,
+  put(`mini-${slot.slot}`, `<div class="mini"><span class="ph ${l.phase}">${(PH[l.phase] || l.phase).toUpperCase()}</span>${playing && l.crew != null ? `<span>${CNT.crew} ${l.crew}</span><span>${CNT.imp} ${l.imps}</span><span>tasks ${l.tasks ?? 0}%</span>` : ''}${l.sabotage ? `<span style="color:var(--danger)">${esc(l.sabotage.system)}${l.sabotage.left != null ? ' ' + Math.ceil(l.sabotage.left) + 's' : ''}</span>` : ''}</div>`,
     { left: slot.x + 14 * k + 'px', top: slot.y + slot.h - 52 * k + 'px', fontSize: 34 * k + 'px' });
 };
 function emptyTile(slot) {
@@ -218,7 +220,7 @@ function statusBar() {
     const playing = l.phase === 'ingame' || l.phase === 'meeting';
     return `<div class="cell${onAir.has(name) ? ' on' : ''}${hot ? ' hot' : ''}${l.online ? '' : ' off'}" style="flex-basis:${100 / Math.ceil(list.length / rows) - 1}%">
       <span class="n">${l.number}</span><span class="nm">${esc(name)}</span>
-      ${playing && l.crew != null ? `<span class="ct">${ICON.crew('#d6e0f0')}${l.crew}</span><span class="ct">${ICON.crew('#ff2d55')}${l.imps}</span><span class="tk">${l.tasks ?? 0}%</span>` : ''}
+      ${playing && l.crew != null ? `<span class="ct">${CNT.crew}${l.crew}</span><span class="ct">${CNT.imp}${l.imps}</span><span class="tk">${l.tasks ?? 0}%</span>` : ''}
       ${sab}<span class="ph ${l.online ? l.phase : 'menu'}">${(l.online ? PH[l.phase] || l.phase : 'Offline').toUpperCase()}</span></div>`;
   }).join('');
   put('statusbar', `<div class="bar" style="flex-wrap:${rows > 1 ? 'wrap' : 'nowrap'}">${cells}</div>`, { left: '0px', bottom: '0px', width: S.canvas.w + 'px', fontSize: (rows > 1 ? 24 : 28) + 'px' });

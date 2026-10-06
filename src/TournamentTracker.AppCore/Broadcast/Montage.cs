@@ -247,36 +247,53 @@ namespace TournamentTracker.App.Broadcast
             return file == null ? $"fontsize={size}" : $"fontfile='{file.Replace("\\", "/").Replace(":", "\\:")}':fontsize={size}";
         }
 
-        /// <summary>The lower third's drawing: a dark band, then swatch + name and plain text pieces laid out left to right.</summary>
-        public static string LowerThirdFilter(string lower, int w, int h, bool words = true)
+        public const int HeadSize = 52;
+
+        /// <summary>
+        /// The lower third's drawing: a dark band, then each player's crewmate head (placed with an
+        /// overlay afterwards, see <see cref="Command"/>) with their name, and plain text, left to right.
+        /// </summary>
+        public static (string Filter, List<(int Color, double X, double Y)> Heads) LowerThird(string lower, int w, int h, bool words = true)
         {
             var (_, cw) = MonoFont();
             int size = 46;
-            double charW = cw * size, x = 110, y = h - 175;
-            var parts = new List<string>();
-            var pieces = Regex.Split(lower, @"(\[\[\d+\|[^\]]*\]\])").Where(p => p.Length > 0).ToList();
-            double width = pieces.Sum(p => { var m = Regex.Match(p, @"^\[\[(\d+)\|([^\]]*)\]\]$"); return m.Success ? 46 + m.Groups[2].Value.Length * charW : p.Length * charW; }) + 70;
-            parts.Add($"drawbox=x=80:y={F(y - 22)}:w={F(Math.Min(w - 160, width))}:h=92:color=0x08090e@0.86:t=fill");
-            parts.Add($"drawbox=x=80:y={F(y - 22)}:w=10:h=92:color=0xffc15a@1:t=fill");
-            foreach (var p in pieces)
+            double charW = cw * size, x0 = 110, y = h - 175;
+            // One line of text (so every piece sits on the same baseline), with two spaces where each
+            // head goes; the font is monospaced, so each head's place is known exactly.
+            var text = new System.Text.StringBuilder();
+            var heads = new List<(int, double, double)>();
+            foreach (var p in Regex.Split(lower, @"(\[\[\d+\|[^\]]*\]\])").Where(p => p.Length > 0))
             {
                 var m = Regex.Match(p, @"^\[\[(\d+)\|([^\]]*)\]\]$");
-                if (m.Success)
-                {
-                    int c = int.Parse(m.Groups[1].Value);
-                    parts.Add($"drawbox=x={F(x)}:y={F(y + 6)}:w=32:h=32:color=0x{Crew[c >= 0 && c < Crew.Length ? c : 0]}@1:t=fill");
-                    parts.Add($"drawbox=x={F(x)}:y={F(y + 6)}:w=32:h=32:color=white@0.55:t=2");
-                    x += 46;
-                    if (words) parts.Add($"drawtext={Font(size)}:text='{Esc(m.Groups[2].Value)}':fontcolor=white:x={F(x)}:y={F(y)}");
-                    x += m.Groups[2].Value.Length * charW;
-                }
-                else
-                {
-                    if (words) parts.Add($"drawtext={Font(size)}:text='{Esc(p)}':fontcolor=white:x={F(x)}:y={F(y)}");
-                    x += p.Length * charW;
-                }
+                if (!m.Success) { text.Append(p); continue; }
+                int c = int.Parse(m.Groups[1].Value);
+                heads.Add((c >= 0 && c < Crew.Length ? c : 15, x0 + text.Length * charW + (2 * charW - HeadSize) / 2, y - 2));
+                text.Append("  ").Append(m.Groups[2].Value);
             }
-            return string.Join(",", parts);
+            var parts = new List<string>
+            {
+                $"drawbox=x=80:y={F(y - 22)}:w={F(Math.Min(w - 160, text.Length * charW + 70))}:h=92:color=0x08090e@0.86:t=fill",
+                $"drawbox=x=80:y={F(y - 22)}:w=10:h=92:color=0xffc15a@1:t=fill",
+            };
+            // ffmpeg drops spaces at the start of a line: start the text after them instead.
+            string line = text.ToString();
+            int lead = line.Length - line.TrimStart(' ').Length;
+            if (words) parts.Add($"drawtext={Font(size)}:text='{Esc(line.TrimStart(' '))}':fontcolor=white:x={F(x0 + lead * charW)}:y={F(y)}");
+            return (string.Join(",", parts), heads);
+        }
+
+        /// <summary>A player's crewmate head (the same pictures as The Button's), as a file ffmpeg can read.</summary>
+        public static string HeadFile(int color)
+        {
+            string dir = Path.Combine(Path.GetTempPath(), "tt-crew");
+            string file = Path.Combine(dir, color + ".png");
+            if (File.Exists(file)) return file;
+            Directory.CreateDirectory(dir);
+            using var res = typeof(MontageBuilder).Assembly.GetManifestResourceStream($"ui/crew/{color}.png")
+                ?? throw new InvalidOperationException("No crewmate picture for colour " + color);
+            using (var f = File.Create(file + ".part")) res.CopyTo(f);
+            File.Move(file + ".part", file, overwrite: true);
+            return file;
         }
 
         /// <summary>The ffmpeg command for a montage: inputs, the filter graph (crop, lower thirds, wipes) and the output.</summary>
@@ -314,8 +331,24 @@ namespace TournamentTracker.App.Broadcast
                     double z = Math.Max(1, v.Zoom);
                     // The crop's top left (in source pixels): the view's centre minus half the visible size.
                     string crop = $"crop=w=iw/{F(z)}:h=ih/{F(z)}:x=iw*{F(v.X)}-iw/{F(z)}/2:y=ih*{F(v.Y)}-ih/{F(z)}/2";
-                    string lower = seg.Lower != null ? "," + LowerThirdFilter(seg.Lower, w, h, !_noText) : "";
-                    filters.Add($"[{i}:v]{crop},scale={w}:{h},fps=30,format=yuv420p,setsar=1,setpts=PTS-STARTPTS{lower}[{label}]");
+                    var (lower, heads) = seg.Lower != null ? LowerThird(seg.Lower, w, h, !_noText) : ("", new List<(int Color, double X, double Y)>());
+                    string chain = $"[{i}:v]{crop},scale={w}:{h},fps=30,format=yuv420p,setsar=1,setpts=PTS-STARTPTS{(lower.Length > 0 ? "," + lower : "")}";
+                    if (heads.Count == 0) filters.Add($"{chain}[{label}]");
+                    else
+                    {
+                        // Each player's crewmate head over the band, next to their name.
+                        string at = $"b{labels.Count}";
+                        filters.Add($"{chain}[{at}]");
+                        for (int k = 0; k < heads.Count; k++)
+                        {
+                            args.AddRange(new[] { "-i", HeadFile(heads[k].Color) });
+                            int img = input++;
+                            string hd = $"h{labels.Count}_{k}", next = k == heads.Count - 1 ? label : $"b{labels.Count}_{k}";
+                            filters.Add($"[{img}:v]scale={HeadSize}:{HeadSize},format=rgba[{hd}]");
+                            filters.Add($"[{at}][{hd}]overlay=x={F(heads[k].X)}:y={F(heads[k].Y)}:eof_action=repeat,format=yuv420p[{next}]");
+                            at = next;
+                        }
+                    }
                 }
                 labels.Add((label, seg.Length));
             }

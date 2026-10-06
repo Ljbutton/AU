@@ -167,6 +167,9 @@ namespace TournamentTracker.App
             if (route == "/broadcast") return ("text/html; charset=utf-8", Encoding.UTF8.GetBytes(Resource("ui/broadcast.html")));
             if (route == "/broadcast/state") return ("application/json", JsonSerializer.SerializeToUtf8Bytes(app.State(), Json));
             if (route == "/broadcast/logo") return app.Logo();
+            // Players' crewmate heads, for every name on stream.
+            var head = Regex.Match(route, @"^/crew/(\d{1,2})\.png$");
+            if (head.Success) { var png = ResourceBytes($"ui/crew/{head.Groups[1].Value}.png"); return png.Length > 0 ? ("image/png", png) : null; }
             var font = Regex.Match(route, @"^/fonts/([a-z0-9-]+\.woff2)$");
             if (font.Success) { var b = ResourceBytes("ui/fonts/" + font.Groups[1].Value); return b.Length > 0 ? ("font/woff2", b) : null; }
             return null;
