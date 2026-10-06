@@ -189,6 +189,7 @@ namespace TournamentTracker
         {
             int before = Tracker.Current?.Meetings.Count ?? 0;
             Tracker.MeetingCalled(callerId, bodyId, _clock());
+            Active(callerId);
             FeedMeeting(before, callerId, bodyId);
         }
 
@@ -207,6 +208,7 @@ namespace TournamentTracker
         public void TaskCompleted(byte playerId)
         {
             Tracker.TaskCompleted(playerId, _clock());
+            Active(playerId);
             if (Tracker.InGame) FeedTask();
         }
 

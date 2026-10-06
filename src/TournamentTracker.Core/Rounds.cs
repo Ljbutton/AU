@@ -30,6 +30,8 @@ namespace TournamentTracker
             public string? FeedId { get; set; }
             public string? FeedKey { get; set; }
             public bool FeedOn { get; set; }
+            /// <summary>What the referee ghost's screen shows (lit map, vision, "!", eye).</summary>
+            public TournamentTracker.Broadcast.SpectatorSettings? Spectator { get; set; }
         }
 
         /// <summary>Counted games this lobby has played per round.</summary>
@@ -66,6 +68,7 @@ namespace TournamentTracker
                     _impostorGames = state?.ImpostorGames ?? new Dictionary<int, Dictionary<string, int>>();
                     Plan = state?.Plan;
                     _overlayOn = state?.OverlayOn ?? false;
+                    Spectator = state?.Spectator ?? new TournamentTracker.Broadcast.SpectatorSettings();
                     _statusChosen = state?.StatusChannel;
                     _autoMuteOff = state?.AutoMuteOff ?? false;
                     _feedId = state?.FeedId;
@@ -88,7 +91,7 @@ namespace TournamentTracker
         private void SaveState() => TrySave(() =>
         {
             Directory.CreateDirectory(_dataDir);
-            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames, ImpostorGames = _impostorGames, Plan = Plan, OverlayOn = _overlayOn, StatusChannel = _statusChosen, AutoMuteOff = _autoMuteOff, FeedId = _feedId, FeedKey = _feedKey, FeedOn = _feedOn }));
+            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames, ImpostorGames = _impostorGames, Plan = Plan, OverlayOn = _overlayOn, StatusChannel = _statusChosen, AutoMuteOff = _autoMuteOff, FeedId = _feedId, FeedKey = _feedKey, FeedOn = _feedOn, Spectator = Spectator }));
         }, "state");
 
         /// <summary>!r3 or !round 3 sets the round; !round on its own says which it is.</summary>

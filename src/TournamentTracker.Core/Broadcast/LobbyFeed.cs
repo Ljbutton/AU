@@ -483,6 +483,7 @@ namespace TournamentTracker
                 ["killReady"] = game == null ? null : _killReadyAt.Where(k => KillIsReady(k.Key, _clock()) && game.ById(k.Key) is { DeathCause: null }).Select(k => (int)k.Key).ToList(),
                 ["danger"] = _danger.Count > 0,
                 ["video"] = FeedForLive != null,
+                ["spec"] = SpectatorForFeed(),
             });
         }
     }

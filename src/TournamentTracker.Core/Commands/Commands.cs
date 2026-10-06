@@ -78,6 +78,9 @@ namespace TournamentTracker
                 case "unvoid" when fromHost:
                     VoidCommand(command == "void", args);
                     return true;
+                case "spec" when fromHost:
+                    SpectatorCommand(args);
+                    return true;
                 case "link" when fromHost:
                     LinkCommand(args);
                     return true;

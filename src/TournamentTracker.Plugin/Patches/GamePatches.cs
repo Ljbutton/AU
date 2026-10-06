@@ -64,6 +64,9 @@ namespace TournamentTracker.Plugin.Patches
             try { place = FeedReader.Place(__0); }
             catch (Exception e) { TournamentPlugin.Logger.Warn("Caster feed: couldn't read where the kill was (" + e.Message + ")."); }
             TournamentPlugin.Session.Kill(__instance.PlayerId, __0.PlayerId, place);
+            // Spectator view: did a crewmate have the killer in sight?
+            try { SpectatorOverlay.OnKill(__instance, __0); }
+            catch (Exception e) { TournamentPlugin.Logger.Warn("Spectator view: couldn't check who saw the kill (" + e.Message + ")."); }
         });
     }
 
