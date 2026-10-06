@@ -83,6 +83,22 @@ img.sw{display:inline-block;height:1.1em;width:auto;margin-right:.25em;vertical-
 @keyframes alin{from{opacity:0;transform:translateY(-.6em)}}
 /* Intermission */
 .inter{box-sizing:border-box;display:grid;grid-template-columns:1.25fr 1fr;gap:60px;padding:90px 110px 140px;background:radial-gradient(ellipse at 20% 10%,rgba(31,161,67,.28),transparent 60%),linear-gradient(160deg,rgba(6,9,13,.96),rgba(12,16,22,.96))}
+/* Part 23: Twitch predictions, polls, !sus and results */
+.tw{box-sizing:border-box;width:560px;padding:.55em .7em .6em;border-radius:.35em;background:var(--panel);border-left:.22em solid #9146ff;box-shadow:0 .4em 1.4em rgba(0,0,0,.35)}
+.tw .hd{display:flex;align-items:center;gap:.5em;font:700 .62em/1 var(--font),sans-serif;letter-spacing:.16em;color:#bf94ff}
+.tw .hd .k{background:#9146ff;color:#fff;padding:.25em .45em;border-radius:.25em}
+.tw .hd .cd{margin-left:auto;color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:.04em;font-size:1.2em}
+.tw h3{margin:.3em 0 .35em;font:700 1.05em/1.05 var(--head),sans-serif;letter-spacing:.03em}
+.tw .row{position:relative;display:flex;align-items:center;gap:.4em;height:1.45em;margin-top:.22em;padding:0 .4em;border-radius:.25em;background:rgba(255,255,255,.06);overflow:hidden;font-size:.82em}
+.tw .row i{position:absolute;left:0;top:0;bottom:0;background:rgba(145,70,255,.45);transition:width .6s ease}
+.tw .row.win i{background:rgba(31,161,67,.6)}.tw .row.top i{background:rgba(145,70,255,.7)}
+.tw .row span,.tw .row b,.tw .row img{position:relative}
+.tw .row b{margin-left:auto;font-variant-numeric:tabular-nums}
+.tw .row img.sw{width:1.1em;height:1.1em}
+.tw .ft{margin-top:.35em;font-size:.6em;color:#cfd3da;letter-spacing:.06em}
+.tw .ok{color:#46c28b}.tw .no{color:var(--danger)}
+.tw.res{border-left-color:var(--accent)}
+.inter .det{margin-top:.6em}
 /* Part 22: a lobby that dropped (frozen graphics, covered picture) and the be-right-back slate */
 .ph.rc{background:var(--danger)!important;color:#fff!important;animation:rcblink 1.2s ease-in-out infinite}
 @keyframes rcblink{50%{opacity:.55}}
@@ -295,6 +311,8 @@ function alerts() {
 const mmss = n => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
 function intermission() {
   const it = S.intermission; if (!it || (S.layout !== 'intermission' && S.layout !== 'slate')) return;
+  // Chat Detectives in the space under the notes, unless a Twitch poll or result is showing there.
+  const tw = S.extras && S.extras.twitch, det = tw && !tw.active && !tw.result ? tw.detectives : null;
   const st = it.standings;
   const table = st && st.rows.length ? `<div class="panel"><h2>${esc(st.title)}</h2><table class="st">${st.rows.map(r => `<tr class="${r.advancing ? 'adv' : ''}"><td class="r">${r.rank}</td><td>${sw(r.color)}${esc(r.name)}</td><td class="p">${r.points}</td></tr>`).join('')}</table></div>` : '';
   const sp = S.extras && S.extras.standingsSponsor;
@@ -303,6 +321,7 @@ function intermission() {
       ${it.nextRoundIn != null && !it.slate ? `<div class="cd"><small>Round ${(it.round || 0) + 1} starts in</small><b id="inter-cd"></b></div>` : ''}
       ${it.note ? `<div class="nt" data-note="${esc(it.note)}"><b>Storyline</b><span>${rich(it.note)}</span></div>` : ''}
       ${it.montage ? `<div class="nx"><b style="color:var(--accent)">UP NEXT</b> ${rich(it.montage)}</div>` : ''}
+      ${det && det.length ? `<div class="panel det"><h2>Chat Detectives</h2><table class="st">${det.map((d, i) => `<tr><td class="r">${i + 1}</td><td>${esc(d.name)}</td><td class="p">${d.n}</td></tr>`).join('')}</table></div>` : ''}
     </div><div class="side">${table}${sp ? `<div class="by">Presented by ${sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : ''}<b>${esc(sp.name)}</b></div>` : ''}</div></div>`,
     { left: '0px', top: '0px', fontSize: '34px', zIndex: '-1' });
   const cd = document.getElementById('inter-cd'); if (cd && it.nextRoundIn != null) cd.textContent = mmss(it.nextRoundIn);
@@ -337,9 +356,33 @@ function reconnecting(slot, l, k) {
     { left: slot.x + 'px', top: slot.y + 'px', fontSize: 46 * k + 'px', zIndex: '-1' });
 }
 
+// Part 23: what's running on Twitch (a meeting vote first), then the result for a few seconds.
+const TWK = { prediction: 'PREDICTION', poll: 'POLL', chat: 'CHAT VOTE' };
+function twIcon(o) { return o.icon ? (o.icon === 'imp' ? CNT.imp : CNT.crew) : o.color != null ? sw(o.color) : ''; }
+function twitch() {
+  const t = S.extras && S.extras.twitch; if (!t || S.layout === 'replay') return;
+  const pos = S.standings && S.layout !== 'intermission' && S.layout !== 'slate' ? { left: '40px', right: 'auto' } : { right: '40px', left: 'auto' };
+  // Between rounds: under the storyline on the left, clear of the standings.
+  const css = S.layout === 'intermission' || S.layout === 'slate' ? { left: '110px', right: 'auto', top: '430px', fontSize: '34px' } : Object.assign({ top: '120px', fontSize: '34px' }, pos);
+  const a = t.active, r = t.result;
+  if (r) {
+    const lines = (r.lines || []).map(l => `<div class="row${l.win ? ' win' : ''}">${l.pct != null ? `<i style="width:${l.pct}%"></i>` : ''}${twIcon(l)}<span>${esc(l.name)}</span><b>${l.right === true ? '<span class="ok">IMPOSTOR ✓</span>' : l.right === false ? '<span class="no">CREWMATE ✗</span>' : l.n != null ? l.n + ' right' : l.pct != null ? l.pct + '%' : ''}</b></div>`).join('');
+    const verdict = r.right === true ? '<span class="ok">CHAT WAS RIGHT</span>' : r.right === false ? '<span class="no">CHAT WAS WRONG</span>' : '';
+    put('twitch', `<div class="tw res"><div class="hd"><span class="k">TWITCH</span>${esc(r.lobby || '')}</div><h3>${esc(r.title)}</h3>${lines}${r.text || verdict ? `<div class="ft">${esc(r.text || '')} ${verdict}</div>` : ''}</div>`, css);
+    return;
+  }
+  if (!a) return;
+  const max = Math.max(...a.options.map(o => o.pct));
+  // A !sus vote can have ten names: the five chat suspects most.
+  const opts = a.type === 'chat' ? a.options.slice().sort((x, y) => y.pct - x.pct).slice(0, 5) : a.options;
+  const rows = opts.map(o => `<div class="row${o.pct === max && max > 0 ? ' top' : ''}"><i style="width:${o.pct}%"></i>${twIcon(o)}<span>${esc(o.title)}</span><b>${o.pct}%</b></div>`).join('');
+  const foot = a.type === 'chat' ? `TYPE <b>!sus NAME</b> IN CHAT · ${a.voters} VOTED` : a.type === 'prediction' ? `${a.voters} PREDICTED · ${Number(a.total).toLocaleString()} CHANNEL POINTS` : `${a.total} VOTES`;
+  put('twitch', `<div class="tw"><div class="hd"><span class="k">${TWK[a.type] || 'TWITCH'}</span>${a.lobby ? esc(a.lobby) : ''}<span class="cd">${a.status === 'locked' ? 'LOCKED' : mmss(a.left)}</span></div><h3>${esc(a.type === 'chat' ? 'Chat thinks…' : a.title)}</h3>${rows}<div class="ft">${foot}</div></div>`, css);
+}
+
 // More elements are added by later parts (sponsors, alerts, counters…).
-const GLOBAL = { intermission, statusBar, standings, standingsChange, storyline, sponsorBreak, winCounter, playerCard, alerts };
-const ALWAYS = new Set(['sponsorBreak', 'intermission', 'winCounter', 'playerCard']);
+const GLOBAL = { intermission, statusBar, standings, standingsChange, storyline, sponsorBreak, winCounter, playerCard, alerts, twitch };
+const ALWAYS = new Set(['sponsorBreak', 'intermission', 'winCounter', 'playerCard', 'twitch']);
 
 function render() {
   const th = S.theme || {};

@@ -104,6 +104,8 @@ namespace TournamentTracker.App
         private ObsDirector? _obs;
         private ReplayManager? _replays;
         private BroadcastApp? _broadcast;
+        private TwitchDirector? _twitch;
+        private Timer? _twitchTimer;
         private MontageManager? _montages;
         private Voice.VoiceCapture? _voice;
 
@@ -127,6 +129,10 @@ namespace TournamentTracker.App
             _desk = null;
             _replays?.Dispose();
             _replays = null;
+            _twitchTimer?.Dispose();
+            _twitchTimer = null;
+            _twitch?.Dispose();
+            _twitch = null;
             var oldObs = _obs;
             _obs = null;
             if (oldObs != null) _ = oldObs.DisposeAsync().AsTask();
@@ -164,6 +170,16 @@ namespace TournamentTracker.App
                 obs.MakeSwoosh = builder.SwooshAsync;
                 var replays = _replays = new ReplayManager(desk, obs) { TagChanged = json => organizer.ReplayNow = json, Builder = builder, Sponsors = desk.Sponsors };
                 _montages = new MontageManager(desk, replays, builder, desk.Sponsors, () => obs.Settings.Replay);
+                // Part 23: Twitch (predictions, polls, !sus, channel points), shown on stream by the graphics app.
+                var twitch = _twitch = new TwitchDirector(desk, SideFolder(), _http) { Clips = replays.ReadyClips, PlayReplay = replays.PlayAsync };
+                broadcast.Extras["twitch"] = twitch.Overlay;
+                int ticking = 0;
+                _twitchTimer = new Timer(_ =>
+                {
+                    if (Interlocked.Exchange(ref ticking, 1) == 1) return;
+                    twitch.TickAsync().ContinueWith(_ => Interlocked.Exchange(ref ticking, 0));
+                }, null, 1000, 1000);
+                if (!twitch.Settings.Off && (twitch.Settings.TestMode || twitch.Auth.Token != null)) _ = twitch.ConnectAsync();
                 obs.Start();
             }
         }
@@ -425,6 +441,7 @@ namespace TournamentTracker.App
                     return Ok(new { desk = _desk.State(), obs = _obs?.Status(), replay = _replays?.State(), roster = _desk.RosterState(), story = _desk.StoryState(),
                         montages = _montages?.State(), moments = _replays?.Moments(), sponsors = SponsorState(),
                         voice = new { status = _desk.VoiceState(), obs = _obs?.VoiceStatus() },
+                        twitch = _twitch?.State(),
                         broadcast = _broadcast == null ? null : new { url = _organizer.CasterUrl == null ? null : _organizer.CasterUrl + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem, alerts = _desk.Alerts.Settings, alertsWaiting = _desk.Alerts.Waiting },
                         names = _organizer.DataLinks().ToDictionary(d => d.Lobby, d => _desk.NamesFor(d.Lobby)), receivers = _organizer.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList() });
                 case ("POST", "/app/admin/feedin"):
@@ -454,6 +471,56 @@ namespace TournamentTracker.App
                             if (!_desk.Simulating) return Ok(new { ok = false, message = "Those buttons are for simulation mode." });
                             return Ok(new { ok = _desk.SimFail(lobby, what), message = what == "reconnect" ? $"{lobby}: reconnecting." : $"{lobby}: simulated {what} problem." });
                     }
+                }
+                case ("POST", "/app/admin/twitch"):
+                {
+                    var tw = _twitch;
+                    if (tw == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    var st = tw.Settings;
+                    bool On() => Arg("on") == "true";
+                    int Int(int fallback) => int.TryParse(Arg("value"), out var n) ? n : fallback;
+                    string message;
+                    try
+                    {
+                    switch (Arg("action"))
+                    {
+                        case "connect": message = await tw.ConnectAsync().ConfigureAwait(false); break;
+                        case "signin": message = await tw.StartSignInAsync().ConfigureAwait(false); break;
+                        case "signout": tw.SignOut(); message = "Signed out of Twitch."; break;
+                        case "off": st.Off = On(); tw.Save(); message = st.Off ? "Twitch is off: nothing goes to Twitch." : "Twitch is on."; break;
+                        case "test":
+                            st.TestMode = On(); tw.Save();
+                            message = await tw.ConnectAsync().ConfigureAwait(false);
+                            break;
+                        case "clientId": st.ClientId = Arg("value").Trim(); tw.Save(); message = "Client ID saved."; break;
+                        case "delay": st.DelaySeconds = Math.Max(0, Int(0)); tw.Save(); message = $"Stream delay: {st.DelaySeconds:0} s."; break;
+                        case "featured": st.Featured = Arg("value"); tw.Save(); message = st.Featured.Length > 0 ? $"Predictions follow {st.Featured}." : "Predictions follow the lobby on stream."; break;
+                        case "meetingMode": st.MeetingMode = Arg("value") is "poll" or "chat" or "both" ? Arg("value") : "auto"; tw.Save(); message = "Meeting votes: " + st.MeetingMode + "."; break;
+                        case "revealAtEject": st.RevealAtEject = On(); tw.Save(); message = st.RevealAtEject ? "Whether chat was right is said at the ejection (only if your lobbies confirm ejects)." : "Whether chat was right is said when the game ends."; break;
+                        case "predictionSeconds": st.PredictionSeconds = TwitchLimits.Clamp(Int(90), TwitchLimits.PredictionMinSeconds, TwitchLimits.PredictionMaxSeconds); tw.Save(); message = $"Predictions lock after {st.PredictionSeconds} s."; break;
+                        case "meetingSeconds": st.MeetingSeconds = TwitchLimits.Clamp(Int(40), TwitchLimits.PollMinSeconds, TwitchLimits.PollMaxSeconds); tw.Save(); message = $"Meeting votes run {st.MeetingSeconds} s."; break;
+                        case "feature": st.Features[Arg("name")] = On(); tw.Save(); message = $"{TwitchSettings.FeatureNames.GetValueOrDefault(Arg("name"), Arg("name"))}: {(On() ? "on" : "off")}."; break;
+                        case "auto": st.Auto[Arg("name")] = On(); tw.Save(); message = $"Automatic {Arg("name")}: {(On() ? "on" : "off")}."; break;
+                        case "start":
+                            message = Arg("kind") switch
+                            {
+                                "prediction" => await tw.StartGamePredictionAsync(Arg("lobby").Length > 0 ? Arg("lobby") : null).ConfigureAwait(false),
+                                "first" or "moreWins" => await tw.StartRoundPredictionAsync(Arg("kind")).ConfigureAwait(false),
+                                "meetingPoll" => await tw.StartMeetingFromTabAsync("poll").ConfigureAwait(false),
+                                "meetingChat" => await tw.StartMeetingFromTabAsync("chat").ConfigureAwait(false),
+                                "lobbyPoll" => await tw.StartLobbyPollAsync().ConfigureAwait(false),
+                                "mvpPoll" => await tw.StartMvpPollAsync().ConfigureAwait(false),
+                                _ => "Unknown.",
+                            };
+                            break;
+                        case "prediction": message = await tw.PredictionActionAsync(Arg("do"), Arg("outcome")).ConfigureAwait(false); break;
+                        case "endpoll": message = await tw.EndPollAsync().ConfigureAwait(false); break;
+                        case "redemption": message = await tw.DecideAsync(Arg("id"), On(), Arg("clip").Length > 0 ? Arg("clip") : null).ConfigureAwait(false); break;
+                        default: message = "Unknown."; break;
+                    }
+                    }
+                    catch (Exception e) { message = "Twitch: " + e.Message; }
+                    return Ok(new { ok = true, message });
                 }
                 case ("POST", "/app/admin/interrupted"):
                 {
@@ -1227,6 +1294,8 @@ namespace TournamentTracker.App
             _organizer?.Dispose();
             _desk?.Dispose();
             _replays?.Dispose();
+            _twitchTimer?.Dispose();
+            _twitch?.Dispose();
             _voice?.Dispose();
             if (_obs != null) try { _obs.DisposeAsync().AsTask().Wait(1500); } catch (Exception) { }
             try { _listener.Stop(); } catch (Exception) { }

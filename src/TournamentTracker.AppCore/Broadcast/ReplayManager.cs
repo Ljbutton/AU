@@ -456,6 +456,12 @@ namespace TournamentTracker.App.Broadcast
             finally { _step.Release(); }
         }
 
+        /// <summary>Saved clips ready to play, newest first (for Twitch replay requests).</summary>
+        public List<(string Id, string Title, string Lobby)> ReadyClips()
+        {
+            lock (_lock) return _clips.Where(c => c.State == "ready").AsEnumerable().Reverse().Take(30).Select(c => (c.Id, NameTag.Plain(c.Title), c.Lobby)).ToList();
+        }
+
         /// <summary>The Moments library: every saved clip, newest first.</summary>
         public object Moments()
         {

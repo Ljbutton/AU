@@ -37,6 +37,8 @@ namespace TournamentTracker.App.Broadcast
         public DateTime Expires { get; set; } = DateTime.MaxValue;
         /// <summary>An interrupted game waiting for the caster's decision (its id).</summary>
         public string? Interruption { get; set; }
+        /// <summary>A button on a desk card: "show:LJ" puts that lobby on (e.g. chat's pick for the next lobby).</summary>
+        public string? Action { get; set; }
     }
 
     /// <summary>What's on stream: one lobby full screen, two side by side, or four.</summary>
@@ -258,6 +260,7 @@ namespace TournamentTracker.App.Broadcast
                 {
                     Archive.Feed(lobby, item, p => WhoIs(lobby, p));
                     TrackGame(lobby, item, now);
+                    if (type == "event") Fed?.Invoke(lobby, item);
                 }
             }
             catch (Exception) { }
@@ -859,6 +862,7 @@ namespace TournamentTracker.App.Broadcast
                     Offline = online.TryGetValue(x.Lobby, out var on) && !on,
                     x.System,
                     x.Interruption,
+                    x.Action,
                 };
                 return new
                 {

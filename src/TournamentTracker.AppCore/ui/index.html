@@ -200,6 +200,19 @@ img.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 .05em;vert
 .ppl button::after{content:" · card";color:var(--muted)}
 .vo-list{display:grid;gap:6px;margin-top:8px}
 .hdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:#ffc15a;vertical-align:1px}.hdot.red{background:var(--danger)}
+.tw-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px;margin-top:8px}
+@media (max-width:900px){.tw-grid{grid-template-columns:1fr}}
+.tw-grid h3{margin:10px 0 6px;font:600 13px/1 var(--round);color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.tw-it{padding:8px 10px;border-radius:10px;background:var(--sunk);font-size:13px;display:grid;gap:5px;margin-bottom:6px}
+.tw-it .tt{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tw-it .tt b{font-size:14px}
+.tw-it .k{font:700 10.5px/1 var(--round);letter-spacing:.1em;padding:3px 6px;border-radius:5px;background:#9146ff;color:#fff}
+.tw-it .op{display:grid;grid-template-columns:minmax(0,1fr) 60px auto;gap:8px;align-items:center}
+.tw-it .bar{height:7px;border-radius:4px;background:var(--panel);overflow:hidden}.tw-it .bar i{display:block;height:100%;background:#9146ff}
+.tw-feat{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 8px;align-items:center;font-size:13px}
+.tw-set{display:grid;gap:6px;font-size:13px}.tw-set label{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tw-set input[type=number]{width:80px}.tw-set #tw-client{flex:1;min-width:180px}
+.tw-log{max-height:220px;overflow:auto;font-size:12.5px;display:grid;gap:3px}.tw-log span{color:var(--muted);margin-right:6px;font-variant-numeric:tabular-nums}
+.tw-red{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 10px;border-radius:10px;background:var(--sunk);font-size:13px;margin-bottom:5px}
+.tw-red .fl{color:var(--danger);font-size:12px}
 .hl-list{display:grid;gap:5px;margin-top:8px}
 .hl{display:grid;grid-template-columns:14px minmax(70px,.5fr) minmax(0,2fr) auto;gap:10px;align-items:center;padding:6px 10px;border-radius:10px;background:var(--sunk);font-size:13px}
 .hl .dot{width:12px;height:12px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px rgba(70,194,139,.18)}
@@ -538,6 +551,47 @@ details.advanced[open] summary h2::before{content:'▾ '}
     <p class="muted" style="font-size:12.5px;margin:6px 0 0">Each referee's Button sends the lobby's Discord voice and game sound (and their own mic only if they tick it). The voice follows the picture: the full-screen lobby, or slot 1, is heard; replays, montages and intermission are silent. <b>Listen</b> keeps one lobby's voice up whatever is on screen. It only goes to the stream; nothing is played back to the players.</p>
     <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Duck under</span><select id="vo-duck" title="Your mic in OBS: lobby voice gets quieter while you talk"></select></div>
     <div class="vo-list" id="vo-list"></div>
+  </details>
+  <details class="card roster-card" id="tw-card" open>
+    <summary><div><b>Twitch</b> <span class="muted" id="tw-line"></span></div>
+      <div class="row"><button class="b" id="tw-test" title="A fake Twitch channel: votes, chat and redemptions are made up here, nothing is sent">Test mode</button><button class="b" id="tw-sign">Sign in</button><button class="b" id="tw-off" title="Nothing goes to Twitch">Twitch off</button></div></summary>
+    <p class="note bad" id="tw-problem" hidden></p>
+    <p class="note good" id="tw-code" hidden></p>
+    <div class="tw-grid">
+      <div>
+        <h3>Running</h3>
+        <div id="tw-active"></div>
+        <div class="row" style="margin-top:6px;flex-wrap:wrap" id="tw-start">
+          <button class="b" data-tws="prediction" title="Impostors or Crewmates? on the featured lobby's game">Game prediction</button>
+          <button class="b" data-tws="first" title="Which lobby finishes first?">First to finish</button>
+          <button class="b" data-tws="moreWins" title="More impostor or crew wins this round?">More wins</button>
+          <button class="b" data-tws="meetingPoll" title="Who's the impostor? (the lobby on stream, in a meeting)">Impostor poll</button>
+          <button class="b" data-tws="meetingChat" title="!sus vote in chat (the lobby on stream, in a meeting)">!sus vote</button>
+          <button class="b" data-tws="lobbyPoll" title="Which lobby next? You approve the switch">Which lobby next?</button>
+          <button class="b" data-tws="mvpPoll" title="Round MVP from the standings">Round MVP</button>
+        </div>
+        <h3>Channel points</h3>
+        <div id="tw-reds"></div>
+        <h3>Chat Detectives</h3>
+        <div id="tw-det" class="muted" style="font-size:13px"></div>
+      </div>
+      <div>
+        <h3>Features <span class="muted" style="font-weight:400;font-size:12px">· on · by itself</span></h3>
+        <div id="tw-features"></div>
+        <h3>Settings</h3>
+        <div class="tw-set">
+          <label>Client ID <input id="tw-client" placeholder="from dev.twitch.tv (Public client)" autocomplete="off"></label>
+          <label>Stream delay <input id="tw-delay" type="number" min="0" max="900" step="1"> s</label>
+          <label>Predictions follow <select id="tw-featured"></select></label>
+          <label>Lock predictions after <input id="tw-psec" type="number" min="30" max="1800"> s</label>
+          <label>Meeting votes <select id="tw-mode"><option value="auto">Poll with ≤5 alive, else !sus</option><option value="poll">Poll</option><option value="chat">!sus</option><option value="both">Both</option></select></label>
+          <label>Meeting vote length <input id="tw-msec" type="number" min="15" max="1800"> s</label>
+          <label><input type="checkbox" id="tw-reveal"> Say if chat was right at the ejection (only if your lobbies confirm ejects)</label>
+        </div>
+        <h3>Log</h3>
+        <div id="tw-log" class="tw-log"></div>
+      </div>
+    </div>
   </details>
   <details class="card roster-card" id="mt-card" open>
     <summary><div><b>Montages</b> <span class="muted" id="mt-line"></span></div>
@@ -1190,7 +1244,7 @@ async function loadDesk() {
   let r; try { r = await api('GET', '/app/admin/desk'); } catch (e) { return; }
   if (!r || !r.desk) return;
   DESK = r.desk; OBS = r.obs || null; RP = r.replay || null; ROSTER = r.roster || null; r_broadcast = r.broadcast || null; r_story = r.story || null; rpSync = performance.now();
-  MONT = r.montages || null; MOMENTS = r.moments || []; SPON = r.sponsors || null; LVOICE = r.voice || null;
+  MONT = r.montages || null; MOMENTS = r.moments || []; SPON = r.sponsors || null; LVOICE = r.voice || null; TW = r.twitch || null;
   receivers(r.receivers || []);
   sendNames(r.names || {});
   if ($('caster').classList.contains('on')) renderDesk();
@@ -1250,7 +1304,7 @@ function renderDesk() {
   renderRoster();
   renderGfx(r_broadcast);
   renderStory(r_story);
-  renderMontages(); renderMoments(); renderSponsors(); renderVoice();
+  renderMontages(); renderMoments(); renderSponsors(); renderVoice(); renderTwitch();
   const key = JSON.stringify([DESK, OBS, RP && RP.clips]);
   if (key === deskKey) return;
   deskKey = key;
@@ -1301,9 +1355,10 @@ function sysCard(c) {
   const can = c.rule === 'lobbyBack';
   return `<div class="dcard sys tier-${c.tier}"${can ? ` data-card="${c.id}" data-lobby="${esc(c.lobby)}" title="Put ${esc(c.lobby)} on stream"` : ''}>
     ${it ? '' : `<button class="x" data-dismiss="${c.id}" title="Dismiss">×</button>`}
-    <div class="t1"><span class="tier">${{ lobbyDown: 'Lobby down', lobbyBack: 'Back', interrupted: 'Interrupted', replayGame: 'Replay game' }[c.rule] || 'Notice'}</span><b>${esc(c.lobby)}</b>${c.onAir ? `<span class="live">${esc(c.onAir)}</span>` : ''}</div>
+    <div class="t1"><span class="tier">${{ lobbyDown: 'Lobby down', lobbyBack: 'Back', interrupted: 'Interrupted', replayGame: 'Replay game', twitchLobby: "Chat's pick" }[c.rule] || 'Notice'}</span><b>${esc(c.lobby)}</b>${c.onAir ? `<span class="live">${esc(c.onAir)}</span>` : ''}</div>
     <div class="play">${rich(c.text)}</div>
     <div class="t3"><span>${ago(c.ago)}</span></div>
+    ${c.action && c.action.startsWith('show:') ? `<div class="acts"><button class="b primary" data-cardshow="${esc(c.action.slice(5))}">Put ${esc(c.action.slice(5))} on</button></div>` : ''}
     ${it ? `<div class="acts"><button class="b" data-decide="count" data-iid="${it}" title="Put it in the standings">Count</button><button class="b" data-decide="void" data-iid="${it}" title="Posts !void for it">Void</button><button class="b primary" data-decide="replay" data-iid="${it}" title="Void it; the lobby plays it again">Replay</button></div>` : ''}
   </div>`;
 }
@@ -1456,6 +1511,74 @@ $('st-show').addEventListener('click', async e => { e.preventDefault(); const r 
 let LVOICE = null, voKey = '';
 const VO_STATE = { capturing: 'found', 'not running': 'not open', unsupported: 'Windows too old', off: 'off' };
 const meterPct = db => Math.max(0, Math.min(100, ((db ?? -60) + 60) / 60 * 100));
+// ---- Twitch (Part 23) ------------------------------------------------------------------------------
+let TW = null, twKey = '';
+const twDo = async body => { const r = await api('POST', '/app/admin/twitch', body); toast(r.message); twKey = ''; loadDesk(); return r; };
+function twItem(x, kind) {
+  if (!x) return '';
+  const ico = o => o.icon ? `<img class="sw" src="${head0(o.icon)}" alt="">` : o.color != null ? sw(o.color) : '';
+  const ctl = kind === 'prediction' ? `<button class="b" data-twp="lock"${x.status === 'locked' ? ' disabled' : ''}>Lock</button><button class="b" data-twp="cancel" title="Everyone gets their points back">Cancel</button>${x.options.map(o => `<button class="b" data-twp="resolve" data-out="${esc(o.id)}" title="Resolve: ${esc(o.title)} won">${esc(o.title)} won</button>`).join('')}`
+    : kind === 'poll' ? '<button class="b" data-twendpoll>End poll</button>' : '';
+  return `<div class="tw-it"><div class="tt"><span class="k">${{ prediction: 'PREDICTION', poll: 'POLL', chat: '!SUS' }[x.type]}</span><b>${esc(x.title)}</b><span class="muted">${x.status === 'locked' ? 'locked' : x.left + ' s left'} · ${x.voters} ${x.type === 'prediction' ? 'predicted' : 'voted'}</span></div>
+    ${x.options.map(o => `<div class="op"><span>${ico(o)} ${esc(o.title)}</span><span class="bar"><i style="width:${o.pct}%"></i></span><span>${o.pct}%</span></div>`).join('')}
+    ${ctl ? `<div class="row" style="flex-wrap:wrap">${ctl}</div>` : ''}</div>`;
+}
+const head0 = icon => head(icon === 'imp' ? 0 : 7);
+function renderTwitch() {
+  const t = TW; if (!t) return;
+  $('tw-off').classList.toggle('on', !!t.off); $('tw-off').textContent = t.off ? 'Twitch is off' : 'Twitch off';
+  $('tw-test').classList.toggle('on', !!t.testMode);
+  $('tw-sign').textContent = t.signedIn ? 'Sign out' : 'Sign in';
+  $('tw-line').textContent = t.off ? 'off' : t.connected ? `${t.testMode ? 'test mode · ' : ''}${t.user ? t.user.name : ''}${t.user && !t.testMode ? ' (' + (t.user.type || 'not Affiliate/Partner') + ')' : ''}${t.events ? ' · events ' + t.events : ''} · predictions follow ${t.featuredNow || 'nobody yet'}` : 'not connected';
+  const prob = [t.problem, t.eventsProblem].filter(Boolean).join(' ');
+  $('tw-problem').hidden = !prob; $('tw-problem').textContent = prob;
+  $('tw-code').hidden = !t.signIn; if (t.signIn) $('tw-code').innerHTML = `Go to <b>${esc(t.signIn.url)}</b> signed in as your channel and enter <b style="font-size:18px;letter-spacing:.1em">${esc(t.signIn.code)}</b>. This page carries on by itself once you have.`;
+  const key = JSON.stringify(t); if (key === twKey) return; twKey = key;
+  const busy = $('tw-card').contains(document.activeElement) && document.activeElement.matches('input,select');
+  $('tw-active').innerHTML = (twItem(t.vote, 'chat') + twItem(t.poll, 'poll') + twItem(t.prediction, 'prediction')) || '<p class="muted" style="font-size:13px;margin:0">Nothing running.</p>';
+  $('tw-reds').innerHTML = t.redemptions.length ? t.redemptions.map(r => `<div class="tw-red"><b>${r.kind === 'replay' ? 'Replay' : 'Shoutout'}</b><span>${esc(r.user)}${r.input ? ': “' + esc(r.input) + '”' : ''}${r.playerName ? ' → ' + esc(r.playerName) : ''}</span>${r.flag ? `<span class="fl">${esc(r.flag)}</span>` : ''}<span style="flex:1"></span>
+      ${r.status === 'waiting' ? `${r.kind === 'replay' ? `<select data-twclip="${esc(r.id)}">${t.clips.length ? t.clips.map(c => `<option value="${esc(c.id)}">${esc(c.lobby)}: ${esc(c.title)}</option>`).join('') : '<option value="">No replays saved yet</option>'}</select>` : ''}<button class="b primary" data-twred="${esc(r.id)}" data-ok="true">Approve</button><button class="b" data-twred="${esc(r.id)}" data-ok="false" title="Their points go back">Deny</button>` : `<span class="muted">${r.status}</span>`}</div>`).join('')
+    : '<p class="muted" style="font-size:13px;margin:0">"Request a replay" and "Shoutout a player" redemptions wait here for you.</p>';
+  $('tw-det').innerHTML = t.detectives.length ? t.detectives.map((d, i) => `${i + 1}. <b style="color:var(--fg,#fff)">${esc(d.name)}</b> ${d.correct}/${d.guesses}`).join(' · ') : 'Nobody yet: viewers score by voting !sus for an impostor.';
+  $('tw-features').innerHTML = `<div class="tw-feat">${Object.entries(t.names).map(([k, n]) => {
+    const autoKey = { predictions: 'predictions', meetingPolls: 'meetings', chatVote: 'meetings', lobbyPoll: 'lobbyPoll', mvpPoll: 'mvpPoll' }[k];
+    return `<span>${esc(n)}</span><button class="b${t.features[k] ? ' on' : ''}" data-twf="${k}">${t.features[k] ? 'On' : 'Off'}</button>${autoKey ? `<button class="b${t.auto[autoKey] ? ' on' : ''}" data-twa="${autoKey}" title="Starts by itself">${t.auto[autoKey] ? 'Auto' : 'By hand'}</button>` : '<span></span>'}`;
+  }).join('')}</div>`;
+  if (!busy) {
+    $('tw-client').value = t.clientId || ''; $('tw-delay').value = t.delaySeconds; $('tw-psec').value = t.predictionSeconds; $('tw-msec').value = t.meetingSeconds;
+    $('tw-mode').value = t.meetingMode; $('tw-reveal').checked = !!t.revealAtEject;
+    const lobbies = (DESK && DESK.lobbies || []).map(l => l.lobby);
+    $('tw-featured').innerHTML = `<option value="">The lobby on stream</option>` + lobbies.map(l => `<option${l === t.featured ? ' selected' : ''}>${esc(l)}</option>`).join('');
+  }
+  $('tw-log').innerHTML = t.log.map(l => `<div><span>${clock(l.at)}</span>${esc(l.text)}</div>`).join('');
+}
+$('tw-card').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.closest('summary')) e.preventDefault();
+  if (b.id === 'tw-off') return twDo({ action: 'off', on: String(!(TW && TW.off)) });
+  if (b.id === 'tw-test') return twDo({ action: 'test', on: String(!(TW && TW.testMode)) });
+  if (b.id === 'tw-sign') return twDo({ action: TW && TW.signedIn ? 'signout' : 'signin' });
+  if (b.dataset.tws) return twDo({ action: 'start', kind: b.dataset.tws });
+  if (b.dataset.twp) return twDo({ action: 'prediction', do: b.dataset.twp, outcome: b.dataset.out || '' });
+  if (b.hasAttribute('data-twendpoll')) return twDo({ action: 'endpoll' });
+  if (b.dataset.twf) return twDo({ action: 'feature', name: b.dataset.twf, on: String(!(TW && TW.features[b.dataset.twf])) });
+  if (b.dataset.twa) return twDo({ action: 'auto', name: b.dataset.twa, on: String(!(TW && TW.auto[b.dataset.twa])) });
+  if (b.dataset.twred) { const sel = $('tw-card').querySelector(`[data-twclip="${CSS.escape(b.dataset.twred)}"]`); return twDo({ action: 'redemption', id: b.dataset.twred, on: b.dataset.ok, clip: sel ? sel.value : '' }); }
+});
+$('tw-card').addEventListener('change', e => {
+  const id = e.target.id;
+  if (id === 'tw-client') twDo({ action: 'clientId', value: e.target.value });
+  else if (id === 'tw-delay') twDo({ action: 'delay', value: e.target.value });
+  else if (id === 'tw-psec') twDo({ action: 'predictionSeconds', value: e.target.value });
+  else if (id === 'tw-msec') twDo({ action: 'meetingSeconds', value: e.target.value });
+  else if (id === 'tw-mode') twDo({ action: 'meetingMode', value: e.target.value });
+  else if (id === 'tw-featured') twDo({ action: 'featured', value: e.target.value });
+  else if (id === 'tw-reveal') twDo({ action: 'revealAtEject', on: String(e.target.checked) });
+});
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-cardshow]'); if (!b) return;
+  e.stopPropagation(); show(b.dataset.cardshow, 'full');
+}, true);
 function renderVoice() {
   const v = LVOICE; if (!v) return;
   const o = v.obs || { volume: {}, offset: {}, inputs: [], sources: [] };

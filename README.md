@@ -462,6 +462,42 @@ the caster's PC and off stream.
     ended, or abandons it) is **INTERRUPTED**: a card, and that game stays out of the standings
     on stream until you pick **Count**, **Void** (posts `!void <game> interrupted`) or **Replay**
     (void it, and a card to replay it).
+* **Twitch:** the **Twitch** card. Set up once:
+  1. At dev.twitch.tv → Your Console, register an application with client type **Public**
+     (any OAuth redirect URL, e.g. `http://localhost`).
+  2. Paste its Client ID into the card.
+  3. Press **Sign in**: enter the code shown at twitch.tv/activate, signed in as the channel.
+
+  The Button keeps the sign-in fresh (it's in `twitch-token.json` on this PC only) and listens to
+  the channel with EventSub. Settings are in `twitch.json`. Polls, predictions and channel point
+  rewards need **Affiliate or Partner** (the card says so if the channel isn't); the !sus vote and
+  Chat Detective work on any channel. Twitch allows one poll and one prediction at a time; polls
+  have 2–5 choices of up to 25 characters and last 15–1800 s; predictions have 2–10 outcomes and
+  a 30–1800 s window. The Button keeps to those. **Stream delay** (0 by default) holds every
+  action back so it matches what viewers see.
+  * **Predictions:** "LJ: Impostors or Crewmates?" opens when a game starts in the featured lobby
+    (the one you pick, else the one on stream), locks after 90 s and resolves when the game ends;
+    an interrupted game cancels it and everyone's points go back. By hand: **First to finish**
+    (which lobby ends its game first) and **More wins** (more impostor or crew wins across the
+    lobbies playing). Lock, cancel or resolve from the card any time.
+  * **Meetings** in the lobby on stream: a "Who's the impostor?" poll when five or fewer are alive,
+    else a **!sus name** chat vote (a full or first name, in-game name or colour; one vote per
+    viewer, the latest counts). The stream shows CHAT THINKS with live bars and, after the
+    ejection, what chat thought and who went. Whether chat was right is shown when the game ends
+    (tournament lobbies don't confirm ejects; tick the setting if yours do).
+  * **Chat Detective:** each !sus vote for a real impostor scores; the leaderboard is in
+    intermission, and the round's best get a shoutout in chat and on stream when it starts.
+  * **Which lobby next?** in a calm moment (by hand, or by itself with Auto): chat's pick becomes a
+    card with a **Put it on** button. Nothing switches until you press it.
+  * **Round MVP:** a poll of the round's top five from the standings when intermission starts.
+  * **Channel points:** The Button makes "Request a replay" and "Shoutout a player". Requests wait in
+    the card: approve a replay (pick the clip) or a shoutout (their player card goes up and chat is
+    told), or deny it (points back). Shoutouts must name someone on the roster; a filter turns
+    away bad words at once, with the points back.
+  * **Nothing gives impostors away:** options are shuffled, players are listed by real name only,
+    and nothing from the caster's own view is used.
+  * **Test mode:** a fake Affiliate channel with a pretend audience (votes, !sus, redemptions), so
+    all of it can be tried with Simulation and nothing is sent. **Twitch off** stops everything.
 * **Simulation:** the Simulation button plays four fake lobbies (with stand-in video in OBS, or
   stand-in clips made with ffmpeg when OBS isn't connected), to try everything above without
   real games. In simulation each lobby's health row has test buttons: Video, Audio, Data, All

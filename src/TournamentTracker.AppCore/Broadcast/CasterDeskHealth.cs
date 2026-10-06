@@ -27,6 +27,10 @@ namespace TournamentTracker.App.Broadcast
     public sealed partial class CasterDesk
     {
         public HealthSettings HealthConfig { get; set; }
+        /// <summary>Every live event from a lobby (not late ones), as it's taken: Twitch (Part 23) follows the games from here.</summary>
+        public event Action<string, JsonElement>? Fed;
+        /// <summary>A game was cut short (Twitch cancels its prediction).</summary>
+        public event Action<Interruption>? Interrupted;
         /// <summary>health.json (thresholds and what happens), next to The Button's other files.</summary>
         public string? HealthPath { get; }
         public LobbyHealth Health { get; }
@@ -132,6 +136,14 @@ namespace TournamentTracker.App.Broadcast
             }
         }
 
+        /// <summary>A card from elsewhere in The Button (Twitch: chat's pick for the next lobby, with a button to put it on).</summary>
+        public Card AddNotice(string lobby, string rule, string tier, string text, double value, double? seconds, string? action = null)
+        {
+            var card = SystemCard(lobby, rule, tier, text, value, seconds);
+            card.Action = action;
+            return card;
+        }
+
         // ---- Games cut short ---------------------------------------------------------------------
 
         /// <summary>Follows each lobby's game from its start to its end, and notices one that never ended.</summary>
@@ -174,6 +186,7 @@ namespace TournamentTracker.App.Broadcast
             var card = SystemCard(lobby, "interrupted", "must", $"INTERRUPTED: {game} (round {round}): {why}. Not in the standings until you count, void or replay it.", 95, null);
             card.Interruption = it.Id;
             it.CardId = card.Id;
+            Interrupted?.Invoke(it);
         }
 
         /// <summary>Games kept out of the standings: interrupted and not counted.</summary>
