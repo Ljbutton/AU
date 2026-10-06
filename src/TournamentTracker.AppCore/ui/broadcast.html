@@ -221,7 +221,7 @@ function statusBar() {
       ${playing && l.crew != null ? `<span class="ct">${ICON.crew('#d6e0f0')}${l.crew}</span><span class="ct">${ICON.crew('#ff2d55')}${l.imps}</span><span class="tk">${l.tasks ?? 0}%</span>` : ''}
       ${sab}<span class="ph ${l.online ? l.phase : 'menu'}">${(l.online ? PH[l.phase] || l.phase : 'Offline').toUpperCase()}</span></div>`;
   }).join('');
-  put('statusbar', `<div class="bar">${cells}</div>`, { left: '0px', bottom: '0px', width: S.canvas.w + 'px', fontSize: (rows > 1 ? 24 : 28) + 'px' });
+  put('statusbar', `<div class="bar" style="flex-wrap:${rows > 1 ? 'wrap' : 'nowrap'}">${cells}</div>`, { left: '0px', bottom: '0px', width: S.canvas.w + 'px', fontSize: (rows > 1 ? 24 : 28) + 'px' });
 }
 
 // Standings: the round's (or the tournament's) top ten, from the tournament's own scoring.
@@ -300,7 +300,7 @@ function winCounter() {
   const b = k => now - winsSeen.at[k] < 1300 ? ' class="bump"' : '';
   const html = `<div class="wins"><span class="i">IMPOSTOR WINS<b${b('i')}>${w.impostors}</b></span><span class="sep">·</span><span class="c">CREWMATE WINS<b${b('c')}>${w.crew}</b></span><small>${w.scope === 'round' ? 'THIS ROUND' : 'TODAY'}</small></div>`;
   if (S.layout === 'intermission') put('wins', html, { left: '110px', bottom: '150px', right: 'auto', top: 'auto', fontSize: '40px' });
-  else if (S.elements.winCounter) put('wins', html, { right: '40px', bottom: '84px', left: 'auto', top: 'auto', fontSize: '28px' });
+  else if (S.elements.winCounter) put('wins', html, { right: '40px', bottom: (S.elements.statusBar ? (Object.keys(S.lobbies).length * 230 > S.canvas.w - 20 ? 130 : 84) : 30) + 'px', left: 'auto', top: 'auto', fontSize: '28px' });
 }
 // A player's card: on their lobby's tile in a multi-view, else bottom left.
 function playerCard() {
@@ -310,7 +310,8 @@ function playerCard() {
   put(`pcard-${c.id}`, `<div class="pcard"><div class="nm">${sw(d.color)}${esc(d.name)}${d.pronunciation ? `<span class="say">say “${esc(d.pronunciation)}”</span>` : ''}</div>
       <div class="rk">${rank}</div>
       <div class="rec"><span class="i">IMPOSTOR ${d.imp.w}–${d.imp.l}</span><span class="c">CREW ${d.crew.w}–${d.crew.l}</span><span>${d.kills} KILL${d.kills === 1 ? '' : 'S'} TODAY</span></div></div>`,
-    { left: c.x + 40 * k + 'px', top: c.y + c.h - (c.full ? 330 : 250 * k) + 'px', fontSize: 34 * k + 'px' });
+    // Above the status bar when the tile reaches down to it.
+    { left: c.x + 40 * k + 'px', top: Math.min(c.y + c.h - (c.full ? 330 : 250 * k), S.canvas.h - (S.elements.statusBar ? 150 : 40) - 190 * k) + 'px', fontSize: 34 * k + 'px' });
 }
 
 // More elements are added by later parts (sponsors, alerts, counters…).

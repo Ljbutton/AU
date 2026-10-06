@@ -56,6 +56,8 @@ namespace TournamentTracker.App.Broadcast
         public bool Danger { get; set; }
         public string? DangerText { get; set; }
         public string? MeetingText { get; set; }
+        /// <summary>The meeting event (caller and body), for the meeting card's players and replay.</summary>
+        public JsonElement? MeetingSource { get; set; }
         public bool Video { get; set; }
         public double? Clock { get; set; }
         /// <summary>The spectator view on the host's screen (lit, vision, "!", eye, focus), as it last said.</summary>
@@ -188,7 +190,7 @@ namespace TournamentTracker.App.Broadcast
 
             State(l, now, "lobby", "lobby", !inGame, l.Phase == "ended" ? "Game over" : l.Phase == "menu" ? "Not in a lobby" : "In the lobby");
             State(l, now, "inGame", "inGame", inGame, "Playing");
-            State(l, now, "meeting", "meeting", l.Phase == "meeting", l.MeetingText ?? "Meeting");
+            State(l, now, "meeting", "meeting", l.Phase == "meeting", l.MeetingText ?? "Meeting", l.MeetingSource);
             State(l, now, "danger", "danger", inGame && l.Danger, l.DangerText ?? "Danger: an impostor is alone with a crewmate");
             var crit = c.Rule("criticalSabotage");
             bool critical = inGame && l.SabotageCritical && l.SabotageLeft.HasValue && l.SabotageLeft.Value < (crit.Threshold ?? 15);
@@ -201,14 +203,14 @@ namespace TournamentTracker.App.Broadcast
             State(l, now, "closeCounts", "closeCounts", inGame && imps > 0 && crew - imps > 1 && crew - imps <= (c.Rule("closeCounts").Threshold ?? 2), $"Close: {crew} crew v {imps}");
         }
 
-        private void State(LobbyLive l, DateTime now, string key, string rule, bool on, string text)
+        private void State(LobbyLive l, DateTime now, string key, string rule, bool on, string text, JsonElement? source = null)
         {
             l.Plays.TryGetValue(key, out var p);
             if (on)
             {
                 if (p == null || p.Ended != null)
                 {
-                    p = new Play { Key = key, Rule = rule, IsState = true, At = now, Updated = now, Text = text };
+                    p = new Play { Key = key, Rule = rule, IsState = true, At = now, Updated = now, Text = text, Source = source };
                     l.Plays[key] = p;
                     PlayChanged?.Invoke(l.Lobby, p);
                 }
@@ -277,13 +279,15 @@ namespace TournamentTracker.App.Broadcast
                     if (who == null) Add(l, now, $"eject:{Long(m, "t")}", "ejectSkipped", Bool(m, "tie") == true ? "Tied vote: nobody ejected" : "Vote skipped", m);
                     else Add(l, now, $"eject:{Long(m, "t")}", "eject", $"{who} ejected: {(Bool(m, "wasImpostor") == true ? "Impostor" : "not the Impostor")}", m);
                     l.MeetingText = null;
+                    l.MeetingSource = null;
                     break;
                 }
                 case "meeting":
+                    l.MeetingSource = m.Clone();
                     l.MeetingText = Bool(m, "emergency") == true
                         ? $"{Name("caller") ?? "Someone"} called an emergency meeting"
                         : $"{Name("caller") ?? "Someone"} reported {Name("body") ?? "a"}'s body";
-                    if (l.Plays.TryGetValue("meeting", out var mp) && mp.Ended == null) { mp.Text = l.MeetingText; mp.Updated = now; PlayChanged?.Invoke(l.Lobby, mp); }
+                    if (l.Plays.TryGetValue("meeting", out var mp) && mp.Ended == null) { mp.Text = l.MeetingText; mp.Updated = now; mp.Source = l.MeetingSource; PlayChanged?.Invoke(l.Lobby, mp); }
                     break;
                 case "danger":
                     if (Str(m, "state") == "start")
@@ -307,6 +311,7 @@ namespace TournamentTracker.App.Broadcast
                     l.Players = m.TryGetProperty("players", out var ps) && ps.ValueKind == JsonValueKind.Array ? ps.EnumerateArray().Select(x => x.Clone()).ToList() : new List<JsonElement>();
                     if (m.TryGetProperty("roster", out var rs) && rs.ValueKind == JsonValueKind.Array) People(l, rs, replace: true);
                     l.DangerText = l.MeetingText = null;
+                    l.MeetingSource = null;
                     foreach (var key in l.Plays.Keys.Where(k => !l.Plays[k].IsState).ToList()) l.Plays.Remove(key);
                     Add(l, now, "gameStart", "gameStart", $"Game started on {l.Map ?? "the map"}", m);
                     break;

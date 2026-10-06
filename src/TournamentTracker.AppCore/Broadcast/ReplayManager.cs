@@ -291,7 +291,7 @@ namespace TournamentTracker.App.Broadcast
             catch (Exception e)
             {
                 Problem = e.Message;
-                return "Replay failed: " + e.Message;
+                return (clip.Rule == "montage" ? "Montage failed: " : "Replay failed: ") + e.Message;
             }
         }
 
