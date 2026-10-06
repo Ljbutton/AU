@@ -6,12 +6,18 @@
 :root{--primary:#1fa143;--accent:#ffc15a;--danger:#ff2d55;--text:#fff;--panel:rgba(8,10,14,.82);--font:"Rajdhani";--head:"Teko"}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}
 #stage{position:absolute;left:0;top:0;transform-origin:0 0;color:var(--text);font:700 26px/1.15 var(--font),"Segoe UI",system-ui,sans-serif}
-.el{position:absolute;transition:opacity .45s ease}
+.el{position:absolute;transition:opacity .45s ease,left .6s cubic-bezier(.22,.8,.24,1),top .6s cubic-bezier(.22,.8,.24,1),right .6s cubic-bezier(.22,.8,.24,1),bottom .6s cubic-bezier(.22,.8,.24,1),font-size .6s cubic-bezier(.22,.8,.24,1)}
+/* New pieces fade and slide in (on the inner box: the outer one may be centred with a transform). */
+.el.enter>*{animation:elin .55s cubic-bezier(.22,.8,.24,1)}
+@keyframes elin{from{opacity:0;transform:translateY(.5em)}}
+@media (prefers-reduced-motion:reduce){.el{transition:opacity .3s}.el.enter>*{animation:none}}
 .hide{opacity:0!important;pointer-events:none}
 img.sw{display:inline-block;height:1.1em;width:auto;margin-right:.25em;vertical-align:-.22em;filter:drop-shadow(0 .05em .08em rgba(0,0,0,.6))}
 /* Lobby label */
 .label{display:flex;align-items:center;gap:.4em;padding:.18em .55em .12em;border-radius:.3em;background:var(--panel);border-left:.22em solid var(--primary);font:700 1em/1 var(--head),sans-serif;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
 .label .num{color:var(--primary)}
+.label .twi,.t3h .twi{height:1em;width:1em;border-radius:.22em;flex:none}
+.label .tn{text-transform:none;letter-spacing:.02em}
 .label .ph{font:700 .62em/1 var(--font),sans-serif;padding:.22em .45em;border-radius:.3em;background:rgba(255,255,255,.14);letter-spacing:.06em}
 .label .ph.meeting{background:var(--accent);color:#111}
 .label .ph.ended{background:rgba(255,255,255,.3)}
@@ -139,6 +145,31 @@ img.sw{display:inline-block;height:1.1em;width:auto;margin-right:.25em;vertical-
 .pcard .rec span{padding:.2em .45em;border-radius:.25em;background:rgba(255,255,255,.1)}
 .pcard .rec .i{color:#ff7a90}.pcard .rec .c{color:#7fd3ff}
 @keyframes pcin{from{opacity:0;transform:translateX(-1em)}}
+/* Top 3 of a lobby's round, top left, taking turns through the lobbies */
+.t3{min-width:11.5em;background:var(--panel);border-radius:.3em;border-left:.22em solid var(--primary);padding:.4em .6em .45em;box-shadow:0 .4em 1.4em rgba(0,0,0,.4);animation:t3in .6s cubic-bezier(.22,.8,.24,1)}
+@keyframes t3in{from{opacity:0;transform:translateX(-.8em)}}
+.t3h{display:flex;align-items:center;gap:.35em;font:700 .95em/1 var(--head),sans-serif;letter-spacing:.04em;margin-bottom:.3em;white-space:nowrap}
+.t3h small{margin-left:auto;padding-left:.8em;font:700 .55em/1 var(--font),sans-serif;letter-spacing:.14em;opacity:.7}
+.t3 .r{display:flex;align-items:center;gap:.4em;font-size:.82em;padding:.12em 0;font-variant-numeric:tabular-nums;white-space:nowrap}
+.t3 .r .n{font:700 1.15em/1 var(--head),sans-serif;color:var(--primary);width:.9em;text-align:center}
+.t3 .r .p{margin-left:auto;padding-left:1em;font-weight:700}
+.t3 .dots{display:flex;gap:.25em;margin-top:.35em}.t3 .dots i{width:.35em;height:.35em;border-radius:50%;background:rgba(255,255,255,.25)}.t3 .dots i.on{background:var(--primary)}
+/* Stats ticker along the bottom: leader boards taking turns, five names at a time */
+.tk{box-sizing:border-box;display:flex;align-items:stretch;height:2.5em;background:linear-gradient(180deg,rgba(14,16,20,.94),rgba(4,5,7,.97));border-top:.1em solid var(--primary);overflow:hidden}
+.tk-l{display:flex;flex-direction:column;justify-content:center;gap:.12em;padding:0 1.6em 0 1.1em;background:var(--primary);color:#fff;clip-path:polygon(0 0,100% 0,calc(100% - .9em) 100%,0 100%);min-width:9.5em}
+.tk-l b{font:700 1.05em/1 var(--head),sans-serif;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.tk-l small{font:700 .5em/1 var(--font),sans-serif;letter-spacing:.18em;opacity:.85}
+.tk-r{flex:1;display:flex;align-items:center;gap:1.6em;padding:0 1.2em;animation:tkin .55s cubic-bezier(.22,.8,.24,1);min-width:0}
+@keyframes tkin{from{opacity:0;transform:translateY(60%)}}
+.tk-it{display:flex;align-items:center;gap:.35em;white-space:nowrap;font-size:.86em}
+.tk-it b{font:700 1.15em/1 var(--head),sans-serif;color:var(--primary)}
+.tk-it i{font-style:normal;font-weight:700;color:var(--accent);margin-left:.2em;font-variant-numeric:tabular-nums}
+.tk-brand{display:flex;align-items:center;padding:0 1.1em;font:700 .7em/1 var(--head),sans-serif;letter-spacing:.14em;text-transform:uppercase;opacity:.65;white-space:nowrap}
+/* Multiview presented by */
+.mvs{display:flex;align-items:center;gap:.5em;padding:.35em .8em;border-radius:.3em;background:var(--panel);border:.08em solid rgba(255,255,255,.18);box-shadow:0 .4em 1.6em rgba(0,0,0,.55);white-space:nowrap}
+.mvs small{font:700 .55em/1 var(--font),sans-serif;letter-spacing:.16em;opacity:.75}
+.mvs b{font:700 1em/1 var(--head),sans-serif;letter-spacing:.05em;text-transform:uppercase}
+.mvs img{height:1.4em;max-width:6em;object-fit:contain}
 /* Status bar */
 .bar{display:flex;flex-wrap:wrap;gap:6px;padding:6px 10px;box-sizing:border-box;background:linear-gradient(transparent,rgba(0,0,0,.55) 30%)}
 .cell{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:.45em;padding:.25em .55em;border-radius:.3em;background:var(--panel);border:.08em solid rgba(255,255,255,.12);font-size:.82em;white-space:nowrap;overflow:hidden;position:relative}
@@ -173,6 +204,8 @@ const ICON = {
   comms: `<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M5 19 12 7l7 12M8.5 13h7M4 8a9 9 0 0 1 3-4M20 8a9 9 0 0 0-3-4"/></svg>`,
   other: `<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 1 21h22zm-1 7h2v6h-2zm0 8h2v2h-2z"/></svg>`,
 };
+// Twitch's logo, beside a host's channel name (so viewers can find their stream).
+const TWI = '<img class="twi" src="data:image/png;base64,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" alt="Twitch">';
 const CNT = { crew: `<img class="sw" src="/crew/7.png" alt="crew">`, imp: `<img class="sw" src="/crew/0.png" alt="impostors">` };
 const sabIcon = s => ({ Reactor: ICON.reactor, 'Seismic stabilizers': ICON.reactor, 'Crash course': ICON.reactor, O2: ICON.o2, Lights: ICON.lights, Comms: ICON.comms }[s] || ICON.other);
 const PH = { ingame: 'In game', meeting: 'Meeting', ended: 'Game over', lobby: 'Lobby', menu: 'Offline' };
@@ -181,7 +214,7 @@ const PH = { ingame: 'In game', meeting: 'Meeting', ended: 'Game over', lobby: '
 const shown = {};
 function put(id, html, css) {
   let el = shown[id];
-  if (!el) { el = document.createElement('div'); el.className = 'el'; el.dataset.id = id; stage.appendChild(el); shown[id] = el; el.dataset.html = ''; }
+  if (!el) { el = document.createElement('div'); el.className = 'el enter'; el.dataset.id = id; stage.appendChild(el); shown[id] = el; el.dataset.html = ''; setTimeout(() => el.classList.remove('enter'), 700); }
   if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
   Object.assign(el.style, css || {});
   el.classList.remove('hide');
@@ -195,7 +228,7 @@ let S = null;
 const ELEMENTS = {
   lobbyLabels(slot, l, k) {
     if (!l) return;
-    put(`label-${slot.slot}`, `<div class="label"><span class="num">#${l.number}</span>${esc(slot.lobby)}${l.reconnecting ? '<span class="ph rc">RECONNECTING</span>' : `<span class="ph ${l.phase}">${PH[l.phase] || l.phase}</span>`}</div>`,
+    put(`label-${slot.slot}`, `<div class="label"><span class="num">#${l.number}</span>${l.twitch ? `${TWI}<span class="tn">${esc(l.twitch)}</span>` : esc(slot.lobby)}${l.reconnecting ? '<span class="ph rc">RECONNECTING</span>' : `<span class="ph ${l.phase}">${PH[l.phase] || l.phase}</span>`}</div>`,
       { left: slot.x + 18 * k + 'px', top: slot.y + 14 * k + 'px', fontSize: 34 * k + 'px' });
   },
   impostorTags(slot, l, k) {
@@ -256,6 +289,33 @@ function statusBar() {
   put('statusbar', `<div class="bar" style="flex-wrap:${rows > 1 ? 'wrap' : 'nowrap'}">${cells}</div>`, { left: '0px', bottom: '0px', width: S.canvas.w + 'px', fontSize: (rows > 1 ? 24 : 28) + 'px' });
 }
 
+// Top 3: each playing lobby's top three for its own round, top left, a different lobby every 8 s.
+const LEFT_BUSY = () => S.standingsChange || S.layout === 'intermission' || S.layout === 'slate' || S.layout === 'replay';
+function top3() {
+  const list = S.top3; if (!list || !list.length || LEFT_BUSY()) return;
+  const i = Math.floor(Date.now() / 8000) % list.length, x = list[i];
+  const rows = x.rows.map(r => `<div class="r"><span class="n">${r.rank}</span>${sw(r.color)}<span>${esc(r.name)}</span><span class="p">${r.points}</span></div>`).join('');
+  const dots = list.length > 1 ? `<div class="dots">${list.map((_, j) => `<i${j === i ? ' class="on"' : ''}></i>`).join('')}</div>` : '';
+  put('top3', `<div class="t3" data-k="${esc(x.lobby)}"><div class="t3h">${x.twitch ? TWI + esc(x.twitch) : esc(x.lobby)}<small>TOP 3 · ROUND ${x.round}</small></div>${rows}${dots}</div>`,
+    { left: '24px', top: (S.slots.length > 1 ? 66 : 78) + 'px', fontSize: '26px' });
+}
+// The stats ticker: leader boards along the bottom, five names at a time, a new page every 7 s.
+function ticker() {
+  const boards = S.ticker; if (!boards || !boards.length || S.layout === 'intermission' || S.layout === 'slate') return;
+  const pages = boards.flatMap(b => b.rows.length > 5 ? [[b, 0], [b, 1]] : [[b, 0]]);
+  const [b, p] = pages[Math.floor(Date.now() / 7000) % pages.length];
+  const items = b.rows.slice(p * 5, p * 5 + 5).map(r => `<span class="tk-it"><b>${r.rank}</b>${sw(r.color)}${esc(r.name)}<i>${esc(r.value)}</i></span>`).join('');
+  put('ticker', `<div class="tk" style="width:${S.canvas.w}px"><div class="tk-l"><b>${esc(b.title)}</b><small>TOP ${b.rows.length} · ${p ? '6–' + b.rows.length : '1–' + Math.min(5, b.rows.length)}</small></div><div class="tk-r">${items}</div><div class="tk-brand">${esc((S.theme && S.theme.tournamentName) || '')}</div></div>`,
+    { left: '0px', bottom: '0px', fontSize: '26px' });
+}
+const BOTTOM = () => S.ticker && S.ticker.length && S.layout !== 'intermission' && S.layout !== 'slate' ? 66 : S.elements.statusBar ? (Object.keys(S.lobbies).length * 230 > S.canvas.w - 20 ? 130 : 84) : 0;
+// A multiview with 4 or more lobbies, presented by a sponsor: a badge where the pictures meet.
+function multiviewSponsor() {
+  const m = S.extras && S.extras.multiviewSponsor; if (!m || (S.layout !== '4up' && S.layout !== 'grid')) return;
+  put('mvsp', `<div class="mvs"><small>MULTIVIEW PRESENTED BY</small>${m.logo ? `<img src="${esc(m.logo)}" alt="">` : ''}<b>${esc(m.name)}</b></div>`,
+    { left: S.canvas.w / 2 + 'px', top: S.canvas.h / 2 - 10 + 'px', transform: 'translate(-50%,-100%)', fontSize: '24px' });   // just above the seam, clear of the lower pictures' labels
+}
+
 // Standings: the round's (or the tournament's) top ten, from the tournament's own scoring.
 function standings() {
   const st = S.standings; if (!st || !st.rows.length || S.layout === 'intermission' || S.layout === 'slate') return;
@@ -274,7 +334,7 @@ function standingsChange() {
 // A storyline note the caster put up, as a lower third.
 function storyline() {
   if (!S.storyline) return;
-  put('storyline', `<div class="note"><b>Storyline</b><span>${rich(S.storyline)}</span></div>`, { left: '60px', bottom: '110px', fontSize: '34px' });
+  put('storyline', `<div class="note"><b>Storyline</b><span>${rich(S.storyline)}</span></div>`, { left: '60px', bottom: BOTTOM() + 30 + 'px', fontSize: '34px' });
 }
 // Points on the line: what each ending does to the lobby's table, near the end of a game.
 ELEMENTS.pointsOnTheLine = (slot, l, k) => {
@@ -335,7 +395,7 @@ function winCounter() {
   const b = k => now - winsSeen.at[k] < 1300 ? ' class="bump"' : '';
   const html = `<div class="wins"><span class="i">IMPOSTOR WINS<b${b('i')}>${w.impostors}</b></span><span class="sep">·</span><span class="c">CREWMATE WINS<b${b('c')}>${w.crew}</b></span><small>${w.scope === 'round' ? 'THIS ROUND' : 'TODAY'}</small></div>`;
   if (S.layout === 'intermission' || S.layout === 'slate') put('wins', html, { left: '110px', bottom: '150px', right: 'auto', top: 'auto', fontSize: '40px' });
-  else if (S.elements.winCounter) put('wins', html, { right: '40px', bottom: (S.elements.statusBar ? (Object.keys(S.lobbies).length * 230 > S.canvas.w - 20 ? 130 : 84) : 30) + 'px', left: 'auto', top: 'auto', fontSize: '28px' });
+  else if (S.elements.winCounter) put('wins', html, { right: '40px', bottom: (BOTTOM() || 10) + 20 + 'px', left: 'auto', top: 'auto', fontSize: '28px' });
 }
 // A player's card: on their lobby's tile in a multi-view, else bottom left.
 function playerCard() {
@@ -346,7 +406,7 @@ function playerCard() {
       <div class="rk">${rank}</div>
       <div class="rec"><span class="i">IMPOSTOR ${d.imp.w}–${d.imp.l}</span><span class="c">CREW ${d.crew.w}–${d.crew.l}</span><span>${d.kills} KILL${d.kills === 1 ? '' : 'S'} TODAY</span></div></div>`,
     // Above the status bar when the tile reaches down to it.
-    { left: c.x + 40 * k + 'px', top: Math.min(c.y + c.h - (c.full ? 330 : 250 * k), S.canvas.h - (S.elements.statusBar ? 150 : 40) - 190 * k) + 'px', fontSize: 34 * k + 'px' });
+    { left: c.x + 40 * k + 'px', top: Math.min(c.y + c.h - (c.full ? 330 : 250 * k), S.canvas.h - BOTTOM() - 60 - 190 * k) + 'px', fontSize: 34 * k + 'px' });
 }
 
 // Part 22: a lobby that dropped: its picture is covered (it would be frozen or black) until it's back.
@@ -361,7 +421,7 @@ const TWK = { prediction: 'PREDICTION', poll: 'POLL', chat: 'CHAT VOTE' };
 function twIcon(o) { return o.icon ? (o.icon === 'imp' ? CNT.imp : CNT.crew) : o.color != null ? sw(o.color) : ''; }
 function twitch() {
   const t = S.extras && S.extras.twitch; if (!t || S.layout === 'replay') return;
-  const pos = S.standings && S.layout !== 'intermission' && S.layout !== 'slate' ? { left: '40px', right: 'auto' } : { right: '40px', left: 'auto' };
+  const pos = S.standings && S.layout !== 'intermission' && S.layout !== 'slate' ? { left: '40px', right: 'auto', top: S.top3 && S.top3.length ? '300px' : '120px' } : { right: '40px', left: 'auto' };
   // Between rounds: under the storyline on the left, clear of the standings.
   const css = S.layout === 'intermission' || S.layout === 'slate' ? { left: '110px', right: 'auto', top: '430px', fontSize: '34px' } : Object.assign({ top: '120px', fontSize: '34px' }, pos);
   const a = t.active, r = t.result;
@@ -381,8 +441,8 @@ function twitch() {
 }
 
 // More elements are added by later parts (sponsors, alerts, counters…).
-const GLOBAL = { intermission, statusBar, standings, standingsChange, storyline, sponsorBreak, winCounter, playerCard, alerts, twitch };
-const ALWAYS = new Set(['sponsorBreak', 'intermission', 'winCounter', 'playerCard', 'twitch']);
+const GLOBAL = { intermission, statusBar, top3, ticker, standings, standingsChange, storyline, sponsorBreak, multiviewSponsor, winCounter, playerCard, alerts, twitch };
+const ALWAYS = new Set(['sponsorBreak', 'multiviewSponsor', 'intermission', 'winCounter', 'playerCard', 'twitch']);
 
 function render() {
   const th = S.theme || {};

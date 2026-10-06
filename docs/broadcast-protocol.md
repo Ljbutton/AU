@@ -37,7 +37,7 @@ Among Us + mod ──(local control port, /feed)──▶ host's Button ──(s
 | Field | Type | |
 |---|---|---|
 | `v` | int | protocol version (1) |
-| `type` | string | `event`, `snap`, `track` (from the mod); `voice`, `health`, `skip` (from the host's page) |
+| `type` | string | `event`, `snap`, `track` (from the mod); `voice`, `health`, `skip`, `host` (from the host's page) |
 | `kind` | string | events only: see below |
 | `lobby` | string | the host's lobby label, else the lobby code |
 | `round` | int | tournament round |
@@ -100,6 +100,7 @@ The caster's tools show impostors; nothing here ever goes to players.
 | `voice` | `on`, `sending`, `problem`, `discord`, `game` (capture states), `voiceDb`, `gameDb`, `mic` |
 | `health` | `video` (`ok`/`lost`/`unknown`, from VDO.Ninja's stats), `queued` (messages waiting to send) |
 | `skip` | `src`, `seq`: a snap or track the page dropped because it got too old while the link was down |
+| `host` | `twitch`: the host's Twitch channel name from their Button's Settings (or null). Sent every 2 s with `health`; Red Alert shows it, with Twitch's logo, on the lobby's label and its top 3 |
 
 ## Back to the host (`type: "rpcs"` on the same link)
 

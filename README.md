@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.23**, a beta.
+The current release is **v0.1.24**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -457,23 +457,42 @@ the caster's PC and off stream.
 * **On-stream graphics:** one transparent 1920×1080 page (`/broadcast` on the caster port; Red
   Alert adds it as **TT Broadcast** on top of every TT scene) that places each graphic on the
   right lobby in every layout. Colours, fonts and logo are in `broadcast.json`; switch each
-  graphic in the **On-stream graphics** card: lobby labels, a status bar with a cell per lobby
-  (on air highlighted, pulsing at very high and must show), impostor tags per feed (dead crossed
-  out), a big reactor/O2 countdown with the fixing progress (lights and comms as a small icon),
-  grid tiles, standings, points on the line, standings changes, storyline notes, off-screen
-  alerts, the win counter and player cards.
+  graphic on the **Graphics** page:
+  * **Lobby labels:** the host's Twitch channel with Twitch's logo (so viewers can find their
+    stream), else the lobby's name. Hosts type it in The Button: Settings → **Your Twitch**.
+  * **Top 3:** top left, each playing lobby's top three for its own round, a different lobby
+    every 8 s.
+  * **Stats ticker:** along the bottom, leader boards taking turns five names at a time, like a
+    football broadcast: tournament points, sharpest voters (vote %), most kills, impostor win %,
+    task machines and survivors (top 10 of the counted games).
+  * Impostor tags per feed (dead crossed out), a big reactor/O2 countdown with the fixing
+    progress (lights and comms as a small icon), grid tiles, standings, points on the line,
+    standings changes, storyline notes, off-screen alerts, the win counter and player cards.
+  * The status bar (a cell per lobby along the bottom) is still there, off by default: the top 3
+    and the ticker took its place.
+  * Graphics slide to their new places when the layout changes and fade in and out, so a switch
+    is smooth under the swoosh.
 * **Grid:** every active lobby at once in **TT Grid** (1 full, 2 side by side, up to 4×4), each
   tile with its label, a status line, the impostor tag and a border that pulses at high
   priority; empty tiles show a sponsor or the logo. Click a tile (on stream) for full screen.
   **Auto grid** brings it up whenever no lobby is mid-game.
+* **Multiview:** the **Multiview** card on the Live desk has a small live picture of every lobby
+  sending its game. Click the ones you want (they're numbered in the order you pick), then
+  **Send**: one goes full screen, two side by side, four in the quad, three or five and more in
+  the grid. Nothing changes on stream until you press Send.
 * **Stats and storylines:** every game is kept on the caster's PC (`broadcast-games`), and the
   **Standings & storylines** card lists talking points from them (records, streaks, first
   blood, rivalries, who keeps getting voted out, milestones), the ones about players on stream
   first: pin, dismiss, mark used, or put one on stream as a lower third.
 * **Standings** come from the tournament's own scoring (the same tables as the Points page and
-  Discord: `Stats/Scoring.cs` and `Stats/Standings.cs`, rules from the setup code), this round or
-  the whole tournament. Near the end of a game, *points on the line* shows what each ending
-  does to the lobby's table; after each game, arrows show who moved.
+  Discord: `Stats/Scoring.cs` and `Stats/Standings.cs`, rules from the setup code). On the
+  **Standings** page: **Lobby on stream** (the default: the lobby full screen, or slot 1 of a
+  multi-view, in its own round), **Round · every lobby** (that round's totals, all lobbies) or
+  **Tournament**. Lobbies can be in different rounds (a big tournament starts round 2 in one
+  lobby while another finishes round 1): each lobby's table and each round's totals only count
+  their own round's games, and before a lobby's first game of a new round its last round's final
+  table stays up. Near the end of a game, *points on the line* shows what each ending does to
+  the lobby's table; after each game, arrows show who moved.
 * **Montages:** clips are saved by themselves for kills, ejections, meetings, witnessed kills and
   game ends. When a game ends Red Alert builds a 30–60 s montage of it with ffmpeg (each moment
   cut to a few seconds, cropped like replays, a lower third such as "Jake → Maria,
@@ -483,7 +502,9 @@ the caster's PC and off stream.
   pick some, drag them into order and Build montage; that montage is deleted once it has played
   and its clips are marked USED.
 * **Sponsors:** `sponsors.json` (name, logo, tagline, video, placements). Placements: `killcam`
-  ("Kill Cam presented by" on kill replays), `montage` (an opening card), `standings`
+  ("Kill Cam presented by" on kill replays), `replay` ("presented by" on every other replay),
+  `multiview` (a "Multiview presented by" badge while 4 or more lobbies are on screen),
+  `montage` (an opening card), `standings`
   ("Presented by" under the table), `grid` (empty tiles), `break` (a split-screen break, the
   lobby on the left and the sponsor on the right, that ends by itself, and straight back to
   full screen on a must-show play). Every appearance is logged; **Export report** saves a CSV

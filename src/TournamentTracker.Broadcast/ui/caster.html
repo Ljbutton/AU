@@ -427,6 +427,18 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .inter-card .tag{background:var(--red);color:#fff}
 .roster-card summary b,.tw-grid h3{font:700 20px/1 var(--hand);letter-spacing:.06em;text-transform:uppercase}
 .lock-card{border-top:2px solid var(--red)}
+/* Multiview picker: a live picture per lobby sending its game; click to pick (numbered in order), Send puts them on. */
+.mv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:10px}
+.mv-grid:empty::before{content:"Lobbies show here as their hosts turn on Send my game to the caster.";color:var(--muted);font-size:13px}
+.mv{position:relative;border:1px solid var(--line);background:#000;cursor:pointer;text-align:left;padding:0;color:var(--fg);font:inherit;display:block}
+.mv:hover{border-color:#6a6a75}
+.mv.on{border-color:var(--red);box-shadow:0 0 0 2px var(--red)}
+.mv .pv{position:relative;aspect-ratio:16/9;overflow:hidden;pointer-events:none}
+.mv .pv iframe{position:absolute;left:0;top:0;width:1920px;height:1080px;border:0;transform-origin:0 0;background:#000;color-scheme:dark}
+.mv .nm{display:flex;align-items:center;gap:6px;padding:5px 8px;font:600 15px/1 var(--hand);letter-spacing:.06em;text-transform:uppercase;background:#141417}
+.mv .nm small{margin-left:auto;font:600 11px/1 "Segoe UI",sans-serif;letter-spacing:.02em;text-transform:none;color:var(--muted)}
+.mv .no{position:absolute;right:6px;top:6px;min-width:22px;height:22px;display:grid;place-items:center;background:var(--red);color:#fff;font:700 15px/1 var(--hand);padding:2px 5px 0}
+.mv .air{position:absolute;left:6px;top:6px;background:#000c;color:#fff;font:700 10px/1 "Segoe UI",sans-serif;letter-spacing:.14em;padding:4px 6px;border-left:3px solid var(--red)}
 .autoup{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);margin-right:10px;-webkit-app-region:no-drag;white-space:nowrap}
 .autoup input{accent-color:var(--red);margin:0}
 /* Side menu: one page per job. Cards outside the page are hidden with a class, never the hidden attribute,
@@ -506,6 +518,11 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
         <span style="flex:1"></span><button class="b" id="desk-sim" title="Four fake lobbies, for trying it out">Simulation</button></div>
     </div>
   </div>
+  <div class="card mv-card" id="mv-card" data-page="live">
+    <div class="row" style="justify-content:space-between"><div><b>Multiview</b> <span class="muted" id="mv-line">Click the lobbies you want on stream, then Send.</span></div>
+      <div class="row"><button class="b" id="mv-clear">Clear</button><button class="b primary" id="mv-send" disabled>Send</button></div></div>
+    <div class="mv-grid" id="mv-grid"></div>
+  </div>
   <div class="card cast-card" id="cast-card" hidden data-page="live">
     <div class="row" style="justify-content:space-between"><div><b>Caster overlay</b> <span class="muted" id="org-casting"></span></div>
       <div class="row"><label class="muted" style="font-size:13px"><input type="checkbox" id="org-roles"> Count kills (staff view)</label><button class="b primary" id="org-jump" title="Key N">Jump to action</button></div></div>
@@ -539,7 +556,7 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
   </details>
   <details class="card roster-card" id="story-card" open data-page="stories">
     <summary><div><b>Standings &amp; storylines</b> <span class="muted" id="story-line"></span></div>
-      <div class="row"><button class="b" data-scope="round">This round</button><button class="b" data-scope="overall">Tournament</button><button class="b" id="st-show" title="Standings on stream">Standings on stream</button></div></summary>
+      <div class="row"><button class="b" data-scope="lobby" title="The lobby on stream, in its own round (lobbies can be in different rounds)">Lobby on stream</button><button class="b" data-scope="round" title="The round's totals, every lobby">Round · every lobby</button><button class="b" data-scope="overall">Tournament</button><button class="b" id="st-show" title="Standings on stream">Standings on stream</button></div></summary>
     <div class="story-grid">
       <div><table class="pts" id="st-table"></table></div>
       <div class="notes" id="notes"></div>
@@ -687,6 +704,7 @@ async function loadDesk() {
   let r; try { r = await api('GET', '/app/admin/desk'); } catch (e) { return; }
   if (!r || !r.desk) return;
   DESK = r.desk; OBS = r.obs || null; RP = r.replay || null; ROSTER = r.roster || null; r_broadcast = r.broadcast || null; r_story = r.story || null; rpSync = performance.now();
+  PREVIEWS = r.previews || []; TWH = r.twitchHandles || {};
   MONT = r.montages || null; MOMENTS = r.moments || []; SPON = r.sponsors || null; LVOICE = r.voice || null; TW = r.twitch || null;
   receivers(r.receivers || []);
   sendNames(r.names || {});
@@ -743,6 +761,7 @@ function replayButton(c) {
 }
 function renderDesk() {
   if (!DESK) return;
+  renderPicker();
   renderReplay();
   renderRoster();
   renderGfx(r_broadcast);
@@ -935,7 +954,7 @@ function renderStory(st) {
   document.querySelectorAll('[data-scope]').forEach(b => b.classList.toggle('on', b.dataset.scope === st.scope));
   $('st-show').classList.toggle('on', !!(r_broadcast && r_broadcast.elements.standings));
   const key = JSON.stringify(st); if (key === storyKey) return; storyKey = key;
-  $('st-table').innerHTML = st.standings.length ? `<thead><tr><th></th><th class="l">${st.scope === 'overall' || !st.round ? 'Tournament' : 'Round ' + st.round}</th><th>Points</th><th>W-L</th></tr></thead><tbody>` +
+  $('st-table').innerHTML = st.standings.length ? `<thead><tr><th></th><th class="l">${esc(st.title || (st.scope === 'overall' || !st.round ? 'Tournament' : 'Round ' + st.round))}</th><th>Points</th><th>W-L</th></tr></thead><tbody>` +
     st.standings.map(r => `<tr class="${r.advancing ? 'up' : ''}"><td class="rk">${r.rank}</td><td class="l">${sw(r.color)}${esc(r.name)}</td><td class="big">${r.points}</td><td>${r.wins}-${r.games - r.wins}</td></tr>`).join('') + '</tbody>'
     : '<tr><td class="muted" style="font-size:13px">No scored games yet.</td></tr>';
   $('notes').innerHTML = st.notes.length ? st.notes.map(n => `<div class="nt${n.pinned ? ' pinned' : ''}"><span>${rich(n.text)}</span>
@@ -1338,6 +1357,45 @@ $('rp-keymap').addEventListener('click', e => { const b = e.target.closest('[dat
 $('desk-sim').addEventListener('click', async () => { const r = await api('POST', '/app/admin/sim', { on: String(!(DESK && DESK.simulating)) }); toast(r.message); loadDesk(); });
 setInterval(() => { if (S && S.admin && ($('caster').classList.contains('on') || Object.keys(RECV).length || !DESK)) loadDesk(); }, 800);
 setInterval(() => { if (RP && RP.now && $('caster').classList.contains('on')) loadDesk(); }, 250);
+
+// ---- Multiview picker: pick lobbies by their picture, then Send ---------------------------------
+let PREVIEWS = [], TWH = {}, PICK = [], mvKey = '';
+const LAYOUT_FOR = n => n === 1 ? 'Full screen' : n === 2 ? '2-up' : n === 4 ? 'Quad' : 'Grid';
+function renderPicker() {
+  const grid = $('mv-grid');
+  PICK = PICK.filter(l => PREVIEWS.some(p => p.lobby === l));
+  const key = PREVIEWS.map(p => p.lobby + '|' + p.url).join(';');
+  if (key !== mvKey) {
+    mvKey = key;
+    // Pictures stay connected: a tile is only made when a lobby starts sending.
+    const have = {}; grid.querySelectorAll('.mv').forEach(el => have[el.dataset.lobby + '|' + el.dataset.url] = el);
+    grid.innerHTML = '';
+    for (const p of PREVIEWS) {
+      let el = have[p.lobby + '|' + p.url];
+      if (!el) {
+        el = document.createElement('button'); el.className = 'mv'; el.dataset.lobby = p.lobby; el.dataset.url = p.url; el.type = 'button';
+        el.innerHTML = `<div class="pv"><iframe src="${esc(p.url)}" allow="autoplay" tabindex="-1" title="${esc(p.lobby)}"></iframe></div><div class="nm"><span>${esc(p.lobby)}</span><small></small></div><span class="no" hidden></span><span class="air" hidden>ON AIR</span>`;
+        el.onclick = () => { const i = PICK.indexOf(p.lobby); if (i >= 0) PICK.splice(i, 1); else PICK.push(p.lobby); renderPicker(); };
+      }
+      grid.appendChild(el);
+    }
+  }
+  const onAir = DESK && DESK.onAir ? DESK.onAir.slots : [];
+  grid.querySelectorAll('.mv').forEach(el => {
+    const i = PICK.indexOf(el.dataset.lobby), f = el.querySelector('iframe');
+    el.classList.toggle('on', i >= 0);
+    el.querySelector('.no').hidden = i < 0; el.querySelector('.no').textContent = i + 1;
+    el.querySelector('.air').hidden = !onAir.includes(el.dataset.lobby);
+    el.querySelector('small').textContent = TWH[el.dataset.lobby] ? 'twitch.tv/' + TWH[el.dataset.lobby] : '';
+    const w = el.querySelector('.pv').clientWidth; if (w) f.style.transform = `scale(${w / 1920})`;
+  });
+  $('mv-send').disabled = !PICK.length;
+  $('mv-send').textContent = PICK.length ? `Send · ${LAYOUT_FOR(PICK.length)}` : 'Send';
+  $('mv-line').textContent = PICK.length ? `${PICK.join(', ')} → ${LAYOUT_FOR(PICK.length)}` : 'Click the lobbies you want on stream, then Send. 1 full screen · 2 side by side · 4 quad · 3 or 5+ grid.';
+}
+$('mv-send').addEventListener('click', async () => { const r = await api('POST', '/app/admin/multiview', { lobbies: PICK }); toast(r.message); if (r.ok) PICK = []; loadDesk(); });
+$('mv-clear').addEventListener('click', () => { PICK = []; renderPicker(); });
+addEventListener('resize', () => renderPicker());
 
 // ---- Side menu: one page per job ------------------------------------------------------------
 const PAGES = {
