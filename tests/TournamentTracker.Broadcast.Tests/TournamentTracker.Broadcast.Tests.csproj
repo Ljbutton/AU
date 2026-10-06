@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- TT Broadcast's tests: the desk, OBS, replays, montages, graphics, Twitch, the caster pages and its server. -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <IsPackable>false</IsPackable>
@@ -10,8 +11,12 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The same fakes as The Button's tests (one copy). -->
+    <Compile Include="..\TournamentTracker.Tests\Fakes.cs" Link="Fakes.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\TournamentTracker.Core\TournamentTracker.Core.csproj" />
     <ProjectReference Include="..\..\src\TournamentTracker.Common\TournamentTracker.Common.csproj" />
-    <ProjectReference Include="..\..\src\TournamentTracker.AppCore\TournamentTracker.AppCore.csproj" />
+    <ProjectReference Include="..\..\src\TournamentTracker.Broadcast\TournamentTracker.Broadcast.csproj" />
   </ItemGroup>
 </Project>

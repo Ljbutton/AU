@@ -1,0 +1,1365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TT Broadcast</title>
+<style>
+@font-face{font-family:"Amatic SC";font-weight:700;font-display:swap;src:url(/fonts/amatic-sc-700.woff2) format("woff2")}
+@font-face{font-family:"Varela Round";font-weight:400;font-display:swap;src:url(/fonts/varela-round.woff2) format("woff2")}
+@font-face{font-family:"Teko";font-weight:700;font-display:swap;src:url(/fonts/teko-700.woff2) format("woff2")}
+@font-face{font-family:"Rajdhani";font-weight:700;font-display:swap;src:url(/fonts/rajdhani-700.woff2) format("woff2")}
+:root{
+  --bg:#000;--panel:rgba(14,17,24,.78);--panel-solid:#0e1118;--sunk:rgba(255,255,255,.07);--fg:#f2f4f7;--muted:#9aa4b2;--line:rgba(255,255,255,.16);--edge:rgba(255,255,255,.75);
+  --accent:#1fa143;--accent-2:#147a2c;--accent-fg:#03140a;--accent-soft:rgba(22,128,46,.16);--hi:#ff2d55;--hi-soft:rgba(255,45,85,.14);--good:#46c28b;--good-soft:rgba(70,194,139,.16);--warn:#ffc15a;--warn-soft:rgba(255,193,90,.14);
+  --danger:#ff6b61;--danger-soft:rgba(255,107,97,.15);color-scheme:dark;
+}
+:root{--hand:"Amatic SC","Segoe Print",cursive;--round:"Varela Round","Segoe UI",system-ui,sans-serif;--mono:"Cascadia Mono",Consolas,ui-monospace,monospace}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--round);display:grid;grid-template-columns:172px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);overflow:hidden}
+#space{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+header,nav,main{position:relative;z-index:1}
+header{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:8px 18px;border-bottom:2px solid rgba(22,128,46,.55);background:linear-gradient(90deg,rgba(22,128,46,.12),rgba(0,0,0,.35) 45%);backdrop-filter:blur(2px)}
+.brand{display:flex;align-items:center;gap:10px}
+/* The name in the tournament type: white "THE", red "BUTTON", and the tagline in the game's hand-drawn type. */
+.brand .word{display:flex;flex-direction:column;line-height:.86}
+.brand .word b{font:700 42px/1 "Teko","Rajdhani",sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#fff}
+.brand .word b span{color:var(--accent)}
+.logo{width:40px;height:40px;object-fit:contain}
+.alerts{display:flex;flex-wrap:wrap;gap:8px;margin-left:8px}
+/* Window buttons (The Button's window has no frame of its own; the header is its title bar). */
+header{user-select:none}
+.winctl{margin-left:auto;align-self:flex-start;display:flex;margin-top:-8px;margin-right:-18px}
+.winctl button{all:unset;width:46px;height:34px;display:grid;place-items:center;color:var(--muted);cursor:default}
+.winctl button:hover{background:rgba(255,255,255,.1);color:var(--fg)}
+.winctl button.x:hover{background:#e81123;color:#fff}
+.winctl svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.1}
+.winctl .i-restore,body.maxed .winctl .i-max{display:none}
+body.maxed .winctl .i-restore{display:block}
+.alert{all:unset;cursor:pointer;font:13px var(--round);padding:4px 11px;border-radius:99px;border:1.5px solid var(--warn);color:var(--warn);background:var(--warn-soft)}
+.alert.bad{border-color:var(--danger);color:var(--danger);background:var(--danger-soft)}
+.alert.good{border-color:var(--good);color:var(--good);background:var(--good-soft)}
+.alert[disabled]{cursor:default;opacity:.8}
+.alert:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+nav{padding:14px 10px;display:flex;flex-direction:column;gap:4px;border-right:1px solid var(--line);background:rgba(0,0,0,.25)}
+nav button{all:unset;cursor:pointer;padding:6px 14px 6px 18px;border-radius:12px;font:700 27px/1.15 var(--hand);letter-spacing:.05em;color:var(--muted)}
+nav button:hover{color:var(--fg);background:rgba(255,255,255,.04)}
+/* The page you're on: a rounded green bar and a green glow fading to the right. */
+nav button.on{color:#fff;box-shadow:inset 5px 0 0 var(--accent);background:linear-gradient(90deg,rgba(22,128,46,.38),rgba(22,128,46,.05))}
+nav button:focus-visible{outline:2px solid var(--accent)}
+main{overflow:auto;padding:16px 22px 22px}
+section{display:none}
+section.on{display:grid;gap:14px;align-content:start}
+h1,.title{font:700 44px/1 var(--hand);letter-spacing:.05em;margin:0}
+h2{font:700 27px/1 var(--hand);letter-spacing:.05em;margin:0 0 8px}
+.sub{color:var(--muted);margin:0}
+.card{background:var(--panel);border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:inset 0 2px 0 rgba(22,128,46,.35)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:5px 14px;margin:0}
+.kv dt{color:var(--muted)}.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+button.b{font:700 21px/1 var(--hand);letter-spacing:.05em;white-space:nowrap;padding:6px 14px 5px;border-radius:10px;border:2px solid var(--edge);background:transparent;color:var(--fg);cursor:pointer}
+button.b:hover{background:var(--sunk)}
+button.b.primary{background:linear-gradient(180deg,#22aa48,var(--accent-2));border-color:var(--accent);color:var(--accent-fg)}
+button.b.danger{border-color:var(--danger);color:var(--danger)}
+button.b.on{border-color:var(--hi);color:var(--hi);background:var(--hi-soft)}
+button.b:disabled{opacity:.4;cursor:default}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,textarea{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5px solid var(--line);border-radius:9px;padding:6px 10px;min-width:0}
+textarea{width:100%;font:12px var(--mono);resize:vertical}
+.note{padding:9px 12px;border-radius:10px;margin:0}
+.note.warn{background:var(--warn-soft);color:var(--warn)}
+.note.bad{background:var(--danger-soft);color:var(--danger)}
+.note.good{background:var(--good-soft);color:var(--fg)}
+.muted{color:var(--muted)}
+.mono{font-family:var(--mono);font-size:12.5px}
+table{border-collapse:collapse;width:100%}
+td{padding:6px 4px;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:0}
+.empty{padding:26px;text-align:center;color:var(--muted)}
+.toggle{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:3px 0}
+.toggle b{font-weight:400}.toggle span{display:block;color:var(--muted);font-size:12px}
+.pill{font-size:12px;padding:1px 8px;border-radius:99px;background:var(--sunk);color:var(--muted);white-space:nowrap}
+#toast{position:fixed;right:18px;bottom:18px;max-width:420px;background:var(--panel-solid);color:var(--fg);border:2px solid var(--edge);padding:10px 14px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.4);opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;z-index:5}
+#toast.show{opacity:1;transform:none}
+[hidden]{display:none!important}
+
+/* ---- Home (the lobby): everything on one screen ---- */
+.lobby-head{display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap}
+.facts{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:4px}
+.fact .k{font-size:11.5px;color:var(--hi);text-transform:uppercase;letter-spacing:.08em}
+.fact .v{font:700 30px/1 var(--hand);letter-spacing:.05em}
+.home-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(290px,1fr);gap:14px;align-items:start}
+@media (max-width:980px){.home-grid{grid-template-columns:minmax(0,1fr)}}
+.players{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 10px}
+@media (max-width:700px){.players{grid-template-columns:minmax(0,1fr)}}
+.pl{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:8px;align-items:center;min-height:35px;padding:2px 8px 2px 5px;border-radius:10px;background:var(--sunk)}
+.pl img{width:32px;height:32px}
+.pl .nm{font:15px/1.2 var(--round);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl .dc{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl .dc.none{color:var(--warn)}
+.pl button.dc{all:unset;cursor:pointer;display:block;max-width:100%;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl button.dc:hover{color:var(--fg);text-decoration:underline}
+.pl button.dc.none{color:var(--accent);font-weight:600}
+.pl button.dc:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.link-row{margin-top:8px;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:var(--sunk)}
+.link-row #link-who{font:15px/1.2 var(--round);white-space:nowrap}
+.pts .at{color:var(--muted);font-size:12.5px}
+.pl.dead{opacity:.55}
+.left,.side{display:grid;gap:12px;align-content:start}
+.notices{display:grid;gap:6px;margin-bottom:6px}
+.notice{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:5px 10px 5px 12px;border-radius:10px;background:var(--warn-soft);border:1.5px solid var(--warn);color:var(--fg);font-size:13.5px}
+.notice .when{color:var(--warn);font-size:12px;white-space:nowrap;padding-top:1px}
+.notice button{all:unset;cursor:pointer;color:var(--muted);font-size:16px;line-height:1;padding:0 4px}
+.notice button:hover{color:var(--fg)}
+.notice .txt{min-width:0}
+.notices:not(.open) .notice .txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.notice .more{all:unset;cursor:pointer;color:var(--warn);font-size:12px;white-space:nowrap}
+.pl .voice{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#0b1320;border:2px solid #36507d}
+.pl .voice svg{width:14px;height:14px}
+.pl .voice.muted{border-color:#ff6b6b;background:#3a1016}
+.pl .voice.deafened{border-color:#ff9f43;background:#3a2410}
+.pl .voice.open{border-color:#46c28b;background:#0d2c21}
+.automute{padding:10px 14px 12px}
+.am-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.am-head h2{font-size:25px;margin:0}
+.am-head .muted{font-size:12.5px}
+.automute .controls{margin:8px 0 0;gap:26px}
+.automute .round span.ring{width:46px;height:46px}
+.automute .round svg{width:21px;height:21px}
+/* ---- Organiser ---- */
+.org-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,430px);gap:14px;align-items:start}
+@media (max-width:900px){.org-head{grid-template-columns:minmax(0,1fr)}}
+.cast-card{display:grid;gap:4px;font-size:13.5px}
+.desk-head{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.air-card{min-width:340px;display:grid;gap:8px}
+.air-slots{display:flex;gap:6px;flex-wrap:wrap}
+.air-pick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.air-pick label{display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--muted)}
+.air-pick select{flex:1;min-width:0}
+.obs-card{margin-top:10px}
+.bad-text{color:var(--danger)!important}
+.obs-card.ok{box-shadow:inset 3px 0 0 var(--accent)}
+.air-slots span{padding:3px 10px;border-radius:8px;background:var(--hi-soft);border:1.5px solid var(--hi);font:600 13px/1.3 var(--round);color:#fff}
+.air-slots span.empty{background:var(--sunk);border-color:var(--line);color:var(--muted)}
+.desk-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;margin-top:10px}
+@media (max-width:900px){.desk-grid{grid-template-columns:minmax(0,1fr)}}
+.desk-col{display:grid;gap:8px;align-content:start;min-width:0}
+.desk-col h2{margin:0}
+.desk-cards{display:grid;gap:8px}
+.dcard{--tier:var(--line);position:relative;display:grid;gap:4px;padding:10px 12px 10px 16px;border-radius:12px;background:var(--panel);border:1.5px solid var(--line);cursor:pointer;transition:transform .12s}
+.dcard::before{content:"";position:absolute;left:5px;top:8px;bottom:8px;width:5px;border-radius:5px;background:var(--tier)}
+.dcard:hover{transform:translateX(2px);border-color:var(--tier)}
+.dcard .t1{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+.dcard .t1 b{color:#fff;font:600 14px/1.2 var(--round)}
+.dcard .play{font:600 18px/1.25 var(--round);color:#fff}
+.dcard .t3{display:flex;gap:10px;align-items:center;font-size:12.5px;color:var(--muted);flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.dcard .x{position:absolute;right:8px;top:6px;all:unset;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:2px 6px;position:absolute;right:6px;top:4px}
+.dcard .x:hover{color:#fff}
+.tier{font:700 11px/1 var(--round);letter-spacing:.06em;text-transform:uppercase;padding:3px 7px;border-radius:6px;background:var(--tier);color:#06080c}
+.live{font:700 11px/1 var(--round);letter-spacing:.04em;padding:3px 7px;border-radius:6px;background:var(--hi);color:#fff}
+.shown{font:700 11px/1 var(--round);letter-spacing:.04em;padding:3px 7px;border-radius:6px;border:1.5px solid var(--muted);color:var(--fg)}
+.off{font:700 11px/1 var(--round);padding:3px 7px;border-radius:6px;background:var(--sunk);color:var(--muted)}
+.tier-must{--tier:#ff2d55}.tier-veryHigh{--tier:#ff8a3d}.tier-high{--tier:#ffc15a}.tier-medium{--tier:#5aa9ff}.tier-low{--tier:#56606e}.tier-offline{--tier:#3a404a}
+.desk-lobbies{display:grid;gap:6px}
+.who{white-space:nowrap}
+img.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 .05em;vertical-align:-.25em}
+.roster-card{margin-top:10px}
+.story-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:14px;margin-top:8px}
+@media (max-width:900px){.story-grid{grid-template-columns:minmax(0,1fr)}}
+.notes{display:grid;gap:5px;align-content:start}
+.nt{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;background:var(--sunk);font-size:13.5px}
+.nt.pinned{box-shadow:inset 3px 0 0 var(--accent)}
+.nt .acts{display:flex;gap:4px}
+.nt .acts button{all:unset;cursor:pointer;font:600 11px/1 var(--round);padding:4px 6px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
+.nt .acts button:hover{color:#fff;border-color:var(--accent)}
+.nt .acts button.go{color:#fff;border-color:var(--accent)}
+.roster-card summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.roster-card summary::-webkit-details-marker{display:none}
+.rl{display:grid;gap:4px;margin-top:8px}
+.rl h3{margin:6px 0 2px;font:600 14px/1.2 var(--round)}
+.rp{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) auto;gap:8px;align-items:center;padding:4px 8px;border-radius:8px;background:var(--sunk);font-size:13px}
+.rp .how{font-size:11.5px;color:var(--muted)}
+.rp .how.none{color:var(--warn)}
+.rp select{font-size:12.5px;max-width:190px}
+.dcard .t3 .rpb{all:unset;cursor:pointer;font:700 11px/1 var(--round);letter-spacing:.04em;padding:4px 8px;border-radius:6px;border:1.5px solid var(--line);color:var(--fg)}
+.dcard .t3 .rpb:hover{border-color:var(--hi)}
+.dcard .t3 .rpb.ready{background:var(--hi);border-color:var(--hi);color:#fff}
+.dcard .t3 .rpb.saving{color:var(--muted)}
+.dcard .t3 .rpb.failed{color:var(--danger);border-color:var(--danger)}
+.inter-card{margin-top:10px;border-color:var(--accent);display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.inter-card.live{border-color:var(--hi);box-shadow:inset 0 2px 0 rgba(255,45,85,.45)}
+.inter-card .tag{font:700 12px/1 var(--round);letter-spacing:.12em;padding:5px 8px;border-radius:6px;background:var(--accent);color:var(--accent-fg)}
+.inter-card.live .tag{background:var(--hi);color:#fff}
+.ppl{display:flex;flex-wrap:wrap;gap:4px}
+.dlob .ppl{grid-column:1/-1}
+.ppl button{all:unset;cursor:pointer;font:600 11.5px/1 var(--round);padding:3px 6px;border-radius:6px;border:1px solid var(--line);color:var(--fg);white-space:nowrap}
+.ppl button:hover{border-color:var(--accent)}
+.ppl img.sw{height:1.5em;vertical-align:-.4em}
+.ppl button::after{content:" · card";color:var(--muted)}
+.vo-list{display:grid;gap:6px;margin-top:8px}
+.hdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:#ffc15a;vertical-align:1px}.hdot.red{background:var(--danger)}
+.tw-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px;margin-top:8px}
+@media (max-width:900px){.tw-grid{grid-template-columns:1fr}}
+.tw-grid h3{margin:10px 0 6px;font:600 13px/1 var(--round);color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.tw-it{padding:8px 10px;border-radius:10px;background:var(--sunk);font-size:13px;display:grid;gap:5px;margin-bottom:6px}
+.tw-it .tt{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tw-it .tt b{font-size:14px}
+.tw-it .k{font:700 10.5px/1 var(--round);letter-spacing:.1em;padding:3px 6px;border-radius:5px;background:#9146ff;color:#fff}
+.tw-it .op{display:grid;grid-template-columns:minmax(0,1fr) 60px auto;gap:8px;align-items:center}
+.tw-it .bar{height:7px;border-radius:4px;background:var(--panel);overflow:hidden}.tw-it .bar i{display:block;height:100%;background:#9146ff}
+.tw-feat{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 8px;align-items:center;font-size:13px}
+.tw-set{display:grid;gap:6px;font-size:13px}.tw-set label{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tw-set input[type=number]{width:80px}.tw-set #tw-client{flex:1;min-width:180px}
+.tw-log{max-height:220px;overflow:auto;font-size:12.5px;display:grid;gap:3px}.tw-log span{color:var(--muted);margin-right:6px;font-variant-numeric:tabular-nums}
+.tw-red{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 10px;border-radius:10px;background:var(--sunk);font-size:13px;margin-bottom:5px}
+.tw-red .fl{color:var(--danger);font-size:12px}
+.hl-list{display:grid;gap:5px;margin-top:8px}
+.hl{display:grid;grid-template-columns:14px minmax(70px,.5fr) minmax(0,2fr) auto;gap:10px;align-items:center;padding:6px 10px;border-radius:10px;background:var(--sunk);font-size:13px}
+.hl .dot{width:12px;height:12px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px rgba(70,194,139,.18)}
+.hl.yellow .dot{background:#ffc15a;box-shadow:0 0 0 3px rgba(255,193,90,.2)}.hl.red .dot{background:var(--danger);box-shadow:0 0 0 3px rgba(255,107,107,.25);animation:hlb 1s infinite}
+@keyframes hlb{50%{opacity:.45}}
+.hl .nm{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hl .pr{color:var(--muted);min-width:0}.hl.red .pr{color:var(--danger)}.hl.yellow .pr{color:#ffc15a}
+.hl .sim{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}.hl .sim .b{padding:3px 8px;font-size:13px}
+.hl .upd{color:#ffc15a;font-size:12px;margin-left:6px}
+.hl-int{display:grid;gap:5px;margin-top:8px}.hl-int:empty{display:none}
+.hl-int .it{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 10px;border-radius:10px;border:1.5px solid var(--danger);font-size:13px}
+.hl-int .it .tag{font:700 10.5px/1 var(--round);letter-spacing:.1em;color:var(--danger)}
+.dcard .acts{display:flex;gap:6px;flex-wrap:wrap}
+.dcard.sys .play{font-size:16px}
+.vo{display:grid;grid-template-columns:minmax(90px,.7fr) minmax(0,1.6fr) auto;gap:10px;align-items:center;padding:7px 10px;border-radius:10px;background:var(--sunk);font-size:13px}
+.vo.heard{box-shadow:inset 3px 0 0 var(--good)}
+.vo .nm{font-weight:700;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.vo .chip{font:700 10.5px/1 var(--round);letter-spacing:.08em;padding:3px 6px;border-radius:5px;background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+.vo .chip.ok{color:var(--good);border-color:var(--good)}.vo .chip.bad{color:var(--danger);border-color:var(--danger)}.vo .chip.on{background:var(--good);border-color:var(--good);color:#05140b}
+.vo .lv{display:grid;grid-template-columns:auto 1fr;gap:3px 8px;align-items:center;color:var(--muted);font-size:12px}
+.vo .mtr{height:7px;border-radius:4px;background:var(--panel);overflow:hidden}
+.vo .mtr i{display:block;height:100%;background:var(--good);transition:width .3s}
+.vo .ctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.vo .ctl input[type=range]{width:90px}
+.vo .ctl input[type=number]{width:70px}
+.mt-list{display:grid;gap:6px;margin-top:8px}
+.mt{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:10px;background:var(--sunk);font-size:13.5px}
+.mt.ready{box-shadow:inset 3px 0 0 #ffc15a;background:rgba(255,193,90,.08)}
+.mt .st{font:700 11px/1 var(--round);letter-spacing:.08em;padding:4px 7px;border-radius:6px;background:var(--panel);border:1px solid var(--line)}
+.mt.ready .st{background:#ffc15a;color:#16120a;border-color:#ffc15a}
+.mt.failed .st{color:var(--danger);border-color:var(--danger)}
+.mt .acts{display:flex;gap:6px}
+.mom-sel{display:flex;gap:6px;flex-wrap:wrap;min-height:34px;padding:6px;border-radius:10px;border:1.5px dashed var(--line);margin-top:8px;align-items:center}
+.mom-sel .chip{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:8px;background:var(--panel);border:1px solid var(--line);font-size:12.5px;cursor:grab}
+.mom-sel .chip.drag{opacity:.4}
+.mom-sel .chip b{color:#ffc15a}
+.mom-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-top:8px;max-height:420px;overflow:auto}
+.mom{position:relative;border-radius:10px;background:var(--sunk);border:2px solid transparent;cursor:pointer;overflow:hidden;font-size:12.5px}
+.mom.sel{border-color:#ffc15a}
+.mom .th{aspect-ratio:16/9;background:#0b0e13 center/cover no-repeat;display:flex;align-items:center;justify-content:center;color:var(--muted);font:700 11px/1 var(--round);letter-spacing:.1em}
+.mom .tx{padding:5px 7px 7px;display:grid;gap:2px}
+.mom .tx .m{color:var(--muted);font-size:11.5px}
+.mom .num{position:absolute;left:6px;top:6px;min-width:22px;height:22px;border-radius:11px;background:#ffc15a;color:#16120a;font:700 12px/22px var(--round);text-align:center}
+.mom .used{position:absolute;right:6px;top:6px;font:700 10px/1 var(--round);letter-spacing:.08em;padding:3px 6px;border-radius:5px;background:rgba(0,0,0,.7);color:#cfd6e2}
+.mom .pv{position:absolute;right:6px;bottom:52px;all:unset;cursor:pointer}
+.sp-list{display:grid;gap:5px;margin-top:8px}
+.sp{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:6px 10px;border-radius:8px;background:var(--sunk);font-size:13px}
+.sp .pl{display:flex;gap:4px;flex-wrap:wrap}
+.sp .pl span{font:600 11px/1 var(--round);padding:3px 6px;border-radius:5px;border:1px solid var(--line);color:var(--muted)}
+.vmodal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:50}
+.vmodal video{max-width:90vw;max-height:80vh;border-radius:10px;background:#000}
+.vmodal .cl{position:absolute;top:18px;right:24px}
+.rp-card{margin-top:10px;border-color:var(--hi);box-shadow:inset 0 2px 0 rgba(255,45,85,.45);display:grid;gap:8px}
+.rp-title{font:600 16px/1.3 var(--round)}
+.rp-badge{display:inline-block;background:var(--hi);color:#fff;font:700 12px/1 var(--round);letter-spacing:.12em;padding:4px 8px;border-radius:6px}
+.rp-scrub{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center}
+.rp-bar{position:relative;height:14px;border-radius:7px;background:var(--sunk);cursor:pointer}
+.rp-fill{position:absolute;left:0;top:0;bottom:0;border-radius:7px;background:rgba(255,45,85,.45)}
+.rp-mark{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--muted)}
+.rp-mark.ev{background:#ffc15a;width:3px}
+.rp-head{position:absolute;top:-4px;width:6px;height:22px;margin-left:-3px;border-radius:3px;background:#fff;box-shadow:0 0 0 2px var(--hi)}
+.rp-ctl .b{min-width:44px}
+.rp-play{min-width:90px}
+.rp-keys{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px}
+.rp-keys label{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:12.5px;padding:4px 8px;border-radius:8px;background:var(--sunk)}
+.rp-keys button{all:unset;cursor:pointer;font:600 12px/1 var(--mono, monospace);padding:4px 8px;border-radius:6px;border:1px solid var(--line);min-width:60px;text-align:center}
+.rp-keys button.wait{border-color:var(--hi);color:var(--hi)}
+.dlob{--tier:var(--line);display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:12px;background:var(--panel);border:1.5px solid var(--line);cursor:pointer}
+.dlob:hover{border-color:var(--tier)}
+.dlob .sc{font:700 20px/1 var(--round);text-align:center;color:var(--tier);font-variant-numeric:tabular-nums}
+.dlob .nm{display:flex;gap:8px;align-items:center;font:600 15px/1.2 var(--round);color:#fff;flex-wrap:wrap}
+.dlob .ln{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dlob .lay{display:flex;gap:4px}
+.dlob .lay button{all:unset;cursor:pointer;font:600 11px/1 var(--round);padding:5px 7px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
+.dlob .lay button:hover{color:#fff;border-color:var(--accent)}
+.dlob.offline{opacity:.55}
+.spec{grid-column:1/-1;display:flex;gap:4px;align-items:center;flex-wrap:wrap;font-size:11.5px;color:var(--muted);padding-top:2px}
+.spec button{all:unset;cursor:pointer;font:600 11px/1 var(--round);padding:4px 7px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
+.spec button.on{border-color:var(--accent);color:#fff;background:var(--accent-soft)}
+.spec select{font-size:11.5px;padding:2px 4px;max-width:150px}
+.desk-history{display:grid;gap:4px}
+.hrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 8px;border-radius:10px;background:var(--sunk);font-size:13px}
+.hrow .tx{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hrow .tm{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
+.hrow button{all:unset;cursor:pointer;font:600 12px/1 var(--round);padding:5px 8px;border-radius:7px;border:1px solid var(--line);white-space:nowrap}
+.hrow button:hover{border-color:var(--accent)}
+.org-lobbies{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.lob{display:grid;gap:6px;border:1.5px solid var(--line);border-radius:14px;padding:10px 12px;background:var(--panel)}
+.lob.casting{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.lob.quiet{opacity:.55}
+.lob.hot{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger) inset}
+.lob .badges{display:flex;gap:6px;flex-wrap:wrap;font-size:12px}
+.lob .badges span{padding:1px 8px;border-radius:99px;background:var(--sunk);color:var(--muted)}
+.lob .badges .vid{background:var(--good-soft);color:var(--good)}
+.lob .badges .hot{background:var(--danger);color:#fff}
+.cast-urls{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12.5px}
+.lob .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.lob .top b{font:700 26px/1 var(--hand);letter-spacing:.05em}
+.lob .meta{font-size:12.5px;color:var(--muted)}
+.lob .heads{display:flex;flex-wrap:wrap;gap:3px}
+.lob .heads img{width:26px;height:26px;border-radius:50%}
+.lob .heads img.dead{opacity:.3;filter:grayscale(.6)}
+.lob .heads img.imp{box-shadow:0 0 0 2px var(--danger)}
+.lob .ev{font-size:12.5px;color:var(--fg);min-height:18px}
+.lob .ev span{color:var(--muted);margin-right:6px}
+.phase-pill{font-size:12px;padding:1px 8px;border-radius:99px;background:var(--sunk);color:var(--muted)}
+.phase-pill.Tasks{background:rgba(59,130,246,.2);color:#9cc3ff}.phase-pill.Meeting{background:var(--warn-soft);color:var(--warn)}.phase-pill.Lobby{background:var(--good-soft);color:var(--good)}
+select{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5px solid var(--line);border-radius:9px;padding:6px 10px}
+
+/* ---- Points ---- */
+.points-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,640px),1fr));gap:14px;align-items:start}
+@media (max-width:560px){.points-grid{grid-template-columns:minmax(0,1fr)}}
+.points-grid .card{min-width:0}
+.pts-wrap{overflow-x:auto}
+.pts{font-variant-numeric:tabular-nums;font-size:13.5px}
+.pts th{font-weight:400;color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;text-align:right;padding:4px;border-bottom:1px solid var(--line);white-space:nowrap}
+.pts th.l,.pts td.l{text-align:left}
+.pts td{text-align:right;white-space:nowrap}
+.pts .nm span{max-width:170px;overflow:hidden;text-overflow:ellipsis}
+.pts td.big{font-weight:700;color:var(--fg);font-size:14.5px}
+.pts tr.up td{background:var(--good-soft)}
+.pts tr.cut td{border-bottom:2px dashed var(--hi)}
+.pts .rk{color:var(--muted);width:2.2em}
+.side .card{padding:10px 14px}
+.side h2{font-size:25px;margin-bottom:6px}
+
+/* ---- Waiting for the game ---- */
+.stage{display:flex;flex-direction:column;align-items:center;text-align:center;padding:10px 10px 0;min-height:calc(100vh - 110px)}
+.stage h1{font-size:clamp(46px,6vw,70px);text-shadow:0 2px 14px rgba(0,0,0,.6)}
+.loader{display:flex;gap:10px;margin:24px 0 6px;height:26px;align-items:flex-end}
+.loader i{width:10px;height:10px;border-radius:50%;background:#7fa7ff;animation:hop 1.2s ease-in-out infinite}
+.loader i:nth-child(2){animation-delay:.12s}.loader i:nth-child(3){animation-delay:.24s}.loader i:nth-child(4){animation-delay:.36s}.loader i:nth-child(5){animation-delay:.48s}
+@keyframes hop{0%,60%,100%{transform:translateY(0);opacity:.55}30%{transform:translateY(-14px);opacity:1}}
+.stage.compact{min-height:auto;padding-bottom:24px}
+.ref-card{margin-top:14px}
+.stage .say{max-width:54ch;color:var(--muted);margin:10px 0 0}
+/* ---- Automute buttons ---- */
+.controls{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;margin:22px 0 6px}
+.round{all:unset;cursor:pointer;display:grid;justify-items:center;gap:6px;font:700 17px/1 "Rajdhani",var(--round);letter-spacing:.04em}
+.round span.ring{width:52px;height:52px;border-radius:9px;border:2px solid var(--edge);display:grid;place-items:center;transition:.15s}
+.round:hover span.ring{background:var(--sunk)}
+.round.on span.ring{border-color:#46c28b;color:#46c28b;box-shadow:0 0 16px rgba(70,194,139,.35)}
+.round.alarm span.ring{border-color:#ff6b6b;color:#ff6b6b}
+.round svg{width:24px;height:24px}
+.round:focus-visible span.ring{outline:2px solid var(--accent);outline-offset:3px}
+
+.settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;align-items:start}
+.games td{padding:8px 10px;vertical-align:middle;border-top:1px solid var(--line)}
+.games tr:first-child td{border-top:0}
+.games tr.voided{opacity:.6}
+.imp-win{color:var(--danger)}.crew-win{color:var(--good)}
+.pill.bad{background:var(--danger-soft);color:var(--danger)}
+.checks{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;padding:2px 10px 2px 8px;border-radius:99px;background:var(--sunk);color:var(--muted)}
+.chk i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.chk.ok i{background:var(--good)}.chk.warn{color:var(--warn)}.chk.warn i{background:var(--warn)}
+.chk.bad{color:var(--danger);background:var(--danger-soft)}.chk.bad i{background:var(--danger)}
+.chk[data-go]{cursor:pointer}
+.awards{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.award{background:var(--sunk);border-radius:12px;padding:8px 10px;display:grid;gap:4px;align-content:start}
+.award .t{font:700 20px/1 var(--hand);letter-spacing:.04em}
+.award .w{display:grid;grid-template-columns:20px 1fr auto;gap:6px;align-items:center;font-size:13px}
+.award .w img{width:20px;height:20px}
+.award .w.first{font-weight:700}
+.award .w .v{color:var(--muted);font-size:12px}
+.sub-h{font:600 13px var(--round);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 6px}
+details.advanced summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:12px}
+details.advanced summary::-webkit-details-marker{display:none}
+details.advanced summary h2{margin:0}
+details.advanced summary h2::before{content:'▸ ';font-size:.8em}
+details.advanced[open] summary h2::before{content:'▾ '}
+body{grid-template-columns:minmax(0,1fr)}
+nav{display:none}
+</style>
+</head>
+<body>
+<canvas id="space" aria-hidden="true"></canvas>
+<header>
+  <div class="brand"><span class="word"><b>TT <span>Broadcast</span></b></span></div>
+  <div class="alerts" id="alerts"></div>
+  <div class="winctl" id="winctl" hidden>
+    <button data-win="min" title="Minimise" aria-label="Minimise"><svg viewBox="0 0 12 12"><path d="M2 6.5h8"/></svg></button>
+    <button data-win="max" title="Maximise" aria-label="Maximise"><svg viewBox="0 0 12 12" class="i-max"><rect x="2" y="2" width="8" height="8" rx="1"/></svg><svg viewBox="0 0 12 12" class="i-restore"><rect x="2" y="4" width="6" height="6" rx="1"/><path d="M4 4V2.5a.5.5 0 0 1 .5-.5H9.5a.5.5 0 0 1 .5.5V7.5a.5.5 0 0 1-.5.5H8"/></svg></button>
+    <button data-win="close" class="x" title="Close" aria-label="Close"><svg viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button>
+  </div>
+</header>
+<main>
+  <div class="card" id="lock-card" hidden>
+    <h2>Administration code</h2>
+    <p class="muted" style="margin:0 0 8px">TT Broadcast opens with the tournament's administration code (the organiser's, as in The Button's Organiser tab). It shows who the impostors are: keep this PC's screen off stream.</p>
+    <form class="row" id="lock-form"><input id="lock-code" placeholder="Paste the administration code" class="mono" style="flex:1;min-width:240px" autocomplete="off" spellcheck="false"><button class="b primary">Unlock</button></form>
+  </div>
+  <div class="card cast-card" id="cast-card" hidden>
+    <div class="row" style="justify-content:space-between"><div><b>Caster overlay</b> <span class="muted" id="org-casting"></span></div>
+      <div class="row"><label class="muted" style="font-size:13px"><input type="checkbox" id="org-roles"> Count kills (staff view)</label><button class="b primary" id="org-jump" title="Key N">Jump to action</button></div></div>
+    <div class="cast-urls" id="org-cast-url"></div>
+    <div class="row" id="org-cast-list"></div>
+    <div class="muted" style="font-size:12px">OBS Browser sources. Video and overlay follow the lobby you pick (keys 1–9 switch while this card is open, N jumps to the action). Overlay 380×720, add <span class="mono">?full=1</span> on a delayed stream for roles and kills. Video (with the game sound of the lobby on air) and multiview (silent) 1920×1080: hosts turn on "Send my game to the caster" in their Button.</div>
+  </div>
+  <p id="org-problem" class="note bad" hidden></p>
+<section id="caster" class="on">
+  <div class="desk-head">
+    <div><h1>Caster</h1><p class="sub" id="desk-sub">Only on this PC. It shows who the impostors are, so keep it off stream.</p></div>
+    <div class="card air-card">
+      <div class="row" style="justify-content:space-between"><b>On stream</b><span class="muted" id="air-by"></span></div>
+      <div class="air-slots" id="air-slots"></div>
+      <div class="air-pick" id="air-pick" hidden></div>
+      <div class="row"><span class="muted" style="font-size:12.5px">Layout</span><button class="b" data-layout="full">Full</button><button class="b" data-layout="2up">2-up</button><button class="b" data-layout="4up">Quad</button><button class="b" data-layout="grid" title="Every lobby at once (key G)">Grid</button><button class="b" data-layout="slate" title="Technical difficulties: be right back (standings and storylines take turns)">Be right back</button><button class="b" id="desk-autogrid" title="Grid by itself whenever no lobby is mid-game">Auto grid</button><button class="b" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" id="desk-autointer" title="Intermission by itself when every lobby is between games, and back when one starts">Auto intermission</button>
+        <span style="flex:1"></span><button class="b" id="desk-sim" title="Four fake lobbies, for trying it out">Simulation</button></div>
+    </div>
+  </div>
+  <div class="card hl-card" id="hl-card" hidden>
+    <div class="row" style="justify-content:space-between"><div><b>Lobby health</b> <span class="muted" id="hl-line"></span></div>
+      <div class="row"><button class="b" id="hl-auto" title="Switch away from a lobby on stream that drops, even when you switch by hand">Auto switch</button><button class="b" id="hl-slate" title="Every lobby down: the be-right-back screen (off: intermission)">BRB screen</button><button class="b" id="hl-open" title="Thresholds and timings (health.json)">Thresholds</button></div></div>
+    <div class="hl-list" id="hl-list"></div>
+    <div class="hl-int" id="hl-int"></div>
+  </div>
+  <div class="card obs-card" id="obs-card">
+    <div class="row" style="justify-content:space-between"><div><b>OBS</b> <span class="muted" id="obs-line">Not connected</span></div>
+      <div class="row" id="obs-on" hidden><button class="b" id="obs-swoosh" title="A stinger swoosh on every switch">Swoosh</button><button class="b" id="obs-build" title="Make any missing TT scenes and lobby sources">Rebuild TT scenes</button><button class="b" id="obs-off">Disconnect</button></div></div>
+    <form class="row" id="obs-form" style="margin-top:8px">
+      <input id="obs-host" placeholder="127.0.0.1" style="width:130px" autocomplete="off"><input id="obs-port" placeholder="4455" style="width:80px" inputmode="numeric" autocomplete="off">
+      <input id="obs-pass" type="password" placeholder="Password (Tools → WebSocket Server Settings)" style="flex:1;min-width:200px" autocomplete="off">
+      <button class="b primary">Connect</button>
+    </form>
+    <p class="muted" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. The Button then builds the scenes TT Full, TT 2-up and TT Quad, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
+  </div>
+  <details class="card roster-card" id="gfx-card">
+    <summary><div><b>On-stream graphics</b> <span class="muted" id="gfx-line"></span></div><button class="b" id="gfx-theme" title="Colours, fonts and logo (broadcast.json)">Edit theme</button></summary>
+    <p class="note bad" id="gfx-problem" hidden></p>
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">One transparent page with every graphic, placed on each lobby's picture in every layout. The Button puts it on top of the TT scenes in OBS (source "TT Broadcast"); to add it by hand, use the link at 1920×1080.</p>
+    <div class="row" id="gfx-els" style="margin-top:8px"></div>
+    <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Off-screen alerts</span><span id="gfx-alerts" class="row"></span></div>
+    <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Win counter counts</span><span class="row" id="gfx-wins"><button class="b" data-wins="today">Today</button><button class="b" data-wins="round">This round</button></span><span class="muted" id="gfx-wins-now" style="font-size:12.5px"></span></div>
+  </details>
+  <details class="card roster-card" id="story-card" open>
+    <summary><div><b>Standings &amp; storylines</b> <span class="muted" id="story-line"></span></div>
+      <div class="row"><button class="b" data-scope="round">This round</button><button class="b" data-scope="overall">Tournament</button><button class="b" id="st-show" title="Standings on stream">Standings on stream</button></div></summary>
+    <div class="story-grid">
+      <div><table class="pts" id="st-table"></table></div>
+      <div class="notes" id="notes"></div>
+    </div>
+  </details>
+  <details class="card roster-card" id="vo-card" open>
+    <summary><div><b>Lobby voice</b> <span class="muted" id="vo-line"></span></div>
+      <div class="row"><button class="b" id="vo-mute" title="Mute every lobby voice (key U)">Mute all</button><button class="b" id="vo-on" title="Lobby voice on stream at all">On stream</button></div></summary>
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Each referee's Button sends the lobby's Discord voice and game sound (and their own mic only if they tick it). The voice follows the picture: the full-screen lobby, or slot 1, is heard; replays, montages and intermission are silent. <b>Listen</b> keeps one lobby's voice up whatever is on screen. It only goes to the stream; nothing is played back to the players.</p>
+    <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Duck under</span><select id="vo-duck" title="Your mic in OBS: lobby voice gets quieter while you talk"></select></div>
+    <div class="vo-list" id="vo-list"></div>
+  </details>
+  <details class="card roster-card" id="tw-card" open>
+    <summary><div><b>Twitch</b> <span class="muted" id="tw-line"></span></div>
+      <div class="row"><button class="b" id="tw-test" title="A fake Twitch channel: votes, chat and redemptions are made up here, nothing is sent">Test mode</button><button class="b" id="tw-sign">Sign in</button><button class="b" id="tw-off" title="Nothing goes to Twitch">Twitch off</button></div></summary>
+    <p class="note bad" id="tw-problem" hidden></p>
+    <p class="note good" id="tw-code" hidden></p>
+    <div class="tw-grid">
+      <div>
+        <h3>Running</h3>
+        <div id="tw-active"></div>
+        <div class="row" style="margin-top:6px;flex-wrap:wrap" id="tw-start">
+          <button class="b" data-tws="prediction" title="Impostors or Crewmates? on the featured lobby's game">Game prediction</button>
+          <button class="b" data-tws="first" title="Which lobby finishes first?">First to finish</button>
+          <button class="b" data-tws="moreWins" title="More impostor or crew wins this round?">More wins</button>
+          <button class="b" data-tws="meetingPoll" title="Who's the impostor? (the lobby on stream, in a meeting)">Impostor poll</button>
+          <button class="b" data-tws="meetingChat" title="!sus vote in chat (the lobby on stream, in a meeting)">!sus vote</button>
+          <button class="b" data-tws="lobbyPoll" title="Which lobby next? You approve the switch">Which lobby next?</button>
+          <button class="b" data-tws="mvpPoll" title="Round MVP from the standings">Round MVP</button>
+        </div>
+        <h3>Channel points</h3>
+        <div id="tw-reds"></div>
+        <h3>Chat Detectives</h3>
+        <div id="tw-det" class="muted" style="font-size:13px"></div>
+      </div>
+      <div>
+        <h3>Features <span class="muted" style="font-weight:400;font-size:12px">· on · by itself</span></h3>
+        <div id="tw-features"></div>
+        <h3>Settings</h3>
+        <div class="tw-set">
+          <label>Client ID <input id="tw-client" placeholder="from dev.twitch.tv (Public client)" autocomplete="off"></label>
+          <label>Stream delay <input id="tw-delay" type="number" min="0" max="900" step="1"> s</label>
+          <label>Predictions follow <select id="tw-featured"></select></label>
+          <label>Lock predictions after <input id="tw-psec" type="number" min="30" max="1800"> s</label>
+          <label>Meeting votes <select id="tw-mode"><option value="auto">Poll with ≤5 alive, else !sus</option><option value="poll">Poll</option><option value="chat">!sus</option><option value="both">Both</option></select></label>
+          <label>Meeting vote length <input id="tw-msec" type="number" min="15" max="1800"> s</label>
+          <label><input type="checkbox" id="tw-reveal"> Say if chat was right at the ejection (only if your lobbies confirm ejects)</label>
+        </div>
+        <h3>Log</h3>
+        <div id="tw-log" class="tw-log"></div>
+      </div>
+    </div>
+  </details>
+  <details class="card roster-card" id="mt-card" open>
+    <summary><div><b>Montages</b> <span class="muted" id="mt-line"></span></div>
+      <div class="row"><button class="b" id="mt-ffmpeg" hidden>Get ffmpeg</button><button class="b" data-mtbuild="game" title="A montage of the last game that ended">Last game</button><button class="b" data-mtbuild="round" title="Every kill and the top plays of the round">This round</button></div></summary>
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Built by themselves when each game and each round ends: the moments cut to a few seconds, cropped like replays, with names in the lower third. Play puts it in the replay scene.</p>
+    <div class="mt-list" id="mt-list"></div>
+  </details>
+  <details class="card roster-card" id="mom-card">
+    <summary><div><b>Moments</b> <span class="muted" id="mom-line"></span></div></summary>
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Every saved clip. Click to pick (double-click to preview), drag the picked ones to change the order, then Build montage. A montage from here is deleted once it has played; its clips stay, marked USED.</p>
+    <div class="row" style="margin-top:6px"><input id="mom-title" placeholder="Montage title (optional)" style="width:220px" autocomplete="off"><button class="b" id="mom-clear">Clear</button><button class="b primary" id="mom-build">Build montage</button></div>
+    <div class="mom-sel" id="mom-sel"></div>
+    <div class="mom-grid" id="mom-grid"></div>
+  </details>
+  <details class="card roster-card" id="sp-card">
+    <summary><div><b>Sponsors</b> <span class="muted" id="sp-line"></span></div>
+      <div class="row"><button class="b" id="sp-break" title="Split screen: the lobby on the left, the sponsor on the right">Sponsor break</button><button class="b" id="sp-export" title="Every appearance (CSV) and a summary">Export report</button><button class="b" id="sp-open" title="Open sponsors.json">Edit sponsors</button></div></summary>
+    <p class="note bad" id="sp-problem" hidden></p>
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Placements: killcam ("Kill Cam presented by" on kill replays), montage (an opening card), standings ("Presented by" under the table), grid (empty grid tiles), break (split-screen breaks; they end by themselves, and a MUST SHOW play cuts straight back). Every appearance is logged.</p>
+    <div class="sp-list" id="sp-list"></div>
+  </details>
+  <details class="card roster-card" id="roster-card">
+    <summary><div><b>Players</b> <span class="muted" id="roster-line"></span></div><button class="b" id="roster-open" title="Open roster.csv">Edit roster</button></summary>
+    <p class="note bad" id="roster-problem" hidden></p>
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Matched by the Discord account automute links them to, then friend code, then in-game name. Pick someone by hand to override; "Automatic" goes back.</p>
+    <div class="rl" id="roster-list"></div>
+  </details>
+  <p id="desk-problem" class="note bad" hidden></p>
+  <div class="card rp-card" id="rp-card" hidden>
+    <div class="row" style="justify-content:space-between;align-items:center"><div class="rp-title"><span class="rp-badge">REPLAY</span> <b id="rp-what"></b></div>
+      <div class="row"><button class="b" id="rp-keys" title="Change the replay keys">Keys</button><button class="b primary" data-rp="live" title="Back to live">Back to live</button></div></div>
+    <div class="rp-scrub"><span class="mono" id="rp-time">0:00.0</span><div class="rp-bar" id="rp-bar"><div class="rp-fill" id="rp-fill"></div><div class="rp-mark" id="rp-start" title="Replay start"></div><div class="rp-mark ev" id="rp-ev" title="The play"></div><div class="rp-head" id="rp-head"></div></div><span class="mono muted" id="rp-len">0:00</span></div>
+    <div class="row rp-ctl">
+      <button class="b" data-rp="restart" title="Restart">⟲ Restart</button>
+      <button class="b" data-rp="frameBack" title="Back one frame">◁|</button>
+      <button class="b" data-rp="back" title="Back 1 s">−1s</button>
+      <button class="b primary rp-play" data-rp="toggle" id="rp-play" title="Play / pause">Pause</button>
+      <button class="b" data-rp="forward" title="Forward 1 s">+1s</button>
+      <button class="b" data-rp="frameForward" title="Forward one frame">|▷</button>
+      <span style="flex:1"></span>
+      <button class="b" data-rp="zoomOut" title="Zoom out">−</button><span class="mono muted" id="rp-zoom">×1.0</span><button class="b" data-rp="zoomIn" title="Zoom in">+</button>
+      <button class="b" data-rp="pan" data-dx="-1" data-dy="0" title="Pan left">←</button><button class="b" data-rp="pan" data-dx="0" data-dy="-1" title="Pan up">↑</button><button class="b" data-rp="pan" data-dx="0" data-dy="1" title="Pan down">↓</button><button class="b" data-rp="pan" data-dx="1" data-dy="0" title="Pan right">→</button>
+      <button class="b" data-rp="follow" id="rp-follow" title="Follow the players again">Follow</button>
+    </div>
+    <div class="rp-keys" id="rp-keymap" hidden></div>
+  </div>
+  <div class="card inter-card" id="inter-card" hidden></div>
+  <div class="desk-grid">
+    <div class="desk-col">
+      <h2>Happening now</h2>
+      <div class="desk-cards" id="desk-cards"></div>
+    </div>
+    <div class="desk-col">
+      <h2>Lobbies</h2>
+      <div class="desk-lobbies" id="desk-lobbies"></div>
+      <h2 style="margin-top:14px">Earlier</h2>
+      <div class="desk-history" id="desk-history"></div>
+    </div>
+  </div>
+  <div id="desk-receivers" hidden></div>
+</section>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+const TOKEN = '__APP_TOKEN__';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const head = c => `/crew/${c >= 0 && c < 18 ? c : 15}.png`;
+let S = null;
+
+async function api(method, path, body) {
+  const r = await fetch(path, { method, headers: { 'X-App-Token': TOKEN, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  return r.json();
+}
+function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 4200); }
+
+// ---- Space: drifting stars, like the Among Us menus ------------------------------------
+(function space() {
+  const canvas = $('space'), ctx = canvas.getContext('2d');
+  let stars = [], w = 0, h = 0;
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function size() {
+    const dpr = devicePixelRatio || 1;
+    w = innerWidth; h = innerHeight; canvas.width = w * dpr; canvas.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    let seed = 7; const r = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+    stars = Array.from({ length: Math.round(w * h / 5200) }, () => ({ x: r() * w, y: r() * h, z: r() }));
+  }
+  function draw(t) {
+    ctx.clearRect(0, 0, w, h);
+    for (const s of stars) {
+      if (!still) s.x -= 0.04 + s.z * 0.22;
+      if (s.x < -2) s.x = w + 2;
+      ctx.globalAlpha = 0.25 + s.z * 0.75;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(s.x, s.y, 0.4 + s.z * 1.3, 0, Math.PI * 2); ctx.fill();
+    }
+    if (!still) requestAnimationFrame(draw);
+  }
+  addEventListener('resize', () => { size(); if (still) draw(); });
+  size(); requestAnimationFrame(draw);
+})();
+
+// ---- Caster desk (administration code) --------------------------------------------------------
+// Every lobby's live data arrives through VDO.Ninja (hidden links below, data only), is ranked by
+// The Button, and shows here as cards. Clicking puts a lobby on stream.
+let DESK = null, deskKey = '';
+// A player's colour is their crewmate head next to their name.
+const sw = c => `<img class="sw" src="${head(+c)}" alt="">`;
+// "[[6|Jake]]" in a text → their crewmate head and the name.
+const rich = t => esc(t || '').replace(/\[\[(\d+)\|([^\]]*)\]\]/g, (m, c, n) => `<span class="who">${sw(+c)}${n}</span>`);
+const plain = t => (t || '').replace(/\[\[(\d+)\|([^\]]*)\]\]/g, '$2');
+const TIER_NAME = { must: 'Must show', veryHigh: 'Very high', high: 'High', medium: 'Medium', low: 'Low', offline: 'Offline' };
+const ago = s => s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s / 60)}m ${s % 60 < 10 ? '0' : ''}${s % 60}s ago` : `${Math.floor(s / 3600)}h ago`;
+const clock = iso => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+async function loadDesk() {
+  if (!S || !S.admin) { DESK = null; return; }
+  let r; try { r = await api('GET', '/app/admin/desk'); } catch (e) { return; }
+  if (!r || !r.desk) return;
+  DESK = r.desk; OBS = r.obs || null; RP = r.replay || null; ROSTER = r.roster || null; r_broadcast = r.broadcast || null; r_story = r.story || null; rpSync = performance.now();
+  MONT = r.montages || null; MOMENTS = r.moments || []; SPON = r.sponsors || null; LVOICE = r.voice || null; TW = r.twitch || null;
+  receivers(r.receivers || []);
+  sendNames(r.names || {});
+  if ($('caster').classList.contains('on')) renderDesk();
+}
+// One hidden VDO.Ninja link per sending lobby, for its data. Only messages from these frames are taken.
+const RECV = {};
+function receivers(list) {
+  const want = new Map(list.map(x => [x.lobby, x.url]));
+  for (const [lobby, f] of Object.entries(RECV)) if (want.get(lobby) !== f.dataset.src) { f.remove(); delete RECV[lobby]; delete RECV_AT[lobby]; }
+  for (const [lobby, url] of want) if (!RECV[lobby]) {
+    const f = document.createElement('iframe');
+    f.dataset.src = url; f.src = url; f.allow = 'autoplay'; f.title = 'data ' + lobby;
+    $('desk-receivers').appendChild(f); RECV[lobby] = f;
+    RECV_AT[lobby] = { last: Date.now(), wait: 5000, next: Date.now() + 15000 };
+  }
+}
+// Part 22: a data link quiet for a while is reloaded, waiting longer each time (5 s, 10 s … 1 min) until data comes again.
+const RECV_AT = {};
+setInterval(() => {
+  const now = Date.now();
+  for (const [lobby, f] of Object.entries(RECV)) {
+    const a = RECV_AT[lobby]; if (!a) continue;
+    if (now - a.last < 15000 || now < a.next) continue;
+    f.src = f.dataset.src;
+    a.next = now + a.wait; a.wait = Math.min(60000, a.wait * 2);
+  }
+}, 1000);
+addEventListener('message', e => {
+  const from = Object.values(RECV).some(f => f.contentWindow === e.source);
+  const got = e.data && e.data.dataReceived;
+  if (!from || !got) return;
+  const items = Array.isArray(got.tt) ? got.tt : got.overlayNinja && Array.isArray(got.overlayNinja.tt) ? got.overlayNinja.tt : null;
+  if (!items || !items.length) return;
+  const lobby = Object.keys(RECV).find(k => RECV[k].contentWindow === e.source);
+  if (lobby && RECV_AT[lobby]) { RECV_AT[lobby].last = Date.now(); RECV_AT[lobby].wait = 5000; }
+  // What arrived goes back to that referee's page, so it stops sending those again.
+  api('POST', '/app/admin/feedin', { items }).then(r => {
+    const ack = r && r.acks && lobby && (r.acks[lobby] || Object.values(r.acks)[0]);
+    if (ack && Object.keys(ack).length && e.source) e.source.postMessage({ sendData: { ttack: ack }, type: 'rpcs' }, '*');
+  }).catch(() => { });
+});
+async function show(lobby, layout, slot) {
+  const r = await api('POST', '/app/admin/show', { lobby, layout: layout || 'full', slot: slot ? String(slot) : '' });
+  toast(r.message); loadDesk();
+}
+// Replay button on a card: save one now, or play it once saved.
+function replayButton(c) {
+  const st = c.clip && c.clip.state;
+  if (st === 'ready') return `<button class="rpb ready" data-rplay="${c.id}" title="Play the replay">▶ REPLAY</button>`;
+  if (st === 'saving') return '<span class="rpb saving">Saving replay…</span>';
+  const fail = st === 'failed' && RP && (RP.clips.find(x => x.id === c.clip.id) || {}).problem;
+  return `<button class="rpb${st === 'failed' ? ' failed' : ''}" data-rsave="${c.id}" title="${esc(plain(fail) || 'Save a replay of this play')}">${st === 'failed' ? 'Replay failed · retry' : 'Save replay'}</button>`;
+}
+function renderDesk() {
+  if (!DESK) return;
+  renderReplay();
+  renderRoster();
+  renderGfx(r_broadcast);
+  renderStory(r_story);
+  renderMontages(); renderMoments(); renderSponsors(); renderVoice(); renderTwitch();
+  const key = JSON.stringify([DESK, OBS, RP && RP.clips]);
+  if (key === deskKey) return;
+  deskKey = key;
+  const d = DESK, air = d.onAir;
+  $('desk-sub').textContent = `${d.lobbies.filter(l => l.online).length} lobbies sending${d.simulating ? ' · simulation (fake lobbies)' : ''} · only on this PC: it shows who the impostors are.`;
+  $('desk-sim').classList.toggle('on', d.simulating);
+  $('desk-problem').hidden = !d.problem; $('desk-problem').textContent = d.problem || '';
+  document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === air.layout));
+  $('desk-autogrid').classList.toggle('on', !!d.autoGrid);
+  renderInter(d);
+  renderHealth(d);
+  $('air-slots').innerHTML = air.layout === 'intermission' ? '<span>INTERMISSION</span>' : air.layout === 'slate' ? '<span>BE RIGHT BACK</span>' : air.layout === 'break' ? `<span>SPONSOR BREAK · ${esc(air.slots[0] || '')}</span>` : air.layout === 'replay' ? `<span>REPLAY · ${esc(air.slots[0] || '')}</span>` : air.layout === 'none' ? '<span class="empty">Nothing yet: click a card or lobby</span>'
+    : air.slots.map((l, i) => `<span class="${l ? '' : 'empty'}"${l ? ` data-tile="${esc(l)}" title="Full screen" style="cursor:pointer"` : ''}>${air.slots.length > 1 ? (i + 1) + ' · ' : ''}${esc(l || 'empty')}</span>`).join('');
+  $('air-by').textContent = air.since ? `${air.by === 'obs' ? 'switched in OBS' : air.by === 'health' ? 'switched by itself (a lobby dropped)' : 'from here'}${air.scene ? ' · ' + air.scene : ''} · ${clock(air.since)}` : '';
+  if (air.layout === 'none' && air.scene) $('air-slots').innerHTML = `<span class="empty">OBS is on ${esc(air.scene)}: no lobby on stream</span>`;
+  // Which lobby goes in which slot (2-up and quad).
+  const multi = air.layout === '2up' || air.layout === '4up';
+  $('air-pick').hidden = !multi;
+  if (multi && !$('air-pick').contains(document.activeElement)) {
+    const names = d.lobbies.map(l => l.lobby);
+    $('air-pick').innerHTML = air.slots.map((cur, i) => `<label>Slot ${i + 1}<select data-slot="${i}"><option value="">Empty</option>${names.map(n => `<option${n === cur ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>`).join('');
+  }
+  renderObs();
+  const counts = c => c.crew != null ? `<span>${c.crew} crew v ${c.imps} imp</span><span>tasks ${c.taskPct ?? 0}%</span>` : '';
+  $('desk-cards').innerHTML = d.cards.length ? d.cards.map(c => c.system ? sysCard(c) : `<div class="dcard tier-${c.tier}" data-card="${c.id}" data-lobby="${esc(c.lobby)}" title="Put ${esc(c.lobby)} on stream">
+      <button class="x" data-dismiss="${c.id}" title="Dismiss">×</button>
+      <div class="t1"><span class="tier">${TIER_NAME[c.tier] || c.tier}</span><b>${esc(c.lobby)}</b>${c.onAir ? `<span class="live">${esc(c.onAir)}</span>` : ''}${c.shown ? `<span class="shown" title="${esc(c.shownHow || '')}">SHOWN ${clock(c.shown)}</span>` : ''}${c.offline ? '<span class="off">OFFLINE</span>' : ''}</div>
+      <div class="play">${rich(c.text)}${c.repeats > 1 ? ` <span class="muted" style="font-size:14px">×${c.repeats}</span>` : ''}</div>
+      <div class="t3">${counts(c)}<span>${ago(c.ago)}</span>${c.updatedAgo < c.ago - 1 ? `<span>updated ${ago(c.updatedAgo)}</span>` : ''}${replayButton(c)}</div>
+      ${c.people && c.people.length ? `<div class="ppl">${c.people.map(p => `<button data-pcard="${esc(p.key)}" data-plobby="${esc(c.lobby)}" title="${esc(p.name)}'s player card on stream">${sw(p.color)}${esc(p.name)}</button>`).join('')}</div>` : ''}
+    </div>`).join('') : `<div class="card"><p class="empty">${d.lobbies.length ? 'Quiet right now.' : 'No lobbies yet. Hosts appear here when they turn on "Send my game to the caster", or try Simulation.'}</p></div>`;
+  $('desk-lobbies').innerHTML = d.lobbies.length ? d.lobbies.map((l, i) => `<div class="dlob tier-${l.tier}${l.online ? '' : ' offline'}" data-lobby="${esc(l.lobby)}" title="Put ${esc(l.lobby)} on stream (full)">
+      <div class="sc">${l.online ? Math.round(l.score) : '–'}</div>
+      <div style="min-width:0"><div class="nm">${l.health && l.health !== 'green' ? `<span class="hdot ${l.health}" title="${l.health === 'red' ? 'Down' : 'Degraded'}: see Lobby health"></span>` : ''}${esc(l.lobby)}${l.onAir ? `<span class="live">${esc(l.onAir)}</span>` : ''}${l.online ? '' : '<span class="off">OFFLINE</span>'}</div><div class="ln">${rich(l.line)}</div></div>
+      <div class="lay"><button data-put="full" title="Full screen">Full</button><button data-put="2up" title="2-up, slot 1">2-up</button><button data-put="4up" title="Quad, slot 1">Quad</button></div>
+      ${specRow(l)}
+      ${l.people && l.people.length && l.online ? `<div class="ppl" data-pplrow>${l.people.map(p => `<button data-pcard="${esc(p.key)}" data-plobby="${esc(l.lobby)}" title="${esc(p.name)}'s player card on stream">${sw(p.color)}${esc(p.name)}</button>`).join('')}</div>` : ''}
+    </div>`).join('') : '<p class="empty">No lobbies.</p>';
+  $('desk-history').innerHTML = d.history.length ? d.history.map(c => `<div class="hrow tier-${c.tier}">
+      <span class="tm">${clock(c.at)}</span>
+      <span class="tx"><b>${esc(c.lobby)}</b> · ${rich(c.text)}${c.shown ? ' <span class="shown">SHOWN</span>' : ''}</span>
+      <button data-watch="${c.id}" title="Bring this lobby back up (the replay comes later)">Watch again</button>
+    </div>`).join('') : '<p class="empty" style="font-size:13px">Plays that have calmed down move here.</p>';
+}
+// Part 22: cards from the desk itself: a lobby down or back, a game interrupted (count, void or replay it).
+function sysCard(c) {
+  const it = c.interruption;
+  const can = c.rule === 'lobbyBack';
+  return `<div class="dcard sys tier-${c.tier}"${can ? ` data-card="${c.id}" data-lobby="${esc(c.lobby)}" title="Put ${esc(c.lobby)} on stream"` : ''}>
+    ${it ? '' : `<button class="x" data-dismiss="${c.id}" title="Dismiss">×</button>`}
+    <div class="t1"><span class="tier">${{ lobbyDown: 'Lobby down', lobbyBack: 'Back', interrupted: 'Interrupted', replayGame: 'Replay game', twitchLobby: "Chat's pick" }[c.rule] || 'Notice'}</span><b>${esc(c.lobby)}</b>${c.onAir ? `<span class="live">${esc(c.onAir)}</span>` : ''}</div>
+    <div class="play">${rich(c.text)}</div>
+    <div class="t3"><span>${ago(c.ago)}</span></div>
+    ${c.action && c.action.startsWith('show:') ? `<div class="acts"><button class="b primary" data-cardshow="${esc(c.action.slice(5))}">Put ${esc(c.action.slice(5))} on</button></div>` : ''}
+    ${it ? `<div class="acts"><button class="b" data-decide="count" data-iid="${it}" title="Put it in the standings">Count</button><button class="b" data-decide="void" data-iid="${it}" title="Posts !void for it">Void</button><button class="b primary" data-decide="replay" data-iid="${it}" title="Void it; the lobby plays it again">Replay</button></div>` : ''}
+  </div>`;
+}
+async function decide(id, decision) { const r = await api('POST', '/app/admin/interrupted', { id, decision }); toast(r.message); loadDesk(); }
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-decide]'); if (!b) return;
+  e.stopPropagation(); decide(b.dataset.iid, b.dataset.decide);
+}, true);
+// The health panel: one row per lobby, its colour and what's wrong in plain words; test buttons in simulation.
+const SIMFAIL = [['video', 'Video'], ['audio', 'Audio'], ['data', 'Data'], ['all', 'All'], ['lag', 'Lag'], ['crash', 'Crash'], ['reconnect', 'Reconnect']];
+let hlKey = '';
+function renderHealth(d) {
+  const h = d.health; if (!h) return;
+  $('hl-card').hidden = !h.lobbies.length && !h.interrupted.length && !d.simulating;
+  $('hl-auto').classList.toggle('on', !!h.settings.autoSwitch);
+  $('hl-slate').classList.toggle('on', !!h.settings.slate);
+  const red = h.lobbies.filter(x => x.level === 'red').length, yellow = h.lobbies.filter(x => x.level === 'yellow').length;
+  $('hl-line').textContent = h.lobbies.length ? (red || yellow ? `${red ? red + ' down' : ''}${red && yellow ? ' · ' : ''}${yellow ? yellow + ' degraded' : ''}` : 'all good') : 'no lobbies yet';
+  const key = JSON.stringify([h, d.simulating]); if (key === hlKey) return; hlKey = key;
+  $('hl-list').innerHTML = h.lobbies.map(x => `<div class="hl ${x.level}"><span class="dot" title="${x.level}"></span><span class="nm">${esc(x.lobby)}</span>
+      <span class="pr">${x.problems.length ? esc(x.problems.join(' · ')) : 'All good'}${x.lagMs != null && !x.problems.length ? ` <span class="muted" style="font-size:11.5px">· ${x.lagMs} ms lag</span>` : ''}${x.update ? ` <span class="upd" title="Their Button updates the mod by itself while Among Us is closed">${esc(x.update)}</span>` : ''}</span>
+      <span class="sim">${d.simulating && x.sim ? SIMFAIL.map(([k, n]) => `<button class="b${x.sim[k] ? ' on' : ''}" data-hlsim="${k}" data-hllobby="${esc(x.lobby)}" title="Simulate: ${n === 'Reconnect' ? 'everything comes back' : n.toLowerCase() + ' problem'}">${n}</button>`).join('') : x.level === 'red' ? `<button class="b" data-hlsim="forget" data-hllobby="${esc(x.lobby)}" title="Take it off the list (its referee has gone)">Forget</button>` : ''}</span></div>`).join('');
+  $('hl-int').innerHTML = h.interrupted.filter(i => !i.decision).map(i => `<div class="it"><span class="tag">INTERRUPTED</span><b>${esc(i.game)}</b><span class="muted">round ${i.round} · ${esc(i.why)} · not in the standings</span><span style="flex:1"></span>
+      <button class="b" data-decide="count" data-iid="${i.id}">Count</button><button class="b" data-decide="void" data-iid="${i.id}">Void</button><button class="b primary" data-decide="replay" data-iid="${i.id}">Replay</button></div>`).join('');
+}
+$('hl-list').addEventListener('click', async e => {
+  const b = e.target.closest('[data-hlsim]'); if (!b) return;
+  const r = await api('POST', '/app/admin/health', { lobby: b.dataset.hllobby, what: b.dataset.hlsim }); toast(r.message); hlKey = ''; loadDesk();
+});
+$('hl-auto').addEventListener('click', async () => { const r = await api('POST', '/app/admin/health', { what: 'autoSwitch', on: String(!(DESK && DESK.health.settings.autoSwitch)) }); toast(r.message); hlKey = ''; loadDesk(); });
+$('hl-slate').addEventListener('click', async () => { const r = await api('POST', '/app/admin/health', { what: 'slate', on: String(!(DESK && DESK.health.settings.slate)) }); toast(r.message); hlKey = ''; loadDesk(); });
+$('hl-open').addEventListener('click', async () => { const r = await api('POST', '/app/admin/health', { what: 'open' }); toast(r.message); });
+function playerCard(key, lobby) { api('POST', '/app/admin/card', { key, lobby: lobby || '' }).then(r => toast(r.message)); }
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-pcard]'); if (!b) return;
+  e.stopPropagation(); playerCard(b.dataset.pcard, b.dataset.plobby);
+}, true);
+// Key C: the top notification's key player.
+function cardForTop() {
+  const c = DESK && DESK.cards.find(x => x.people && x.people.length);
+  if (!c) return toast('No notification with a player.');
+  playerCard(c.people[0].key, c.lobby);
+}
+$('desk-cards').addEventListener('click', e => {
+  const rp = e.target.closest('[data-rplay]');
+  if (rp) { api('POST', '/app/admin/replay', { action: 'play', id: rp.dataset.rplay }).then(r => { toast(r.message); loadDesk(); }); return; }
+  const rs = e.target.closest('[data-rsave]');
+  if (rs) { api('POST', '/app/admin/replay', { action: 'save', id: rs.dataset.rsave }).then(r => { toast(r.message); loadDesk(); }); return; }
+  const x = e.target.closest('[data-dismiss]');
+  if (x) { api('POST', '/app/admin/dismiss', { id: x.dataset.dismiss }).then(loadDesk); return; }
+  const c = e.target.closest('[data-card]'); if (c) show(c.dataset.lobby, 'full');
+});
+// The spectator view on a lobby's host screen: sent to that host over its VDO.Ninja link (the only way back to them).
+function specSend(lobby, command) {
+  const f = RECV[lobby];
+  if (f && f.contentWindow) f.contentWindow.postMessage({ sendData: { ttc: command }, type: 'rpcs' }, '*');
+  api('POST', '/app/admin/spec', { lobby, command }).then(() => setTimeout(loadDesk, 1200));
+  toast(`${lobby}: ${command.replace(/^spec /, '')}`);
+}
+function specRow(l) {
+  const sp = l.spec; if (!sp || !l.online) return '';
+  const crew = (l.players || []).filter(p => !p.imp);
+  const vis = { off: 'Vision off', focus: 'Vision: focus', rings: 'Vision: rings' }[sp.vision] || sp.vision;
+  return `<div class="spec" data-specrow="${esc(l.lobby)}">View${sp.on ? '' : ' (host isn\'t the referee ghost)'}
+    <button data-spec="lit" class="${sp.lit ? 'on' : ''}" title="Whole map lit (key ${keyName('specLit')})">Lit</button>
+    <button data-spec="vision" class="${sp.vision !== 'off' ? 'on' : ''}" title="Off → focus → rings (key ${keyName('specVision')})">${vis}</button>
+    <button data-spec="report" class="${sp.report ? 'on' : ''}" title="&quot;!&quot; when someone can report (key ${keyName('specReport')})">!</button>
+    <button data-spec="eye" class="${sp.eye ? 'on' : ''}" title="Eye when a crewmate sees an impostor (key ${keyName('specEye')})">Eye</button>
+    ${sp.vision === 'focus' ? `<select data-specfocus title="Whose vision"><option value="auto">Focus: auto${sp.focusing != null && sp.focus == null ? ' (' + esc(realName(l.lobby, sp.focusing, (crew.find(p => p.id === sp.focusing) || {}).colour || '')) + ')' : ''}</option>${crew.map(p => `<option value="${p.id}"${sp.focus === p.id ? ' selected' : ''}>${esc(p.colour)} · ${esc(realName(l.lobby, p.id, p.name))}</option>`).join('')}</select>` : ''}
+  </div>`;
+}
+const keyName = k => ((RP && RP.hotkeys && RP.hotkeys[k]) || '').replace(/^Key|^Digit/, '');
+$('desk-lobbies').addEventListener('change', e => {
+  const sel = e.target.closest('[data-specfocus]'); if (!sel) return;
+  specSend(sel.closest('[data-specrow]').dataset.specrow, 'spec focus ' + sel.value);
+});
+$('desk-lobbies').addEventListener('click', e => {
+  if (e.target.closest('[data-specfocus]')) return;
+  const sb = e.target.closest('[data-spec]');
+  if (sb) { specSend(sb.closest('[data-specrow]').dataset.specrow, 'spec ' + sb.dataset.spec); return; }
+  if (e.target.closest('[data-specrow]')) return;
+  const row = e.target.closest('[data-lobby]'); if (!row) return;
+  const put = e.target.closest('[data-put]');
+  show(row.dataset.lobby, put ? put.dataset.put : 'full', 1);
+});
+$('desk-history').addEventListener('click', e => {
+  const w = e.target.closest('[data-watch]'); if (!w) return;
+  api('POST', '/app/admin/watch', { id: w.dataset.watch }).then(r => { toast(r.message); loadDesk(); });
+});
+document.querySelectorAll('[data-layout]').forEach(b => b.addEventListener('click', () => {
+  const first = DESK && DESK.onAir.slots.find(x => x) || (DESK && DESK.lobbies[0] && DESK.lobbies[0].lobby) || '';
+  show(first, b.dataset.layout, 1);
+}));
+// Clicking a lobby on stream (e.g. a grid tile) takes it full screen.
+$('air-slots').addEventListener('click', e => { const t = e.target.closest('[data-tile]'); if (t) show(t.dataset.tile, 'full'); });
+$('desk-autogrid').addEventListener('click', async () => { const r = await api('POST', '/app/admin/autogrid', { on: String(!(DESK && DESK.autoGrid)) }); toast(r.message); loadDesk(); });
+$('air-pick').addEventListener('change', async e => {
+  const sel = e.target.closest('[data-slot]'); if (!sel || !DESK) return;
+  const slots = [...$('air-pick').querySelectorAll('[data-slot]')].map(x => x.value);
+  const r = await api('POST', '/app/admin/show', { lobby: '', layout: DESK.onAir.layout, slots });
+  toast(r.message); loadDesk();
+});
+let OBS = null;
+function renderObs() {
+  const o = OBS; if (!o) return;
+  $('obs-card').classList.toggle('ok', o.connected);
+  $('obs-line').textContent = o.connected ? `Connected${o.version ? ' · OBS ' + o.version : ''} · ${o.canvas}${o.scene ? ' · live scene: ' + o.scene : ''} · ${Object.keys(o.sources || {}).length} lobby sources` : (o.problem || 'Not connected');
+  $('obs-line').classList.toggle('bad-text', !o.connected && !!o.problem);
+  const sw = o.swoosh || {};
+  $('obs-swoosh').classList.toggle('on', !!sw.on);
+  $('obs-swoosh').title = sw.on ? `Swoosh on every switch${sw.stinger ? ' (OBS Stinger transition "TT Swoosh" for scene changes)' : ' (add a Stinger transition called "TT Swoosh" in OBS to use it for scene changes)'}${sw.problem ? ' · ' + sw.problem : ''}` : 'Swoosh off: straight cuts';
+  $('obs-on').hidden = !o.connected; $('obs-form').hidden = o.connected; $('obs-help').hidden = o.connected;
+  if (!$('obs-form').contains(document.activeElement)) { $('obs-host').value = o.host || ''; $('obs-port').value = o.port || ''; $('obs-pass').placeholder = o.hasPassword ? 'Password saved (type to change)' : 'Password (Tools → WebSocket Server Settings)'; }
+}
+$('obs-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  toast('Connecting to OBS…');
+  const body = { action: 'connect', host: $('obs-host').value.trim(), port: $('obs-port').value.trim() };
+  if ($('obs-pass').value) body.password = $('obs-pass').value;
+  const r = await api('POST', '/app/admin/obs', body);
+  toast(r.message); $('obs-pass').value = ''; loadDesk();
+});
+$('obs-off').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'disconnect' }); toast(r.message); loadDesk(); });
+$('obs-swoosh').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'swoosh', on: String(!(OBS && OBS.swoosh && OBS.swoosh.on)) }); toast(r.message); loadDesk(); });
+$('obs-build').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'build' }); toast(r.message); loadDesk(); });
+// ---- Standings & storylines ---------------------------------------------------------------------
+let r_story = null, storyKey = '';
+function renderStory(st) {
+  if (!st) return;
+  $('story-line').textContent = `${st.games} games today · ${st.notes.length} notes`;
+  document.querySelectorAll('[data-scope]').forEach(b => b.classList.toggle('on', b.dataset.scope === st.scope));
+  $('st-show').classList.toggle('on', !!(r_broadcast && r_broadcast.elements.standings));
+  const key = JSON.stringify(st); if (key === storyKey) return; storyKey = key;
+  $('st-table').innerHTML = st.standings.length ? `<thead><tr><th></th><th class="l">${st.scope === 'overall' || !st.round ? 'Tournament' : 'Round ' + st.round}</th><th>Points</th><th>W-L</th></tr></thead><tbody>` +
+    st.standings.map(r => `<tr class="${r.advancing ? 'up' : ''}"><td class="rk">${r.rank}</td><td class="l">${sw(r.color)}${esc(r.name)}</td><td class="big">${r.points}</td><td>${r.wins}-${r.games - r.wins}</td></tr>`).join('') + '</tbody>'
+    : '<tr><td class="muted" style="font-size:13px">No scored games yet.</td></tr>';
+  $('notes').innerHTML = st.notes.length ? st.notes.map(n => `<div class="nt${n.pinned ? ' pinned' : ''}"><span>${rich(n.text)}</span>
+      <span class="acts"><button class="go" data-note="${esc(n.id)}" data-act="show" title="Put it on stream (lower third)">On stream</button><button data-note="${esc(n.id)}" data-act="${n.pinned ? 'unpin' : 'pin'}">${n.pinned ? 'Unpin' : 'Pin'}</button><button data-note="${esc(n.id)}" data-act="used">Used</button><button data-note="${esc(n.id)}" data-act="dismiss" title="Dismiss">×</button></span></div>`).join('')
+    : '<p class="empty" style="font-size:13px">Notes appear as games are played: records, streaks, first blood, rivalries…</p>';
+}
+$('notes').addEventListener('click', async e => {
+  const b = e.target.closest('[data-note]'); if (!b) return;
+  const r = await api('POST', '/app/admin/note', { id: b.dataset.note, action: b.dataset.act });
+  toast(plain(r.message)); storyKey = ''; loadDesk();
+});
+document.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/standings', { scope: b.dataset.scope }); toast(r.message); storyKey = ''; loadDesk(); }));
+$('st-show').addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/standings', { show: String(!$('st-show').classList.contains('on')) }); toast(r.message); gfxKey = ''; loadDesk(); });
+
+// ---- Lobby voice (Part 11) -----------------------------------------------------------------------
+let LVOICE = null, voKey = '';
+const VO_STATE = { capturing: 'found', 'not running': 'not open', unsupported: 'Windows too old', off: 'off' };
+const meterPct = db => Math.max(0, Math.min(100, ((db ?? -60) + 60) / 60 * 100));
+// ---- Twitch (Part 23) ------------------------------------------------------------------------------
+let TW = null, twKey = '';
+const twDo = async body => { const r = await api('POST', '/app/admin/twitch', body); toast(r.message); twKey = ''; loadDesk(); return r; };
+function twItem(x, kind) {
+  if (!x) return '';
+  const ico = o => o.icon ? `<img class="sw" src="${head0(o.icon)}" alt="">` : o.color != null ? sw(o.color) : '';
+  const ctl = kind === 'prediction' ? `<button class="b" data-twp="lock"${x.status === 'locked' ? ' disabled' : ''}>Lock</button><button class="b" data-twp="cancel" title="Everyone gets their points back">Cancel</button>${x.options.map(o => `<button class="b" data-twp="resolve" data-out="${esc(o.id)}" title="Resolve: ${esc(o.title)} won">${esc(o.title)} won</button>`).join('')}`
+    : kind === 'poll' ? '<button class="b" data-twendpoll>End poll</button>' : '';
+  return `<div class="tw-it"><div class="tt"><span class="k">${{ prediction: 'PREDICTION', poll: 'POLL', chat: '!SUS' }[x.type]}</span><b>${esc(x.title)}</b><span class="muted">${x.status === 'locked' ? 'locked' : x.left + ' s left'} · ${x.voters} ${x.type === 'prediction' ? 'predicted' : 'voted'}</span></div>
+    ${x.options.map(o => `<div class="op"><span>${ico(o)} ${esc(o.title)}</span><span class="bar"><i style="width:${o.pct}%"></i></span><span>${o.pct}%</span></div>`).join('')}
+    ${ctl ? `<div class="row" style="flex-wrap:wrap">${ctl}</div>` : ''}</div>`;
+}
+const head0 = icon => head(icon === 'imp' ? 0 : 7);
+function renderTwitch() {
+  const t = TW; if (!t) return;
+  $('tw-off').classList.toggle('on', !!t.off); $('tw-off').textContent = t.off ? 'Twitch is off' : 'Twitch off';
+  $('tw-test').classList.toggle('on', !!t.testMode);
+  $('tw-sign').textContent = t.signedIn ? 'Sign out' : 'Sign in';
+  $('tw-line').textContent = t.off ? 'off' : t.connected ? `${t.testMode ? 'test mode · ' : ''}${t.user ? t.user.name : ''}${t.user && !t.testMode ? ' (' + (t.user.type || 'not Affiliate/Partner') + ')' : ''}${t.events ? ' · events ' + t.events : ''} · predictions follow ${t.featuredNow || 'nobody yet'}` : 'not connected';
+  const prob = [t.problem, t.eventsProblem].filter(Boolean).join(' ');
+  $('tw-problem').hidden = !prob; $('tw-problem').textContent = prob;
+  $('tw-code').hidden = !t.signIn; if (t.signIn) $('tw-code').innerHTML = `Go to <b>${esc(t.signIn.url)}</b> signed in as your channel and enter <b style="font-size:18px;letter-spacing:.1em">${esc(t.signIn.code)}</b>. This page carries on by itself once you have.`;
+  const key = JSON.stringify(t); if (key === twKey) return; twKey = key;
+  const busy = $('tw-card').contains(document.activeElement) && document.activeElement.matches('input,select');
+  $('tw-active').innerHTML = (twItem(t.vote, 'chat') + twItem(t.poll, 'poll') + twItem(t.prediction, 'prediction')) || '<p class="muted" style="font-size:13px;margin:0">Nothing running.</p>';
+  $('tw-reds').innerHTML = t.redemptions.length ? t.redemptions.map(r => `<div class="tw-red"><b>${r.kind === 'replay' ? 'Replay' : 'Shoutout'}</b><span>${esc(r.user)}${r.input ? ': “' + esc(r.input) + '”' : ''}${r.playerName ? ' → ' + esc(r.playerName) : ''}</span>${r.flag ? `<span class="fl">${esc(r.flag)}</span>` : ''}<span style="flex:1"></span>
+      ${r.status === 'waiting' ? `${r.kind === 'replay' ? `<select data-twclip="${esc(r.id)}">${t.clips.length ? t.clips.map(c => `<option value="${esc(c.id)}">${esc(c.lobby)}: ${esc(c.title)}</option>`).join('') : '<option value="">No replays saved yet</option>'}</select>` : ''}<button class="b primary" data-twred="${esc(r.id)}" data-ok="true">Approve</button><button class="b" data-twred="${esc(r.id)}" data-ok="false" title="Their points go back">Deny</button>` : `<span class="muted">${r.status}</span>`}</div>`).join('')
+    : '<p class="muted" style="font-size:13px;margin:0">"Request a replay" and "Shoutout a player" redemptions wait here for you.</p>';
+  $('tw-det').innerHTML = t.detectives.length ? t.detectives.map((d, i) => `${i + 1}. <b style="color:var(--fg,#fff)">${esc(d.name)}</b> ${d.correct}/${d.guesses}`).join(' · ') : 'Nobody yet: viewers score by voting !sus for an impostor.';
+  $('tw-features').innerHTML = `<div class="tw-feat">${Object.entries(t.names).map(([k, n]) => {
+    const autoKey = { predictions: 'predictions', meetingPolls: 'meetings', chatVote: 'meetings', lobbyPoll: 'lobbyPoll', mvpPoll: 'mvpPoll' }[k];
+    return `<span>${esc(n)}</span><button class="b${t.features[k] ? ' on' : ''}" data-twf="${k}">${t.features[k] ? 'On' : 'Off'}</button>${autoKey ? `<button class="b${t.auto[autoKey] ? ' on' : ''}" data-twa="${autoKey}" title="Starts by itself">${t.auto[autoKey] ? 'Auto' : 'By hand'}</button>` : '<span></span>'}`;
+  }).join('')}</div>`;
+  if (!busy) {
+    $('tw-client').value = t.clientId || ''; $('tw-delay').value = t.delaySeconds; $('tw-psec').value = t.predictionSeconds; $('tw-msec').value = t.meetingSeconds;
+    $('tw-mode').value = t.meetingMode; $('tw-reveal').checked = !!t.revealAtEject;
+    const lobbies = (DESK && DESK.lobbies || []).map(l => l.lobby);
+    $('tw-featured').innerHTML = `<option value="">The lobby on stream</option>` + lobbies.map(l => `<option${l === t.featured ? ' selected' : ''}>${esc(l)}</option>`).join('');
+  }
+  $('tw-log').innerHTML = t.log.map(l => `<div><span>${clock(l.at)}</span>${esc(l.text)}</div>`).join('');
+}
+$('tw-card').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.closest('summary')) e.preventDefault();
+  if (b.id === 'tw-off') return twDo({ action: 'off', on: String(!(TW && TW.off)) });
+  if (b.id === 'tw-test') return twDo({ action: 'test', on: String(!(TW && TW.testMode)) });
+  if (b.id === 'tw-sign') return twDo({ action: TW && TW.signedIn ? 'signout' : 'signin' });
+  if (b.dataset.tws) return twDo({ action: 'start', kind: b.dataset.tws });
+  if (b.dataset.twp) return twDo({ action: 'prediction', do: b.dataset.twp, outcome: b.dataset.out || '' });
+  if (b.hasAttribute('data-twendpoll')) return twDo({ action: 'endpoll' });
+  if (b.dataset.twf) return twDo({ action: 'feature', name: b.dataset.twf, on: String(!(TW && TW.features[b.dataset.twf])) });
+  if (b.dataset.twa) return twDo({ action: 'auto', name: b.dataset.twa, on: String(!(TW && TW.auto[b.dataset.twa])) });
+  if (b.dataset.twred) { const sel = $('tw-card').querySelector(`[data-twclip="${CSS.escape(b.dataset.twred)}"]`); return twDo({ action: 'redemption', id: b.dataset.twred, on: b.dataset.ok, clip: sel ? sel.value : '' }); }
+});
+$('tw-card').addEventListener('change', e => {
+  const id = e.target.id;
+  if (id === 'tw-client') twDo({ action: 'clientId', value: e.target.value });
+  else if (id === 'tw-delay') twDo({ action: 'delay', value: e.target.value });
+  else if (id === 'tw-psec') twDo({ action: 'predictionSeconds', value: e.target.value });
+  else if (id === 'tw-msec') twDo({ action: 'meetingSeconds', value: e.target.value });
+  else if (id === 'tw-mode') twDo({ action: 'meetingMode', value: e.target.value });
+  else if (id === 'tw-featured') twDo({ action: 'featured', value: e.target.value });
+  else if (id === 'tw-reveal') twDo({ action: 'revealAtEject', on: String(e.target.checked) });
+});
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-cardshow]'); if (!b) return;
+  e.stopPropagation(); show(b.dataset.cardshow, 'full');
+}, true);
+function renderVoice() {
+  const v = LVOICE; if (!v) return;
+  const o = v.obs || { volume: {}, offset: {}, inputs: [], sources: [] };
+  $('vo-mute').classList.toggle('on', !!o.muteAll); $('vo-mute').textContent = o.muteAll ? 'Muted' : 'Mute all';
+  $('vo-on').classList.toggle('on', o.on !== false);
+  const sending = v.status.filter(x => x.online && x.sending).length;
+  $('vo-line').textContent = `${sending} of ${v.status.length} lobbies sending voice${o.heard ? ' · heard: ' + o.heard : ' · none heard'}${o.problem ? ' · ' + o.problem : ''}`;
+  if (!$('vo-duck').contains(document.activeElement)) {
+    const names = [...new Set([...(o.inputs || []), ...(o.duckUnder ? [o.duckUnder] : [])])];
+    $('vo-duck').innerHTML = `<option value="">No ducking</option>` + names.map(n => `<option${n === o.duckUnder ? ' selected' : ''}>${esc(n)}</option>`).join('');
+  }
+  if ($('vo-list').contains(document.activeElement)) return;
+  const key = JSON.stringify(v); if (key === voKey) return; voKey = key;
+  $('vo-list').innerHTML = v.status.length ? v.status.map(x => {
+    const chip = !x.reported ? '<span class="chip">NO VOICE YET</span>' : !x.online ? '<span class="chip bad">OFFLINE</span>' : x.problem ? `<span class="chip bad" title="${esc(x.problem)}">PROBLEM</span>` : x.sending ? '<span class="chip ok">SENDING</span>' : '<span class="chip">NOT SENDING</span>';
+    const heard = o.heard && o.heard.toLowerCase() === x.lobby.toLowerCase();
+    return `<div class="vo${heard ? ' heard' : ''}">
+      <div class="nm">${esc(x.lobby)} ${chip}${heard ? '<span class="chip on">HEARD</span>' : ''}${x.mic ? '<span class="chip" title="The referee\'s own mic is in">MIC</span>' : ''}</div>
+      <div class="lv">${x.reported ? `<span>Discord ${esc(VO_STATE[x.discord] || x.discord || '')}</span><span class="mtr"><i style="width:${meterPct(x.voiceDb)}%"></i></span><span>Among Us ${esc(VO_STATE[x.game] || x.game || '')}</span><span class="mtr"><i style="width:${meterPct(x.gameDb)}%"></i></span>` : '<span style="grid-column:1/-1">Their Button reports here once they send their game.</span>'}</div>
+      <div class="ctl"><label title="Volume (dB)">Vol <input type="range" min="-30" max="12" step="1" value="${o.volume[x.lobby] ?? 0}" data-vovol="${esc(x.lobby)}"></label>
+        <label title="Delay to line the voice up with the picture">Delay <input type="number" min="0" max="5000" step="50" value="${o.offset[x.lobby] ?? 0}" data-vooff="${esc(x.lobby)}"> ms</label>
+        <button class="b${o.pin && o.pin.toLowerCase() === x.lobby.toLowerCase() ? ' on' : ''}" data-vopin="${esc(x.lobby)}" title="Keep this lobby's voice up whatever is on screen">Listen</button></div></div>`;
+  }).join('') : '<p class="empty" style="font-size:13px">No lobbies yet.</p>';
+}
+async function voiceDo(body) { const r = await api('POST', '/app/admin/voice', body); toast(r.message); voKey = ''; document.activeElement.blur && document.activeElement.blur(); loadDesk(); }
+$('vo-mute').addEventListener('click', e => { e.preventDefault(); voiceDo({ action: 'mute' }); });
+$('vo-on').addEventListener('click', e => { e.preventDefault(); voiceDo({ action: 'on', on: String(!(LVOICE && LVOICE.obs && LVOICE.obs.on !== false)) }); });
+$('vo-duck').addEventListener('change', e => voiceDo({ action: 'duck', name: e.target.value }));
+$('vo-list').addEventListener('click', e => { const b = e.target.closest('[data-vopin]'); if (b) voiceDo({ action: 'pin', lobby: b.dataset.vopin }); });
+$('vo-list').addEventListener('change', e => {
+  const vol = e.target.closest('[data-vovol]'); if (vol) return voiceDo({ action: 'volume', lobby: vol.dataset.vovol, value: Number(vol.value) });
+  const off = e.target.closest('[data-vooff]'); if (off) return voiceDo({ action: 'offset', lobby: off.dataset.vooff, value: Number(off.value) });
+});
+
+// ---- Intermission -------------------------------------------------------------------------------
+let interLive = null;
+function renderInter(d) {
+  const it = d.intermission || {};
+  $('desk-inter').classList.toggle('on', !!it.on);
+  $('desk-autointer').classList.toggle('on', !!it.auto);
+  const card = $('inter-card');
+  if (it.live && it.live !== interLive) toast(`${it.live} is live: back to the game?`);
+  interLive = it.live || null;
+  card.classList.toggle('live', !!it.live);
+  if (card.contains(document.activeElement)) return;
+  if (it.on) {
+    const at = it.nextRoundAt ? new Date(it.nextRoundAt) : null;
+    card.innerHTML = `<span class="tag">${it.live ? esc(it.live) + ' IS LIVE' : 'INTERMISSION'}</span>
+      <span class="muted" style="font-size:13px">Next round</span><input id="inter-next" placeholder="20 (min) or 19:30" style="width:140px" value="">
+      <button class="b" data-inter="next">Set</button>${at ? `<span class="muted" style="font-size:13px">at ${at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>` : ''}
+      ${it.montage ? `<span style="font-size:13px">Up next: <b>${esc(it.montage)}</b></span><button class="b" data-inter="montage">Play montage</button>` : ''}
+      <span style="flex:1"></span><span class="muted" style="font-size:12px">Win counter</span><button class="b${d.winScope === 'today' ? ' on' : ''}" data-wins="today">Today</button><button class="b${d.winScope === 'round' ? ' on' : ''}" data-wins="round">Round</button>
+      <button class="b primary" data-inter="off">Back to the game</button>`;
+    card.hidden = false;
+  } else if (it.offer) {
+    card.innerHTML = `<span class="tag">BETWEEN ROUNDS</span><span>Every lobby is between games.</span><span style="flex:1"></span><button class="b primary" data-inter="on">Intermission</button><button class="b" data-inter="dismiss">Not now</button>`;
+    card.hidden = false;
+  } else card.hidden = true;
+}
+function intermissionToggle() { api('POST', '/app/admin/intermission', { action: 'toggle' }).then(r => { toast(r.message); loadDesk(); }); }
+$('inter-card').addEventListener('click', async e => {
+  const w = e.target.closest('[data-wins]');
+  if (w) { const r = await api('POST', '/app/admin/wins', { scope: w.dataset.wins }); toast(r.message); loadDesk(); return; }
+  const b = e.target.closest('[data-inter]'); if (!b) return;
+  const body = { action: b.dataset.inter };
+  if (b.dataset.inter === 'next') body.value = $('inter-next').value;
+  const r = await api('POST', '/app/admin/intermission', body); toast(r.message); document.activeElement.blur(); loadDesk();
+});
+$('desk-inter').addEventListener('click', intermissionToggle);
+$('desk-autointer').addEventListener('click', async () => { const r = await api('POST', '/app/admin/intermission', { action: 'auto', on: String(!(DESK && DESK.intermission && DESK.intermission.auto)) }); toast(r.message); loadDesk(); });
+
+// ---- Montages, moments, sponsors ----------------------------------------------------------------
+let MONT = null, MOMENTS = [], SPON = null, mtKey = '', momKey = '', spKey = '', momPick = [], momPlayed = null;
+const media = (kind, id) => `/app/admin/media?kind=${kind}&id=${encodeURIComponent(id)}&token=${TOKEN}`;
+function preview(kind, id, title) {
+  const m = document.createElement('div'); m.className = 'vmodal';
+  m.innerHTML = `<button class="b cl">Close</button><div style="display:grid;gap:8px;justify-items:center"><video src="${media(kind, id)}" controls autoplay></video><div>${rich(title || '')}</div></div>`;
+  m.addEventListener('click', e => { if (e.target === m || e.target.closest('.cl')) { m.remove(); } });
+  document.body.appendChild(m);
+}
+const MT_STATE = { building: 'BUILDING', ready: 'MONTAGE READY', failed: 'FAILED', played: 'PLAYED' };
+function renderMontages() {
+  const m = MONT; if (!m) return;
+  $('mt-ffmpeg').hidden = m.ffmpeg;
+  $('mt-line').textContent = m.ffmpeg ? `${m.list.filter(x => x.state === 'ready').length} ready` : 'needs ffmpeg' + (SPON && SPON.ffmpegNote ? ' · ' + SPON.ffmpegNote : '');
+  const key = JSON.stringify(m.list); if (key === mtKey) return; mtKey = key;
+  $('mt-list').innerHTML = m.list.length ? m.list.map(x => `<div class="mt ${x.state}">
+      <span class="st">${x.playing ? 'ON STREAM' : MT_STATE[x.state] || x.state}</span>
+      <div style="min-width:0"><b>${rich(x.title)}</b> <span class="muted">${{ game: 'end of game', round: 'end of round', custom: 'from Moments' }[x.kind] || x.kind} · ${x.clips} clips${x.duration ? ' · ' + Math.round(x.duration) + 's' : ''}${x.sponsor ? ' · presented by ' + esc(x.sponsor) : ''} · ${ago(x.ago)}</span>${x.problem ? `<div class="bad-text" style="font-size:12px">${esc(x.problem)}</div>` : ''}</div>
+      <span class="acts">${x.state === 'ready' || x.state === 'played' ? `<button class="b primary" data-mt="play" data-id="${x.id}">Play</button><button class="b" data-mt="preview" data-id="${x.id}">Preview</button>` : ''}${x.state !== 'building' ? `<button class="b" data-mt="discard" data-id="${x.id}">Discard</button>` : ''}</span>
+    </div>`).join('') : '<p class="empty" style="font-size:13px">No montages yet: they appear here when games end.</p>';
+}
+$('mt-list').addEventListener('click', async e => {
+  const b = e.target.closest('[data-mt]'); if (!b) return;
+  const x = MONT.list.find(m => m.id === b.dataset.id);
+  if (b.dataset.mt === 'preview') { preview('montage', b.dataset.id, x && x.title); return; }
+  const r = await api('POST', '/app/admin/montage', { action: b.dataset.mt, id: b.dataset.id }); toast(plain(r.message)); mtKey = ''; loadDesk();
+});
+document.querySelectorAll('[data-mtbuild]').forEach(b => b.addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/montage', { action: b.dataset.mtbuild }); toast(r.message); loadDesk(); }));
+$('mt-ffmpeg').addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/montage', { action: 'ffmpeg' }); toast(r.message); });
+const RULE_NAME = { kill: 'Kill', winningKill: 'Winning kill', eject: 'Ejection', gameEnd: 'Game end', witnessedKill: 'Witnessed kill', meeting: 'Meeting', ejectSkipped: 'Vote', witnessedVent: 'Seen venting', vent: 'Vent', danger: 'Danger' };
+function renderMoments() {
+  // A custom montage played: start the selection again.
+  if (MONT && momPlayed !== null && MONT.customPlayed !== momPlayed) { momPick = []; $('mom-title').value = ''; momKey = ''; }
+  if (MONT) momPlayed = MONT.customPlayed;
+  momPick = momPick.filter(id => MOMENTS.some(m => m.id === id));
+  $('mom-line').textContent = `${MOMENTS.length} clips${momPick.length ? ` · ${momPick.length} picked` : ''}`;
+  const key = JSON.stringify([MOMENTS, momPick]); if (key === momKey) return; momKey = key;
+  $('mom-sel').innerHTML = momPick.length ? momPick.map((id, i) => { const m = MOMENTS.find(x => x.id === id); return `<span class="chip" draggable="true" data-pick="${id}"><b>${i + 1}</b>${rich(m.title)}</span>`; }).join('') : '<span class="muted" style="font-size:12.5px">Picked moments show here, in montage order.</span>';
+  $('mom-grid').innerHTML = MOMENTS.length ? MOMENTS.map(m => { const n = momPick.indexOf(m.id); return `<div class="mom${n >= 0 ? ' sel' : ''}" data-mom="${m.id}" title="Click to pick; double-click to preview">
+      <div class="th" style="${m.thumb ? `background-image:url('${media('thumb', m.id)}')` : ''}">${m.thumb ? '' : esc(RULE_NAME[m.rule] || m.rule).toUpperCase()}</div>
+      ${n >= 0 ? `<span class="num">${n + 1}</span>` : ''}${m.used ? '<span class="used">USED</span>' : ''}
+      <div class="tx"><span>${rich(m.title)}</span><span class="m">${esc(m.lobby)} · ${esc(RULE_NAME[m.rule] || m.rule)} · ${clock(m.at)}</span></div></div>`; }).join('')
+    : '<p class="empty" style="font-size:13px">Clips are saved by themselves for kills, ejections, meetings and game ends (needs OBS, or Simulation with ffmpeg).</p>';
+}
+$('mom-grid').addEventListener('click', e => {
+  const t = e.target.closest('[data-mom]'); if (!t) return;
+  const id = t.dataset.mom, i = momPick.indexOf(id);
+  if (i >= 0) momPick.splice(i, 1); else momPick.push(id);
+  renderMoments();
+});
+$('mom-grid').addEventListener('dblclick', e => { const t = e.target.closest('[data-mom]'); if (!t) return; const m = MOMENTS.find(x => x.id === t.dataset.mom); preview('clip', t.dataset.mom, m && m.title); });
+let dragId = null;
+$('mom-sel').addEventListener('dragstart', e => { const c = e.target.closest('[data-pick]'); if (!c) return; dragId = c.dataset.pick; c.classList.add('drag'); });
+$('mom-sel').addEventListener('dragover', e => {
+  e.preventDefault();
+  const over = e.target.closest('[data-pick]'); if (!over || !dragId || over.dataset.pick === dragId) return;
+  const from = momPick.indexOf(dragId), to = momPick.indexOf(over.dataset.pick);
+  momPick.splice(from, 1); momPick.splice(to, 0, dragId); renderMoments();
+});
+$('mom-sel').addEventListener('dragend', () => { dragId = null; momKey = ''; renderMoments(); });
+$('mom-clear').addEventListener('click', e => { e.preventDefault(); momPick = []; renderMoments(); });
+$('mom-build').addEventListener('click', async e => {
+  e.preventDefault();
+  const r = await api('POST', '/app/admin/montage', { action: 'custom', clips: momPick, title: $('mom-title').value });
+  toast(r.message); loadDesk();
+});
+function renderSponsors() {
+  const s = SPON; if (!s) return;
+  const br = DESK && DESK.break;
+  $('sp-break').textContent = br ? `End break (${br.left}s)` : 'Sponsor break';
+  $('sp-break').classList.toggle('on', !!br);
+  $('sp-line').textContent = `${s.list.length} sponsor${s.list.length === 1 ? '' : 's'}${br ? ' · BREAK ON: ' + br.sponsor : ''}`;
+  $('sp-problem').hidden = !s.problem; $('sp-problem').textContent = s.problem || '';
+  const key = JSON.stringify(s.list); if (key === spKey) return; spKey = key;
+  $('sp-list').innerHTML = s.list.length ? s.list.map(x => `<div class="sp"><div><b>${esc(x.name)}</b>${x.tagline ? ` <span class="muted">${esc(x.tagline)}</span>` : ''}</div>
+      <span class="pl">${x.placements.length ? x.placements.map(p => `<span>${esc(p)}</span>`).join('') : '<span>no placements yet</span>'}</span>
+      <span class="muted" style="font-size:12px">${x.shown} shown · ${Math.round(x.seconds / 60 * 10) / 10} min</span></div>`).join('') : '<p class="empty" style="font-size:13px">No sponsors: Edit sponsors.</p>';
+}
+$('sp-break').addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/sponsor', { action: DESK && DESK.break ? 'end' : 'break' }); toast(r.message); loadDesk(); });
+$('sp-open').addEventListener('click', e => { e.preventDefault(); api('POST', '/app/admin/sponsor', { action: 'open' }).then(r => toast(r.message)); });
+$('sp-export').addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/sponsor', { action: 'export' }); toast(r.message); });
+
+// ---- On-stream graphics ------------------------------------------------------------------------
+let r_broadcast = null, gfxKey = '';
+function renderGfx(g) {
+  if (!g) return;
+  $('gfx-line').innerHTML = g.url ? `<span class="mono">${esc(g.url)}</span>` : '';
+  $('gfx-problem').hidden = !g.problem; $('gfx-problem').textContent = g.problem || '';
+  if (DESK) {
+    document.querySelectorAll('#gfx-wins [data-wins]').forEach(b => b.classList.toggle('on', b.dataset.wins === DESK.winScope));
+    $('gfx-wins-now').textContent = DESK.wins ? `Impostors ${DESK.wins.impostors} · Crewmates ${DESK.wins.crew}` : '';
+  }
+  const al = g.alerts || { types: {} };
+  const akey = JSON.stringify([al, g.alertsWaiting]);
+  if ($('gfx-alerts').dataset.key !== akey) {
+    $('gfx-alerts').dataset.key = akey;
+    $('gfx-alerts').innerHTML = [['kill', 'Kills'], ['win', 'Wins'], ['report', 'Reports'], ['button', 'Buttons']].map(([k, n]) => `<button class="b${al.types[k] ? ' on' : ''}" data-alert="${k}">${n}</button>`).join('') +
+      `<button class="b${al.paused ? ' on' : ''}" data-alert="" title="Pause every alert (key ${keyName('alertsPause')})">${al.paused ? 'Paused' : 'Pause'}</button>${g.alertsWaiting ? `<span class="muted" style="font-size:12px">${g.alertsWaiting} waiting</span>` : ''}`;
+  }
+  const key = JSON.stringify(g.elements); if (key === gfxKey) return; gfxKey = key;
+  $('gfx-els').innerHTML = Object.keys(g.names).map(k => `<button class="b${g.elements[k] ? ' on' : ''}" data-gfx="${k}">${esc(g.names[k])}</button>`).join('');
+}
+$('gfx-els').addEventListener('click', async e => {
+  const b = e.target.closest('[data-gfx]'); if (!b) return;
+  const r = await api('POST', '/app/admin/broadcast', { element: b.dataset.gfx, on: String(!b.classList.contains('on')) });
+  toast(r.message); gfxKey = ''; loadDesk();
+});
+$('gfx-wins').addEventListener('click', async e => { const b = e.target.closest('[data-wins]'); if (!b) return; const r = await api('POST', '/app/admin/wins', { scope: b.dataset.wins }); toast(r.message); loadDesk(); });
+$('gfx-alerts').addEventListener('click', async e => {
+  const b = e.target.closest('[data-alert]'); if (!b) return;
+  const k = b.dataset.alert;
+  const r = await api('POST', '/app/admin/broadcast', k ? { action: 'alerts', kind: k, on: String(!b.classList.contains('on')) } : { action: 'alerts' });
+  toast(r.message); loadDesk();
+});
+$('gfx-theme').addEventListener('click', e => { e.preventDefault(); api('POST', '/app/admin/broadcast', { action: 'theme' }).then(r => toast(r.message)); });
+
+// ---- Roster: real names ----------------------------------------------------------------------
+let ROSTER = null, rosterKey = '';
+const sentNames = {};
+// Each lobby's referee gets its players' roster names (nameplates on their screen, names in events).
+function sendNames(all) {
+  const now = Date.now();
+  for (const [lobby, names] of Object.entries(all)) {
+    const f = RECV[lobby], json = JSON.stringify(names), was = sentNames[lobby];
+    if (!f || !f.contentWindow || (was && was.json === json && now - was.at < 20000)) continue;
+    f.contentWindow.postMessage({ sendData: { ttn: names }, type: 'rpcs' }, '*');
+    sentNames[lobby] = { json, at: now };
+  }
+}
+function realName(lobby, id, fallback) {
+  const l = ROSTER && ROSTER.lobbies.find(x => x.lobby === lobby);
+  const p = l && l.players.find(x => x.id === id);
+  return (p && p.roster) || (p && p.name) || fallback;
+}
+const HOW = { Discord: 'via Discord link', FriendCode: 'via friend code', InGameName: 'via in-game name', Manual: 'picked by hand', None: 'not on the roster' };
+function renderRoster() {
+  const r = ROSTER; if (!r) return;
+  $('roster-line').textContent = `${r.count} on the roster${r.unmatched ? ` · ${r.unmatched} in lobbies not matched` : ' · everyone matched'}`;
+  $('roster-problem').hidden = !r.problem; $('roster-problem').textContent = r.problem || '';
+  if ($('roster-list').contains(document.activeElement)) return;
+  const key = JSON.stringify(r); if (key === rosterKey) return; rosterKey = key;
+  const opts = (cur, how) => `<option value="auto"${how !== 'Manual' ? ' selected' : ''}>Automatic</option><option value=""${how === 'Manual' && !cur ? ' selected' : ''}>Not on the roster</option>` +
+    r.names.map(n => `<option${how === 'Manual' && n === cur ? ' selected' : ''}>${esc(n)}</option>`).join('');
+  $('roster-list').innerHTML = r.lobbies.filter(l => l.players.length).map(l => `<h3>${esc(l.lobby)}</h3>` + l.players.map(p => `<div class="rp">
+      <span>${sw(p.color)}${esc(p.name)} <span class="muted mono" style="font-size:11px">${esc(p.key)}</span></span>
+      <span>${p.roster ? `<b>${esc(p.roster)}</b>` : '<span class="muted">—</span>'}${p.say ? ` <span class="muted" style="font-size:11.5px">(say: ${esc(p.say)})</span>` : ''} <span class="how${p.how === 'None' ? ' none' : ''}">${HOW[p.how] || p.how}</span></span>
+      <span class="row" style="gap:4px;flex-wrap:nowrap"><select data-rkey="${esc(p.key)}">${opts(p.roster, p.how)}</select><span class="ppl"><button data-pcard="${esc(p.key)}" data-plobby="${esc(l.lobby)}" title="Player card on stream">Card</button></span></span></div>`).join('')).join('') || '<p class="empty" style="font-size:13px">Nobody in the lobbies yet.</p>';
+}
+$('roster-list').addEventListener('change', async e => {
+  const sel = e.target.closest('[data-rkey]'); if (!sel) return;
+  const r = await api('POST', '/app/admin/roster', { key: sel.dataset.rkey, name: sel.value });
+  toast(r.message); rosterKey = ''; sel.blur(); loadDesk();
+});
+$('roster-open').addEventListener('click', e => { e.preventDefault(); api('POST', '/app/admin/roster', { action: 'open' }).then(r => toast(r.message)); });
+
+// ---- Replay controls -------------------------------------------------------------------------
+let RP = null, rpSync = 0, keyWait = null;
+const RP_NAMES = { grid: 'Grid on / off', intermission: 'Intermission on / off', alertsPause: 'Pause off-screen alerts', playerCard: 'Card: top notification\'s player', voiceMute: 'Mute all lobby voice', specLit: 'View: lit map', specVision: 'View: vision mode', specReport: 'View: "!"', specEye: 'View: eye', playPause: 'Play / pause', back: 'Back 1 s', forward: 'Forward 1 s', frameBack: 'Back a frame', frameForward: 'Forward a frame', restart: 'Restart', zoomIn: 'Zoom in', zoomOut: 'Zoom out', panLeft: 'Pan left', panRight: 'Pan right', panUp: 'Pan up', panDown: 'Pan down', follow: 'Follow players', live: 'Back to live' };
+const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
+function rpCursor() { const n = RP && RP.now; if (!n) return 0; return Math.min(n.duration || 0, n.cursor + (n.playing ? (performance.now() - rpSync) / 1000 : 0)); }
+function renderReplay() {
+  const n = RP && RP.now;
+  $('rp-card').hidden = !n;
+  if (!n) return;
+  $('rp-what').innerHTML = `${esc(n.lobby)} · ${rich(n.title)}`;
+  $('rp-play').textContent = n.playing ? 'Pause' : n.ended ? 'Replay again' : 'Play';
+  $('rp-zoom').textContent = '×' + (n.view ? n.view.zoom : 1).toFixed(1);
+  $('rp-follow').classList.toggle('on', n.follow);
+  const d = n.duration || 1;
+  $('rp-len').textContent = fmt(d);
+  $('rp-start').style.left = (100 * n.start / d) + '%';
+  $('rp-ev').hidden = n.event == null; if (n.event != null) $('rp-ev').style.left = (100 * n.event / d) + '%';
+  if (!$('rp-keymap').hidden) renderKeys();
+}
+(function rpLoop() {
+  const n = RP && RP.now;
+  if (n && !$('rp-card').hidden) {
+    const c = rpCursor(), d = n.duration || 1;
+    $('rp-head').style.left = (100 * c / d) + '%'; $('rp-fill').style.width = (100 * c / d) + '%';
+    $('rp-time').textContent = fmt(c);
+  }
+  requestAnimationFrame(rpLoop);
+})();
+async function rpDo(action, extra) {
+  const r = await api('POST', '/app/admin/replay', Object.assign({ action }, extra || {}));
+  if (r.message) toast(r.message);
+  loadDesk();
+}
+$('rp-card').addEventListener('click', e => {
+  const b = e.target.closest('[data-rp]'); if (!b) return;
+  rpDo(b.dataset.rp, b.dataset.rp === 'pan' ? { value: +b.dataset.dx, value2: +b.dataset.dy } : null);
+});
+$('rp-bar').addEventListener('click', e => {
+  const n = RP && RP.now; if (!n || !n.duration) return;
+  const r = $('rp-bar').getBoundingClientRect();
+  rpDo('seek', { value: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * n.duration });
+});
+// Keys: work on the Caster tab while a replay is up (not while typing). Change them under Keys.
+const KEY_ACTION = { playPause: ['toggle'], back: ['back'], forward: ['forward'], frameBack: ['frameBack'], frameForward: ['frameForward'], restart: ['restart'], zoomIn: ['zoomIn'], zoomOut: ['zoomOut'],
+  panLeft: ['pan', -1, 0], panRight: ['pan', 1, 0], panUp: ['pan', 0, -1], panDown: ['pan', 0, 1], follow: ['follow'], live: ['live'] };
+document.addEventListener('keydown', e => {
+  if (!$('caster').classList.contains('on') || !RP) return;
+  if (keyWait) {
+    e.preventDefault();
+    const map = {}; map[keyWait] = e.code; keyWait = null;
+    api('POST', '/app/admin/replay', { action: 'hotkeys', map }).then(r => { toast(r.message); loadDesk().then(renderKeys); });
+    return;
+  }
+  const f = document.activeElement;
+  if (/INPUT|TEXTAREA|SELECT/.test(f.tagName)) return;
+  const name = Object.keys(RP.hotkeys || {}).find(k => RP.hotkeys[k] === e.code);
+  if (!name) return;
+  if (name === 'grid') {
+    e.preventDefault();
+    if (DESK && DESK.onAir.layout === 'grid') { const top = DESK.lobbies.find(l => l.online); if (top) show(top.lobby, 'full'); }
+    else show('', 'grid');
+    return;
+  }
+  if (name === 'alertsPause') { e.preventDefault(); api('POST', '/app/admin/broadcast', { action: 'alerts' }).then(r => { toast(r.message); loadDesk(); }); return; }
+  if (name === 'intermission') { e.preventDefault(); intermissionToggle(); return; }
+  if (name === 'playerCard') { e.preventDefault(); cardForTop(); return; }
+  if (name === 'voiceMute') { e.preventDefault(); voiceDo({ action: 'mute' }); return; }
+  // View keys: the lobby on stream (slot 1, or the one being replayed).
+  if (name.startsWith('spec')) {
+    const lobby = DESK && DESK.onAir.slots.find(x => x);
+    if (!lobby) return toast('Put a lobby on stream first.');
+    e.preventDefault();
+    specSend(lobby, 'spec ' + { specLit: 'lit', specVision: 'vision', specReport: 'report', specEye: 'eye' }[name]);
+    return;
+  }
+  if (!RP.now) return;
+  e.preventDefault();
+  if (!KEY_ACTION[name]) return;
+  const [act, dx, dy] = KEY_ACTION[name];
+  rpDo(act, act === 'pan' ? { value: dx, value2: dy } : null);
+});
+function renderKeys() {
+  const hk = RP && RP.hotkeys || {};
+  $('rp-keymap').innerHTML = Object.keys(RP_NAMES).map(k => `<label>${RP_NAMES[k]}<button data-key="${k}" class="${keyWait === k ? 'wait' : ''}">${keyWait === k ? 'Press a key' : esc((hk[k] || '').replace(/^Key|^Digit/, ''))}</button></label>`).join('');
+}
+$('rp-keys').addEventListener('click', () => { $('rp-keymap').hidden = !$('rp-keymap').hidden; renderKeys(); });
+$('rp-keymap').addEventListener('click', e => { const b = e.target.closest('[data-key]'); if (!b) return; keyWait = b.dataset.key; renderKeys(); });
+$('desk-sim').addEventListener('click', async () => { const r = await api('POST', '/app/admin/sim', { on: String(!(DESK && DESK.simulating)) }); toast(r.message); loadDesk(); });
+setInterval(() => { if (S && S.admin && ($('caster').classList.contains('on') || Object.keys(RECV).length || !DESK)) loadDesk(); }, 800);
+setInterval(() => { if (RP && RP.now && $('caster').classList.contains('on')) loadDesk(); }, 250);
+
+// ---- TT Broadcast: unlocking, the caster overlay's lobby, updates -------------------------------
+let ORG = null, showRoles = false;
+async function refresh() {
+  try { S = await api('GET', '/app/state'); } catch (e) { return; }
+  $('lock-card').hidden = !!S.admin;
+  $('caster').hidden = !S.admin;
+  $('cast-card').hidden = !S.admin;
+  renderUpdate();
+}
+$('lock-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const r = await api('POST', '/app/admin/code', { code: $('lock-code').value.trim() });
+  toast(r.message); if (r.ok) $('lock-code').value = ''; refresh();
+});
+function renderUpdate() {
+  const u = S.update || {}, el = $('alerts');
+  el.innerHTML = u.ready ? `<button class="alert good" data-app="restart">${esc(u.ready)} is ready: restart</button>`
+    : u.available && !u.busy ? `<button class="alert" data-app="update">Update to ${esc(u.available)}</button>`
+    : u.busy ? '<button class="alert" disabled>Updating…</button>' : u.error ? `<button class="alert bad" disabled title="${esc(u.error)}">Update failed</button>` : '';
+}
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-app]');
+  if (a && a.dataset.app === 'restart') api('POST', '/app/restart').then(r => toast(r.message));
+  if (a && a.dataset.app === 'update') api('POST', '/app/update').then(r => { toast(r.message); refresh(); });
+});
+async function loadOrganiser() {
+  if (!S || !S.admin) { ORG = null; return; }
+  try { ORG = await api('GET', '/app/admin'); } catch (e) { ORG = null; }
+  renderCast();
+}
+function castLobby(label) { api('POST', '/app/admin/cast', { lobby: label }).then(r => { toast(r.message); loadOrganiser(); }); }
+$('org-roles').addEventListener('change', e => { showRoles = e.target.checked; });
+document.addEventListener('keydown', e => {
+  const f = document.activeElement;
+  if (!ORG || $('cast-card').hidden || (/INPUT|TEXTAREA|SELECT/.test(f.tagName) && f.type !== 'checkbox')) return;
+  if (RP && RP.hotkeys && Object.values(RP.hotkeys).includes(e.code)) return;     // a desk key
+  const n = parseInt(e.key, 10);
+  if (n >= 1 && n <= 9 && ORG.lobbies[n - 1]) castLobby(ORG.lobbies[n - 1].label);
+  if (e.key === 'n' || e.key === 'N') jumpToAction();
+});
+// The lobby worth watching now: a meeting first, then anything that just happened, else the next live lobby in turn.
+function jumpToAction() {
+  if (!ORG) return;
+  const live = ORG.lobbies.filter(l => !l.quiet && l.data.phase !== 'Menu');
+  if (!live.length) { toast('No live lobbies.'); return; }
+  const hotOf = l => showRoles ? l.hotFull : l.hot;
+  const hot = live.filter(l => hotOf(l) && l.label !== ORG.cast);
+  const next = live[(live.findIndex(l => l.label === ORG.cast) + 1) % live.length];
+  const pick = hot.find(l => l.data.phase === 'Meeting') || hot[0] || next;
+  castLobby(pick.label);
+}
+$('org-jump').addEventListener('click', jumpToAction);
+let castKey = '';
+function renderCast() {
+  if (!ORG) return;
+  const key = JSON.stringify([ORG.casterUrl, ORG.cast, ORG.problem, ORG.casterProblem, ORG.lobbies.map(l => [l.label, l.hot, l.quiet])]);
+  if (key === castKey) return; castKey = key;
+  $('org-problem').hidden = !ORG.problem && !ORG.casterProblem; $('org-problem').textContent = ORG.problem || ORG.casterProblem || '';
+  const cu = ORG.casterUrl;
+  $('org-cast-url').innerHTML = cu ? [['Overlay', cu], ['Video', cu + 'video'], ['Multiview', cu + 'multiview']].map(([k, u]) => `<span class="muted">${k}</span><span class="mono">${esc(u)}</span>`).join('') : '';
+  $('org-casting').textContent = ORG.cast ? `· now showing ${ORG.cast}` : '· waiting for a lobby';
+  $('org-cast-list').innerHTML = ORG.lobbies.map((l, i) => `<button class="b${l.label === ORG.cast ? ' on' : ''}" data-cast="${esc(l.label)}" title="${l.hot ? esc(l.hot) : ''}">${i < 9 ? (i + 1) + ' · ' : ''}${esc(l.label)}${l.hot ? ' •' : ''}</button>`).join('') || '<span class="muted" style="font-size:12.5px">No lobbies yet.</span>';
+  $('org-cast-list').querySelectorAll('[data-cast]').forEach(b => b.onclick = () => castLobby(b.dataset.cast));
+}
+refresh();
+setInterval(refresh, 1500);
+setInterval(loadOrganiser, 2000);
+
+// ---- Window: the header is the title bar (drag, double-click to maximise) --------------------
+(() => {
+  const host = window.chrome && window.chrome.webview;
+  if (!host) return;
+  $('winctl').hidden = false;
+  document.querySelector('header').addEventListener('mousedown', e => {
+    if (e.button !== 0 || e.target.closest('button,a,input,select,textarea,.alert')) return;
+    e.preventDefault();
+    host.postMessage('drag');
+  });
+  $('winctl').addEventListener('click', e => { const b = e.target.closest('[data-win]'); if (b) host.postMessage(b.dataset.win); });
+  host.addEventListener('message', e => {
+    if (typeof e.data === 'string' && e.data.startsWith('maximized:')) {
+      const on = e.data === 'maximized:true';
+      document.body.classList.toggle('maxed', on);
+      document.querySelector('[data-win="max"]').title = on ? 'Restore' : 'Maximise';
+    }
+  });
+})();
+</script>
+</body>
+</html>

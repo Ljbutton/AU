@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    TT Broadcast, minus its window: the caster desk (ranking, cards, what's on stream), OBS
+    control, replays and montages, the on-stream graphics, the caster pages on port 8767, Twitch,
+    simulation mode, and the server for its own screen (ui/caster.html). Reads the tournament
+    through TournamentTracker.Common and the hosts' games through the broadcast feed
+    (Core/Broadcast/FeedProtocol.cs). Everything here also runs (and is tested) on Linux.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>TournamentTracker.App.Broadcast</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="ui\*.html" LogicalName="ui/%(Filename)%(Extension)" />
+    <!-- Shared with The Button (one copy, in its ui folder): fonts, crewmate heads (for players' colours), logo. -->
+    <EmbeddedResource Include="..\TournamentTracker.AppCore\ui\fonts\*" LogicalName="ui/fonts/%(Filename)%(Extension)" Link="ui\fonts\%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\TournamentTracker.AppCore\ui\crew\*.png" LogicalName="ui/crew/%(Filename)%(Extension)" Link="ui\crew\%(Filename)%(Extension)" />
+    <InternalsVisibleTo Include="TournamentTracker.Broadcast.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TournamentTracker.Core\TournamentTracker.Core.csproj" />
+    <ProjectReference Include="..\TournamentTracker.Common\TournamentTracker.Common.csproj" />
+  </ItemGroup>
+</Project>
