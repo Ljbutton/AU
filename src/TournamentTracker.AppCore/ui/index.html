@@ -40,6 +40,8 @@ header{user-select:none}
 body.maxed .winctl .i-restore{display:block}
 .alert{all:unset;cursor:pointer;font:13px var(--round);padding:4px 11px;border-radius:99px;border:1.5px solid var(--warn);color:var(--warn);background:var(--warn-soft)}
 .alert.bad{border-color:var(--danger);color:var(--danger);background:var(--danger-soft)}
+.alert.good{border-color:var(--good);color:var(--good);background:var(--good-soft)}
+.alert[disabled]{cursor:default;opacity:.8}
 .alert:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 nav{padding:14px 10px;display:flex;flex-direction:column;gap:4px;border-right:1px solid var(--line);background:rgba(0,0,0,.25)}
 nav button{all:unset;cursor:pointer;padding:6px 14px 6px 18px;border-radius:12px;font:700 27px/1.15 var(--hand);letter-spacing:.05em;color:var(--muted)}
@@ -675,6 +677,9 @@ document.addEventListener('click', e => {
   const c = e.target.closest('[data-cmd]'); if (c) { cmd(c.dataset.cmd); if (c.dataset.cmd === 'resetleaderboard') $('reset-confirm').hidden = true; }
   const o = e.target.closest('[data-open]'); if (o) api('POST', '/app/open', { what: o.dataset.open });
   const g = e.target.closest('[data-go]'); if (g) go(g.dataset.go);
+  const a = e.target.closest('[data-app]');
+  if (a && a.dataset.app === 'restart') api('POST', '/app/restart').then(r => toast(r.message));
+  if (a && a.dataset.app === 'update') api('POST', '/app/update').then(r => { toast(r.message); refresh(); });
 });
 
 // ---- Top bar: only what needs attention ----------------------------------------------------
@@ -691,16 +696,20 @@ function renderAlerts() {
   else if (needsRepair(m)) list.push(['bad', 'Mod needs repair']);
   if (m.installing) list.push(['', m.installing]);
   else if (m.updateAvailable) list.push(['', m.auto ? `Mod ${m.latest} installs when Among Us closes` : `Mod update in Among Us: ${m.latest}`]);
+  // The Button's own update: one pill that does the next step itself (update, retry, restart).
   const u = S.appUpdate || {};
-  if (u.ready) list.push(['', `The Button ${u.ready} is ready: restart`]);
-  else if (u.available && !u.auto) list.push(['', `The Button ${u.available} is out`]);
+  if (u.ready) list.push(['good', `The Button ${u.ready} is ready · Restart`, null, 'restart']);
+  else if (u.busy) list.push(['', `Updating The Button to ${u.available || 'the new version'}…`, null, 'busy']);
+  else if (u.available && u.error) list.push(['bad', `The Button ${u.available} didn't install · Try again`, null, 'update']);
+  else if (u.available) list.push(['', `The Button ${u.available} is out · Update`, null, 'update']);
   if (!S.setup) { if (!orgOnly) list.push(['', 'No setup code installed']); }
   else if (S.setup.error) list.push(['bad', 'Setup code damaged']);
   const a = S.status && S.status.autoMute;
   if (a && a.voiceProblem) list.push(['bad', 'Discord bot refused', 'home']);
   else if (a && a.voiceWarning) list.push(['', 'Referee commands not heard', 'home']);
   if (a && a.liveProblem) list.push(['', 'Live message can\'t post', 'home']);
-  $('alerts').innerHTML = list.map(([k, t, page]) => `<button class="alert ${k}" data-go="${page || 'settings'}">${esc(t)}</button>`).join('');
+  $('alerts').innerHTML = list.map(([k, t, page, act]) => act ? `<button class="alert ${k}" data-app="${act}"${act === 'busy' ? ' disabled' : ''} title="${act === 'restart' ? 'Restart The Button now to use the new version' : act === 'update' ? (u.error ? esc(u.error) : 'Download and install it now') : ''}">${esc(t)}</button>`
+    : `<button class="alert ${k}" data-go="${page || 'settings'}">${esc(t)}</button>`).join('');
 }
 
 // ---- Home: the lobby ----------------------------------------------------------------------
