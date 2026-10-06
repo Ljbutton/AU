@@ -108,7 +108,9 @@ public class StatsBroadcastTests : IDisposable
             // The same numbers the tournament's own standings give.
             var expected = Standings.Round(desk.Games.ToList(), round, 5, 3);
             Assert.Equal(expected[0].Stats.Key, table[0].Key);
-            Assert.Equal(Math.Round(expected[0].Total, 2), table[0].Points);
+            Assert.Equal(Math.Round(expected[0].Stats.Points, 2), table[0].Points);
+            Assert.Equal(Math.Round(expected[0].Total, 2), table[0].Total);
+            Assert.Equal(table.Select(r => r.Points).OrderByDescending(x => x), table.Select(r => r.Points));   // ranked by what it shows
             Assert.Contains(table, r => r.Name.Contains(' '));          // roster names (simulated roster)
 
             // Points on the line: give the last-placed player of a lobby a big win and they move up.

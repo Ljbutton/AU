@@ -13,7 +13,10 @@ namespace TournamentTracker.App.Broadcast
         public string Key { get; set; } = "";
         public string Name { get; set; } = "";
         public int Color { get; set; }
+        /// <summary>Points in this table's scope (the round, or the tournament); what it's ranked by.</summary>
         public double Points { get; set; }
+        /// <summary>The tournament total so far.</summary>
+        public double Total { get; set; }
         public int Games { get; set; }
         public int Wins { get; set; }
         public int ImpostorWins { get; set; }
@@ -62,7 +65,8 @@ namespace TournamentTracker.App.Broadcast
             Key = r.Stats.Key,
             Name = _roster.Match(r.Stats.Key, DiscordOf(r.Stats.Key), r.Stats.Name).Entry?.Name ?? r.Stats.Name,
             Color = r.Stats.LastColorId,
-            Points = Math.Round(r.Total, 2),
+            Points = Math.Round(r.Stats.Points, 2),
+            Total = Math.Round(r.Total, 2),
             Games = r.Stats.Games, Wins = r.Stats.Wins,
             ImpostorWins = r.Stats.ImpostorWins, ImpostorGames = r.Stats.ImpostorGames,
             CrewWins = r.Stats.CrewWins, CrewGames = r.Stats.CrewGames,
