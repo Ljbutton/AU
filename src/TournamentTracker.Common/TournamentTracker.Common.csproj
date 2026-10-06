@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    What both desktop apps share (and the mod doesn't): the organiser's link to the tournament's
+    private Discord channels (live lobbies, standings, referee commands) and self-updating. The
+    Button and the broadcast app (TT Broadcast) each use it; scoring itself stays in Core.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>TournamentTracker.App</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="TournamentTracker.Tests" />
+    <InternalsVisibleTo Include="TournamentTracker.Broadcast.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TournamentTracker.Core\TournamentTracker.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -76,7 +76,7 @@ namespace TournamentTracker.App
         public string? ExePath { get; set; }
 
         /// <summary>The caster overlay's port (OBS points at it); 0 picks any free one (tests).</summary>
-        public int CasterPort { get; set; } = Organizer.CasterPort;
+        public int CasterPort { get; set; } = CasterServer.DefaultPort;
 
         /// <summary>Starts the new version and closes this one.</summary>
         public Action Restart { get; set; } = () => { };
@@ -100,6 +100,7 @@ namespace TournamentTracker.App
         private readonly HttpClient _http;
         private Release? _latest;
         private Organizer? _organizer;
+        private CasterServer? _caster;
         private CasterDesk? _desk;
         private ObsDirector? _obs;
         private ReplayManager? _replays;
@@ -123,6 +124,8 @@ namespace TournamentTracker.App
         /// <summary>Starts (or stops) the organiser's view for the saved administration code.</summary>
         private void StartOrganizer()
         {
+            _caster?.Dispose();
+            _caster = null;
             _organizer?.Dispose();
             _organizer = null;
             _desk?.Dispose();
@@ -138,26 +141,27 @@ namespace TournamentTracker.App
             if (oldObs != null) _ = oldObs.DisposeAsync().AsTask();
             if (_settings.AdminCode != null && SetupCode.TryParse(_settings.AdminCode, out var code, out _) && code.IsAdmin)
             {
-                _organizer = new Organizer(code, _http, casterPort: _env.CasterPort);
+                _organizer = new Organizer(code, _http);
                 var organizer = _organizer;
+                var caster = _caster = new CasterServer(organizer, _env.CasterPort);
                 var desk = _desk = new CasterDesk(DeskConfigPath, rosterPath: SideFile(Roster.FileName), dataFolder: SideFolder())
                 {
                     ExternalGames = () => organizer.Games,
                     Advance = () => organizer.Advance,
                     GamesPerRound = () => organizer.GamesPerRound,
                 };
-                var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(organizer, desk)) { VoiceFeeds = () => VoiceFeeds(organizer, desk) };
+                var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(caster, desk)) { VoiceFeeds = () => VoiceFeeds(caster, desk) };
                 // The overlay and video page follow the lobby in the first slot; OBS (when connected) shows the whole layout.
                 desk.Switch = air =>
                 {
                     var first = air.Slots.FirstOrDefault(x => x != null);
-                    if (first != null) organizer.Cast(first);
+                    if (first != null) caster.Cast(first);
                     if (obs.Connected) _ = obs.ApplyAsync(air);
                 };
-                if (organizer.CasterUrl != null) obs.TagUrl = organizer.CasterUrl + "replaytag";
+                if (caster.Url != null) obs.TagUrl = caster.Url + "replaytag";
                 var broadcast = _broadcast = new BroadcastApp(desk, () => _obs, SideFile(BroadcastSettings.FileName));
-                if (organizer.CasterUrl != null) obs.BroadcastUrl = organizer.CasterUrl + "broadcast";
-                organizer.MorePages = path => BroadcastPage(broadcast, path) ?? SponsorPage(desk, path);
+                if (caster.Url != null) obs.BroadcastUrl = caster.Url + "broadcast";
+                caster.MorePages = path => BroadcastPage(broadcast, path) ?? SponsorPage(desk, path);
                 var builder = new MontageBuilder(() => obs.Settings.Replay, () => obs.ClipFolder, SideFolder() is { } side ? Path.Combine(side, "tools") : null);
                 // The swoosh in the tournament's colours, with its logo; made again when they change.
                 builder.SwooshTheme = () => { var t = broadcast.Settings.Current.Theme; return (t.Primary, t.Accent, string.IsNullOrEmpty(t.Logo) || t.Logo.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? null : t.Logo); };
@@ -168,7 +172,7 @@ namespace TournamentTracker.App
                     return Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(look)))[..8].ToLowerInvariant();
                 };
                 obs.MakeSwoosh = builder.SwooshAsync;
-                var replays = _replays = new ReplayManager(desk, obs) { TagChanged = json => organizer.ReplayNow = json, Builder = builder, Sponsors = desk.Sponsors };
+                var replays = _replays = new ReplayManager(desk, obs) { TagChanged = json => caster.ReplayNow = json, Builder = builder, Sponsors = desk.Sponsors };
                 _montages = new MontageManager(desk, replays, builder, desk.Sponsors, () => obs.Settings.Replay);
                 // Part 23: Twitch (predictions, polls, !sus, channel points), shown on stream by the graphics app.
                 var twitch = _twitch = new TwitchDirector(desk, SideFolder(), _http) { Clips = replays.ReadyClips, PlayReplay = replays.PlayAsync };
@@ -237,24 +241,24 @@ namespace TournamentTracker.App
             string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.Combine(Path.GetDirectoryName(_env.SettingsFile) ?? ".", name);
 
         /// <summary>What each lobby's OBS source shows: its VDO.Ninja video, or a stand-in page in simulation mode.</summary>
-        private static IReadOnlyList<(string Lobby, string Url)> ObsFeeds(Organizer organizer, CasterDesk desk)
+        private static IReadOnlyList<(string Lobby, string Url)> ObsFeeds(CasterServer caster, CasterDesk desk)
         {
-            var list = organizer.ObsLinks();
-            if (desk.Simulating && organizer.CasterUrl != null)
+            var list = caster.ObsLinks();
+            if (desk.Simulating && caster.Url != null)
                 foreach (var r in desk.Board.Ranking())
                     if (!list.Any(l => string.Equals(l.Lobby, r.Lobby, StringComparison.OrdinalIgnoreCase)))
-                        list.Add((r.Lobby, organizer.CasterUrl + "sim?lobby=" + Uri.EscapeDataString(r.Lobby)));
+                        list.Add((r.Lobby, caster.Url + "sim?lobby=" + Uri.EscapeDataString(r.Lobby)));
             return list;
         }
 
         /// <summary>Each lobby's voice stream for OBS; simulated lobbies get a stand-in that blips.</summary>
-        private static IReadOnlyList<(string Lobby, string Url)> VoiceFeeds(Organizer organizer, CasterDesk desk)
+        private static IReadOnlyList<(string Lobby, string Url)> VoiceFeeds(CasterServer caster, CasterDesk desk)
         {
-            var list = organizer.VoiceLinks();
-            if (desk.Simulating && organizer.CasterUrl != null)
+            var list = caster.VoiceLinks();
+            if (desk.Simulating && caster.Url != null)
                 foreach (var r in desk.Board.Ranking())
                     if (!list.Any(l => string.Equals(l.Lobby, r.Lobby, StringComparison.OrdinalIgnoreCase)))
-                        list.Add((r.Lobby, organizer.CasterUrl + "simvoice?lobby=" + Uri.EscapeDataString(r.Lobby)));
+                        list.Add((r.Lobby, caster.Url + "simvoice?lobby=" + Uri.EscapeDataString(r.Lobby)));
             return list;
         }
 
@@ -431,10 +435,18 @@ namespace TournamentTracker.App
                 case ("POST", "/app/open"): return Ok(Open(Arg("what")));
                 case ("POST", "/app/feed"): return Ok(await FeedAsync(Arg("on") == "true").ConfigureAwait(false));
                 case ("POST", "/app/admin/code"): return Ok(SetAdminCode(Arg("code")));
-                case ("GET", "/app/admin"): return _organizer == null ? Text(404, "application/json", "{\"error\":\"locked\"}") : Ok(_organizer.State());
+                case ("GET", "/app/admin"):
+                {
+                    if (_organizer == null) return Text(404, "application/json", "{\"error\":\"locked\"}");
+                    var view = JsonSerializer.SerializeToNode(_organizer.State(), Json)!.AsObject();
+                    view["casterUrl"] = _caster?.Url;
+                    view["casterProblem"] = _caster?.Problem;
+                    view["cast"] = _caster?.Casting;
+                    return Ok(view);
+                }
                 case ("POST", "/app/admin/cast"):
-                    if (_organizer == null) return Ok(new { ok = false, message = "Administration is locked." });
-                    _organizer.Cast(Arg("lobby"));
+                    if (_caster == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    _caster.Cast(Arg("lobby"));
                     return Ok(new { ok = true, message = $"Casting {Arg("lobby")}." });
                 case ("GET", "/app/admin/desk"):
                     if (_desk == null || _organizer == null) return Text(404, "application/json", "{\"error\":\"locked\"}");
@@ -442,8 +454,8 @@ namespace TournamentTracker.App
                         montages = _montages?.State(), moments = _replays?.Moments(), sponsors = SponsorState(),
                         voice = new { status = _desk.VoiceState(), obs = _obs?.VoiceStatus() },
                         twitch = _twitch?.State(),
-                        broadcast = _broadcast == null ? null : new { url = _organizer.CasterUrl == null ? null : _organizer.CasterUrl + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem, alerts = _desk.Alerts.Settings, alertsWaiting = _desk.Alerts.Waiting },
-                        names = _organizer.DataLinks().ToDictionary(d => d.Lobby, d => _desk.NamesFor(d.Lobby)), receivers = _organizer.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList() });
+                        broadcast = _broadcast == null ? null : new { url = _caster?.Url == null ? null : _caster.Url + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem, alerts = _desk.Alerts.Settings, alertsWaiting = _desk.Alerts.Waiting },
+                        names = _caster!.DataLinks().ToDictionary(d => d.Lobby, d => _desk.NamesFor(d.Lobby)), receivers = _caster.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList() });
                 case ("POST", "/app/admin/feedin"):
                     if (_desk == null) return Ok(new { ok = false });
                 {

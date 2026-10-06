@@ -44,9 +44,17 @@ public class OrganizerTests : IDisposable
     {
         var admin = new SetupCode { Mode = "admin", TournamentId = "fall-cup", TournamentName = "Fall Cup", BotTokens = new() { "admin" }, ResultsChannelId = "results", AdvanceCount = 5, GamesPerRound = 3 };
         Assert.True(SetupCode.TryParse(admin.Encode(), out var read, out var error), error);
-        var o = new Organizer(read, new HttpClient(_http), () => DateTime.UtcNow, casterPort: 0, start: false);
+        var o = new Organizer(read, new HttpClient(_http), () => DateTime.UtcNow, start: false);
         _owned.Add(o);
         return o;
+    }
+
+    /// <summary>The caster's pages for the organiser's lobbies (in the broadcast app).</summary>
+    private CasterServer Caster(Organizer org)
+    {
+        var c = new CasterServer(org, 0);
+        _owned.Insert(0, c);
+        return c;
     }
 
     private bool HasLive(string label) =>
@@ -79,9 +87,10 @@ public class OrganizerTests : IDisposable
         lj.VoiceTick(VoicePhase.Tasks, lobby, "QWERTY", "Polus");
         await Wait.Until(async () => { await org.PollLiveAsync(); var s = JsonSerializer.Serialize(org.State()); return s.Contains("\"Tasks\""); }, 10000);
 
-        org.Cast("LJ");
+        var caster = Caster(org);
+        caster.Cast("LJ");
         using var http = new HttpClient();
-        string url = JsonSerializer.SerializeToElement(org.State(), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }).GetProperty("casterUrl").GetString()!;
+        string url = caster.Url!;
         var safe = JsonDocument.Parse(await http.GetStringAsync(url + "state")).RootElement;
         var full = JsonDocument.Parse(await http.GetStringAsync(url + "state?full=1")).RootElement;
         Assert.Equal("LJ", safe.GetProperty("lobby").GetString());
@@ -91,7 +100,7 @@ public class OrganizerTests : IDisposable
         Assert.True(full.GetProperty("players")[2].GetProperty("dead").GetBoolean());
         Assert.Contains("overlay", await http.GetStringAsync(url));                            // the same overlay page OBS uses
 
-        org.Cast("MAL");
+        caster.Cast("MAL");
         Assert.Equal("MAL", JsonDocument.Parse(await http.GetStringAsync(url + "state")).RootElement.GetProperty("lobby").GetString());
     }
 
@@ -110,9 +119,10 @@ public class OrganizerTests : IDisposable
         await Wait.Until(() => HasLive("LJ") && HasLive("MAL"), 5000);
 
         var org = Organiser();
+        var caster = Caster(org);
         await org.PollLiveAsync();
-        org.Cast("LJ");
-        var feeds = JsonDocument.Parse(org.FeedsJson()).RootElement;
+        caster.Cast("LJ");
+        var feeds = JsonDocument.Parse(caster.FeedsJson()).RootElement;
         Assert.Equal("LJ", feeds.GetProperty("cast").GetString());
         var ljFeed = feeds.GetProperty("lobbies")[0];
         string video = ljFeed.GetProperty("video").GetString()!;
@@ -123,7 +133,7 @@ public class OrganizerTests : IDisposable
         Assert.Equal(JsonValueKind.Null, ljFeed.GetProperty("hot").ValueKind);                              // old news isn't news
 
         using var http = new HttpClient();
-        string url = org.CasterUrl!;
+        string url = caster.Url!;
         Assert.Contains("/feeds", await http.GetStringAsync(url + "video"));
         Assert.Contains("/feeds", await http.GetStringAsync(url + "multiview"));
         Assert.Contains("\"cast\":\"LJ\"", await http.GetStringAsync(url + "feeds"));
@@ -142,7 +152,7 @@ public class OrganizerTests : IDisposable
         lj.RunCommand("feed off");
         _clock.Advance(5);
         lj.VoiceTick(VoicePhase.Tasks, lobby, "QWERTY", "Polus");
-        await Wait.Until(async () => { await org.PollLiveAsync(); return JsonDocument.Parse(org.FeedsJson()).RootElement.GetProperty("lobbies")[0].GetProperty("video").ValueKind == JsonValueKind.Null; }, 10000);
+        await Wait.Until(async () => { await org.PollLiveAsync(); return JsonDocument.Parse(caster.FeedsJson()).RootElement.GetProperty("lobbies")[0].GetProperty("video").ValueKind == JsonValueKind.Null; }, 10000);
     }
 
     [Fact]

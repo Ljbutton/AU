@@ -23,5 +23,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TournamentTracker.Core\TournamentTracker.Core.csproj" />
+    <ProjectReference Include="..\TournamentTracker.Common\TournamentTracker.Common.csproj" />
   </ItemGroup>
 </Project>

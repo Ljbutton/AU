@@ -6,26 +6,25 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using TournamentTracker.Discord;
-using TournamentTracker.Overlay;
 using TournamentTracker.Setup;
 using TournamentTracker.Stats;
 
 namespace TournamentTracker.App
 {
     /// <summary>
-    /// The organiser's view, unlocked with an administration code: every tournament lobby live
-    /// (read from the "Live data" messages the hosts' games keep in the private results
-    /// channel), the combined standings, referee actions posted to that channel, and a caster
-    /// overlay for OBS that follows whichever lobby is picked.
+    /// The tournament as the organiser sees it, unlocked with an administration code: every
+    /// tournament lobby live (read from the "Live data" messages the hosts' games keep in the
+    /// private results channel), the combined standings, and referee actions posted to that
+    /// channel. The Button's Organiser tab and the broadcast app (TT Broadcast) both use it.
     /// </summary>
     public sealed class Organizer : IDisposable
     {
-        public const int CasterPort = 8767;
         private static readonly TimeSpan LivePoll = TimeSpan.FromSeconds(3);
         private static readonly TimeSpan StandingsPoll = TimeSpan.FromSeconds(30);
         /// <summary>A lobby that hasn't sent anything for this long is shown as gone quiet.</summary>
         public static readonly TimeSpan Stale = TimeSpan.FromSeconds(150);
-        private static readonly HashSet<string> PublicEvents = new HashSet<string> { "meeting", "eject", "end" };
+        /// <summary>Events everyone in the game already knows about (safe for the stream before a meeting reveals more).</summary>
+        public static readonly IReadOnlyCollection<string> PublicEvents = new HashSet<string> { "meeting", "eject", "end" };
         private static readonly JsonSerializerOptions Camel = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
         private readonly SetupCode _code;
@@ -42,41 +41,27 @@ namespace TournamentTracker.App
         public static readonly TimeSpan HotFor = TimeSpan.FromSeconds(20);
         private SharedLoad? _load;
         private DateTime _loadedUtc = DateTime.MinValue;
-        private string? _cast;
-        private readonly OverlayServer? _caster;
 
-        public Organizer(SetupCode code, HttpClient http, Func<DateTime>? clock = null, int casterPort = CasterPort, bool start = true)
+        /// <summary>After each read of the live lobbies (the broadcast app's caster pages follow).</summary>
+        public event Action? LiveChanged;
+
+        public Organizer(SetupCode code, HttpClient http, Func<DateTime>? clock = null, bool start = true)
         {
             _code = code;
             _clock = clock ?? (() => DateTime.UtcNow);
             _token = code.BotTokens![0];
             _rest = new DiscordRest(http, NullLog.Instance);
             _shared = new SharedResults(_rest, _token, code.ResultsChannelId!, NullLog.Instance);
-            try { _caster = new OverlayServer(casterPort, NullLog.Instance); }
-            catch (Exception)
-            {
-                // Something else has the usual port: take any free one (the page shows which).
-                try { _caster = new OverlayServer(0, NullLog.Instance); } catch (Exception e) { CasterProblem = "The caster overlay couldn't start: " + e.Message; }
-            }
-            if (_caster != null) _caster.Extra = CasterPage;
             if (start) Task.Run(LoopAsync);
         }
 
         public string Tournament => _code.TournamentName;
         public string? Problem { get; private set; }
-        public string? CasterProblem { get; }
-        public string? CasterUrl => _caster?.Url;
 
         /// <summary>The tournament's scored games since the last reset (shared results), for the broadcast.</summary>
         public IReadOnlyList<GameRecord> Games { get { lock (_lock) return _load?.GameRecords.ToList() ?? new List<GameRecord>(); } }
         public int Advance => _code.AdvanceCount ?? 5;
         public int GamesPerRound => _code.GamesPerRound ?? 3;
-
-        /// <summary>More pages on the caster port (the broadcast overlay app), by path.</summary>
-        public Func<string, (string Type, byte[] Body)?>? MorePages { get; set; }
-
-        /// <summary>What the REPLAY tag on stream says (set by the replays).</summary>
-        public string ReplayNow { get; set; } = "{\"on\":false}";
 
         private async Task LoopAsync()
         {
@@ -110,7 +95,7 @@ namespace TournamentTracker.App
             Problem = null;
             foreach (var m in messages)
                 if (m.AuthorIsBot) Take(m.EmbedTitle, m.EmbedDescription);
-            UpdateCaster();
+            LiveChanged?.Invoke();
         }
 
         /// <summary>Takes one "Live data" message (title and description). Public for tests.</summary>
@@ -151,26 +136,10 @@ namespace TournamentTracker.App
 
         private DateTime SentUtc(long sent) => sent > 0 ? DateTimeOffset.FromUnixTimeSeconds(sent).UtcDateTime : DateTime.MinValue;
 
-        /// <summary>Picks the lobby the caster overlay follows.</summary>
-        public void Cast(string lobby)
+        /// <summary>Every lobby's newest live data (label, data, when it was sent), in the order they were first seen.</summary>
+        public List<(string Label, JsonElement Data, long Sent)> LiveLobbies()
         {
-            lock (_lock) _cast = lobby;
-            UpdateCaster();
-        }
-
-        private void UpdateCaster()
-        {
-            if (_caster == null) return;
-            JsonElement? data;
-            lock (_lock)
-            {
-                if (_cast == null || !_lobbies.ContainsKey(_cast))
-                    _cast = _lobbies.Where(kv => kv.Value.Data.GetProperty("phase").GetString() != "Menu").OrderByDescending(kv => kv.Value.Sent).Select(kv => kv.Key).FirstOrDefault() ?? _cast;
-                data = _cast != null && _lobbies.TryGetValue(_cast, out var d) ? d.Data : (JsonElement?)null;
-            }
-            if (data == null) return;
-            _caster.SafeJson = JsonSerializer.Serialize(OverlayState(data.Value, full: false), Camel);
-            _caster.FullJson = JsonSerializer.Serialize(OverlayState(data.Value, full: true), Camel);
+            lock (_lock) return _lobbies.Select(kv => (kv.Key, kv.Value.Data, kv.Value.Sent)).ToList();
         }
 
         private static readonly Dictionary<string, string> HotNames = new Dictionary<string, string>
@@ -205,42 +174,6 @@ namespace TournamentTracker.App
             return $"{TournamentSession.VdoNinja}?view={parts[0]}&password={parts[1]}&noaudio&cleanoutput";
         }
 
-        /// <summary>
-        /// Each sending lobby's VDO.Ninja link with neither picture nor sound: the caster tab joins
-        /// it only for the lobby's live data, which the host's Button sends alongside the video.
-        /// </summary>
-        public List<(string Lobby, string Url)> DataLinks()
-        {
-            lock (_lock)
-                return _lobbies.Select(kv => (kv.Key, VideoUrl(kv.Value.Data)))
-                    .Where(x => x.Item2 != null)
-                    .Select(x => (x.Key, x.Item2!.Replace("&noaudio&cleanoutput", "&novideo&noaudio&cleanoutput")))
-                    .ToList();
-        }
-
-        /// <summary>Each sending lobby's VDO.Ninja link with picture and sound, for its OBS source (OBS mutes all but one).</summary>
-        public List<(string Lobby, string Url)> ObsLinks()
-        {
-            lock (_lock)
-                return _lobbies.Select(kv => (kv.Key, VideoUrl(kv.Value.Data)))
-                    .Where(x => x.Item2 != null)
-                    .Select(x => (x.Key, x.Item2!.Replace("&noaudio&cleanoutput", "&cleanoutput")))
-                    .ToList();
-        }
-
-        /// <summary>
-        /// Each sending lobby's voice stream (Part 11): its referee's Discord and game sound, sent by
-        /// their Button as its own VDO.Ninja stream (the video's id plus "v"), no picture.
-        /// </summary>
-        public List<(string Lobby, string Url)> VoiceLinks()
-        {
-            lock (_lock)
-                return _lobbies.Select(kv => (kv.Key, VoiceUrl(kv.Value.Data)))
-                    .Where(x => x.Item2 != null)
-                    .Select(x => (x.Key, x.Item2!))
-                    .ToList();
-        }
-
         /// <summary>A lobby's voice stream link. Public for tests.</summary>
         public static string? VoiceUrl(JsonElement d)
         {
@@ -258,99 +191,16 @@ namespace TournamentTracker.App
         public static string? SoundUrl(JsonElement d) =>
             VideoUrl(d)?.Replace("&noaudio&cleanoutput", "&novideo&cleanoutput");
 
-        /// <summary>What the caster's video pages read: the lobby being cast and every lobby's video. Public for tests.</summary>
-        public string FeedsJson()
-        {
-            List<(string Label, JsonElement Data)> lobbies;
-            string? cast;
-            lock (_lock)
-            {
-                lobbies = _lobbies.Where(kv => kv.Value.Data.GetProperty("phase").GetString() != "Menu")
-                    .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase).Select(kv => (kv.Key, kv.Value.Data)).ToList();
-                cast = _cast;
-            }
-            return JsonSerializer.Serialize(new
-            {
-                Cast = cast,
-                Lobbies = lobbies.Select(l =>
-                {
-                    var players = l.Data.TryGetProperty("p", out var p) ? p.EnumerateArray().ToList() : new List<JsonElement>();
-                    return new
-                    {
-                        l.Label,
-                        Video = VideoUrl(l.Data),
-                        Sound = SoundUrl(l.Data),
-                        Phase = l.Data.GetProperty("phase").GetString(),
-                        Alive = players.Count(x => x[2].GetInt32() == 0),
-                        Total = players.Count,
-                        // On stream: only what the players already know.
-                        Hot = Hot(l.Label, full: false),
-                    };
-                }).ToList(),
-            }, Camel);
-        }
-
-        private (string Type, byte[] Body)? CasterPage(string path)
-        {
-            string route = path.Split('?')[0];
-            static byte[] B(string s) => System.Text.Encoding.UTF8.GetBytes(s);
-            return route switch
-            {
-                "/feeds" => ("application/json", B(FeedsJson())),
-                "/video" => ("text/html; charset=utf-8", B(CasterPages.Video)),
-                "/multiview" => ("text/html; charset=utf-8", B(CasterPages.Multiview)),
-                "/sim" => ("text/html; charset=utf-8", B(CasterPages.SimFeed)),
-                "/simvoice" => ("text/html; charset=utf-8", B(CasterPages.SimVoice)),
-                "/replaytag" => ("text/html; charset=utf-8", B(CasterPages.ReplayTag)),
-                "/replaynow" => ("application/json", B(ReplayNow)),
-                _ => MorePages?.Invoke(path),
-            };
-        }
-
-        /// <summary>A lobby's live data in the stream overlay's format. Public for tests.</summary>
-        public static object OverlayState(JsonElement d, bool full)
-        {
-            string S(string name) => d.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
-            int I(string name) => d.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : 0;
-            string phase = S("phase");
-            bool playing = phase == "Tasks" || phase == "Meeting";
-            return new
-            {
-                Tournament = S("tour"),
-                Lobby = S("lobby"),
-                Round = I("round"),
-                Played = (int?)I("played"),
-                PerRound = I("per"),
-                Phase = phase,
-                Map = S("map"),
-                Players = d.GetProperty("p").EnumerateArray().Select(p => new
-                {
-                    Name = p[0].GetString(),
-                    Color = p[1].GetInt32(),
-                    Dead = (full ? p[3] : p[2]).GetInt32() == 1,
-                    Impostor = full && playing && p[4].GetInt32() == 1,
-                    Tasks = full && playing && p[6].GetInt32() > 0 ? new[] { p[5].GetInt32(), p[6].GetInt32() } : null,
-                }).ToList(),
-                StandingsTitle = I("round") > 0 ? $"Round {I("round")} standings" : "Standings",
-                Advance = I("adv"),
-                Standings = d.GetProperty("st").EnumerateArray().Select(s => new { Name = s[0].GetString(), Points = s[1].GetString() }).ToList(),
-                Feed = d.GetProperty("f").EnumerateArray().Where(f => full || PublicEvents.Contains(f[1].GetString() ?? ""))
-                    .TakeLast(6).Select(f => new { At = f[0].GetString(), Text = f[2].GetString() }).ToList(),
-            };
-        }
-
         /// <summary>Everything the organiser tab shows.</summary>
         public object State()
         {
             var now = _clock();
             List<(string Label, JsonElement Data, DateTime Seen, long Sent)> lobbies;
             SharedLoad? load;
-            string? cast;
             lock (_lock)
             {
                 lobbies = _lobbies.Select(kv => (kv.Key, kv.Value.Data, kv.Value.SeenUtc, kv.Value.Sent)).ToList();
                 load = _load;
-                cast = _cast;
             }
             int adv = _code.AdvanceCount ?? 5, per = _code.GamesPerRound ?? 3;
             int round = lobbies.Select(l => l.Data.TryGetProperty("round", out var r) ? r.GetInt32() : 0).DefaultIfEmpty(0).Max();
@@ -363,9 +213,6 @@ namespace TournamentTracker.App
             {
                 Tournament = _code.TournamentName,
                 Problem,
-                CasterUrl,
-                CasterProblem,
-                Cast = cast,
                 Round = round,
                 StandingsRound = shown,
                 StandingsFinal = shown != round || (load != null && per > 0 && load.GameRecords.Where(g => g.Counted && g.Round == shown).GroupBy(g => g.Host).All(g => g.Count() >= per)),
@@ -455,10 +302,6 @@ namespace TournamentTracker.App
             return $"Posted: {text}";
         }
 
-        public void Dispose()
-        {
-            _cts.Cancel();
-            _caster?.Dispose();
-        }
+        public void Dispose() => _cts.Cancel();
     }
 }

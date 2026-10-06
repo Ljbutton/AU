@@ -6,16 +6,17 @@ using System.Threading.Tasks;
 namespace TournamentTracker.App
 {
     /// <summary>
-    /// Puts a new TheButton.exe in place of the running one. Windows won't overwrite a running
-    /// program but lets it be renamed, so the old one becomes TheButton.old.exe (deleted on the
-    /// next start) and the new one takes its name. The new version runs from the next start.
+    /// Puts a new version of an app (TheButton.exe, TTBroadcast.exe) in place of the running one.
+    /// Windows won't overwrite a running program but lets it be renamed, so the old one becomes
+    /// *.old.exe (deleted on the next start) and the new one takes its name. The new version runs
+    /// from the next start.
     /// </summary>
     public static class AppUpdater
     {
         public static string OldPath(string exePath) => Path.ChangeExtension(exePath, ".old.exe");
 
         /// <summary>Downloads and swaps in the new version. Returns "" when done, or what went wrong.</summary>
-        public static async Task<string> InstallAsync(HttpClient http, string url, string exePath)
+        public static async Task<string> InstallAsync(HttpClient http, string url, string exePath, string appName = "The Button")
         {
             string incoming = exePath + ".download";
             try
@@ -30,7 +31,7 @@ namespace TournamentTracker.App
                 var head = new byte[2];
                 using (var check = File.OpenRead(incoming))
                     if (check.Length < 1024 * 1024 || check.Read(head, 0, 2) < 2 || head[0] != 'M' || head[1] != 'Z')
-                        return "The download wasn't a complete copy of The Button. It'll try again later.";
+                        return $"The download wasn't a complete copy of {appName}. It'll try again later.";
 
                 string old = OldPath(exePath);
                 if (File.Exists(old)) File.Delete(old);
