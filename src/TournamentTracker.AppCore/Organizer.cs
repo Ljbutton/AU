@@ -207,6 +207,16 @@ namespace TournamentTracker.App
                     .ToList();
         }
 
+        /// <summary>Each sending lobby's VDO.Ninja link with picture and sound, for its OBS source (OBS mutes all but one).</summary>
+        public List<(string Lobby, string Url)> ObsLinks()
+        {
+            lock (_lock)
+                return _lobbies.Select(kv => (kv.Key, VideoUrl(kv.Value.Data)))
+                    .Where(x => x.Item2 != null)
+                    .Select(x => (x.Key, x.Item2!.Replace("&noaudio&cleanoutput", "&cleanoutput")))
+                    .ToList();
+        }
+
         /// <summary>
         /// The same host's game sound on its own (no picture). The caster's video page plays only
         /// the lobby on air: the pictures stay connected silently, and this moves with the cast,
@@ -256,6 +266,7 @@ namespace TournamentTracker.App
                 "/feeds" => ("application/json", B(FeedsJson())),
                 "/video" => ("text/html; charset=utf-8", B(CasterPages.Video)),
                 "/multiview" => ("text/html; charset=utf-8", B(CasterPages.Multiview)),
+                "/sim" => ("text/html; charset=utf-8", B(CasterPages.SimFeed)),
                 _ => null,
             };
         }

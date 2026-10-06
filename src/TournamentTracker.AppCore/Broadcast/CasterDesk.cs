@@ -38,6 +38,8 @@ namespace TournamentTracker.App.Broadcast
         public List<string?> Slots { get; set; } = new List<string?>();
         /// <summary>Who set it: "button" (a click here) or "obs" (switched in OBS).</summary>
         public string By { get; set; } = "button";
+        /// <summary>The OBS scene that's live, when OBS is connected.</summary>
+        public string? Scene { get; set; }
         public DateTime Since { get; set; }
 
         public static int SlotsFor(string layout) => layout == "4up" ? 4 : layout == "2up" ? 2 : layout == "full" ? 1 : 0;
@@ -201,8 +203,8 @@ namespace TournamentTracker.App.Broadcast
                     for (int i = 0; i < n; i++) if (string.Equals(filled[i], lobby, StringComparison.OrdinalIgnoreCase)) filled[i] = null;
                     filled[at] = lobby;
                 }
-                // Empty slots get the top scorers not already on.
-                foreach (var top in ranked)
+                // Empty slots get the top scorers not already on (unless the slots were picked by hand).
+                foreach (var top in slots != null ? new List<string>() : ranked)
                 {
                     int free = filled.IndexOf(null);
                     if (free < 0) break;
@@ -294,7 +296,7 @@ namespace TournamentTracker.App.Broadcast
                     Simulating,
                     ConfigPath,
                     Problem = _file?.Problem,
-                    OnAir = new { _onAir.Layout, _onAir.Slots, _onAir.By, Since = _onAir.Since == default ? null : _onAir.Since.ToString("o") },
+                    OnAir = new { _onAir.Layout, _onAir.Slots, _onAir.By, _onAir.Scene, Since = _onAir.Since == default ? null : _onAir.Since.ToString("o") },
                     Lobbies = ranking.Select(r => new
                     {
                         r.Lobby, r.Online, r.Score, r.Tier, r.Line, r.Phase, r.Crew, r.Imps, r.TaskPct, r.Game, r.Round,

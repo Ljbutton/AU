@@ -190,5 +190,29 @@ async function pump(){
 }
 info();setInterval(info,5000);setInterval(pump,500);
 </script></body></html>";
+    
+        /// <summary>
+        /// A stand-in for a lobby's video in simulation mode (?lobby=LJ): big lobby name, a clock
+        /// and moving crewmates, so switching in OBS can be checked without real games.
+        /// </summary>
+        public const string SimFeed = @"<!doctype html>
+<html><head><meta charset=""utf-8""><title>Simulated lobby</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#05070b;color:#fff;font:700 16px ""Segoe UI"",system-ui,sans-serif}
+.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:120px 120px}
+.name{position:absolute;left:0;right:0;top:38%;text-align:center;font-size:180px;letter-spacing:.04em;text-shadow:0 6px 30px rgba(0,0,0,.6)}
+.sub{position:absolute;left:0;right:0;top:64%;text-align:center;font-size:40px;color:#9aa6b2}
+.dot{position:absolute;width:70px;height:90px;border-radius:40px 40px 18px 18px}
+</style></head><body><div class=""grid""></div><div class=""name"" id=""n""></div><div class=""sub"" id=""t""></div>
+<script>
+const lobby=new URLSearchParams(location.search).get('lobby')||'Lobby';
+document.getElementById('n').textContent=lobby;
+const cols=['#c51111','#132ed1','#117f2d','#ed54ba','#ef7d0d','#f5f557','#3f474e','#d6e0f0','#6b2fbb','#71491e'];
+let seed=[...lobby].reduce((a,c)=>a*31+c.charCodeAt(0),7);const r=()=>(seed=seed*16807%2147483647)/2147483647;
+const dots=cols.map(c=>{const d=document.createElement('div');d.className='dot';d.style.background=c;document.body.appendChild(d);return {d,x:r()*1800,y:r()*950,vx:(r()-.5)*4,vy:(r()-.5)*4};});
+function f(){for(const o of dots){o.x+=o.vx;o.y+=o.vy;if(o.x<0||o.x>1850)o.vx*=-1;if(o.y<0||o.y>990)o.vy*=-1;o.d.style.transform=`translate(${o.x}px,${o.y}px)`;}
+document.getElementById('t').textContent='SIMULATED · '+new Date().toLocaleTimeString();requestAnimationFrame(f);}
+f();
+</script></body></html>";
     }
 }

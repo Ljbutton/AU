@@ -133,6 +133,12 @@ tr:last-child td{border-bottom:0}
 .desk-head{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
 .air-card{min-width:340px;display:grid;gap:8px}
 .air-slots{display:flex;gap:6px;flex-wrap:wrap}
+.air-pick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.air-pick label{display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--muted)}
+.air-pick select{flex:1;min-width:0}
+.obs-card{margin-top:10px}
+.bad-text{color:var(--danger)!important}
+.obs-card.ok{box-shadow:inset 3px 0 0 var(--accent)}
 .air-slots span{padding:3px 10px;border-radius:8px;background:var(--hi-soft);border:1.5px solid var(--hi);font:600 13px/1.3 var(--round);color:#fff}
 .air-slots span.empty{background:var(--sunk);border-color:var(--line);color:var(--muted)}
 .desk-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;margin-top:10px}
@@ -380,9 +386,20 @@ details.advanced[open] summary h2::before{content:'▾ '}
     <div class="card air-card">
       <div class="row" style="justify-content:space-between"><b>On stream</b><span class="muted" id="air-by"></span></div>
       <div class="air-slots" id="air-slots"></div>
+      <div class="air-pick" id="air-pick" hidden></div>
       <div class="row"><span class="muted" style="font-size:12.5px">Layout</span><button class="b" data-layout="full">Full</button><button class="b" data-layout="2up">2-up</button><button class="b" data-layout="4up">Quad</button>
         <span style="flex:1"></span><button class="b" id="desk-sim" title="Four fake lobbies, for trying it out">Simulation</button></div>
     </div>
+  </div>
+  <div class="card obs-card" id="obs-card">
+    <div class="row" style="justify-content:space-between"><div><b>OBS</b> <span class="muted" id="obs-line">Not connected</span></div>
+      <div class="row" id="obs-on" hidden><button class="b" id="obs-build" title="Make any missing TT scenes and lobby sources">Rebuild TT scenes</button><button class="b" id="obs-off">Disconnect</button></div></div>
+    <form class="row" id="obs-form" style="margin-top:8px">
+      <input id="obs-host" placeholder="127.0.0.1" style="width:130px" autocomplete="off"><input id="obs-port" placeholder="4455" style="width:80px" inputmode="numeric" autocomplete="off">
+      <input id="obs-pass" type="password" placeholder="Password (Tools → WebSocket Server Settings)" style="flex:1;min-width:200px" autocomplete="off">
+      <button class="b primary">Connect</button>
+    </form>
+    <p class="muted" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. The Button then builds the scenes TT Full, TT 2-up and TT Quad, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
   </div>
   <p id="desk-problem" class="note bad" hidden></p>
   <div class="desk-grid">
@@ -977,7 +994,7 @@ async function loadDesk() {
   if (!S || !S.admin) { DESK = null; return; }
   let r; try { r = await api('GET', '/app/admin/desk'); } catch (e) { return; }
   if (!r || !r.desk) return;
-  DESK = r.desk;
+  DESK = r.desk; OBS = r.obs || null;
   receivers(r.receivers || []);
   if ($('caster').classList.contains('on')) renderDesk();
 }
@@ -1005,7 +1022,7 @@ async function show(lobby, layout, slot) {
 }
 function renderDesk() {
   if (!DESK) return;
-  const key = JSON.stringify(DESK);
+  const key = JSON.stringify([DESK, OBS]);
   if (key === deskKey) return;
   deskKey = key;
   const d = DESK, air = d.onAir;
@@ -1015,7 +1032,16 @@ function renderDesk() {
   document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === air.layout));
   $('air-slots').innerHTML = air.layout === 'none' ? '<span class="empty">Nothing yet: click a card or lobby</span>'
     : air.slots.map((l, i) => `<span class="${l ? '' : 'empty'}">${air.slots.length > 1 ? (i + 1) + ' · ' : ''}${esc(l || 'empty')}</span>`).join('');
-  $('air-by').textContent = air.since ? `${air.by === 'obs' ? 'switched in OBS' : 'from here'} · ${clock(air.since)}` : '';
+  $('air-by').textContent = air.since ? `${air.by === 'obs' ? 'switched in OBS' : 'from here'}${air.scene ? ' · ' + air.scene : ''} · ${clock(air.since)}` : '';
+  if (air.layout === 'none' && air.scene) $('air-slots').innerHTML = `<span class="empty">OBS is on ${esc(air.scene)}: no lobby on stream</span>`;
+  // Which lobby goes in which slot (2-up and quad).
+  const multi = air.layout === '2up' || air.layout === '4up';
+  $('air-pick').hidden = !multi;
+  if (multi && !$('air-pick').contains(document.activeElement)) {
+    const names = d.lobbies.map(l => l.lobby);
+    $('air-pick').innerHTML = air.slots.map((cur, i) => `<label>Slot ${i + 1}<select data-slot="${i}"><option value="">Empty</option>${names.map(n => `<option${n === cur ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>`).join('');
+  }
+  renderObs();
   const counts = c => c.crew != null ? `<span>${c.crew} crew v ${c.imps} imp</span><span>tasks ${c.taskPct ?? 0}%</span>` : '';
   $('desk-cards').innerHTML = d.cards.length ? d.cards.map(c => `<div class="dcard tier-${c.tier}" data-card="${c.id}" data-lobby="${esc(c.lobby)}" title="Put ${esc(c.lobby)} on stream">
       <button class="x" data-dismiss="${c.id}" title="Dismiss">×</button>
@@ -1052,6 +1078,31 @@ document.querySelectorAll('[data-layout]').forEach(b => b.addEventListener('clic
   const first = DESK && DESK.onAir.slots.find(x => x) || (DESK && DESK.lobbies[0] && DESK.lobbies[0].lobby) || '';
   show(first, b.dataset.layout, 1);
 }));
+$('air-pick').addEventListener('change', async e => {
+  const sel = e.target.closest('[data-slot]'); if (!sel || !DESK) return;
+  const slots = [...$('air-pick').querySelectorAll('[data-slot]')].map(x => x.value);
+  const r = await api('POST', '/app/admin/show', { lobby: '', layout: DESK.onAir.layout, slots });
+  toast(r.message); loadDesk();
+});
+let OBS = null;
+function renderObs() {
+  const o = OBS; if (!o) return;
+  $('obs-card').classList.toggle('ok', o.connected);
+  $('obs-line').textContent = o.connected ? `Connected${o.version ? ' · OBS ' + o.version : ''} · ${o.canvas}${o.scene ? ' · live scene: ' + o.scene : ''} · ${Object.keys(o.sources || {}).length} lobby sources` : (o.problem || 'Not connected');
+  $('obs-line').classList.toggle('bad-text', !o.connected && !!o.problem);
+  $('obs-on').hidden = !o.connected; $('obs-form').hidden = o.connected; $('obs-help').hidden = o.connected;
+  if (!$('obs-form').contains(document.activeElement)) { $('obs-host').value = o.host || ''; $('obs-port').value = o.port || ''; $('obs-pass').placeholder = o.hasPassword ? 'Password saved (type to change)' : 'Password (Tools → WebSocket Server Settings)'; }
+}
+$('obs-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  toast('Connecting to OBS…');
+  const body = { action: 'connect', host: $('obs-host').value.trim(), port: $('obs-port').value.trim() };
+  if ($('obs-pass').value) body.password = $('obs-pass').value;
+  const r = await api('POST', '/app/admin/obs', body);
+  toast(r.message); $('obs-pass').value = ''; loadDesk();
+});
+$('obs-off').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'disconnect' }); toast(r.message); loadDesk(); });
+$('obs-build').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'build' }); toast(r.message); loadDesk(); });
 $('desk-sim').addEventListener('click', async () => { const r = await api('POST', '/app/admin/sim', { on: String(!(DESK && DESK.simulating)) }); toast(r.message); loadDesk(); });
 setInterval(() => { if (S && S.admin && ($('caster').classList.contains('on') || Object.keys(RECV).length || !DESK)) loadDesk(); }, 800);
 

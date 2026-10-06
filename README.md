@@ -317,6 +317,34 @@ The administration bot needs View Channel, Read Message History and Send Message
 private results channel, and its **Message Content Intent** turned on (Discord Developer
 Portal → Bot). Hosts can turn the live data off with `PublishLive = false`.
 
+### Caster tab (RedZone broadcast)
+
+With the administration code, The Button also has a **Caster** tab: every lobby's live play,
+ranked, and one click to put a lobby on stream. It shows who the impostors are, so it stays on
+the caster's PC and off stream.
+
+* **Where the data comes from:** each tournament host plays as the referee ghost and turns on
+  *Send my game to the caster*. Their Button opens its own page with VDO.Ninja inside: it shares
+  the screen and sends the mod's live data (kills with room and position, meetings, ejections,
+  sabotages with time left, vents, task bar, kill-ready, danger, a snapshot every second) along
+  the same private stream. The caster's Button joins each stream for its data. A lobby that
+  stops sending shows as offline; the rest keep going.
+* **Cards:** "Happening now" lists plays highest priority first (must show, very high, high,
+  medium), with the lobby, the play ("Reactor 12s, nobody fixing", "Purple killed Lime in
+  Electrical"), crew v impostors, task bar and time. Repeats update the same card. Each card and
+  lobby says if it's on stream and how (LIVE (full), LIVE (quad, slot 2)); plays that happened on
+  stream get a SHOWN badge. Calmed-down plays move to *Earlier*, with **Watch again**.
+* **Ranking:** every weight and limit is in `caster-priority.json` next to The Button's
+  settings (written the first time, re-read when you save it).
+* **OBS:** in OBS, Tools → WebSocket Server Settings → Enable WebSocket server, set a password,
+  and connect from the Caster tab. The Button builds the scenes **TT Full**, **TT 2-up** and
+  **TT Quad** with one source per lobby (each stays connected, so switching is instant), places
+  the lobbies in their slots, plays only slot 1's game sound, and switches scene when you click.
+  It never touches your other scenes. Switch in OBS yourself and the LIVE labels follow.
+  Settings and the lobby → source mapping are in `obs.json` next to The Button's settings.
+* **Simulation:** the Simulation button plays four fake lobbies (with stand-in video in OBS), to
+  try the tab and OBS switching without real games.
+
 ### Replays
 
 Every game is recorded: each player's position about ten times a second (and whether

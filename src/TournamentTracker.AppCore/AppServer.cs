@@ -95,6 +95,7 @@ namespace TournamentTracker.App
         private Release? _latest;
         private Organizer? _organizer;
         private CasterDesk? _desk;
+        private ObsDirector? _obs;
 
         /// <summary>Starts (or stops) the organiser's view for the saved administration code.</summary>
         private void StartOrganizer()
@@ -103,19 +104,42 @@ namespace TournamentTracker.App
             _organizer = null;
             _desk?.Dispose();
             _desk = null;
+            var oldObs = _obs;
+            _obs = null;
+            if (oldObs != null) _ = oldObs.DisposeAsync().AsTask();
             if (_settings.AdminCode != null && SetupCode.TryParse(_settings.AdminCode, out var code, out _) && code.IsAdmin)
             {
                 _organizer = new Organizer(code, _http, casterPort: _env.CasterPort);
                 var organizer = _organizer;
-                _desk = new CasterDesk(DeskConfigPath);
-                // Until OBS is connected: the caster's video page follows the lobby in the first slot.
-                _desk.Switch = air => { var first = air.Slots.FirstOrDefault(x => x != null); if (first != null) organizer.Cast(first); };
+                var desk = _desk = new CasterDesk(DeskConfigPath);
+                var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(organizer, desk));
+                // The overlay and video page follow the lobby in the first slot; OBS (when connected) shows the whole layout.
+                desk.Switch = air =>
+                {
+                    var first = air.Slots.FirstOrDefault(x => x != null);
+                    if (first != null) organizer.Cast(first);
+                    if (obs.Connected) _ = obs.ApplyAsync(air);
+                };
+                obs.Start();
             }
         }
 
         /// <summary>caster-priority.json, next to The Button's settings.</summary>
-        private string? DeskConfigPath =>
-            string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.Combine(Path.GetDirectoryName(_env.SettingsFile) ?? ".", PriorityConfig.FileName);
+        private string? DeskConfigPath => SideFile(PriorityConfig.FileName);
+
+        private string? SideFile(string name) =>
+            string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.Combine(Path.GetDirectoryName(_env.SettingsFile) ?? ".", name);
+
+        /// <summary>What each lobby's OBS source shows: its VDO.Ninja video, or a stand-in page in simulation mode.</summary>
+        private static IReadOnlyList<(string Lobby, string Url)> ObsFeeds(Organizer organizer, CasterDesk desk)
+        {
+            var list = organizer.ObsLinks();
+            if (desk.Simulating && organizer.CasterUrl != null)
+                foreach (var r in desk.Board.Ranking())
+                    if (!list.Any(l => string.Equals(l.Lobby, r.Lobby, StringComparison.OrdinalIgnoreCase)))
+                        list.Add((r.Lobby, organizer.CasterUrl + "sim?lobby=" + Uri.EscapeDataString(r.Lobby)));
+            return list;
+        }
 
         private object SetAdminCode(string text)
         {
@@ -297,7 +321,7 @@ namespace TournamentTracker.App
                     return Ok(new { ok = true, message = $"Casting {Arg("lobby")}." });
                 case ("GET", "/app/admin/desk"):
                     if (_desk == null || _organizer == null) return Text(404, "application/json", "{\"error\":\"locked\"}");
-                    return Ok(new { desk = _desk.State(), receivers = _organizer.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList() });
+                    return Ok(new { desk = _desk.State(), obs = _obs?.Status(), receivers = _organizer.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList() });
                 case ("POST", "/app/admin/feedin"):
                     if (_desk == null) return Ok(new { ok = false });
                     if (input.ValueKind == JsonValueKind.Object && input.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
@@ -319,6 +343,29 @@ namespace TournamentTracker.App
                     if (_desk == null || card == null) return Ok(new { ok = false, message = "That card is gone." });
                     _desk.Show(card.Lobby, _desk.OnAir.Layout == "none" ? "full" : _desk.OnAir.Layout, 1);
                     return Ok(new { ok = true, message = $"Back to {card.Lobby}: {card.Text}." });
+                }
+                case ("POST", "/app/admin/obs"):
+                {
+                    if (_obs == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    switch (Arg("action"))
+                    {
+                        case "disconnect":
+                            await _obs.DisconnectAsync().ConfigureAwait(false);
+                            return Ok(new { ok = true, message = "Disconnected from OBS." });
+                        case "build":
+                            if (!_obs.Connected) return Ok(new { ok = false, message = "Connect to OBS first." });
+                            await _obs.BuildAsync().ConfigureAwait(false);
+                            if (_desk != null && _desk.OnAir.Layout != "none") await _obs.ApplyAsync(_desk.OnAir).ConfigureAwait(false);
+                            return Ok(new { ok = true, message = "The TT scenes are up to date." });
+                        default:
+                        {
+                            int? port = int.TryParse(Arg("port"), out var pt) ? pt : (int?)null;
+                            string? password = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("password", out var pw) && pw.ValueKind == JsonValueKind.String ? pw.GetString() : null;
+                            string message = await _obs.ConnectAsync(Arg("host").Length > 0 ? Arg("host") : null, port, password).ConfigureAwait(false);
+                            if (_obs.Connected && _desk != null && _desk.OnAir.Layout != "none" && _desk.OnAir.By == "button") await _obs.ApplyAsync(_desk.OnAir).ConfigureAwait(false);
+                            return Ok(new { ok = _obs.Connected, message });
+                        }
+                    }
                 }
                 case ("POST", "/app/admin/dismiss"):
                     _desk?.Dismiss(Arg("id"));
@@ -706,6 +753,7 @@ namespace TournamentTracker.App
             _cts.Cancel();
             _organizer?.Dispose();
             _desk?.Dispose();
+            if (_obs != null) try { _obs.DisposeAsync().AsTask().Wait(1500); } catch (Exception) { }
             try { _listener.Stop(); } catch (Exception) { }
         }
     }
