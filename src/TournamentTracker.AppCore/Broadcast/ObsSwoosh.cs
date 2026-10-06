@@ -30,6 +30,8 @@ namespace TournamentTracker.App.Broadcast
         public const string SwooshSource = "TT Swoosh";
         public const string StingerTransition = "TT Swoosh";
         public const string PlaceholderName = "tt-swoosh.webm";
+        /// <summary>What the made swoosh looks like (the tournament's colours and logo): a new look makes a new file.</summary>
+        public Func<string>? SwooshKey { get; set; }
         private DateTime _lastSwoosh;
         private bool _stinger;
         private string? _airKey;
@@ -39,7 +41,7 @@ namespace TournamentTracker.App.Broadcast
 
         /// <summary>The stinger video in use.</summary>
         public string SwooshFile => Settings.Swoosh.Path.Length > 0 ? Settings.Swoosh.Path
-            : System.IO.Path.Combine(_path != null ? System.IO.Path.GetDirectoryName(_path)! : ClipFolder, PlaceholderName);
+            : System.IO.Path.Combine(_path != null ? System.IO.Path.GetDirectoryName(_path)! : ClipFolder, SwooshKey?.Invoke() is { Length: > 0 } k ? $"tt-swoosh-{k}.webm" : PlaceholderName);
 
         public string? SwooshProblem { get; private set; }
         /// <summary>How many swooshes played (for the tab and tests).</summary>

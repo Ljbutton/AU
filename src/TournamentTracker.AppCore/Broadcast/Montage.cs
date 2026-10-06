@@ -171,25 +171,95 @@ namespace TournamentTracker.App.Broadcast
             return true;
         }
 
+        /// <summary>The tournament's colours (and logo file, if any) for the swoosh.</summary>
+        public Func<(string Primary, string Accent, string? Logo)>? SwooshTheme { get; set; }
+
         /// <summary>
-        /// The placeholder swoosh: a green wipe with a gold edge across a transparent picture (WebM with
-        /// alpha), covering the whole screen around 0.45 s, and a whoosh of filtered noise.
+        /// The swoosh, in the tournament's colours: a slanted band (a dark edge, the main colour with a
+        /// lighter stripe, an accent edge) sweeps across a transparent picture (WebM with alpha), covering
+        /// the whole screen at 0.5 s, with crewmate heads of every colour tumbling across it, the
+        /// tournament logo in the middle as it covers, and a whoosh of filtered noise.
         /// </summary>
         public async Task<bool> SwooshAsync(string file)
         {
             if (Ffmpeg == null) return false;
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            var (ok, _) = await RunAsync(new[]
-            {
-                "-hide_banner", "-y",
-                "-f", "lavfi", "-i", "color=c=black@0.0:s=1920x1080:r=60:d=0.9,format=rgba",
-                "-f", "lavfi", "-i", "color=c=0x1fa143:s=2400x1080:r=60:d=0.9,format=rgba",
-                "-f", "lavfi", "-i", "color=c=0xffc15a:s=140x1080:r=60:d=0.9,format=rgba",
-                "-f", "lavfi", "-i", "anoisesrc=d=0.9:c=pink:a=0.6",
-                "-filter_complex", "[0][1]overlay=x='-2400+t/0.9*4320':y=0:shortest=1[a];[a][2]overlay=x='t/0.9*4320':y=0:shortest=1,format=yuva420p[v];[3]highpass=f=400,lowpass=f=6000,afade=t=in:d=0.4,afade=t=out:st=0.45:d=0.45[au]",
-                "-map", "[v]", "-map", "[au]", "-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-auto-alt-ref", "0", "-b:v", "1M", "-deadline", "realtime", "-c:a", "libopus", file,
-            }).ConfigureAwait(false);
+            var theme = SwooshTheme?.Invoke() ?? ("#1fa143", "#ffc15a", null);
+            var (ok, _) = await RunAsync(SwooshCommand(file, theme.Primary, theme.Accent, theme.Logo)).ConfigureAwait(false);
             return ok;
+        }
+
+        /// <summary>"#1fa143" → "1fa143"; anything else (rgba(), names) → the fallback.</summary>
+        public static string Hex(string? colour, string fallback)
+        {
+            var m = Regex.Match(colour ?? "", @"^#?([0-9a-fA-F]{6})$");
+            if (m.Success) return m.Groups[1].Value.ToLowerInvariant();
+            m = Regex.Match(colour ?? "", @"^#?([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])$");
+            return m.Success ? string.Concat(m.Groups[1].Value, m.Groups[1].Value, m.Groups[2].Value, m.Groups[2].Value, m.Groups[3].Value, m.Groups[3].Value).ToLowerInvariant() : fallback;
+        }
+
+        private static string Shade(string hex, double f) => string.Concat(Enumerable.Range(0, 3).Select(i =>
+        {
+            int c = Convert.ToInt32(hex.Substring(i * 2, 2), 16);
+            int v = f < 1 ? (int)(c * f) : (int)(c + (255 - c) * (f - 1));
+            return Math.Max(0, Math.Min(255, v)).ToString("x2");
+        }));
+
+        // Heads riding the band: colour, offset from its middle, height on screen, size.
+        private static readonly (int Color, int Off, int Y, int Size)[] SwooshHeads =
+        {
+            (2, -980, 170, 230), (11, -520, 860, 210), (5, -60, 330, 250), (9, 420, 700, 200), (4, 860, 160, 220), (13, -260, 990, 190),
+            (7, 1120, 560, 210), (3, -1250, 600, 200), (15, 600, 960, 190), (17, -720, 40, 190), (6, 250, 60, 200), (0, -1500, 920, 200),
+        };
+
+        /// <summary>The ffmpeg command for the swoosh (public for tests).</summary>
+        public static List<string> SwooshCommand(string file, string primary, string accent, string? logo, int w = 1920, int h = 1080)
+        {
+            const double D = 1.0, A = 0.3;                 // length (s), slant (radians)
+            string p = Hex(primary, "1fa143"), g = Hex(accent, "ffc15a");
+            int bandH = (int)(h * 2.25);
+            var widths = new[] { (Shade(p, 0.32), 170), (p, 1750), (Shade(p, 1.22), 230), (p, 900), (g, 90) };
+            int bw0 = widths.Sum(x => x.Item2);
+            int bw = (int)(bw0 * Math.Cos(A) + bandH * Math.Sin(A)) + 2, bh = (int)(bw0 * Math.Sin(A) + bandH * Math.Cos(A)) + 2;
+            // Eased: slow in, fastest as it covers the screen (at half time), slow out.
+            string ease = $"(st(0,clip(t/{F(D)},0,1));ld(0)*ld(0)*(3-2*ld(0)))";
+            string bx = $"(-{bw}+{w + bw}*{ease})";
+            var args = new List<string> { "-hide_banner", "-y", "-f", "lavfi", "-i", $"color=c=black@0.0:s={w}x{h}:r=60:d={F(D)},format=rgba" };
+            foreach (var (c, cw) in widths) args.AddRange(new[] { "-f", "lavfi", "-i", $"color=c=0x{c}:s={cw}x{bandH}:r=60:d={F(D)}" });
+            args.AddRange(new[] { "-f", "lavfi", "-i", $"anoisesrc=d={F(D)}:c=pink:a=0.6" });
+            int noise = widths.Length + 1, input = noise + 1;
+            var f = new List<string>
+            {
+                $"{string.Concat(Enumerable.Range(1, widths.Length).Select(i => $"[{i}]"))}hstack={widths.Length},format=rgba,rotate=a={F(A)}:c=none:ow={bw}:oh={bh}[band]",
+                $"[0][band]overlay=x='{bx}':y={(h - bh) / 2}:shortest=1[b0]",
+            };
+            string cur = "b0";
+            for (int i = 0; i < SwooshHeads.Length; i++)
+            {
+                var (col, off, y, size) = SwooshHeads[i];
+                args.AddRange(new[] { "-loop", "1", "-t", F(D), "-r", "60", "-i", HeadFile(col) });
+                int box = (int)(size * 1.42);
+                string spin = i % 2 == 0 ? "-1.6" : "1.6";
+                f.Add($"[{input}]scale={size}:{size},format=rgba,rotate=a='{spin}*(t-0.5)':c=none:ow={box}:oh={box}[h{i}]");
+                // On the band's slanted middle line at its height, drifting forward a little.
+                string x = $"({bx}+{bw / 2}+{h / 2 - y}*{F(Math.Tan(A))}+{off}+(t-0.5)*420-{box / 2})";
+                f.Add($"[{cur}][h{i}]overlay=x='{x}':y={y - box / 2}:shortest=1[c{i}]");
+                cur = $"c{i}";
+                input++;
+            }
+            if (logo != null && File.Exists(logo) && Regex.IsMatch(logo, @"\.(png|jpe?g|webp)$", RegexOptions.IgnoreCase))
+            {
+                // The tournament logo, in the middle while the band covers the screen.
+                args.AddRange(new[] { "-loop", "1", "-t", F(D), "-r", "60", "-i", logo });
+                f.Add($"[{input}]scale=w={w * 0.36}:h={h * 0.42}:force_original_aspect_ratio=decrease,format=rgba,fade=t=in:st=0.3:d=0.12:alpha=1,fade=t=out:st=0.6:d=0.12:alpha=1[logo]");
+                f.Add($"[{cur}][logo]overlay=x=(W-w)/2:y=(H-h)/2:shortest=1[lg]");
+                cur = "lg";
+            }
+            f.Add($"[{cur}]format=yuva420p[v]");
+            f.Add($"[{noise}]highpass=f=300,lowpass=f=7000,afade=t=in:d=0.45,afade=t=out:st=0.5:d=0.5,volume=0.9[au]");
+            args.AddRange(new[] { "-filter_complex", string.Join(";", f), "-map", "[v]", "-map", "[au]",
+                "-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-auto-alt-ref", "0", "-b:v", "2M", "-deadline", "realtime", "-c:a", "libopus", file });
+            return args;
         }
 
         // ---- Planning ---------------------------------------------------------------------------

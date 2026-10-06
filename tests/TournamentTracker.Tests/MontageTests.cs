@@ -109,7 +109,22 @@ public class MontageTests : IDisposable
         var (_, info) = await b.RunAsync(new[] { "-hide_banner", "-i", file });
         Assert.Contains("vp9", info);
         Assert.Contains("opus", info);
-        Assert.InRange((await b.ProbeAsync(file))!.Value, 0.8, 1.0);
+        Assert.InRange((await b.ProbeAsync(file))!.Value, 0.8, 1.1);
+
+        // In the tournament's colours, with its logo: it covers the whole screen at the switch point (0.5 s), and only then.
+        string logo = MontageBuilder.HeadFile(4);
+        b.SwooshTheme = () => ("#7a2cf0", "#00e5ff", logo);
+        string branded = Path.Combine(_dir.Path, "tools", "branded.webm");
+        Assert.True(await b.SwooshAsync(branded));
+        async Task<int> MinAlpha(double at)
+        {
+            var (_, o) = await b.RunAsync(new[] { "-hide_banner", "-c:v", "libvpx-vp9", "-ss", at.ToString(System.Globalization.CultureInfo.InvariantCulture), "-i", branded, "-frames:v", "1", "-vf", "alphaextract,signalstats,metadata=print", "-f", "null", "-" });
+            return int.Parse(System.Text.RegularExpressions.Regex.Match(o, @"signalstats\.YMIN=(\d+)").Groups[1].Value);
+        }
+        Assert.True(await MinAlpha(0.5) >= 250);
+        Assert.Equal(0, await MinAlpha(0.1));
+        Assert.Contains("0x7a2cf0", string.Join(" ", MontageBuilder.SwooshCommand("x.webm", "#7a2cf0", "#00e5ff", null)));
+        Assert.Contains("0x1fa143", string.Join(" ", MontageBuilder.SwooshCommand("x.webm", "rgba(1,2,3,.5)", "#00e5ff", null)));   // not a colour it can use: the default
     }
 
     // ---- In simulation: stand-in clips, the end-of-game montage, a custom one that goes once played ----

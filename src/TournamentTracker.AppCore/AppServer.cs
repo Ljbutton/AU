@@ -153,6 +153,14 @@ namespace TournamentTracker.App
                 if (organizer.CasterUrl != null) obs.BroadcastUrl = organizer.CasterUrl + "broadcast";
                 organizer.MorePages = path => BroadcastPage(broadcast, path) ?? SponsorPage(desk, path);
                 var builder = new MontageBuilder(() => obs.Settings.Replay, () => obs.ClipFolder, SideFolder() is { } side ? Path.Combine(side, "tools") : null);
+                // The swoosh in the tournament's colours, with its logo; made again when they change.
+                builder.SwooshTheme = () => { var t = broadcast.Settings.Current.Theme; return (t.Primary, t.Accent, string.IsNullOrEmpty(t.Logo) || t.Logo.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? null : t.Logo); };
+                obs.SwooshKey = () =>
+                {
+                    var t = broadcast.Settings.Current.Theme;
+                    string look = $"v2|{t.Primary}|{t.Accent}|{t.Logo}|{(File.Exists(t.Logo) ? File.GetLastWriteTimeUtc(t.Logo).Ticks : 0)}";
+                    return Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(look)))[..8].ToLowerInvariant();
+                };
                 obs.MakeSwoosh = builder.SwooshAsync;
                 var replays = _replays = new ReplayManager(desk, obs) { TagChanged = json => organizer.ReplayNow = json, Builder = builder, Sponsors = desk.Sponsors };
                 _montages = new MontageManager(desk, replays, builder, desk.Sponsors, () => obs.Settings.Replay);

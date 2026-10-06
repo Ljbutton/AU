@@ -407,8 +407,10 @@ the caster's PC and off stream.
 * **Swoosh:** a stinger plays on every switch (scenes, pictures moving within a layout, the grid
   changing, replays coming up), once per 1.5 s, never while scrubbing a replay. Add a Stinger
   transition called **TT Swoosh** in OBS (Scene Transitions → +) to have OBS play it for scene
-  changes; The Button sets its video. A placeholder is made with ffmpeg; `swoosh.path` in
-  `obs.json` uses your own.
+  changes; The Button sets its video. It's made with ffmpeg in the tournament's colours (from
+  `broadcast.json`): a slanted band with crewmate heads of every colour tumbling across it and the
+  logo in the middle as it covers the screen; it's made again when the colours or logo change.
+  `swoosh.path` in `obs.json` uses your own video instead.
 * **Off-screen alerts:** a banner for each kill, win, body report and emergency button in a lobby
   that isn't on screen; about 4 s each, three at once, the rest queued, merged per lobby. Each
   kind switches off in the graphics card; **B** pauses them all.
