@@ -427,6 +427,34 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .lock-card{border-top:2px solid var(--red)}
 .autoup{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);margin-right:10px;-webkit-app-region:no-drag;white-space:nowrap}
 .autoup input{accent-color:var(--red);margin:0}
+/* Side menu: one page per job. Cards outside the page are hidden with a class, never the hidden attribute,
+   so keys (1-9, N, replay keys) and the replay controls work from every page. */
+body{grid-template-columns:196px minmax(0,1fr)}
+body.locked{grid-template-columns:minmax(0,1fr)}
+body.locked nav{display:none}
+nav{display:flex;gap:1px;padding:10px 0 14px;background:#0b0b0d;border-right:1px solid var(--line);overflow:auto}
+nav .grp{font:600 10.5px/1 "Segoe UI",sans-serif;letter-spacing:.2em;text-transform:uppercase;color:#6c6c76;padding:14px 18px 6px}
+nav .grp:first-child{padding-top:6px}
+nav button{display:flex;align-items:center;gap:8px;padding:8px 14px 5px 16px;border-radius:0;font:600 19px/1 var(--hand);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);border-left:4px solid transparent}
+nav button:hover{color:#fff;background:#141417}
+nav button.on{color:#fff;box-shadow:none;border-left-color:var(--red);background:linear-gradient(90deg,rgba(225,6,0,.24),rgba(225,6,0,0) 85%)}
+nav button:focus-visible{outline:2px solid var(--red);outline-offset:-2px}
+nav .st{margin-left:auto;font:700 11px/1 "Segoe UI",sans-serif;letter-spacing:.04em;padding:3px 6px 2px;min-width:8px}
+nav .st:empty{display:none}
+nav .st.dot{width:9px;height:9px;min-width:0;padding:0;border-radius:50%;font-size:0}
+nav .st.good{background:var(--good)}nav .st.warn{background:var(--warn)}nav .st.bad{background:var(--red)}
+nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--red)}
+.pg-off{display:none!important}
+.page-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.page-head h1{font-size:36px}
+.page-head p{margin:0;color:var(--muted)}
+@media (max-width:900px){
+  body{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr)}
+  nav{flex-direction:row;overflow-x:auto;padding:0;border-right:0;border-bottom:1px solid var(--line)}
+  nav .grp{display:none}
+  nav button{border-left:0;border-bottom:3px solid transparent;padding:9px 12px 6px;white-space:nowrap}
+  nav button.on{border-bottom-color:var(--red);background:rgba(225,6,0,.16)}
+}
 
 </style>
 </head>
@@ -441,23 +469,33 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
     <button data-win="close" class="x" title="Close" aria-label="Close"><svg viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button>
   </div>
 </header>
+<nav id="side" aria-label="TT Broadcast sections">
+  <div class="grp">On air</div>
+  <button data-go="live" class="on">Live desk <span class="st count" id="st-live" title="Plays happening now"></span></button>
+  <button data-go="health">Lobby health <span class="st dot" id="st-health"></span></button>
+  <button data-go="replays">Montages <span class="st count" id="st-replays" title="Montages ready"></span></button>
+  <div class="grp">On stream</div>
+  <button data-go="graphics">Graphics</button>
+  <button data-go="stories">Standings</button>
+  <button data-go="sponsors">Sponsors</button>
+  <div class="grp">Audience</div>
+  <button data-go="twitch">Twitch <span class="st dot" id="st-twitch"></span></button>
+  <div class="grp">Setup</div>
+  <button data-go="obs">OBS <span class="st dot" id="st-obs"></span></button>
+  <button data-go="voice">Lobby voice <span class="st dot" id="st-voice"></span></button>
+  <button data-go="players">Players</button>
+</nav>
 <main>
   <div class="card lock-card" id="lock-card" hidden>
     <h2>Administration code</h2>
     <p class="muted" style="margin:0 0 8px">TT Broadcast opens with the tournament's administration code (the organiser's, as in The Button's Organiser tab). It shows who the impostors are: keep this PC's screen off stream.</p>
     <form class="row" id="lock-form"><input id="lock-code" placeholder="Paste the administration code" class="mono" style="flex:1;min-width:240px" autocomplete="off" spellcheck="false"><button class="b primary">Unlock</button></form>
   </div>
-  <div class="card cast-card" id="cast-card" hidden>
-    <div class="row" style="justify-content:space-between"><div><b>Caster overlay</b> <span class="muted" id="org-casting"></span></div>
-      <div class="row"><label class="muted" style="font-size:13px"><input type="checkbox" id="org-roles"> Count kills (staff view)</label><button class="b primary" id="org-jump" title="Key N">Jump to action</button></div></div>
-    <div class="cast-urls" id="org-cast-url"></div>
-    <div class="row" id="org-cast-list"></div>
-    <div class="muted" style="font-size:12px">OBS Browser sources. Video and overlay follow the lobby you pick (keys 1–9 switch while this card is open, N jumps to the action). Overlay 380×720, add <span class="mono">?full=1</span> on a delayed stream for roles and kills. Video (with the game sound of the lobby on air) and multiview (silent) 1920×1080: hosts turn on "Send my game to the caster" in their Button.</div>
-  </div>
   <p id="org-problem" class="note bad" hidden></p>
 <section id="caster" class="on">
-  <div class="desk-head">
-    <div><h1>Caster</h1><p class="sub" id="desk-sub">Only on this PC. It shows who the impostors are, so keep it off stream.</p></div>
+  <div class="page-head pg-off" id="page-head"><h1 id="page-title"></h1><p id="page-sub"></p></div>
+  <div class="desk-head" data-page="live">
+    <div><h1>Live desk</h1><p class="sub" id="desk-sub">Only on this PC. It shows who the impostors are, so keep it off stream.</p></div>
     <div class="card air-card">
       <div class="row" style="justify-content:space-between"><b>On stream</b><span class="muted" id="air-by"></span></div>
       <div class="air-slots" id="air-slots"></div>
@@ -466,13 +504,20 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
         <span style="flex:1"></span><button class="b" id="desk-sim" title="Four fake lobbies, for trying it out">Simulation</button></div>
     </div>
   </div>
-  <div class="card hl-card" id="hl-card" hidden>
+  <div class="card cast-card" id="cast-card" hidden data-page="live">
+    <div class="row" style="justify-content:space-between"><div><b>Caster overlay</b> <span class="muted" id="org-casting"></span></div>
+      <div class="row"><label class="muted" style="font-size:13px"><input type="checkbox" id="org-roles"> Count kills (staff view)</label><button class="b primary" id="org-jump" title="Key N">Jump to action</button></div></div>
+    <div class="cast-urls" id="org-cast-url"></div>
+    <div class="row" id="org-cast-list"></div>
+    <div class="muted" style="font-size:12px">OBS Browser sources. Video and overlay follow the lobby you pick (keys 1–9 switch while this card is open, N jumps to the action). Overlay 380×720, add <span class="mono">?full=1</span> on a delayed stream for roles and kills. Video (with the game sound of the lobby on air) and multiview (silent) 1920×1080: hosts turn on "Send my game to the caster" in their Button.</div>
+  </div>
+  <div class="card hl-card" id="hl-card" hidden data-page="health">
     <div class="row" style="justify-content:space-between"><div><b>Lobby health</b> <span class="muted" id="hl-line"></span></div>
       <div class="row"><button class="b" id="hl-auto" title="Switch away from a lobby on stream that drops, even when you switch by hand">Auto switch</button><button class="b" id="hl-slate" title="Every lobby down: the be-right-back screen (off: intermission)">BRB screen</button><button class="b" id="hl-open" title="Thresholds and timings (health.json)">Thresholds</button></div></div>
     <div class="hl-list" id="hl-list"></div>
     <div class="hl-int" id="hl-int"></div>
   </div>
-  <div class="card obs-card" id="obs-card">
+  <div class="card obs-card" id="obs-card" data-page="obs">
     <div class="row" style="justify-content:space-between"><div><b>OBS</b> <span class="muted" id="obs-line">Not connected</span></div>
       <div class="row" id="obs-on" hidden><button class="b" id="obs-swoosh" title="A stinger swoosh on every switch">Swoosh</button><button class="b" id="obs-build" title="Make any missing TT scenes and lobby sources">Rebuild TT scenes</button><button class="b" id="obs-off">Disconnect</button></div></div>
     <form class="row" id="obs-form" style="margin-top:8px">
@@ -482,7 +527,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
     </form>
     <p class="muted" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. TT Broadcast then builds the scenes TT Full, TT 2-up and TT Quad, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
   </div>
-  <details class="card roster-card" id="gfx-card">
+  <details class="card roster-card" id="gfx-card" data-page="graphics">
     <summary><div><b>On-stream graphics</b> <span class="muted" id="gfx-line"></span></div><button class="b" id="gfx-theme" title="Colours, fonts and logo (broadcast.json)">Edit theme</button></summary>
     <p class="note bad" id="gfx-problem" hidden></p>
     <p class="muted" style="font-size:12.5px;margin:6px 0 0">One transparent page with every graphic, placed on each lobby's picture in every layout. TT Broadcast puts it on top of the TT scenes in OBS (source "TT Broadcast"); to add it by hand, use the link at 1920×1080.</p>
@@ -490,7 +535,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
     <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Off-screen alerts</span><span id="gfx-alerts" class="row"></span></div>
     <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Win counter counts</span><span class="row" id="gfx-wins"><button class="b" data-wins="today">Today</button><button class="b" data-wins="round">This round</button></span><span class="muted" id="gfx-wins-now" style="font-size:12.5px"></span></div>
   </details>
-  <details class="card roster-card" id="story-card" open>
+  <details class="card roster-card" id="story-card" open data-page="stories">
     <summary><div><b>Standings &amp; storylines</b> <span class="muted" id="story-line"></span></div>
       <div class="row"><button class="b" data-scope="round">This round</button><button class="b" data-scope="overall">Tournament</button><button class="b" id="st-show" title="Standings on stream">Standings on stream</button></div></summary>
     <div class="story-grid">
@@ -498,14 +543,14 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
       <div class="notes" id="notes"></div>
     </div>
   </details>
-  <details class="card roster-card" id="vo-card" open>
+  <details class="card roster-card" id="vo-card" open data-page="voice">
     <summary><div><b>Lobby voice</b> <span class="muted" id="vo-line"></span></div>
       <div class="row"><button class="b" id="vo-mute" title="Mute every lobby voice (key U)">Mute all</button><button class="b" id="vo-on" title="Lobby voice on stream at all">On stream</button></div></summary>
     <p class="muted" style="font-size:12.5px;margin:6px 0 0">Each referee's Button sends the lobby's Discord voice and game sound (and their own mic only if they tick it). The voice follows the picture: the full-screen lobby, or slot 1, is heard; replays, montages and intermission are silent. <b>Listen</b> keeps one lobby's voice up whatever is on screen. It only goes to the stream; nothing is played back to the players.</p>
     <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Duck under</span><select id="vo-duck" title="Your mic in OBS: lobby voice gets quieter while you talk"></select></div>
     <div class="vo-list" id="vo-list"></div>
   </details>
-  <details class="card roster-card" id="tw-card" open>
+  <details class="card roster-card" id="tw-card" open data-page="twitch">
     <summary><div><b>Twitch</b> <span class="muted" id="tw-line"></span></div>
       <div class="row"><button class="b" id="tw-test" title="A fake Twitch channel: votes, chat and redemptions are made up here, nothing is sent">Test mode</button><button class="b" id="tw-sign">Sign in</button><button class="b" id="tw-off" title="Nothing goes to Twitch">Twitch off</button></div></summary>
     <p class="note bad" id="tw-problem" hidden></p>
@@ -546,27 +591,27 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
       </div>
     </div>
   </details>
-  <details class="card roster-card" id="mt-card" open>
+  <details class="card roster-card" id="mt-card" open data-page="replays">
     <summary><div><b>Montages</b> <span class="muted" id="mt-line"></span></div>
       <div class="row"><button class="b" id="mt-ffmpeg" hidden>Get ffmpeg</button><button class="b" data-mtbuild="game" title="A montage of the last game that ended">Last game</button><button class="b" data-mtbuild="round" title="Every kill and the top plays of the round">This round</button></div></summary>
     <p class="muted" style="font-size:12.5px;margin:6px 0 0">Built by themselves when each game and each round ends: the moments cut to a few seconds, cropped like replays, with names in the lower third. Play puts it in the replay scene.</p>
     <div class="mt-list" id="mt-list"></div>
   </details>
-  <details class="card roster-card" id="mom-card">
+  <details class="card roster-card" id="mom-card" data-page="replays">
     <summary><div><b>Moments</b> <span class="muted" id="mom-line"></span></div></summary>
     <p class="muted" style="font-size:12.5px;margin:6px 0 0">Every saved clip. Click to pick (double-click to preview), drag the picked ones to change the order, then Build montage. A montage from here is deleted once it has played; its clips stay, marked USED.</p>
     <div class="row" style="margin-top:6px"><input id="mom-title" placeholder="Montage title (optional)" style="width:220px" autocomplete="off"><button class="b" id="mom-clear">Clear</button><button class="b primary" id="mom-build">Build montage</button></div>
     <div class="mom-sel" id="mom-sel"></div>
     <div class="mom-grid" id="mom-grid"></div>
   </details>
-  <details class="card roster-card" id="sp-card">
+  <details class="card roster-card" id="sp-card" data-page="sponsors">
     <summary><div><b>Sponsors</b> <span class="muted" id="sp-line"></span></div>
       <div class="row"><button class="b" id="sp-break" title="Split screen: the lobby on the left, the sponsor on the right">Sponsor break</button><button class="b" id="sp-export" title="Every appearance (CSV) and a summary">Export report</button><button class="b" id="sp-open" title="Open sponsors.json">Edit sponsors</button></div></summary>
     <p class="note bad" id="sp-problem" hidden></p>
     <p class="muted" style="font-size:12.5px;margin:6px 0 0">Placements: killcam ("Kill Cam presented by" on kill replays), montage (an opening card), standings ("Presented by" under the table), grid (empty grid tiles), break (split-screen breaks; they end by themselves, and a MUST SHOW play cuts straight back). Every appearance is logged.</p>
     <div class="sp-list" id="sp-list"></div>
   </details>
-  <details class="card roster-card" id="roster-card">
+  <details class="card roster-card" id="roster-card" data-page="players">
     <summary><div><b>Players</b> <span class="muted" id="roster-line"></span></div><button class="b" id="roster-open" title="Open roster.csv">Edit roster</button></summary>
     <p class="note bad" id="roster-problem" hidden></p>
     <p class="muted" style="font-size:12.5px;margin:6px 0 0">Matched by the Discord account automute links them to, then friend code, then in-game name. Pick someone by hand to override; "Automatic" goes back.</p>
@@ -592,7 +637,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
     <div class="rp-keys" id="rp-keymap" hidden></div>
   </div>
   <div class="card inter-card" id="inter-card" hidden></div>
-  <div class="desk-grid">
+  <div class="desk-grid" data-page="live">
     <div class="desk-col">
       <h2>Happening now</h2>
       <div class="desk-cards" id="desk-cards"></div>
@@ -1292,11 +1337,61 @@ $('desk-sim').addEventListener('click', async () => { const r = await api('POST'
 setInterval(() => { if (S && S.admin && ($('caster').classList.contains('on') || Object.keys(RECV).length || !DESK)) loadDesk(); }, 800);
 setInterval(() => { if (RP && RP.now && $('caster').classList.contains('on')) loadDesk(); }, 250);
 
+// ---- Side menu: one page per job ------------------------------------------------------------
+const PAGES = {
+  live: ['Live desk', ''],
+  health: ['Lobby health', 'Each lobby green, yellow or red, with the problem in plain words.'],
+  replays: ['Montages', 'Built by themselves after each game and round, and your own from saved moments. Replays play from the cards on the Live desk.'],
+  graphics: ['Graphics', 'What the on-stream page shows, and the theme.'],
+  stories: ['Standings', 'Tables and talking points, and putting them on stream.'],
+  sponsors: ['Sponsors', 'Placements, breaks and the report.'],
+  twitch: ['Twitch', 'Predictions, polls, !sus, Chat Detective and channel points.'],
+  obs: ['OBS', 'The connection, the TT scenes and the swoosh.'],
+  voice: ['Lobby voice', 'Each lobby\'s voice and game sound on stream.'],
+  players: ['Players', 'Real names from roster.csv, and matching by hand.'],
+};
+let PAGE = 'live';
+try { const saved = localStorage.getItem('ttb.page'); if (PAGES[saved]) PAGE = saved; } catch (e) { }
+function go(page) {
+  if (!PAGES[page]) page = 'live';
+  PAGE = page;
+  try { localStorage.setItem('ttb.page', page); } catch (e) { }
+  document.querySelectorAll('#side [data-go]').forEach(b => { b.classList.toggle('on', b.dataset.go === page); b.setAttribute('aria-current', b.dataset.go === page ? 'page' : 'false'); });
+  document.querySelectorAll('main [data-page]').forEach(el => {
+    const on = el.dataset.page === page;
+    el.classList.toggle('pg-off', !on);
+    if (on && el.tagName === 'DETAILS') el.open = true;
+  });
+  $('page-head').classList.toggle('pg-off', page === 'live');
+  $('page-title').textContent = PAGES[page][0]; $('page-sub').textContent = PAGES[page][1];
+  document.querySelector('main').scrollTop = 0;
+}
+$('side').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
+go(PAGE);
+// What needs a look, on the menu: a dot per state, a count where there's a number.
+function renderSide() {
+  const set = (id, cls, text, title) => { const el = $(id); el.className = 'st ' + cls; el.textContent = text || ''; if (title != null) el.title = title; };
+  const d = DESK;
+  const h = d && d.health, lob = h ? h.lobbies : [];
+  const red = lob.filter(x => x.level === 'red').length, yellow = lob.filter(x => x.level === 'yellow').length;
+  set('st-health', 'dot ' + (!lob.length ? '' : red ? 'bad' : yellow ? 'warn' : 'good'), lob.length ? '•' : '', $('hl-line').textContent);
+  const now = d && d.cards ? d.cards.filter(c => !c.system).length : 0;
+  set('st-live', 'count' + (d && d.cards && d.cards.some(c => !c.system && (c.tier === 'must' || c.tier === 'veryHigh')) ? ' hot' : ''), now ? String(now) : '');
+  const ready = MONT && MONT.list ? MONT.list.filter(x => x.state === 'ready').length : 0;
+  set('st-replays', 'count', ready ? String(ready) : '');
+  set('st-obs', 'dot ' + (OBS && OBS.connected ? 'good' : ''), OBS && OBS.connected ? '•' : '', $('obs-line').textContent);
+  set('st-twitch', 'dot ' + (TW && TW.connected && !TW.off ? 'good' : ''), TW && TW.connected && !TW.off ? '•' : '', $('tw-line').textContent);
+  const vp = LVOICE && LVOICE.obs && LVOICE.obs.problem;
+  set('st-voice', 'dot ' + (vp ? 'warn' : ''), vp ? '•' : '', $('vo-line').textContent);
+}
+setInterval(() => { if (S && S.admin) renderSide(); }, 1000);
+
 // ---- TT Broadcast: unlocking, the caster overlay's lobby, updates -------------------------------
 let ORG = null, showRoles = false;
 async function refresh() {
   try { S = await api('GET', '/app/state'); } catch (e) { return; }
   $('lock-card').hidden = !!S.admin;
+  document.body.classList.toggle('locked', !S.admin);
   $('caster').hidden = !S.admin;
   $('cast-card').hidden = !S.admin;
   renderUpdate();

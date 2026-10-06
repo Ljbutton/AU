@@ -349,6 +349,10 @@ stream.
   `broadcast-v…`, a beta from v0.1.0) and double-click it. It installs to
   `%LOCALAPPDATA%\Programs\TTBroadcast` with Start menu and desktop shortcuts, and can sit
   next to The Button on the same PC.
+* **The side menu** has a page per job: **Live desk** (lobby buttons, layouts, what's happening
+  and the lobbies), **Lobby health**, **Montages**, **Graphics**, **Standings**, **Sponsors**,
+  **Twitch**, **OBS**, **Lobby voice** and **Players**. A dot or a number beside an item shows
+  what needs a look. The keys (1-9, N, replay keys) and the replay controls work on every page.
 * **Unlock** it with the tournament's administration code (the same one as The Button's
   Organiser tab).
 * **First start:** on a PC that already had The Button's caster tools, TT Broadcast copies
