@@ -188,6 +188,14 @@ i.sw{display:inline-block;width:.72em;height:.72em;border-radius:3px;margin:0 .2
 .dcard .t3 .rpb.ready{background:var(--hi);border-color:var(--hi);color:#fff}
 .dcard .t3 .rpb.saving{color:var(--muted)}
 .dcard .t3 .rpb.failed{color:var(--danger);border-color:var(--danger)}
+.inter-card{margin-top:10px;border-color:var(--accent);display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.inter-card.live{border-color:var(--hi);box-shadow:inset 0 2px 0 rgba(255,45,85,.45)}
+.inter-card .tag{font:700 12px/1 var(--round);letter-spacing:.12em;padding:5px 8px;border-radius:6px;background:var(--accent);color:var(--accent-fg)}
+.inter-card.live .tag{background:var(--hi);color:#fff}
+.ppl{display:flex;flex-wrap:wrap;gap:4px}
+.ppl button{all:unset;cursor:pointer;font:600 11.5px/1 var(--round);padding:3px 6px;border-radius:6px;border:1px solid var(--line);color:var(--fg);white-space:nowrap}
+.ppl button:hover{border-color:var(--accent)}
+.ppl button::after{content:" · card";color:var(--muted)}
 .mt-list{display:grid;gap:6px;margin-top:8px}
 .mt{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:10px;background:var(--sunk);font-size:13.5px}
 .mt.ready{box-shadow:inset 3px 0 0 #ffc15a;background:rgba(255,193,90,.08)}
@@ -460,7 +468,7 @@ details.advanced[open] summary h2::before{content:'▾ '}
       <div class="row" style="justify-content:space-between"><b>On stream</b><span class="muted" id="air-by"></span></div>
       <div class="air-slots" id="air-slots"></div>
       <div class="air-pick" id="air-pick" hidden></div>
-      <div class="row"><span class="muted" style="font-size:12.5px">Layout</span><button class="b" data-layout="full">Full</button><button class="b" data-layout="2up">2-up</button><button class="b" data-layout="4up">Quad</button><button class="b" data-layout="grid" title="Every lobby at once (key G)">Grid</button><button class="b" id="desk-autogrid" title="Grid by itself whenever no lobby is mid-game">Auto grid</button>
+      <div class="row"><span class="muted" style="font-size:12.5px">Layout</span><button class="b" data-layout="full">Full</button><button class="b" data-layout="2up">2-up</button><button class="b" data-layout="4up">Quad</button><button class="b" data-layout="grid" title="Every lobby at once (key G)">Grid</button><button class="b" id="desk-autogrid" title="Grid by itself whenever no lobby is mid-game">Auto grid</button><button class="b" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" id="desk-autointer" title="Intermission by itself when every lobby is between games, and back when one starts">Auto intermission</button>
         <span style="flex:1"></span><button class="b" id="desk-sim" title="Four fake lobbies, for trying it out">Simulation</button></div>
     </div>
   </div>
@@ -479,6 +487,8 @@ details.advanced[open] summary h2::before{content:'▾ '}
     <p class="note bad" id="gfx-problem" hidden></p>
     <p class="muted" style="font-size:12.5px;margin:6px 0 0">One transparent page with every graphic, placed on each lobby's picture in every layout. The Button puts it on top of the TT scenes in OBS (source "TT Broadcast"); to add it by hand, use the link at 1920×1080.</p>
     <div class="row" id="gfx-els" style="margin-top:8px"></div>
+    <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Off-screen alerts</span><span id="gfx-alerts" class="row"></span></div>
+    <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Win counter counts</span><span class="row" id="gfx-wins"><button class="b" data-wins="today">Today</button><button class="b" data-wins="round">This round</button></span><span class="muted" id="gfx-wins-now" style="font-size:12.5px"></span></div>
   </details>
   <details class="card roster-card" id="story-card" open>
     <summary><div><b>Standings &amp; storylines</b> <span class="muted" id="story-line"></span></div>
@@ -533,6 +543,7 @@ details.advanced[open] summary h2::before{content:'▾ '}
     </div>
     <div class="rp-keys" id="rp-keymap" hidden></div>
   </div>
+  <div class="card inter-card" id="inter-card" hidden></div>
   <div class="desk-grid">
     <div class="desk-col">
       <h2>Happening now</h2>
@@ -1190,7 +1201,8 @@ function renderDesk() {
   $('desk-problem').hidden = !d.problem; $('desk-problem').textContent = d.problem || '';
   document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === air.layout));
   $('desk-autogrid').classList.toggle('on', !!d.autoGrid);
-  $('air-slots').innerHTML = air.layout === 'replay' ? `<span>REPLAY · ${esc(air.slots[0] || '')}</span>` : air.layout === 'none' ? '<span class="empty">Nothing yet: click a card or lobby</span>'
+  renderInter(d);
+  $('air-slots').innerHTML = air.layout === 'intermission' ? '<span>INTERMISSION</span>' : air.layout === 'break' ? `<span>SPONSOR BREAK · ${esc(air.slots[0] || '')}</span>` : air.layout === 'replay' ? `<span>REPLAY · ${esc(air.slots[0] || '')}</span>` : air.layout === 'none' ? '<span class="empty">Nothing yet: click a card or lobby</span>'
     : air.slots.map((l, i) => `<span class="${l ? '' : 'empty'}"${l ? ` data-tile="${esc(l)}" title="Full screen" style="cursor:pointer"` : ''}>${air.slots.length > 1 ? (i + 1) + ' · ' : ''}${esc(l || 'empty')}</span>`).join('');
   $('air-by').textContent = air.since ? `${air.by === 'obs' ? 'switched in OBS' : 'from here'}${air.scene ? ' · ' + air.scene : ''} · ${clock(air.since)}` : '';
   if (air.layout === 'none' && air.scene) $('air-slots').innerHTML = `<span class="empty">OBS is on ${esc(air.scene)}: no lobby on stream</span>`;
@@ -1208,18 +1220,31 @@ function renderDesk() {
       <div class="t1"><span class="tier">${TIER_NAME[c.tier] || c.tier}</span><b>${esc(c.lobby)}</b>${c.onAir ? `<span class="live">${esc(c.onAir)}</span>` : ''}${c.shown ? `<span class="shown" title="${esc(c.shownHow || '')}">SHOWN ${clock(c.shown)}</span>` : ''}${c.offline ? '<span class="off">OFFLINE</span>' : ''}</div>
       <div class="play">${rich(c.text)}${c.repeats > 1 ? ` <span class="muted" style="font-size:14px">×${c.repeats}</span>` : ''}</div>
       <div class="t3">${counts(c)}<span>${ago(c.ago)}</span>${c.updatedAgo < c.ago - 1 ? `<span>updated ${ago(c.updatedAgo)}</span>` : ''}${replayButton(c)}</div>
+      ${c.people && c.people.length ? `<div class="ppl">${c.people.map(p => `<button data-pcard="${esc(p.key)}" data-plobby="${esc(c.lobby)}" title="${esc(p.name)}'s player card on stream">${sw(p.color)}${esc(p.name)}</button>`).join('')}</div>` : ''}
     </div>`).join('') : `<div class="card"><p class="empty">${d.lobbies.length ? 'Quiet right now.' : 'No lobbies yet. Hosts appear here when they turn on "Send my game to the caster", or try Simulation.'}</p></div>`;
   $('desk-lobbies').innerHTML = d.lobbies.length ? d.lobbies.map((l, i) => `<div class="dlob tier-${l.tier}${l.online ? '' : ' offline'}" data-lobby="${esc(l.lobby)}" title="Put ${esc(l.lobby)} on stream (full)">
       <div class="sc">${l.online ? Math.round(l.score) : '–'}</div>
       <div style="min-width:0"><div class="nm">${esc(l.lobby)}${l.onAir ? `<span class="live">${esc(l.onAir)}</span>` : ''}${l.online ? '' : '<span class="off">OFFLINE</span>'}</div><div class="ln">${rich(l.line)}</div></div>
       <div class="lay"><button data-put="full" title="Full screen">Full</button><button data-put="2up" title="2-up, slot 1">2-up</button><button data-put="4up" title="Quad, slot 1">Quad</button></div>
       ${specRow(l)}
+      ${l.people && l.people.length && l.online ? `<div class="ppl" data-pplrow>${l.people.map(p => `<button data-pcard="${esc(p.key)}" data-plobby="${esc(l.lobby)}" title="${esc(p.name)}'s player card on stream">${sw(p.color)}${esc(p.name)}</button>`).join('')}</div>` : ''}
     </div>`).join('') : '<p class="empty">No lobbies.</p>';
   $('desk-history').innerHTML = d.history.length ? d.history.map(c => `<div class="hrow tier-${c.tier}">
       <span class="tm">${clock(c.at)}</span>
       <span class="tx"><b>${esc(c.lobby)}</b> · ${rich(c.text)}${c.shown ? ' <span class="shown">SHOWN</span>' : ''}</span>
       <button data-watch="${c.id}" title="Bring this lobby back up (the replay comes later)">Watch again</button>
     </div>`).join('') : '<p class="empty" style="font-size:13px">Plays that have calmed down move here.</p>';
+}
+function playerCard(key, lobby) { api('POST', '/app/admin/card', { key, lobby: lobby || '' }).then(r => toast(r.message)); }
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-pcard]'); if (!b) return;
+  e.stopPropagation(); playerCard(b.dataset.pcard, b.dataset.plobby);
+}, true);
+// Key C: the top notification's key player.
+function cardForTop() {
+  const c = DESK && DESK.cards.find(x => x.people && x.people.length);
+  if (!c) return toast('No notification with a player.');
+  playerCard(c.people[0].key, c.lobby);
 }
 $('desk-cards').addEventListener('click', e => {
   const rp = e.target.closest('[data-rplay]');
@@ -1326,6 +1351,43 @@ $('notes').addEventListener('click', async e => {
 document.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/standings', { scope: b.dataset.scope }); toast(r.message); storyKey = ''; loadDesk(); }));
 $('st-show').addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/standings', { show: String(!$('st-show').classList.contains('on')) }); toast(r.message); gfxKey = ''; loadDesk(); });
 
+// ---- Intermission -------------------------------------------------------------------------------
+let interLive = null;
+function renderInter(d) {
+  const it = d.intermission || {};
+  $('desk-inter').classList.toggle('on', !!it.on);
+  $('desk-autointer').classList.toggle('on', !!it.auto);
+  const card = $('inter-card');
+  if (it.live && it.live !== interLive) toast(`${it.live} is live: back to the game?`);
+  interLive = it.live || null;
+  card.classList.toggle('live', !!it.live);
+  if (card.contains(document.activeElement)) return;
+  if (it.on) {
+    const at = it.nextRoundAt ? new Date(it.nextRoundAt) : null;
+    card.innerHTML = `<span class="tag">${it.live ? esc(it.live) + ' IS LIVE' : 'INTERMISSION'}</span>
+      <span class="muted" style="font-size:13px">Next round</span><input id="inter-next" placeholder="20 (min) or 19:30" style="width:140px" value="">
+      <button class="b" data-inter="next">Set</button>${at ? `<span class="muted" style="font-size:13px">at ${at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>` : ''}
+      ${it.montage ? `<span style="font-size:13px">Up next: <b>${esc(it.montage)}</b></span><button class="b" data-inter="montage">Play montage</button>` : ''}
+      <span style="flex:1"></span><span class="muted" style="font-size:12px">Win counter</span><button class="b${d.winScope === 'today' ? ' on' : ''}" data-wins="today">Today</button><button class="b${d.winScope === 'round' ? ' on' : ''}" data-wins="round">Round</button>
+      <button class="b primary" data-inter="off">Back to the game</button>`;
+    card.hidden = false;
+  } else if (it.offer) {
+    card.innerHTML = `<span class="tag">BETWEEN ROUNDS</span><span>Every lobby is between games.</span><span style="flex:1"></span><button class="b primary" data-inter="on">Intermission</button><button class="b" data-inter="dismiss">Not now</button>`;
+    card.hidden = false;
+  } else card.hidden = true;
+}
+function intermissionToggle() { api('POST', '/app/admin/intermission', { action: 'toggle' }).then(r => { toast(r.message); loadDesk(); }); }
+$('inter-card').addEventListener('click', async e => {
+  const w = e.target.closest('[data-wins]');
+  if (w) { const r = await api('POST', '/app/admin/wins', { scope: w.dataset.wins }); toast(r.message); loadDesk(); return; }
+  const b = e.target.closest('[data-inter]'); if (!b) return;
+  const body = { action: b.dataset.inter };
+  if (b.dataset.inter === 'next') body.value = $('inter-next').value;
+  const r = await api('POST', '/app/admin/intermission', body); toast(r.message); document.activeElement.blur(); loadDesk();
+});
+$('desk-inter').addEventListener('click', intermissionToggle);
+$('desk-autointer').addEventListener('click', async () => { const r = await api('POST', '/app/admin/intermission', { action: 'auto', on: String(!(DESK && DESK.intermission && DESK.intermission.auto)) }); toast(r.message); loadDesk(); });
+
 // ---- Montages, moments, sponsors ----------------------------------------------------------------
 let MONT = null, MOMENTS = [], SPON = null, mtKey = '', momKey = '', spKey = '', momPick = [], momPlayed = null;
 const media = (kind, id) => `/app/admin/media?kind=${kind}&id=${encodeURIComponent(id)}&token=${TOKEN}`;
@@ -1414,6 +1476,17 @@ function renderGfx(g) {
   if (!g) return;
   $('gfx-line').innerHTML = g.url ? `<span class="mono">${esc(g.url)}</span>` : '';
   $('gfx-problem').hidden = !g.problem; $('gfx-problem').textContent = g.problem || '';
+  if (DESK) {
+    document.querySelectorAll('#gfx-wins [data-wins]').forEach(b => b.classList.toggle('on', b.dataset.wins === DESK.winScope));
+    $('gfx-wins-now').textContent = DESK.wins ? `Impostors ${DESK.wins.impostors} · Crewmates ${DESK.wins.crew}` : '';
+  }
+  const al = g.alerts || { types: {} };
+  const akey = JSON.stringify([al, g.alertsWaiting]);
+  if ($('gfx-alerts').dataset.key !== akey) {
+    $('gfx-alerts').dataset.key = akey;
+    $('gfx-alerts').innerHTML = [['kill', 'Kills'], ['win', 'Wins'], ['report', 'Reports'], ['button', 'Buttons']].map(([k, n]) => `<button class="b${al.types[k] ? ' on' : ''}" data-alert="${k}">${n}</button>`).join('') +
+      `<button class="b${al.paused ? ' on' : ''}" data-alert="" title="Pause every alert (key ${keyName('alertsPause')})">${al.paused ? 'Paused' : 'Pause'}</button>${g.alertsWaiting ? `<span class="muted" style="font-size:12px">${g.alertsWaiting} waiting</span>` : ''}`;
+  }
   const key = JSON.stringify(g.elements); if (key === gfxKey) return; gfxKey = key;
   $('gfx-els').innerHTML = Object.keys(g.names).map(k => `<button class="b${g.elements[k] ? ' on' : ''}" data-gfx="${k}">${esc(g.names[k])}</button>`).join('');
 }
@@ -1421,6 +1494,13 @@ $('gfx-els').addEventListener('click', async e => {
   const b = e.target.closest('[data-gfx]'); if (!b) return;
   const r = await api('POST', '/app/admin/broadcast', { element: b.dataset.gfx, on: String(!b.classList.contains('on')) });
   toast(r.message); gfxKey = ''; loadDesk();
+});
+$('gfx-wins').addEventListener('click', async e => { const b = e.target.closest('[data-wins]'); if (!b) return; const r = await api('POST', '/app/admin/wins', { scope: b.dataset.wins }); toast(r.message); loadDesk(); });
+$('gfx-alerts').addEventListener('click', async e => {
+  const b = e.target.closest('[data-alert]'); if (!b) return;
+  const k = b.dataset.alert;
+  const r = await api('POST', '/app/admin/broadcast', k ? { action: 'alerts', kind: k, on: String(!b.classList.contains('on')) } : { action: 'alerts' });
+  toast(r.message); loadDesk();
 });
 $('gfx-theme').addEventListener('click', e => { e.preventDefault(); api('POST', '/app/admin/broadcast', { action: 'theme' }).then(r => toast(r.message)); });
 
@@ -1454,7 +1534,7 @@ function renderRoster() {
   $('roster-list').innerHTML = r.lobbies.filter(l => l.players.length).map(l => `<h3>${esc(l.lobby)}</h3>` + l.players.map(p => `<div class="rp">
       <span>${sw(p.color)}${esc(p.name)} <span class="muted mono" style="font-size:11px">${esc(p.key)}</span></span>
       <span>${p.roster ? `<b>${esc(p.roster)}</b>` : '<span class="muted">—</span>'}${p.say ? ` <span class="muted" style="font-size:11.5px">(say: ${esc(p.say)})</span>` : ''} <span class="how${p.how === 'None' ? ' none' : ''}">${HOW[p.how] || p.how}</span></span>
-      <select data-rkey="${esc(p.key)}">${opts(p.roster, p.how)}</select></div>`).join('')).join('') || '<p class="empty" style="font-size:13px">Nobody in the lobbies yet.</p>';
+      <span class="row" style="gap:4px;flex-wrap:nowrap"><select data-rkey="${esc(p.key)}">${opts(p.roster, p.how)}</select><span class="ppl"><button data-pcard="${esc(p.key)}" data-plobby="${esc(l.lobby)}" title="Player card on stream">Card</button></span></span></div>`).join('')).join('') || '<p class="empty" style="font-size:13px">Nobody in the lobbies yet.</p>';
 }
 $('roster-list').addEventListener('change', async e => {
   const sel = e.target.closest('[data-rkey]'); if (!sel) return;
@@ -1465,7 +1545,7 @@ $('roster-open').addEventListener('click', e => { e.preventDefault(); api('POST'
 
 // ---- Replay controls -------------------------------------------------------------------------
 let RP = null, rpSync = 0, keyWait = null;
-const RP_NAMES = { grid: 'Grid on / off', specLit: 'View: lit map', specVision: 'View: vision mode', specReport: 'View: "!"', specEye: 'View: eye', playPause: 'Play / pause', back: 'Back 1 s', forward: 'Forward 1 s', frameBack: 'Back a frame', frameForward: 'Forward a frame', restart: 'Restart', zoomIn: 'Zoom in', zoomOut: 'Zoom out', panLeft: 'Pan left', panRight: 'Pan right', panUp: 'Pan up', panDown: 'Pan down', follow: 'Follow players', live: 'Back to live' };
+const RP_NAMES = { grid: 'Grid on / off', intermission: 'Intermission on / off', alertsPause: 'Pause off-screen alerts', playerCard: 'Card: top notification\'s player', specLit: 'View: lit map', specVision: 'View: vision mode', specReport: 'View: "!"', specEye: 'View: eye', playPause: 'Play / pause', back: 'Back 1 s', forward: 'Forward 1 s', frameBack: 'Back a frame', frameForward: 'Forward a frame', restart: 'Restart', zoomIn: 'Zoom in', zoomOut: 'Zoom out', panLeft: 'Pan left', panRight: 'Pan right', panUp: 'Pan up', panDown: 'Pan down', follow: 'Follow players', live: 'Back to live' };
 const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
 function rpCursor() { const n = RP && RP.now; if (!n) return 0; return Math.min(n.duration || 0, n.cursor + (n.playing ? (performance.now() - rpSync) / 1000 : 0)); }
 function renderReplay() {
@@ -1526,6 +1606,9 @@ document.addEventListener('keydown', e => {
     else show('', 'grid');
     return;
   }
+  if (name === 'alertsPause') { e.preventDefault(); api('POST', '/app/admin/broadcast', { action: 'alerts' }).then(r => { toast(r.message); loadDesk(); }); return; }
+  if (name === 'intermission') { e.preventDefault(); intermissionToggle(); return; }
+  if (name === 'playerCard') { e.preventDefault(); cardForTop(); return; }
   // View keys: the lobby on stream (slot 1, or the one being replayed).
   if (name.startsWith('spec')) {
     const lobby = DESK && DESK.onAir.slots.find(x => x);

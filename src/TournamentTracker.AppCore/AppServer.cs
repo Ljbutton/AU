@@ -384,7 +384,7 @@ namespace TournamentTracker.App
                     if (_desk == null || _organizer == null) return Text(404, "application/json", "{\"error\":\"locked\"}");
                     return Ok(new { desk = _desk.State(), obs = _obs?.Status(), replay = _replays?.State(), roster = _desk.RosterState(), story = _desk.StoryState(),
                         montages = _montages?.State(), moments = _replays?.Moments(), sponsors = SponsorState(),
-                        broadcast = _broadcast == null ? null : new { url = _organizer.CasterUrl == null ? null : _organizer.CasterUrl + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem },
+                        broadcast = _broadcast == null ? null : new { url = _organizer.CasterUrl == null ? null : _organizer.CasterUrl + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem, alerts = _desk.Alerts.Settings, alertsWaiting = _desk.Alerts.Waiting },
                         names = _organizer.DataLinks().ToDictionary(d => d.Lobby, d => _desk.NamesFor(d.Lobby)), receivers = _organizer.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList() });
                 case ("POST", "/app/admin/feedin"):
                     if (_desk == null) return Ok(new { ok = false });
@@ -598,6 +598,19 @@ namespace TournamentTracker.App
                 case ("POST", "/app/admin/broadcast"):
                 {
                     if (_broadcast == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    if (Arg("action") == "alerts" && _desk != null)
+                    {
+                        // Off-screen alerts: pause all, or one kind on/off.
+                        if (Arg("kind").Length == 0)
+                        {
+                            bool pause = Arg("on").Length > 0 ? Arg("on") != "true" : !_desk.Alerts.Settings.Paused;
+                            _desk.Alerts.SetPaused(pause);
+                            return Ok(new { ok = true, message = pause ? "Off-screen alerts paused." : "Off-screen alerts back on." });
+                        }
+                        if (!AlertQueue.Kinds.Contains(Arg("kind"))) return Ok(new { ok = false, message = "Unknown alert." });
+                        _desk.Alerts.SetType(Arg("kind"), Arg("on") == "true");
+                        return Ok(new { ok = true, message = $"{Arg("kind")} alerts {(Arg("on") == "true" ? "on" : "off")}." });
+                    }
                     if (Arg("action") == "theme")
                     {
                         if (_broadcast.Settings.Path != null) try { _env.Open(_broadcast.Settings.Path); } catch (Exception) { }
@@ -632,6 +645,60 @@ namespace TournamentTracker.App
                     if (Arg("scope").Length > 0) _desk.StandingsScope = Arg("scope") == "overall" ? "overall" : "round";
                     if (Arg("show").Length > 0) _broadcast?.Settings.Set("standings", Arg("show") == "true");
                     return Ok(new { ok = true, message = Arg("show") == "true" ? "Standings on stream." : Arg("show") == "false" ? "Standings off stream." : $"Standings: {(_desk.StandingsScope == "overall" ? "whole tournament" : "this round")}." });
+                case ("POST", "/app/admin/intermission"):
+                {
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    switch (Arg("action"))
+                    {
+                        case "on": _desk.ShowIntermission(); return Ok(new { ok = true, message = "Intermission on stream." });
+                        case "off": { var air = _desk.EndIntermission(); return Ok(new { ok = true, message = $"Back to {string.Join(", ", air.Slots.Where(x => x != null))}." }); }
+                        case "toggle":
+                            if (_desk.OnAir.Layout == "intermission") { var air = _desk.EndIntermission(); return Ok(new { ok = true, message = $"Back to {string.Join(", ", air.Slots.Where(x => x != null))}." }); }
+                            _desk.ShowIntermission();
+                            return Ok(new { ok = true, message = "Intermission on stream." });
+                        case "auto":
+                            _desk.AutoIntermission = Arg("on") == "true";
+                            return Ok(new { ok = true, message = _desk.AutoIntermission ? "Auto intermission: on between rounds, back when a lobby starts." : "Auto intermission off." });
+                        case "dismiss": _desk.DismissIntermissionOffer(); return Ok(new { ok = true, message = "OK, not now." });
+                        case "next":
+                        {
+                            // "20" (minutes from now), "19:30" (today, local time), or "" to clear.
+                            string v = Arg("value").Trim();
+                            if (v.Length == 0) { _desk.NextRoundAt = null; return Ok(new { ok = true, message = "Countdown cleared." }); }
+                            DateTime at;
+                            if (int.TryParse(v, out int mins)) at = DateTime.UtcNow.AddMinutes(mins);
+                            else if (TimeSpan.TryParse(v, System.Globalization.CultureInfo.InvariantCulture, out var tod))
+                            {
+                                var local = DateTime.Now.Date + tod;
+                                if (local < DateTime.Now) local = local.AddDays(1);
+                                at = local.ToUniversalTime();
+                            }
+                            else return Ok(new { ok = false, message = "Type minutes (20) or a time (19:30)." });
+                            _desk.NextRoundAt = at;
+                            return Ok(new { ok = true, message = $"Next round at {at.ToLocalTime():HH:mm}." });
+                        }
+                        case "montage":
+                        {
+                            var q = _desk.QueuedMontage;
+                            if (q == null || _montages == null) return Ok(new { ok = false, message = "No montage waiting." });
+                            return Ok(new { ok = true, message = await _montages.PlayAsync(q.Value.Id).ConfigureAwait(false) });
+                        }
+                        default: return Ok(new { ok = false, message = "Unknown intermission action." });
+                    }
+                }
+                case ("POST", "/app/admin/card"):
+                {
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    if (Arg("action") == "hide") { _desk.HidePlayerCard(); return Ok(new { ok = true, message = "Card off." }); }
+                    if (Arg("key").Length == 0) return Ok(new { ok = false, message = "Which player?" });
+                    if (_broadcast != null && !_broadcast.Settings.Current.Elements.GetValueOrDefault("playerCards")) _broadcast.Settings.Set("playerCards", true);
+                    string said = _desk.ShowPlayerCard(Arg("key"), Arg("lobby").Length > 0 ? Arg("lobby") : null);
+                    return Ok(new { ok = !said.StartsWith("Skipped", StringComparison.Ordinal), message = said });
+                }
+                case ("POST", "/app/admin/wins"):
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    _desk.WinScope = Arg("scope") == "round" ? "round" : "today";
+                    return Ok(new { ok = true, message = _desk.WinScope == "round" ? "Win counter: this round." : "Win counter: today." });
                 case ("POST", "/app/admin/autogrid"):
                     if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
                     _desk.AutoGrid = Arg("on") == "true";

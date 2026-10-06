@@ -24,7 +24,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Connect when The Button starts (after the first successful connect).</summary>
         public bool AutoConnect { get; set; }
         /// <summary>The scenes The Button builds and switches between: full screen, 2-up, quad.</summary>
-        public Dictionary<string, string> Scenes { get; set; } = new Dictionary<string, string> { ["full"] = "TT Full", ["2up"] = "TT 2-up", ["4up"] = "TT Quad", ["grid"] = "TT Grid", ["break"] = "TT Sponsor Break" };
+        public Dictionary<string, string> Scenes { get; set; } = new Dictionary<string, string> { ["full"] = "TT Full", ["2up"] = "TT 2-up", ["4up"] = "TT Quad", ["grid"] = "TT Grid", ["break"] = "TT Sponsor Break", ["intermission"] = "TT Intermission" };
         /// <summary>Each lobby's VDO.Ninja source is called this plus the lobby name.</summary>
         public string SourcePrefix { get; set; } = "TT Lobby ";
         /// <summary>Space between the pictures in 2-up and quad, in canvas pixels.</summary>

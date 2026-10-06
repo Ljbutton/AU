@@ -45,6 +45,9 @@ namespace TournamentTracker.App.Broadcast
             ["pointsOnTheLine"] = false,  // Part 14: what each outcome does to the standings
             ["standingsChange"] = true,   // Part 14: arrows after each game
             ["storyline"] = false,        // Part 13: a note as a lower third
+            ["alerts"] = true,            // Part 18: banners for plays in lobbies that aren't on screen
+            ["winCounter"] = true,        // Part 20: impostor wins v crewmate wins, in the corner
+            ["playerCards"] = true,       // Part 21: a player's card as a lower third
         };
 
         public static readonly Dictionary<string, string> ElementNames = new Dictionary<string, string>
@@ -58,6 +61,9 @@ namespace TournamentTracker.App.Broadcast
             ["pointsOnTheLine"] = "Points on the line",
             ["standingsChange"] = "Standings change",
             ["storyline"] = "Storyline note",
+            ["alerts"] = "Off-screen alerts",
+            ["winCounter"] = "Win counter",
+            ["playerCards"] = "Player cards",
         };
 
         private static readonly JsonSerializerOptions Json = new JsonSerializerOptions
@@ -168,7 +174,7 @@ namespace TournamentTracker.App.Broadcast
             double w = obs?.Connected == true ? obs.Width : 1920, h = obs?.Connected == true ? obs.Height : 1080;
             double gap = obs?.Settings.Gap ?? 8;
             var layout = air.Layout;
-            if (layout == "none" || layout == "replay") return (w, h, new List<(string?, Box)>());
+            if (layout is "none" or "replay" or "intermission") return (w, h, new List<(string?, Box)>());
             var boxes = air.Boxes ?? ObsDirector.Slots(layout, w, h, layout == "full" ? 0 : gap, air.Slots.Count);
             var slots = new List<(string?, Box)>();
             for (int i = 0; i < boxes.Count; i++) slots.Add((i < air.Slots.Count ? air.Slots[i] : null, boxes[i]));
@@ -185,9 +191,11 @@ namespace TournamentTracker.App.Broadcast
             var now = DateTime.UtcNow;
             int round = _desk.Tables.CurrentRound;
             int number = 0;
+            var numbers = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var r in ranking.OrderBy(r => r.Lobby, StringComparer.OrdinalIgnoreCase))
             {
                 number++;
+                numbers[r.Lobby] = number;
                 var live = _desk.Board.Lobby(r.Lobby);
                 string Who(LobbyPlayer p) => live == null ? p.Name : _desk.Board.DisplayName(live, p.Id, p.Name);
                 lobbies[r.Lobby] = new
@@ -221,8 +229,49 @@ namespace TournamentTracker.App.Broadcast
                 standings = s.Elements.GetValueOrDefault("standings") ? Standings(round) : null,
                 standingsChange = s.Elements.GetValueOrDefault("standingsChange") && _desk.Tables.Change != null && (now - _desk.Tables.ChangeAt).TotalSeconds < 15 ? _desk.Tables.Change : null,
                 storyline = s.Elements.GetValueOrDefault("storyline") && _desk.ShownNote is { } note && (now - note.At).TotalSeconds < 12 ? note.Text : null,
+                intermission = air.Layout == "intermission" ? Intermission(round) : null,
+                wins = s.Elements.GetValueOrDefault("winCounter") || air.Layout == "intermission" ? new { impostors = _desk.Wins().Impostors, crew = _desk.Wins().Crew, scope = _desk.WinScope } : null,
+                playerCard = s.Elements.GetValueOrDefault("playerCards") ? PlayerCard(air, w, h, slots) : null,
+                alerts = s.Elements.GetValueOrDefault("alerts") ? _desk.Alerts.Active().Select(a => new { a.Id, a.Lobby, number = numbers.GetValueOrDefault(a.Lobby), a.Kind, a.Text, a.Count }).ToList() : null,
                 extras = Extras.ToDictionary(kv => kv.Key, kv => { try { return kv.Value(); } catch (Exception) { return null; } }),
             };
+        }
+
+        /// <summary>The intermission screen: countdown to the next round, standings, notes taking turns, the montage up next.</summary>
+        private object Intermission(int round)
+        {
+            var notes = _desk.Storylines.Notes(new HashSet<string>(), 6);
+            int turn = notes.Count == 0 ? 0 : (int)(DateTime.UtcNow.Ticks / TimeSpan.TicksPerSecond / 8 % notes.Count);
+            return new
+            {
+                title = Settings.Current.Theme.TournamentName,
+                nextRoundAt = _desk.NextRoundAt?.ToString("o"),
+                nextRoundIn = _desk.NextRoundAt is { } at ? Math.Max(0, (int)Math.Ceiling((at - DateTime.UtcNow).TotalSeconds)) : (int?)null,
+                round,
+                standings = Standings(round),
+                note = notes.Count > 0 ? notes[turn].Text : null,
+                montage = _desk.QueuedMontage?.Title,
+            };
+        }
+
+        /// <summary>The player card: what it says, and where (on its lobby's tile in a multi-view, else the bottom left).</summary>
+        private object? PlayerCard(OnAir air, double w, double h, List<(string? Lobby, Box Box)> slots)
+        {
+            if (_desk.CardNow() is not { } c) return null;
+            var data = _desk.PlayerCardData(c.Key, c.Lobby);
+            if (data == null) return null;
+            Box? box = null;
+            if (air.Layout is "2up" or "4up" or "grid" && c.Lobby != null)
+            {
+                var slot = slots.FirstOrDefault(x => string.Equals(x.Lobby, c.Lobby, StringComparison.OrdinalIgnoreCase));
+                if (slot.Lobby != null)
+                {
+                    if (slot.Box.W < _desk.PlayerCardMinTile) return null;
+                    box = slot.Box;
+                }
+            }
+            var b = box ?? new Box(0, 0, w, h);
+            return new { id = c.Key + "|" + c.At.Ticks, data, x = b.X, y = b.Y, w = b.W, h = b.H, full = box == null };
         }
 
         /// <summary>Close to ending: worth showing what's on the line.</summary>

@@ -74,6 +74,43 @@ i.sw{display:inline-block;width:.72em;height:.72em;border-radius:.18em;margin-ri
 .brkt .b{flex:1;height:.35em;border-radius:.2em;background:rgba(255,255,255,.18);overflow:hidden}
 .brkt .b i{display:block;height:100%;background:var(--accent)}
 .brklabel{font:700 1em/1 var(--head),sans-serif;letter-spacing:.12em;padding:.2em .6em .1em;border-radius:.3em;background:var(--accent);color:#111}
+/* Off-screen alerts */
+.alrt{display:flex;align-items:center;gap:.55em;padding:.3em .8em .3em .3em;border-radius:.35em;background:var(--panel);box-shadow:0 .4em 1.4em rgba(0,0,0,.5);white-space:nowrap;animation:alin .35s ease-out}
+.alrt .k{font:700 .8em/1 var(--head),sans-serif;letter-spacing:.1em;padding:.32em .5em .22em;border-radius:.25em;background:var(--danger);color:#fff}
+.alrt.win .k{background:var(--accent);color:#111}.alrt.report .k{background:#ff8a3d}.alrt.button .k{background:#5aa9ff}
+.alrt .lb{font:700 1em/1 var(--head),sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--primary)}
+.alrt .x2{font-size:.7em;padding:.15em .4em;border-radius:.3em;background:rgba(255,255,255,.18)}
+@keyframes alin{from{opacity:0;transform:translateY(-.6em)}}
+/* Intermission */
+.inter{box-sizing:border-box;display:grid;grid-template-columns:1.25fr 1fr;gap:60px;padding:90px 110px 140px;background:radial-gradient(ellipse at 20% 10%,rgba(31,161,67,.28),transparent 60%),linear-gradient(160deg,rgba(6,9,13,.96),rgba(12,16,22,.96))}
+.inter .tn{font:700 1.1em/1 var(--font),sans-serif;letter-spacing:.18em;text-transform:uppercase;color:var(--primary)}
+.inter h1{margin:.1em 0 .2em;font:700 4.6em/.9 var(--head),sans-serif;letter-spacing:.04em;text-transform:uppercase}
+.inter .cd{margin-top:.6em;display:grid;gap:.1em}
+.inter .cd small{font:700 .9em/1 var(--font),sans-serif;letter-spacing:.14em;color:var(--accent);text-transform:uppercase}
+.inter .cd b{font:700 6.4em/.9 var(--head),sans-serif;font-variant-numeric:tabular-nums}
+.inter .nt{margin-top:1.2em;display:flex;gap:.6em;align-items:flex-start;font-size:1.05em;line-height:1.3;animation:fadein .6s}
+.inter .nt b{font:700 .85em/1.5 var(--head),sans-serif;letter-spacing:.08em;color:var(--accent);text-transform:uppercase;white-space:nowrap}
+.inter .nx{margin-top:1.2em;display:inline-flex;gap:.5em;align-items:center;padding:.3em .7em;border-radius:.3em;background:rgba(255,193,90,.16);border-left:.2em solid var(--accent);font-size:.9em}
+.inter .side{display:grid;gap:30px;align-content:start}
+@keyframes fadein{from{opacity:0}}
+/* Win counter */
+.wins{display:flex;align-items:center;gap:.6em;padding:.3em .8em;border-radius:.3em;background:var(--panel);font:700 .9em/1 var(--head),sans-serif;letter-spacing:.08em;white-space:nowrap}
+.wins .i{color:var(--danger)}.wins .c{color:#7fd3ff}
+.wins b{font-size:1.35em;display:inline-block;font-variant-numeric:tabular-nums;margin-left:.25em}
+.wins b.bump{animation:bump 1.2s ease-out}
+.wins .sep{opacity:.5}
+.wins small{font:700 .55em/1 var(--font),sans-serif;opacity:.6;letter-spacing:.1em}
+@keyframes bump{0%{transform:scale(1.9);color:#fff;text-shadow:0 0 .5em currentColor}100%{transform:none}}
+/* Player card */
+.pcard{display:grid;gap:.25em;padding:.5em 1em .55em .9em;border-radius:.35em;background:var(--panel);border-left:.3em solid var(--primary);box-shadow:0 .5em 1.6em rgba(0,0,0,.5);animation:pcin .45s ease-out;min-width:12em}
+.pcard .nm{font:700 1.7em/1 var(--head),sans-serif;letter-spacing:.04em;display:flex;align-items:center;gap:.15em}
+.pcard .say{font:700 .5em/1 var(--font),sans-serif;opacity:.6;letter-spacing:.04em;margin-left:.6em}
+.pcard .rk{font-size:.8em;display:flex;gap:.8em;align-items:center}
+.pcard .rk .big{font:700 1.4em/1 var(--head),sans-serif;color:var(--primary)}
+.pcard .rec{display:flex;gap:.5em;font-size:.68em;letter-spacing:.06em}
+.pcard .rec span{padding:.2em .45em;border-radius:.25em;background:rgba(255,255,255,.1)}
+.pcard .rec .i{color:#ff7a90}.pcard .rec .c{color:#7fd3ff}
+@keyframes pcin{from{opacity:0;transform:translateX(-1em)}}
 /* Status bar */
 .bar{display:flex;flex-wrap:wrap;gap:6px;padding:6px 10px;box-sizing:border-box;background:linear-gradient(transparent,rgba(0,0,0,.55) 30%)}
 .cell{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:.45em;padding:.25em .55em;border-radius:.3em;background:var(--panel);border:.08em solid rgba(255,255,255,.12);font-size:.82em;white-space:nowrap;overflow:hidden;position:relative}
@@ -189,7 +226,7 @@ function statusBar() {
 
 // Standings: the round's (or the tournament's) top ten, from the tournament's own scoring.
 function standings() {
-  const st = S.standings; if (!st || !st.rows.length) return;
+  const st = S.standings; if (!st || !st.rows.length || S.layout === 'intermission') return;
   const sp = S.extras && S.extras.standingsSponsor;
   put('standings', `<div class="panel"><h2>${esc(st.title)}</h2><table class="st">${st.rows.map(r => `<tr class="${r.advancing ? 'adv' : ''}"><td class="r">${r.rank}</td><td>${sw(r.color)}${esc(r.name)}</td><td class="p">${r.points}</td></tr>`).join('')}</table>${sp ? `<div class="by">Presented by ${sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : ''}<b>${esc(sp.name)}</b></div>` : ''}</div>`,
     { right: '40px', top: '120px', width: '520px', fontSize: '32px' });
@@ -231,9 +268,54 @@ function sponsorBreak() {
     { left: x + 'px', top: slot.y + slot.h - 30 + 'px', fontSize: '30px' });
 }
 
+// Banners for plays in lobbies that aren't on screen, stacked at the top.
+const ALERT_KIND = { kill: 'KILL', win: 'GAME OVER', report: 'BODY REPORTED', button: 'EMERGENCY' };
+function alerts() {
+  (S.alerts || []).forEach((a, i) => put(`alert-${a.id}`, `<div class="alrt ${a.kind}"><span class="k">${ALERT_KIND[a.kind] || a.kind}</span><span class="lb">#${a.number} ${esc(a.lobby)}</span><span>${rich(a.text)}</span>${a.count > 1 ? `<span class="x2">×${a.count}</span>` : ''}</div>`,
+    { left: '50%', top: 22 + i * 64 + 'px', transform: 'translateX(-50%)', fontSize: '30px', transition: 'opacity .45s ease, top .3s ease' }));
+}
+
+// Intermission: the whole screen between rounds (the status bar stays along the bottom).
+const mmss = n => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
+function intermission() {
+  const it = S.intermission; if (!it || S.layout !== 'intermission') return;
+  const st = it.standings;
+  const table = st && st.rows.length ? `<div class="panel"><h2>${esc(st.title)}</h2><table class="st">${st.rows.map(r => `<tr class="${r.advancing ? 'adv' : ''}"><td class="r">${r.rank}</td><td>${sw(r.color)}${esc(r.name)}</td><td class="p">${r.points}</td></tr>`).join('')}</table></div>` : '';
+  const sp = S.extras && S.extras.standingsSponsor;
+  put('inter-bg', `<div class="inter" style="width:${S.canvas.w}px;height:${S.canvas.h}px"><div>
+      <div class="tn">${esc(it.title || '')}</div><h1>Intermission</h1>
+      ${it.nextRoundIn != null ? `<div class="cd"><small>Round ${(it.round || 0) + 1} starts in</small><b id="inter-cd"></b></div>` : ''}
+      ${it.note ? `<div class="nt" data-note="${esc(it.note)}"><b>Storyline</b><span>${rich(it.note)}</span></div>` : ''}
+      ${it.montage ? `<div class="nx"><b style="color:var(--accent)">UP NEXT</b> ${rich(it.montage)}</div>` : ''}
+    </div><div class="side">${table}${sp ? `<div class="by">Presented by ${sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : ''}<b>${esc(sp.name)}</b></div>` : ''}</div></div>`,
+    { left: '0px', top: '0px', fontSize: '34px', zIndex: '-1' });
+  const cd = document.getElementById('inter-cd'); if (cd && it.nextRoundIn != null) cd.textContent = mmss(it.nextRoundIn);
+}
+// Impostor wins v crewmate wins (today or this round), in the corner and in intermission; the number that changed jumps.
+const winsSeen = { i: null, c: null, at: { i: 0, c: 0 } };
+function winCounter() {
+  const w = S.wins; if (!w) return;
+  const now = Date.now();
+  for (const [k, v] of [['i', w.impostors], ['c', w.crew]]) { if (winsSeen[k] !== null && winsSeen[k] !== v) winsSeen.at[k] = now; winsSeen[k] = v; }
+  const b = k => now - winsSeen.at[k] < 1300 ? ' class="bump"' : '';
+  const html = `<div class="wins"><span class="i">IMPOSTOR WINS<b${b('i')}>${w.impostors}</b></span><span class="sep">·</span><span class="c">CREWMATE WINS<b${b('c')}>${w.crew}</b></span><small>${w.scope === 'round' ? 'THIS ROUND' : 'TODAY'}</small></div>`;
+  if (S.layout === 'intermission') put('wins', html, { left: '110px', bottom: '150px', right: 'auto', top: 'auto', fontSize: '40px' });
+  else if (S.elements.winCounter) put('wins', html, { right: '40px', bottom: '84px', left: 'auto', top: 'auto', fontSize: '28px' });
+}
+// A player's card: on their lobby's tile in a multi-view, else bottom left.
+function playerCard() {
+  const c = S.playerCard; if (!c) return;
+  const d = c.data, k = c.full ? 1 : Math.max(c.w / S.canvas.w, 0.5);
+  const rank = d.rank ? `<span><span class="big">#${d.rank}</span> of ${d.of}</span><span><span class="big">${d.points}</span> pts</span><span>${d.round ? 'Round ' + d.round : 'Tournament'}</span>` : '<span>Not ranked yet</span>';
+  put(`pcard-${c.id}`, `<div class="pcard"><div class="nm">${sw(d.color)}${esc(d.name)}${d.pronunciation ? `<span class="say">say “${esc(d.pronunciation)}”</span>` : ''}</div>
+      <div class="rk">${rank}</div>
+      <div class="rec"><span class="i">IMPOSTOR ${d.imp.w}–${d.imp.l}</span><span class="c">CREW ${d.crew.w}–${d.crew.l}</span><span>${d.kills} KILL${d.kills === 1 ? '' : 'S'} TODAY</span></div></div>`,
+    { left: c.x + 40 * k + 'px', top: c.y + c.h - (c.full ? 330 : 250 * k) + 'px', fontSize: 34 * k + 'px' });
+}
+
 // More elements are added by later parts (sponsors, alerts, counters…).
-const GLOBAL = { statusBar, standings, standingsChange, storyline, sponsorBreak };
-const ALWAYS = new Set(['sponsorBreak']);
+const GLOBAL = { intermission, statusBar, standings, standingsChange, storyline, sponsorBreak, winCounter, playerCard, alerts };
+const ALWAYS = new Set(['sponsorBreak', 'intermission', 'winCounter', 'playerCard']);
 
 function render() {
   const th = S.theme || {};

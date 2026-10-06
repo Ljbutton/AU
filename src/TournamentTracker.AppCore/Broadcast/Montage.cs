@@ -29,6 +29,16 @@ namespace TournamentTracker.App.Broadcast
         public string? Lobby { get; set; }
         public int Round { get; set; }
         public string? Sponsor { get; set; }
+        /// <summary>When each moment plays (seconds in) and its key player, for player cards during the montage.</summary>
+        public List<MontageMoment> Moments { get; set; } = new List<MontageMoment>();
+    }
+
+    public sealed class MontageMoment
+    {
+        public double At { get; set; }
+        public double Length { get; set; }
+        public string Lobby { get; set; } = "";
+        public string Key { get; set; } = "";
     }
 
     /// <summary>One piece of a montage: a clip (cut around its moment, cropped, with a lower third) or a title card.</summary>
@@ -340,6 +350,13 @@ namespace TournamentTracker.App.Broadcast
                 if (!ok) throw new InvalidOperationException("ffmpeg: " + string.Join(" ", output.Split('\n').Where(l => l.Trim().Length > 0).TakeLast(3)));
                 m.File = file;
                 m.Duration = Math.Round(Length(segments), 1);
+                double at = 0;
+                m.Moments.Clear();
+                foreach (var seg in segments)
+                {
+                    if (seg.Clip?.KeyPlayer is { } key) m.Moments.Add(new MontageMoment { At = at, Length = seg.Length, Lobby = seg.Clip.Lobby, Key = key });
+                    at += seg.Length - Transition;
+                }
                 m.State = "ready";
             }
             catch (Exception e)

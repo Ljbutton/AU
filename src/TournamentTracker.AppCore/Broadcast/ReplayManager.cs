@@ -221,8 +221,13 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>A montage (or any finished video) in the replay scene, full frame.</summary>
-        public Task<string> PlayVideoAsync(string id, string file, string title, string? sponsor = null)
+        private List<MontageMoment> _moments = new List<MontageMoment>();
+        private string? _momentCard;
+
+        public Task<string> PlayVideoAsync(string id, string file, string title, string? sponsor = null, List<MontageMoment>? moments = null)
         {
+            _moments = moments ?? new List<MontageMoment>();
+            _momentCard = null;
             var clip = new Clip { Id = id, Lobby = "", Title = title, Rule = "montage", File = file, State = "ready", EventAt = _clock() };
             lock (_lock)
             {
@@ -278,6 +283,8 @@ namespace TournamentTracker.App.Broadcast
                     sponsorLogo = killcam != null ? SponsorBook.LogoUrl(killcam) : null,
                 }));
                 OnChanged?.Invoke(true);
+                // The key player's card (killer, reporter, caller, ejected) comes up with the replay.
+                if (!montage && clip.KeyPlayer != null) _desk.ShowPlayerCard(clip.KeyPlayer, clip.Lobby, auto: true);
                 Problem = null;
                 return montage ? $"Montage: {NameTag.Plain(clip.Title)}." : $"Replay: {clip.Lobby} · {NameTag.Plain(clip.Title)}.";
             }
@@ -425,6 +432,16 @@ namespace TournamentTracker.App.Broadcast
                 {
                     EndSponsor();
                     Ended?.Invoke(ended);
+                    // A montage played in intermission goes back to it by itself.
+                    if (ended.Rule == "montage" && _returnTo?.Layout == "intermission") { await LiveAsync().ConfigureAwait(false); return; }
+                }
+                // During a montage, each moment's key player gets their card.
+                if (clip.Rule == "montage" && _moments.Count > 0)
+                {
+                    double at = Cursor();
+                    var m = _moments.LastOrDefault(x => at >= x.At + 0.3 && at < x.At + x.Length);
+                    string? id = m == null ? null : m.At + "|" + m.Key;
+                    if (m != null && id != _momentCard) { _momentCard = id; _desk.ShowPlayerCard(m.Key, m.Lobby, auto: true); }
                 }
                 View view;
                 lock (_lock) view = Framing.At(clip, S, Cursor(), _played, _zoomBy, _panX, _panY, _follow);

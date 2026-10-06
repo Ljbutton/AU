@@ -220,7 +220,12 @@ namespace TournamentTracker.App.Broadcast
             await _one.WaitAsync().ConfigureAwait(false);
             try { await _builder.BuildAsync(m, segs).ConfigureAwait(false); }
             finally { _one.Release(); }
-            if (m.State == "ready") Ready?.Invoke(m);
+            if (m.State == "ready")
+            {
+                // Up next in intermission (custom montages are for right now, not the queue).
+                if (m.Kind != "custom") _desk.QueuedMontage = (m.Id, NameTag.Plain(m.Title));
+                Ready?.Invoke(m);
+            }
             return m;
         }
 
@@ -231,7 +236,8 @@ namespace TournamentTracker.App.Broadcast
             var m = Find(id);
             if (m == null) return "That montage is gone.";
             if (m.State != "ready" && m.State != "played" || m.File == null) return m.State == "building" ? "Still building." : "Not ready: " + (m.Problem ?? "it failed.");
-            string said = await _replays.PlayVideoAsync(m.Id, m.File, m.Title, m.Sponsor).ConfigureAwait(false);
+            string said = await _replays.PlayVideoAsync(m.Id, m.File, m.Title, m.Sponsor, m.Moments).ConfigureAwait(false);
+            if (_desk.QueuedMontage?.Id == m.Id && _replays.Now?.Id == m.Id) _desk.QueuedMontage = null;
             if (m.Sponsor != null && _replays.Now?.Id == m.Id)
                 _sponsors?.Log(m.Sponsor, "montage", _clock(), _clock().AddSeconds(SponsorSeconds), m.Lobby, m.Title);
             foreach (var cid in m.ClipIds) if (_replays.Find(cid) is { } c && m.Kind == "custom") c.Used = true;
@@ -259,6 +265,7 @@ namespace TournamentTracker.App.Broadcast
                 if (_replays.Now?.Id == id && m.State != "played") return "It's playing: go back to live first.";
                 _list.Remove(m);
             }
+            if (_desk.QueuedMontage?.Id == id) _desk.QueuedMontage = null;
             try { if (m.File != null && File.Exists(m.File)) File.Delete(m.File); } catch (Exception) { }
             return "Montage discarded.";
         }

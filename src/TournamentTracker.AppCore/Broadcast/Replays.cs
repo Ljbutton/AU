@@ -71,6 +71,10 @@ namespace TournamentTracker.App.Broadcast
             ["specEye"] = "KeyE",
             // Layouts.
             ["grid"] = "KeyG",
+            ["intermission"] = "KeyI",
+            // Graphics.
+            ["alertsPause"] = "KeyB",
+            ["playerCard"] = "KeyC",
         };
     }
 
