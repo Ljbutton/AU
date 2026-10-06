@@ -220,6 +220,9 @@ namespace TournamentTracker.App.Broadcast
 
         public void SimOffline(string lobby, bool offline) => _sim?.SetOffline(lobby, offline);
 
+        /// <summary>A spectator view command for a simulated lobby (real lobbies get it over VDO.Ninja from the tab).</summary>
+        public bool SimSpec(string lobby, string command) => _sim?.Spec(lobby, command) ?? false;
+
         // ---- On stream ------------------------------------------------------------------------
 
         public OnAir OnAir { get { lock (_lock) return _onAir; } }
@@ -345,7 +348,14 @@ namespace TournamentTracker.App.Broadcast
                     OnAir = new { _onAir.Layout, _onAir.Slots, _onAir.By, _onAir.Scene, Since = _onAir.Since == default ? null : _onAir.Since.ToString("o") },
                     Lobbies = ranking.Select(r => new
                     {
-                        r.Lobby, r.Online, r.Score, r.Tier, r.Line, r.Phase, r.Crew, r.Imps, r.TaskPct, r.Game, r.Round,
+                        r.Lobby, r.Online, r.Score, r.Tier, r.Line, r.Phase, r.Crew, r.Imps, r.TaskPct, r.Game, r.Round, r.Spec,
+                        Players = r.Players.Select(p => new
+                        {
+                            Id = p.TryGetProperty("id", out var i) ? i.GetInt32() : 0,
+                            Name = p.TryGetProperty("name", out var n) ? n.GetString() : "",
+                            Colour = p.TryGetProperty("colorName", out var c) ? c.GetString() : "",
+                            Imp = p.TryGetProperty("imp", out var im) && im.ValueKind == JsonValueKind.True,
+                        }).ToList(),
                         OnAir = _onAir.Label(r.Lobby),
                     }).ToList(),
                     Cards = _cards.OrderByDescending(x => x.Value).ThenByDescending(x => x.Updated).Select(View).ToList(),

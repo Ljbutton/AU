@@ -40,6 +40,26 @@ namespace TournamentTracker.App.Broadcast
 
         public IEnumerable<string> Lobbies => _lobbies.Select(l => l.Label);
 
+        /// <summary>A "spec …" command, as a real host's mod would take it; the next snapshot shows it.</summary>
+        public bool Spec(string lobby, string command)
+        {
+            var l = _lobbies.FirstOrDefault(x => x.Label == lobby);
+            if (l == null) return false;
+            var parts = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 2 || parts[0] != "spec") return false;
+            string what = parts[1], value = parts.Length > 2 ? parts[2] : "";
+            switch (what)
+            {
+                case "lit": l.SpecLit = value == "on" || value != "off" && !l.SpecLit; break;
+                case "report": l.SpecReport = value == "on" || value != "off" && !l.SpecReport; break;
+                case "eye": l.SpecEye = value == "on" || value != "off" && !l.SpecEye; break;
+                case "vision": l.SpecVision = value is "off" or "focus" or "rings" ? value : l.SpecVision == "off" ? "focus" : l.SpecVision == "focus" ? "rings" : "off"; break;
+                case "focus": l.SpecFocus = int.TryParse(value, out var id) ? id : (int?)null; break;
+                default: return false;
+            }
+            return true;
+        }
+
         /// <summary>Everything the lobbies sent up to <paramref name="now"/>, oldest first.</summary>
         public List<string> Advance(DateTime now)
         {
@@ -62,6 +82,9 @@ namespace TournamentTracker.App.Broadcast
         {
             public readonly string Label;
             public bool Offline;
+            public bool SpecLit = true, SpecReport = true, SpecEye = true;
+            public string SpecVision = "focus";
+            public int? SpecFocus;
             private readonly Random _r;
             private DateTime _now, _gameStart, _phaseEnds, _nextSnap;
             private string _phase = "lobby";
@@ -168,6 +191,7 @@ namespace TournamentTracker.App.Broadcast
                     ["sabotage"] = _sab == null ? null : new { system = _sab, critical = _sabLeft.HasValue, timeLeft = _sabLeft.HasValue ? Math.Round(_sabLeft.Value, 1) : (double?)null },
                     ["danger"] = _danger,
                     ["video"] = true,
+                    ["spec"] = new { lit = SpecLit, vision = SpecVision, report = SpecReport, eye = SpecEye, focus = SpecFocus, focusing = SpecFocus ?? Alive(false).Select(p => (int?)p.Id).FirstOrDefault(), on = true },
                 });
             }
 

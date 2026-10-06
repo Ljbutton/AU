@@ -188,6 +188,13 @@ async function pump(){
   const el=document.getElementById('data');
   el.textContent=lastOk?`Live data: ${sent} sent`:'';el.className=lastOk&&Date.now()-lastOk<5000?'ok':'';
 }
+// The caster switches this lobby's spectator view (lit map, vision, ""!"", eye): only ""spec …"" commands are taken.
+addEventListener('message',e=>{
+  if(e.source!==v.contentWindow)return;
+  const got=e.data&&e.data.dataReceived;const cmd=got&&got.ttc;
+  if(typeof cmd!=='string'||!/^spec [a-z]+( [a-z0-9.]+)?$/.test(cmd))return;
+  fetch('/app/command?token='+encodeURIComponent(token),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:cmd})}).catch(()=>{});
+});
 info();setInterval(info,5000);setInterval(pump,500);
 </script></body></html>";
     

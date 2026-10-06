@@ -52,6 +52,11 @@ namespace TournamentTracker.App.Broadcast
             ["panDown"] = "KeyS",
             ["follow"] = "KeyF",
             ["live"] = "KeyL",
+            // Spectator view of the lobby on stream (slot 1).
+            ["specLit"] = "KeyM",
+            ["specVision"] = "KeyV",
+            ["specReport"] = "KeyX",
+            ["specEye"] = "KeyE",
         };
     }
 

@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.22**, a beta.
+The current release is **v0.1.23**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -351,6 +351,17 @@ the caster's PC and off stream.
   shot and a REPLAY tag. Controls: play/pause, ±1 s, frame step, scrub bar, restart, zoom, pan,
   follow, back to live; every one has a key (change them under **Keys**). Clip lengths, zoom,
   folder (default Videos\TT Replays) and keys are in the `replay` part of `obs.json`.
+* **Spectator view** (the host's own screen, while they play as the referee ghost; drawn only in
+  their game, never sent to players): the whole map lit with every player shown (impostors in
+  vents stay hidden); **vision** FOCUS shows one crewmate's real sight (wall-blocked, their
+  vision setting, lights sabotage included) with the rest of the map a little darker, picked by
+  itself (a crewmate in danger, else whoever did something last) or by you, or RINGS outlines
+  every living player's sight in their colour; **"!"** pops over anyone close enough to report a
+  body (the game's own check); a faint **eye** by a crewmate's name while an impostor is in
+  their sight, flashing when they see a kill or a vent, which also makes a "Lime SAW Purple
+  vent in MedBay" card. Switch each one per lobby under its row in the Caster tab (it goes to
+  the host over their VDO.Ninja link), or with keys for the lobby on stream (M lit, V vision,
+  X "!", E eye; change them under Keys).
 * **Simulation:** the Simulation button plays four fake lobbies (with stand-in video in OBS), to
   try the tab and OBS switching without real games.
 

@@ -45,6 +45,10 @@ namespace TournamentTracker.App.Broadcast
         public string? MeetingText { get; set; }
         public bool Video { get; set; }
         public double? Clock { get; set; }
+        /// <summary>The spectator view on the host's screen (lit, vision, "!", eye, focus), as it last said.</summary>
+        public JsonElement? Spec { get; set; }
+        /// <summary>This game's players (from its start), for picking whose vision to show.</summary>
+        public List<JsonElement> Players { get; set; } = new List<JsonElement>();
         public Dictionary<string, Play> Plays { get; } = new Dictionary<string, Play>();
     }
 
@@ -62,6 +66,8 @@ namespace TournamentTracker.App.Broadcast
         public int? TaskPct { get; set; }
         public string? Game { get; set; }
         public int Round { get; set; }
+        public JsonElement? Spec { get; set; }
+        public List<JsonElement> Players { get; set; } = new List<JsonElement>();
         public List<Play> Plays { get; set; } = new List<Play>();
     }
 
@@ -125,6 +131,7 @@ namespace TournamentTracker.App.Broadcast
             l.TaskPct = Int(m, "taskPct");
             l.Danger = Bool(m, "danger") ?? false;
             l.Video = Bool(m, "video") ?? false;
+            if (m.TryGetProperty("spec", out var spec) && spec.ValueKind == JsonValueKind.Object) l.Spec = spec.Clone();
             if (m.TryGetProperty("sabotage", out var s) && s.ValueKind == JsonValueKind.Object)
             {
                 l.Sabotage = Str(s, "system");
@@ -233,6 +240,7 @@ namespace TournamentTracker.App.Broadcast
                     break;
                 case "gameStart":
                     l.Map = Str(m, "map") ?? l.Map;
+                    l.Players = m.TryGetProperty("players", out var ps) && ps.ValueKind == JsonValueKind.Array ? ps.EnumerateArray().Select(x => x.Clone()).ToList() : new List<JsonElement>();
                     l.DangerText = l.MeetingText = null;
                     foreach (var key in l.Plays.Keys.Where(k => !l.Plays[k].IsState).ToList()) l.Plays.Remove(key);
                     Add(l, now, "gameStart", "gameStart", $"Game started on {l.Map ?? "the map"}", m);
@@ -312,6 +320,8 @@ namespace TournamentTracker.App.Broadcast
                         TaskPct = l.TaskPct,
                         Game = l.Game,
                         Round = l.Round,
+                        Spec = l.Spec,
+                        Players = l.Players,
                         Plays = plays.Select(Copy).ToList(),
                     });
                 }

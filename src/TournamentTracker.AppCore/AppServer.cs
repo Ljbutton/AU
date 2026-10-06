@@ -418,6 +418,13 @@ namespace TournamentTracker.App
                         }
                     }
                 }
+                case ("POST", "/app/admin/spec"):
+                {
+                    // Real lobbies get the command from the tab, over their VDO.Ninja link; simulated ones here.
+                    string cmd = Arg("command");
+                    if (_desk == null || !cmd.StartsWith("spec ", StringComparison.Ordinal)) return Ok(new { ok = false });
+                    return Ok(new { ok = _desk.SimSpec(Arg("lobby"), cmd) });
+                }
                 case ("POST", "/app/admin/dismiss"):
                     _desk?.Dismiss(Arg("id"));
                     return Ok(new { ok = true });

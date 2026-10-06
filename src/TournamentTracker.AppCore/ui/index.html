@@ -190,6 +190,10 @@ tr:last-child td{border-bottom:0}
 .dlob .lay button{all:unset;cursor:pointer;font:600 11px/1 var(--round);padding:5px 7px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
 .dlob .lay button:hover{color:#fff;border-color:var(--accent)}
 .dlob.offline{opacity:.55}
+.spec{grid-column:1/-1;display:flex;gap:4px;align-items:center;flex-wrap:wrap;font-size:11.5px;color:var(--muted);padding-top:2px}
+.spec button{all:unset;cursor:pointer;font:600 11px/1 var(--round);padding:4px 7px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
+.spec button.on{border-color:var(--accent);color:#fff;background:var(--accent-soft)}
+.spec select{font-size:11.5px;padding:2px 4px;max-width:150px}
 .desk-history{display:grid;gap:4px}
 .hrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 8px;border-radius:10px;background:var(--sunk);font-size:13px}
 .hrow .tx{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1100,6 +1104,7 @@ function renderDesk() {
       <div class="sc">${l.online ? Math.round(l.score) : '–'}</div>
       <div style="min-width:0"><div class="nm">${esc(l.lobby)}${l.onAir ? `<span class="live">${esc(l.onAir)}</span>` : ''}${l.online ? '' : '<span class="off">OFFLINE</span>'}</div><div class="ln">${esc(l.line)}</div></div>
       <div class="lay"><button data-put="full" title="Full screen">Full</button><button data-put="2up" title="2-up, slot 1">2-up</button><button data-put="4up" title="Quad, slot 1">Quad</button></div>
+      ${specRow(l)}
     </div>`).join('') : '<p class="empty">No lobbies.</p>';
   $('desk-history').innerHTML = d.history.length ? d.history.map(c => `<div class="hrow tier-${c.tier}">
       <span class="tm">${clock(c.at)}</span>
@@ -1116,7 +1121,35 @@ $('desk-cards').addEventListener('click', e => {
   if (x) { api('POST', '/app/admin/dismiss', { id: x.dataset.dismiss }).then(loadDesk); return; }
   const c = e.target.closest('[data-card]'); if (c) show(c.dataset.lobby, 'full');
 });
+// The spectator view on a lobby's host screen: sent to that host over its VDO.Ninja link (the only way back to them).
+function specSend(lobby, command) {
+  const f = RECV[lobby];
+  if (f && f.contentWindow) f.contentWindow.postMessage({ sendData: { ttc: command }, type: 'rpcs' }, '*');
+  api('POST', '/app/admin/spec', { lobby, command }).then(() => setTimeout(loadDesk, 1200));
+  toast(`${lobby}: ${command.replace(/^spec /, '')}`);
+}
+function specRow(l) {
+  const sp = l.spec; if (!sp || !l.online) return '';
+  const crew = (l.players || []).filter(p => !p.imp);
+  const vis = { off: 'Vision off', focus: 'Vision: focus', rings: 'Vision: rings' }[sp.vision] || sp.vision;
+  return `<div class="spec" data-specrow="${esc(l.lobby)}">View${sp.on ? '' : ' (host isn\'t the referee ghost)'}
+    <button data-spec="lit" class="${sp.lit ? 'on' : ''}" title="Whole map lit (key ${keyName('specLit')})">Lit</button>
+    <button data-spec="vision" class="${sp.vision !== 'off' ? 'on' : ''}" title="Off → focus → rings (key ${keyName('specVision')})">${vis}</button>
+    <button data-spec="report" class="${sp.report ? 'on' : ''}" title="&quot;!&quot; when someone can report (key ${keyName('specReport')})">!</button>
+    <button data-spec="eye" class="${sp.eye ? 'on' : ''}" title="Eye when a crewmate sees an impostor (key ${keyName('specEye')})">Eye</button>
+    ${sp.vision === 'focus' ? `<select data-specfocus title="Whose vision"><option value="auto">Focus: auto${sp.focusing != null && sp.focus == null ? ' (' + esc((crew.find(p => p.id === sp.focusing) || {}).colour || '') + ')' : ''}</option>${crew.map(p => `<option value="${p.id}"${sp.focus === p.id ? ' selected' : ''}>${esc(p.colour)} (${esc(p.name)})</option>`).join('')}</select>` : ''}
+  </div>`;
+}
+const keyName = k => ((RP && RP.hotkeys && RP.hotkeys[k]) || '').replace(/^Key|^Digit/, '');
+$('desk-lobbies').addEventListener('change', e => {
+  const sel = e.target.closest('[data-specfocus]'); if (!sel) return;
+  specSend(sel.closest('[data-specrow]').dataset.specrow, 'spec focus ' + sel.value);
+});
 $('desk-lobbies').addEventListener('click', e => {
+  if (e.target.closest('[data-specfocus]')) return;
+  const sb = e.target.closest('[data-spec]');
+  if (sb) { specSend(sb.closest('[data-specrow]').dataset.specrow, 'spec ' + sb.dataset.spec); return; }
+  if (e.target.closest('[data-specrow]')) return;
   const row = e.target.closest('[data-lobby]'); if (!row) return;
   const put = e.target.closest('[data-put]');
   show(row.dataset.lobby, put ? put.dataset.put : 'full', 1);
@@ -1156,7 +1189,7 @@ $('obs-off').addEventListener('click', async () => { const r = await api('POST',
 $('obs-build').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'build' }); toast(r.message); loadDesk(); });
 // ---- Replay controls -------------------------------------------------------------------------
 let RP = null, rpSync = 0, keyWait = null;
-const RP_NAMES = { playPause: 'Play / pause', back: 'Back 1 s', forward: 'Forward 1 s', frameBack: 'Back a frame', frameForward: 'Forward a frame', restart: 'Restart', zoomIn: 'Zoom in', zoomOut: 'Zoom out', panLeft: 'Pan left', panRight: 'Pan right', panUp: 'Pan up', panDown: 'Pan down', follow: 'Follow players', live: 'Back to live' };
+const RP_NAMES = { specLit: 'View: lit map', specVision: 'View: vision mode', specReport: 'View: "!"', specEye: 'View: eye', playPause: 'Play / pause', back: 'Back 1 s', forward: 'Forward 1 s', frameBack: 'Back a frame', frameForward: 'Forward a frame', restart: 'Restart', zoomIn: 'Zoom in', zoomOut: 'Zoom out', panLeft: 'Pan left', panRight: 'Pan right', panUp: 'Pan up', panDown: 'Pan down', follow: 'Follow players', live: 'Back to live' };
 const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
 function rpCursor() { const n = RP && RP.now; if (!n) return 0; return Math.min(n.duration || 0, n.cursor + (n.playing ? (performance.now() - rpSync) / 1000 : 0)); }
 function renderReplay() {
@@ -1208,10 +1241,20 @@ document.addEventListener('keydown', e => {
     return;
   }
   const f = document.activeElement;
-  if (!RP.now || /INPUT|TEXTAREA|SELECT/.test(f.tagName)) return;
+  if (/INPUT|TEXTAREA|SELECT/.test(f.tagName)) return;
   const name = Object.keys(RP.hotkeys || {}).find(k => RP.hotkeys[k] === e.code);
   if (!name) return;
+  // View keys: the lobby on stream (slot 1, or the one being replayed).
+  if (name.startsWith('spec')) {
+    const lobby = DESK && DESK.onAir.slots.find(x => x);
+    if (!lobby) return toast('Put a lobby on stream first.');
+    e.preventDefault();
+    specSend(lobby, 'spec ' + { specLit: 'lit', specVision: 'vision', specReport: 'report', specEye: 'eye' }[name]);
+    return;
+  }
+  if (!RP.now) return;
   e.preventDefault();
+  if (!KEY_ACTION[name]) return;
   const [act, dx, dy] = KEY_ACTION[name];
   rpDo(act, act === 'pan' ? { value: dx, value2: dy } : null);
 });

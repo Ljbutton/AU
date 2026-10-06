@@ -322,6 +322,68 @@ public class FeedTests : IDisposable
     }
 
     [Fact]
+    public void Spectator_view_settings_switch_from_commands_and_show_in_the_snapshot()
+    {
+        Start();
+        Assert.True(_s.Spectator.Lit);
+        Assert.Equal("focus", _s.Spectator.Vision);
+        _s.RunCommand("spec vision rings");
+        _s.RunCommand("spec lit off");
+        _s.RunCommand("spec eye");                        // no value: switches
+        _s.RunCommand("spec focus 3");
+        Assert.Equal("rings", _s.Spectator.Vision);
+        Assert.False(_s.Spectator.Lit);
+        Assert.False(_s.Spectator.Eye);
+        Assert.Equal((byte)3, _s.FocusPlayer());
+        _clock.Advance(1.1);
+        _s.FeedTick(Frame());
+        var spec = Read().Last(e => e.GetProperty("type").GetString() == "snap").GetProperty("spec");
+        Assert.Equal("rings", spec.GetProperty("vision").GetString());
+        Assert.Equal(3, spec.GetProperty("focusing").GetInt32());
+
+        // Saved: a restarted session keeps them.
+        var again = new TournamentSession(new TrackerSettings { TournamentName = "Fall Cup", LiveStatus = false, ControlPort = -1, Mode = TrackerMode.Tournament }, _dir.Path, NullLog.Instance, new HttpClient(new FakeHttp()), () => _clock.Now, new FakeVoiceApi(), new VoicePresenceState("g1"));
+        Assert.Equal("rings", again.Spectator.Vision);
+        again.Dispose();
+    }
+
+    [Fact]
+    public void The_focus_picks_a_crewmate_in_danger_then_the_most_active_one()
+    {
+        Start();
+        Assert.Equal((byte)2, _s.FocusPlayer());              // the first crewmate alive
+        _s.TaskCompleted(4);
+        Assert.Equal((byte)4, _s.FocusPlayer());              // Eve just did a task
+        _clock.Advance(11);
+        _s.FeedTick(Frame(move: p => { p[0].X = 50; p[0].Y = 1; }));   // Alice next to Finn (5), alone
+        Assert.Equal((byte)5, _s.FocusPlayer());
+        _s.RunCommand("spec focus 3");
+        Assert.Equal((byte)3, _s.FocusPlayer());              // picked from the caster tab
+        _s.Kill(0, 3);
+        Assert.NotEqual((byte)3, _s.FocusPlayer());           // not once they're dead
+    }
+
+    [Fact]
+    public void Seeing_a_kill_or_a_vent_tells_the_caster_once()
+    {
+        Start();
+        Read();
+        _s.Witnessed("kill", 3, 0, new FeedPlace { X = 1, Y = 2, Room = "MedBay" });
+        _s.Witnessed("kill", 3, 0, null);                       // the same sighting again
+        _s.Witnessed("vent", 4, 1, new FeedPlace { X = 1, Y = 2, Room = "LifeSupp" });
+        _s.Witnessed("vent", 0, 1, null);                       // an impostor "witnessing" doesn't count
+        var items = Read().Where(e => e.GetProperty("type").GetString() == "event").ToList();
+        Assert.Equal(2, items.Count);
+        var kill = items[0];
+        Assert.Equal("witnessed_kill", kill.GetProperty("kind").GetString());
+        Assert.Equal("Dana", kill.GetProperty("witness").GetProperty("name").GetString());
+        Assert.Equal("Alice", kill.GetProperty("impostor").GetProperty("name").GetString());
+        Assert.Equal("MedBay", kill.GetProperty("room").GetString());
+        Assert.Equal("witnessed_vent", items[1].GetProperty("kind").GetString());
+        Assert.Equal("O2", items[1].GetProperty("room").GetString());
+    }
+
+    [Fact]
     public void Screen_points_are_measured_from_the_top_left_of_the_view()
     {
         var cam = new FeedCamera { X = 10, Y = 5, HalfWidth = 4, HalfHeight = 2 };
