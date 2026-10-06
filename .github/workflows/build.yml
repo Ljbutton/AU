@@ -1,7 +1,9 @@
 name: Build
 
 # Tests the core, compiles the BepInEx plugin against the Among Us game libraries,
-# and packages a drop-in ZIP. Pushing a v* tag also publishes a GitHub Release.
+# and packages a drop-in ZIP. Pushing a v* tag also publishes a GitHub Release of The Button
+# and the mod; pushing a broadcast-v* tag publishes TT Broadcast on its own (a pre-release
+# while it's in beta, never "latest", so The Button's updates never see it).
 
 on:
   push:
@@ -12,7 +14,7 @@ on:
         description: 'AmongUs.GameLibs.Steam version to build against (blank = latest)'
         required: false
       release_tag:
-        description: 'Publish a GitHub release with this tag, e.g. v1.0.1 (blank = just build)'
+        description: 'Publish a GitHub release with this tag: v1.0.1 (The Button + mod) or broadcast-v0.1.0 (TT Broadcast); blank = just build'
         required: false
       delete_tags:
         description: 'Delete these releases and tags first, space separated (blank = none)'
@@ -52,8 +54,11 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Test the core
+      - name: Test the core and The Button
         run: dotnet test tests/TournamentTracker.Tests -c Release
+
+      - name: Test TT Broadcast
+        run: dotnet test tests/TournamentTracker.Broadcast.Tests -c Release
 
       - name: Build the plugin
         run: >
@@ -65,6 +70,12 @@ jobs:
           dotnet publish src/TournamentTracker.App -c Release -r win-x64 --self-contained
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
           -o dist/app
+
+      - name: Build TT Broadcast, the broadcaster's app (Windows)
+        run: >
+          dotnet publish src/TournamentTracker.BroadcastApp -c Release -r win-x64 --self-contained
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          -o dist/broadcast
 
       - name: Show the game and BepInEx versions built against
         run: dotnet list src/TournamentTracker.Plugin package | tee versions.txt
@@ -84,9 +95,11 @@ jobs:
           echo "PKG_ZIP=dist/$name.zip" >> "$GITHUB_ENV"
           echo "NAME=$name" >> "$GITHUB_ENV"
 
-      - name: Test the installer
+      - name: Test the installers
         shell: pwsh
-        run: ./installer/test/installer.tests.ps1
+        run: |
+          ./installer/test/installer.tests.ps1
+          ./installer/test/install-broadcast.tests.ps1
 
       # BepInEx's build server often drops downloads, so keep the files once we have them.
       - name: Cache BepInEx be.735 (win-x86)
@@ -144,6 +157,12 @@ jobs:
           # The installer: a .bat that runs the PowerShell stored after its #PS-START line.
           { cat installer/Install-TournamentTracker.header.bat; echo '#PS-START'; cat installer/install.ps1; } \
             | sed 's/$/\r/' > dist/Install-TheButton.bat
+          # TT Broadcast's installer downloads the TTBroadcast.exe of its own release.
+          version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/TournamentTracker.BroadcastApp/TournamentTracker.BroadcastApp.csproj)
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/broadcast-v$version/TTBroadcast.exe"
+          { cat installer/Install-TTBroadcast.header.bat; echo '#PS-START'; sed "s#__TTB_URL__#$url#" installer/install-broadcast.ps1; } \
+            | sed 's/$/\r/' > dist/Install-TTBroadcast.bat
+          echo "BROADCAST_VERSION=$version" >> "$GITHUB_ENV"
           ls -la dist
 
       - uses: actions/upload-artifact@v4
@@ -156,9 +175,11 @@ jobs:
             dist/TournamentTracker-Full.zip
             dist/Install-TheButton.bat
             dist/app/TheButton.exe
+            dist/Install-TTBroadcast.bat
+            dist/broadcast/TTBroadcast.exe
 
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
+        if: startsWith(github.ref, 'refs/tags/v') || startsWith(inputs.release_tag, 'v')
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.release_tag || github.ref_name }}
@@ -187,3 +208,28 @@ jobs:
           gh release create "$TAG" "$PKG_ZIP" dist/TournamentTracker-Full-x86.zip dist/TournamentTracker-Full-x64.zip \
             dist/TournamentTracker-Full.zip dist/Install-TheButton.bat dist/app/TheButton.exe docs/setup-codes.html \
             --target "$GITHUB_SHA" --title "The Button $TAG" --notes-file notes.md --latest
+
+      - name: Publish TT Broadcast release
+        if: startsWith(github.ref, 'refs/tags/broadcast-v') || startsWith(inputs.release_tag, 'broadcast-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          # The tag has to match the app's own version (src/TournamentTracker.BroadcastApp/*.csproj).
+          if [ "$TAG" != "broadcast-v$BROADCAST_VERSION" ]; then
+            echo "::error::Tag $TAG doesn't match TT Broadcast's version $BROADCAST_VERSION"; exit 1
+          fi
+          {
+            echo "## TT Broadcast (beta)"
+            echo "The broadcaster's app: the caster desk, OBS control, replays and montages, the on-stream"
+            echo "graphics, Twitch and simulation mode. Only whoever runs the stream needs it; hosts don't."
+            echo
+            echo "Download **Install-TTBroadcast.bat** below and double-click it. The first time it opens it"
+            echo "takes your caster setup (OBS, priorities, keys, roster, administration code) from The Button"
+            echo "on the same PC. After that it updates itself."
+            echo
+            echo "Built from commit $GITHUB_SHA."
+          } > broadcast-notes.md
+          gh release create "$TAG" dist/broadcast/TTBroadcast.exe dist/Install-TTBroadcast.bat \
+            --target "$GITHUB_SHA" --title "TT Broadcast $TAG" --notes-file broadcast-notes.md --prerelease --latest=false

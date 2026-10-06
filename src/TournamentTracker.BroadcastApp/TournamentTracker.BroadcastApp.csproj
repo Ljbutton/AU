@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    TT Broadcast: the broadcaster's app for Windows (the caster desk, OBS, replays, graphics,
+    Twitch), served by TournamentTracker.Broadcast on this computer and shown in a WebView2
+    window. Published as one self-contained TTBroadcast.exe. Its own version line (beta: 0.x),
+    released as broadcast-v… so it updates without The Button.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>TournamentTracker.App</RootNamespace>
+    <AssemblyName>TTBroadcast</AssemblyName>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <Product>TT Broadcast</Product>
+    <Version>0.1.0</Version>
+    <ApplicationIcon>TTBroadcast.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The same borderless window as The Button (one copy of the code). -->
+    <Compile Include="..\TournamentTracker.App\MainForm.cs" Link="MainForm.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TournamentTracker.Broadcast\TournamentTracker.Broadcast.csproj" />
+  </ItemGroup>
+</Project>
