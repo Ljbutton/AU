@@ -213,6 +213,8 @@ namespace TournamentTracker.App.Broadcast
                 var now = _clock();
                 // Sent again after a drop: each message once, in order (Part 22).
                 if (lobby.Length > 0 && !FirstTime(lobby, item)) return;
+                // How up to date the host's mod is (the broadcast feed's version).
+                if (lobby.Length > 0 && TournamentTracker.Broadcast.FeedProtocol.FromMod(type)) lock (_lock) _versions[lobby] = TournamentTracker.Broadcast.FeedProtocol.VersionOf(item);
                 if (type == "skip") return;
                 if (type == "health")
                 {

@@ -182,6 +182,7 @@ body.dropped{grid-template-rows:auto auto 1fr auto auto}
 <script src=""https://unpkg.com/@vdoninja/sdk/vdoninja-sdk.min.js""></script>
 <script>
 const token=new URLSearchParams(location.search).get('token')||'';
+const PROTOCOL=1;   // the broadcast feed's version (FeedProtocol.Version, docs/broadcast-protocol.md)
 const q=p=>p+(p.includes('?')?'&':'?')+'token='+encodeURIComponent(token);
 const v=document.getElementById('v');
 let pushUrl=null,since=null,sent=0,lastOk=0,lobby=null;
@@ -199,7 +200,7 @@ function send(items){ if(v.contentWindow) v.contentWindow.postMessage({sendData:
 let queue=[],acked=0,everAcked=false,resendAt=0,resendWait=1000;
 function trim(){
   const now=Date.now();
-  for(let i=0;i<queue.length;i++){const q=queue[i];if(!q.stub&&(q.it.type==='snap'||q.it.type==='track')&&now-q.first>15000){q.it={type:'skip',lobby:q.it.lobby,src:q.it.src,seq:q.it.seq,t:q.it.t};q.stub=true;}}
+  for(let i=0;i<queue.length;i++){const q=queue[i];if(!q.stub&&(q.it.type==='snap'||q.it.type==='track')&&now-q.first>15000){q.it={v:PROTOCOL,type:'skip',lobby:q.it.lobby,src:q.it.src,seq:q.it.seq,t:q.it.t};q.stub=true;}}
   if(queue.length>3000)queue.splice(0,queue.length-3000);
 }
 function resend(){
@@ -252,7 +253,7 @@ function gotStats(st){
   if(f>frames||kbps>0){stillFor=0;video='ok';}else if(++stillFor>=2)video='lost';
   frames=f;
 }
-function health(){ if(lobby) send([{type:'health',lobby,t:Date.now(),video,queued:queue.length}]); }
+function health(){ if(lobby) send([{v:PROTOCOL,type:'health',lobby,t:Date.now(),video,queued:queue.length}]); }
 setInterval(()=>{askStats();health();},2000);
 // The caster switches this lobby's spectator view (lit map, vision, ""!"", eye): only ""spec …"" commands are taken.
 addEventListener('message',e=>{
@@ -349,7 +350,7 @@ async function voiceTick(){
     if(ctx) await mic(r.on&&r.mic);
     if(r.on&&!vdo) publishVoice();
     // The caster's tab shows this lobby's voice status.
-    if(lobby) send([{type:'voice',lobby,t:Date.now(),on:r.on,sending:!!vdo,problem:voiceProblem||null,discord:s.voice.state,game:s.game.state,voiceDb:s.voice.level,gameDb:s.game.level,mic:!!micNode}]);
+    if(lobby) send([{v:PROTOCOL,type:'voice',lobby,t:Date.now(),on:r.on,sending:!!vdo,problem:voiceProblem||null,discord:s.voice.state,game:s.game.state,voiceDb:s.voice.level,gameDb:s.game.level,mic:!!micNode}]);
   }catch(e){}
 }
 function save(body){ fetch(q('/app/voice'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(voiceTick); }

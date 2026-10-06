@@ -75,6 +75,7 @@ namespace TournamentTracker
             var now = _clock();
             var msg = new Dictionary<string, object?>
             {
+                [FeedProtocol.V] = FeedProtocol.Version,
                 ["type"] = type,
                 ["kind"] = kind,
                 ["lobby"] = FeedLobby(game),

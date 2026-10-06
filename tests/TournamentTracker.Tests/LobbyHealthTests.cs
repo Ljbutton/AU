@@ -28,6 +28,7 @@ public class LobbyHealthTests : IDisposable
     private Dictionary<string, object?> Msg(string lobby, string type, string? kind, object? data = null, DateTime? at = null, string src = "run1", long? seq = null)
     {
         var msg = data == null ? new Dictionary<string, object?>() : JsonSerializer.SerializeToElement(data).EnumerateObject().ToDictionary(p => p.Name, p => (object?)p.Value);
+        msg["v"] = TournamentTracker.Broadcast.FeedProtocol.Version;
         msg["type"] = type; msg["lobby"] = lobby; msg["round"] = 1; if (!msg.ContainsKey("game")) msg["game"] = lobby + "-1";
         msg["t"] = Ms(at ?? _clock.Now);
         msg["src"] = src;
@@ -56,6 +57,20 @@ public class LobbyHealthTests : IDisposable
 
     private JsonElement State() => JsonSerializer.SerializeToElement(_desk.State(), Camel);
     private List<JsonElement> Cards() => State().GetProperty("cards").EnumerateArray().ToList();
+
+    [Fact]
+    public void A_host_on_an_older_feed_still_shows_but_is_marked_host_needs_update()
+    {
+        Snap("A");
+        Assert.Null(_desk.HostNeedsUpdate("A"));
+        var old = Msg("A", "snap", null, new { phase = "ingame" });
+        old.Remove("v");                                             // a mod from before versions
+        Send(old);
+        Assert.StartsWith("host needs update", _desk.HostNeedsUpdate("A"));
+        Assert.True(State().GetProperty("lobbies").EnumerateArray().Single().GetProperty("online").GetBoolean());
+        var lobby = State().GetProperty("health").GetProperty("lobbies").EnumerateArray().Single();
+        Assert.StartsWith("host needs update", lobby.GetProperty("update").GetString());
+    }
 
     [Fact]
     public void Each_lobby_is_green_yellow_or_red_for_plain_reasons()

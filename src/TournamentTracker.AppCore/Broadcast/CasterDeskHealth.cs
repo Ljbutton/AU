@@ -44,6 +44,14 @@ namespace TournamentTracker.App.Broadcast
             public DateTime Seen;
         }
         private readonly Dictionary<string, Received> _received = new Dictionary<string, Received>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> _versions = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>"host needs update" for a lobby whose mod sends an older feed than this app expects, else null.</summary>
+        public string? HostNeedsUpdate(string lobby)
+        {
+            lock (_lock) return _versions.TryGetValue(lobby, out var v) ? TournamentTracker.Broadcast.FeedProtocol.NeedsUpdate(v) : null;
+        }
+
         private readonly Dictionary<string, string> _levels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Card> _downCards = new Dictionary<string, Card>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, (string Game, int Round)> _playing = new Dictionary<string, (string, int)>(StringComparer.OrdinalIgnoreCase);
@@ -111,6 +119,7 @@ namespace TournamentTracker.App.Broadcast
                     st.Lobby, st.Level, st.Problems, st.DataAge, st.Video, st.Audio, st.LagMs,
                     Down = st.DownSince is { } d ? (int)(now - d).TotalSeconds : (int?)null,
                     Sim = sim?.Failures(l),
+                    Update = HostNeedsUpdate(l),
                 };
             }).ToList();
             List<object> interrupted;

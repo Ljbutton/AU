@@ -252,6 +252,7 @@ namespace TournamentTracker.App.Broadcast
             {
                 var msg = new Dictionary<string, object?>
                 {
+                    [TournamentTracker.Broadcast.FeedProtocol.V] = TournamentTracker.Broadcast.FeedProtocol.Version,
                     ["type"] = type,
                     ["lobby"] = Label,
                     ["round"] = _round,

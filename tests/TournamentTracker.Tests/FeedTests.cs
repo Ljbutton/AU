@@ -82,6 +82,8 @@ public class FeedTests : IDisposable
         var seqs = items.Select(e => e.GetProperty("seq").GetInt64()).ToList();
         Assert.Equal(Enumerable.Range((int)seqs[0], seqs.Count).Select(i => (long)i), seqs);
         Assert.Single(items.Select(e => e.GetProperty("src").GetString()).Distinct());
+        // Every message carries the broadcast feed's version (docs/broadcast-protocol.md).
+        Assert.All(items, e => Assert.Equal(FeedProtocol.Version, FeedProtocol.VersionOf(e)));
         Assert.Equal(6, snap.GetProperty("alive").GetInt32());
         Assert.Equal(0, snap.GetProperty("taskPct").GetInt32());
     }
