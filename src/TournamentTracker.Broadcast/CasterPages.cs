@@ -54,7 +54,7 @@ async function tick(){
   const on=d.cast&&frames[d.cast];
   document.getElementById('wait').hidden=!!on;
   playSound(d);
-  document.getElementById('wait-line').textContent=d.cast?d.cast+"" isn't sending their game yet."":""Pick a lobby in The Button's Organiser tab."";
+  document.getElementById('wait-line').textContent=d.cast?d.cast+"" isn't sending their game yet."":""Pick a lobby in TT Broadcast."";
 }
 tick();setInterval(tick,700);
 </script>

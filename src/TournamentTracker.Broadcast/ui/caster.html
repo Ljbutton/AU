@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TT Broadcast</title>
 <style>
-@font-face{font-family:"Amatic SC";font-weight:700;font-display:swap;src:url(/fonts/amatic-sc-700.woff2) format("woff2")}
-@font-face{font-family:"Varela Round";font-weight:400;font-display:swap;src:url(/fonts/varela-round.woff2) format("woff2")}
 @font-face{font-family:"Teko";font-weight:700;font-display:swap;src:url(/fonts/teko-700.woff2) format("woff2")}
 @font-face{font-family:"Rajdhani";font-weight:700;font-display:swap;src:url(/fonts/rajdhani-700.woff2) format("woff2")}
 :root{
@@ -14,7 +12,7 @@
   --accent:#1fa143;--accent-2:#147a2c;--accent-fg:#03140a;--accent-soft:rgba(22,128,46,.16);--hi:#ff2d55;--hi-soft:rgba(255,45,85,.14);--good:#46c28b;--good-soft:rgba(70,194,139,.16);--warn:#ffc15a;--warn-soft:rgba(255,193,90,.14);
   --danger:#ff6b61;--danger-soft:rgba(255,107,97,.15);color-scheme:dark;
 }
-:root{--hand:"Amatic SC","Segoe Print",cursive;--round:"Varela Round","Segoe UI",system-ui,sans-serif;--mono:"Cascadia Mono",Consolas,ui-monospace,monospace}
+:root{--hand:"Teko","Rajdhani","Arial Narrow",sans-serif;--round:"Segoe UI","Rajdhani",system-ui,sans-serif;--mono:"Cascadia Mono",Consolas,ui-monospace,monospace}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--round);display:grid;grid-template-columns:172px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);overflow:hidden}
@@ -28,7 +26,7 @@ header{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:8px 18p
 .brand .word b span{color:var(--accent)}
 .logo{width:40px;height:40px;object-fit:contain}
 .alerts{display:flex;flex-wrap:wrap;gap:8px;margin-left:8px}
-/* Window buttons (The Button's window has no frame of its own; the header is its title bar). */
+/* Window buttons (The window has no frame of its own; the header is its title bar). */
 header{user-select:none}
 .winctl{margin-left:auto;align-self:flex-start;display:flex;margin-top:-8px;margin-right:-18px}
 .winctl button{all:unset;width:46px;height:34px;display:grid;place-items:center;color:var(--muted);cursor:default}
@@ -385,10 +383,52 @@ details.advanced summary h2::before{content:'▸ ';font-size:.8em}
 details.advanced[open] summary h2::before{content:'▾ '}
 body{grid-template-columns:minmax(0,1fr)}
 nav{display:none}
+/* ==== TT Broadcast: RedZone look (this screen only; the stream's graphics are broadcast.html) ==== */
+:root{
+  --bg:#08080a;--panel:#141417;--panel-solid:#141417;--sunk:#1d1d22;--fg:#f4f4f6;--muted:#9a9aa4;--line:#2c2c33;--edge:#4a4a54;
+  --accent:#e10600;--accent-2:#a30400;--accent-fg:#fff;--accent-soft:rgba(225,6,0,.14);--hi:#e10600;--hi-soft:rgba(225,6,0,.16);
+  --red:#e10600;--red-deep:#7a0300;
+}
+body{background:radial-gradient(1200px 500px at 70% -10%,rgba(225,6,0,.10),transparent 60%),var(--bg);font-size:14px}
+header{background:linear-gradient(180deg,#000,#0d0d10);border-bottom:0;box-shadow:inset 0 -3px 0 var(--red);padding:6px 18px 9px}
+.brand .word{flex-direction:row;align-items:stretch;line-height:1}
+.brand .word b{font:700 30px/1 "Teko",sans-serif;letter-spacing:.08em;display:flex;align-items:stretch;color:#fff}
+.brand .word b span{color:#fff;background:var(--red);padding:3px 10px 0;margin-left:6px;transform:skewX(-12deg);display:inline-block}
+.brand .word b::after{content:"LIVE DESK";font:600 11px/1 "Segoe UI",sans-serif;letter-spacing:.24em;color:var(--muted);align-self:center;margin-left:14px}
+main{padding:14px 20px 22px}
+h1,.title{font:700 42px/.95 var(--hand);letter-spacing:.04em;text-transform:uppercase}
+h2{font:700 24px/1 var(--hand);letter-spacing:.06em;text-transform:uppercase;margin:0 0 8px;padding-left:10px;border-left:4px solid var(--red)}
+.desk-col h2{margin:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:2px;box-shadow:none;border-top:2px solid #26262c}
+.air-card{border-top:2px solid var(--red)}
+button.b{font:600 18px/1 var(--hand);letter-spacing:.07em;text-transform:uppercase;padding:6px 12px 3px;border-radius:2px;border:1px solid var(--edge);background:#18181c}
+button.b:hover{background:#24242a;border-color:#6a6a75}
+button.b.primary{background:var(--red);border-color:var(--red);color:#fff}
+button.b.primary:hover{background:#ff1a12}
+button.b.on{background:var(--red);border-color:var(--red);color:#fff}
+button.b.danger{border-color:var(--red);color:#ff5a50}
+input,textarea,select{border-radius:2px;background:#0f0f12;border:1px solid var(--line)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--red)}
+.note{border-radius:2px}
+#toast{border-radius:2px;border:1px solid var(--edge);border-left:4px solid var(--red);background:#111114}
+.alert{border-radius:2px;font:600 15px/1 var(--hand);letter-spacing:.06em;text-transform:uppercase;padding:5px 10px 2px}
+.air-slots span{border-radius:2px;background:var(--red);border-color:var(--red);font:600 18px/1.2 var(--hand);letter-spacing:.06em;text-transform:uppercase;padding:3px 10px 1px}
+.air-slots span.empty{background:#0f0f12;border-color:var(--line);color:var(--muted)}
+.dcard{border-radius:2px;background:#121215;border:1px solid var(--line)}
+.dcard::before{left:0;top:0;bottom:0;width:4px;border-radius:0}
+.dcard .play{font:600 18px/1.25 "Segoe UI",sans-serif}
+.dcard .t1 b{font:700 18px/1 var(--hand);letter-spacing:.06em;text-transform:uppercase}
+.dcard .tier{font:700 12px/1 "Segoe UI",sans-serif;letter-spacing:.12em;text-transform:uppercase}
+.dlob{border-radius:2px}
+.hl,.vo,.tw-it,.tw-red,.rp,.hl-int .it{border-radius:2px}
+.inter-card,.inter-card .tag,.tw-it .k,.vo .chip{border-radius:2px}
+.inter-card .tag{background:var(--red);color:#fff}
+.roster-card summary b,.tw-grid h3{font:700 20px/1 var(--hand);letter-spacing:.06em;text-transform:uppercase}
+.lock-card{border-top:2px solid var(--red)}
+
 </style>
 </head>
 <body>
-<canvas id="space" aria-hidden="true"></canvas>
 <header>
   <div class="brand"><span class="word"><b>TT <span>Broadcast</span></b></span></div>
   <div class="alerts" id="alerts"></div>
@@ -399,7 +439,7 @@ nav{display:none}
   </div>
 </header>
 <main>
-  <div class="card" id="lock-card" hidden>
+  <div class="card lock-card" id="lock-card" hidden>
     <h2>Administration code</h2>
     <p class="muted" style="margin:0 0 8px">TT Broadcast opens with the tournament's administration code (the organiser's, as in The Button's Organiser tab). It shows who the impostors are: keep this PC's screen off stream.</p>
     <form class="row" id="lock-form"><input id="lock-code" placeholder="Paste the administration code" class="mono" style="flex:1;min-width:240px" autocomplete="off" spellcheck="false"><button class="b primary">Unlock</button></form>
@@ -437,12 +477,12 @@ nav{display:none}
       <input id="obs-pass" type="password" placeholder="Password (Tools → WebSocket Server Settings)" style="flex:1;min-width:200px" autocomplete="off">
       <button class="b primary">Connect</button>
     </form>
-    <p class="muted" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. The Button then builds the scenes TT Full, TT 2-up and TT Quad, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
+    <p class="muted" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. TT Broadcast then builds the scenes TT Full, TT 2-up and TT Quad, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
   </div>
   <details class="card roster-card" id="gfx-card">
     <summary><div><b>On-stream graphics</b> <span class="muted" id="gfx-line"></span></div><button class="b" id="gfx-theme" title="Colours, fonts and logo (broadcast.json)">Edit theme</button></summary>
     <p class="note bad" id="gfx-problem" hidden></p>
-    <p class="muted" style="font-size:12.5px;margin:6px 0 0">One transparent page with every graphic, placed on each lobby's picture in every layout. The Button puts it on top of the TT scenes in OBS (source "TT Broadcast"); to add it by hand, use the link at 1920×1080.</p>
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">One transparent page with every graphic, placed on each lobby's picture in every layout. TT Broadcast puts it on top of the TT scenes in OBS (source "TT Broadcast"); to add it by hand, use the link at 1920×1080.</p>
     <div class="row" id="gfx-els" style="margin-top:8px"></div>
     <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Off-screen alerts</span><span id="gfx-alerts" class="row"></span></div>
     <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Win counter counts</span><span class="row" id="gfx-wins"><button class="b" data-wins="today">Today</button><button class="b" data-wins="round">This round</button></span><span class="muted" id="gfx-wins-now" style="font-size:12.5px"></span></div>
@@ -578,31 +618,7 @@ async function api(method, path, body) {
 }
 function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 4200); }
 
-// ---- Space: drifting stars, like the Among Us menus ------------------------------------
-(function space() {
-  const canvas = $('space'), ctx = canvas.getContext('2d');
-  let stars = [], w = 0, h = 0;
-  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function size() {
-    const dpr = devicePixelRatio || 1;
-    w = innerWidth; h = innerHeight; canvas.width = w * dpr; canvas.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    let seed = 7; const r = () => (seed = seed * 16807 % 2147483647) / 2147483647;
-    stars = Array.from({ length: Math.round(w * h / 5200) }, () => ({ x: r() * w, y: r() * h, z: r() }));
-  }
-  function draw(t) {
-    ctx.clearRect(0, 0, w, h);
-    for (const s of stars) {
-      if (!still) s.x -= 0.04 + s.z * 0.22;
-      if (s.x < -2) s.x = w + 2;
-      ctx.globalAlpha = 0.25 + s.z * 0.75;
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(s.x, s.y, 0.4 + s.z * 1.3, 0, Math.PI * 2); ctx.fill();
-    }
-    if (!still) requestAnimationFrame(draw);
-  }
-  addEventListener('resize', () => { size(); if (still) draw(); });
-  size(); requestAnimationFrame(draw);
-})();
+
 
 // ---- Caster desk (administration code) --------------------------------------------------------
 // Every lobby's live data arrives through VDO.Ninja (hidden links below, data only), is ranked by
