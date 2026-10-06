@@ -199,6 +199,20 @@ img.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 .05em;vert
 .ppl img.sw{height:1.5em;vertical-align:-.4em}
 .ppl button::after{content:" · card";color:var(--muted)}
 .vo-list{display:grid;gap:6px;margin-top:8px}
+.hdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:#ffc15a;vertical-align:1px}.hdot.red{background:var(--danger)}
+.hl-list{display:grid;gap:5px;margin-top:8px}
+.hl{display:grid;grid-template-columns:14px minmax(70px,.5fr) minmax(0,2fr) auto;gap:10px;align-items:center;padding:6px 10px;border-radius:10px;background:var(--sunk);font-size:13px}
+.hl .dot{width:12px;height:12px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px rgba(70,194,139,.18)}
+.hl.yellow .dot{background:#ffc15a;box-shadow:0 0 0 3px rgba(255,193,90,.2)}.hl.red .dot{background:var(--danger);box-shadow:0 0 0 3px rgba(255,107,107,.25);animation:hlb 1s infinite}
+@keyframes hlb{50%{opacity:.45}}
+.hl .nm{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hl .pr{color:var(--muted);min-width:0}.hl.red .pr{color:var(--danger)}.hl.yellow .pr{color:#ffc15a}
+.hl .sim{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}.hl .sim .b{padding:3px 8px;font-size:13px}
+.hl-int{display:grid;gap:5px;margin-top:8px}.hl-int:empty{display:none}
+.hl-int .it{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 10px;border-radius:10px;border:1.5px solid var(--danger);font-size:13px}
+.hl-int .it .tag{font:700 10.5px/1 var(--round);letter-spacing:.1em;color:var(--danger)}
+.dcard .acts{display:flex;gap:6px;flex-wrap:wrap}
+.dcard.sys .play{font-size:16px}
 .vo{display:grid;grid-template-columns:minmax(90px,.7fr) minmax(0,1.6fr) auto;gap:10px;align-items:center;padding:7px 10px;border-radius:10px;background:var(--sunk);font-size:13px}
 .vo.heard{box-shadow:inset 3px 0 0 var(--good)}
 .vo .nm{font-weight:700;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
@@ -482,9 +496,15 @@ details.advanced[open] summary h2::before{content:'▾ '}
       <div class="row" style="justify-content:space-between"><b>On stream</b><span class="muted" id="air-by"></span></div>
       <div class="air-slots" id="air-slots"></div>
       <div class="air-pick" id="air-pick" hidden></div>
-      <div class="row"><span class="muted" style="font-size:12.5px">Layout</span><button class="b" data-layout="full">Full</button><button class="b" data-layout="2up">2-up</button><button class="b" data-layout="4up">Quad</button><button class="b" data-layout="grid" title="Every lobby at once (key G)">Grid</button><button class="b" id="desk-autogrid" title="Grid by itself whenever no lobby is mid-game">Auto grid</button><button class="b" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" id="desk-autointer" title="Intermission by itself when every lobby is between games, and back when one starts">Auto intermission</button>
+      <div class="row"><span class="muted" style="font-size:12.5px">Layout</span><button class="b" data-layout="full">Full</button><button class="b" data-layout="2up">2-up</button><button class="b" data-layout="4up">Quad</button><button class="b" data-layout="grid" title="Every lobby at once (key G)">Grid</button><button class="b" data-layout="slate" title="Technical difficulties: be right back (standings and storylines take turns)">Be right back</button><button class="b" id="desk-autogrid" title="Grid by itself whenever no lobby is mid-game">Auto grid</button><button class="b" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" id="desk-autointer" title="Intermission by itself when every lobby is between games, and back when one starts">Auto intermission</button>
         <span style="flex:1"></span><button class="b" id="desk-sim" title="Four fake lobbies, for trying it out">Simulation</button></div>
     </div>
+  </div>
+  <div class="card hl-card" id="hl-card" hidden>
+    <div class="row" style="justify-content:space-between"><div><b>Lobby health</b> <span class="muted" id="hl-line"></span></div>
+      <div class="row"><button class="b" id="hl-auto" title="Switch away from a lobby on stream that drops, even when you switch by hand">Auto switch</button><button class="b" id="hl-slate" title="Every lobby down: the be-right-back screen (off: intermission)">BRB screen</button><button class="b" id="hl-open" title="Thresholds and timings (health.json)">Thresholds</button></div></div>
+    <div class="hl-list" id="hl-list"></div>
+    <div class="hl-int" id="hl-int"></div>
   </div>
   <div class="card obs-card" id="obs-card">
     <div class="row" style="justify-content:space-between"><div><b>OBS</b> <span class="muted" id="obs-line">Not connected</span></div>
@@ -1179,19 +1199,38 @@ async function loadDesk() {
 const RECV = {};
 function receivers(list) {
   const want = new Map(list.map(x => [x.lobby, x.url]));
-  for (const [lobby, f] of Object.entries(RECV)) if (want.get(lobby) !== f.dataset.src) { f.remove(); delete RECV[lobby]; }
+  for (const [lobby, f] of Object.entries(RECV)) if (want.get(lobby) !== f.dataset.src) { f.remove(); delete RECV[lobby]; delete RECV_AT[lobby]; }
   for (const [lobby, url] of want) if (!RECV[lobby]) {
     const f = document.createElement('iframe');
     f.dataset.src = url; f.src = url; f.allow = 'autoplay'; f.title = 'data ' + lobby;
     $('desk-receivers').appendChild(f); RECV[lobby] = f;
+    RECV_AT[lobby] = { last: Date.now(), wait: 5000, next: Date.now() + 15000 };
   }
 }
+// Part 22: a data link quiet for a while is reloaded, waiting longer each time (5 s, 10 s … 1 min) until data comes again.
+const RECV_AT = {};
+setInterval(() => {
+  const now = Date.now();
+  for (const [lobby, f] of Object.entries(RECV)) {
+    const a = RECV_AT[lobby]; if (!a) continue;
+    if (now - a.last < 15000 || now < a.next) continue;
+    f.src = f.dataset.src;
+    a.next = now + a.wait; a.wait = Math.min(60000, a.wait * 2);
+  }
+}, 1000);
 addEventListener('message', e => {
   const from = Object.values(RECV).some(f => f.contentWindow === e.source);
   const got = e.data && e.data.dataReceived;
   if (!from || !got) return;
   const items = Array.isArray(got.tt) ? got.tt : got.overlayNinja && Array.isArray(got.overlayNinja.tt) ? got.overlayNinja.tt : null;
-  if (items && items.length) api('POST', '/app/admin/feedin', { items });
+  if (!items || !items.length) return;
+  const lobby = Object.keys(RECV).find(k => RECV[k].contentWindow === e.source);
+  if (lobby && RECV_AT[lobby]) { RECV_AT[lobby].last = Date.now(); RECV_AT[lobby].wait = 5000; }
+  // What arrived goes back to that referee's page, so it stops sending those again.
+  api('POST', '/app/admin/feedin', { items }).then(r => {
+    const ack = r && r.acks && lobby && (r.acks[lobby] || Object.values(r.acks)[0]);
+    if (ack && Object.keys(ack).length && e.source) e.source.postMessage({ sendData: { ttack: ack }, type: 'rpcs' }, '*');
+  }).catch(() => { });
 });
 async function show(lobby, layout, slot) {
   const r = await api('POST', '/app/admin/show', { lobby, layout: layout || 'full', slot: slot ? String(slot) : '' });
@@ -1222,9 +1261,10 @@ function renderDesk() {
   document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === air.layout));
   $('desk-autogrid').classList.toggle('on', !!d.autoGrid);
   renderInter(d);
-  $('air-slots').innerHTML = air.layout === 'intermission' ? '<span>INTERMISSION</span>' : air.layout === 'break' ? `<span>SPONSOR BREAK · ${esc(air.slots[0] || '')}</span>` : air.layout === 'replay' ? `<span>REPLAY · ${esc(air.slots[0] || '')}</span>` : air.layout === 'none' ? '<span class="empty">Nothing yet: click a card or lobby</span>'
+  renderHealth(d);
+  $('air-slots').innerHTML = air.layout === 'intermission' ? '<span>INTERMISSION</span>' : air.layout === 'slate' ? '<span>BE RIGHT BACK</span>' : air.layout === 'break' ? `<span>SPONSOR BREAK · ${esc(air.slots[0] || '')}</span>` : air.layout === 'replay' ? `<span>REPLAY · ${esc(air.slots[0] || '')}</span>` : air.layout === 'none' ? '<span class="empty">Nothing yet: click a card or lobby</span>'
     : air.slots.map((l, i) => `<span class="${l ? '' : 'empty'}"${l ? ` data-tile="${esc(l)}" title="Full screen" style="cursor:pointer"` : ''}>${air.slots.length > 1 ? (i + 1) + ' · ' : ''}${esc(l || 'empty')}</span>`).join('');
-  $('air-by').textContent = air.since ? `${air.by === 'obs' ? 'switched in OBS' : 'from here'}${air.scene ? ' · ' + air.scene : ''} · ${clock(air.since)}` : '';
+  $('air-by').textContent = air.since ? `${air.by === 'obs' ? 'switched in OBS' : air.by === 'health' ? 'switched by itself (a lobby dropped)' : 'from here'}${air.scene ? ' · ' + air.scene : ''} · ${clock(air.since)}` : '';
   if (air.layout === 'none' && air.scene) $('air-slots').innerHTML = `<span class="empty">OBS is on ${esc(air.scene)}: no lobby on stream</span>`;
   // Which lobby goes in which slot (2-up and quad).
   const multi = air.layout === '2up' || air.layout === '4up';
@@ -1235,7 +1275,7 @@ function renderDesk() {
   }
   renderObs();
   const counts = c => c.crew != null ? `<span>${c.crew} crew v ${c.imps} imp</span><span>tasks ${c.taskPct ?? 0}%</span>` : '';
-  $('desk-cards').innerHTML = d.cards.length ? d.cards.map(c => `<div class="dcard tier-${c.tier}" data-card="${c.id}" data-lobby="${esc(c.lobby)}" title="Put ${esc(c.lobby)} on stream">
+  $('desk-cards').innerHTML = d.cards.length ? d.cards.map(c => c.system ? sysCard(c) : `<div class="dcard tier-${c.tier}" data-card="${c.id}" data-lobby="${esc(c.lobby)}" title="Put ${esc(c.lobby)} on stream">
       <button class="x" data-dismiss="${c.id}" title="Dismiss">×</button>
       <div class="t1"><span class="tier">${TIER_NAME[c.tier] || c.tier}</span><b>${esc(c.lobby)}</b>${c.onAir ? `<span class="live">${esc(c.onAir)}</span>` : ''}${c.shown ? `<span class="shown" title="${esc(c.shownHow || '')}">SHOWN ${clock(c.shown)}</span>` : ''}${c.offline ? '<span class="off">OFFLINE</span>' : ''}</div>
       <div class="play">${rich(c.text)}${c.repeats > 1 ? ` <span class="muted" style="font-size:14px">×${c.repeats}</span>` : ''}</div>
@@ -1244,7 +1284,7 @@ function renderDesk() {
     </div>`).join('') : `<div class="card"><p class="empty">${d.lobbies.length ? 'Quiet right now.' : 'No lobbies yet. Hosts appear here when they turn on "Send my game to the caster", or try Simulation.'}</p></div>`;
   $('desk-lobbies').innerHTML = d.lobbies.length ? d.lobbies.map((l, i) => `<div class="dlob tier-${l.tier}${l.online ? '' : ' offline'}" data-lobby="${esc(l.lobby)}" title="Put ${esc(l.lobby)} on stream (full)">
       <div class="sc">${l.online ? Math.round(l.score) : '–'}</div>
-      <div style="min-width:0"><div class="nm">${esc(l.lobby)}${l.onAir ? `<span class="live">${esc(l.onAir)}</span>` : ''}${l.online ? '' : '<span class="off">OFFLINE</span>'}</div><div class="ln">${rich(l.line)}</div></div>
+      <div style="min-width:0"><div class="nm">${l.health && l.health !== 'green' ? `<span class="hdot ${l.health}" title="${l.health === 'red' ? 'Down' : 'Degraded'}: see Lobby health"></span>` : ''}${esc(l.lobby)}${l.onAir ? `<span class="live">${esc(l.onAir)}</span>` : ''}${l.online ? '' : '<span class="off">OFFLINE</span>'}</div><div class="ln">${rich(l.line)}</div></div>
       <div class="lay"><button data-put="full" title="Full screen">Full</button><button data-put="2up" title="2-up, slot 1">2-up</button><button data-put="4up" title="Quad, slot 1">Quad</button></div>
       ${specRow(l)}
       ${l.people && l.people.length && l.online ? `<div class="ppl" data-pplrow>${l.people.map(p => `<button data-pcard="${esc(p.key)}" data-plobby="${esc(l.lobby)}" title="${esc(p.name)}'s player card on stream">${sw(p.color)}${esc(p.name)}</button>`).join('')}</div>` : ''}
@@ -1255,6 +1295,47 @@ function renderDesk() {
       <button data-watch="${c.id}" title="Bring this lobby back up (the replay comes later)">Watch again</button>
     </div>`).join('') : '<p class="empty" style="font-size:13px">Plays that have calmed down move here.</p>';
 }
+// Part 22: cards from the desk itself: a lobby down or back, a game interrupted (count, void or replay it).
+function sysCard(c) {
+  const it = c.interruption;
+  const can = c.rule === 'lobbyBack';
+  return `<div class="dcard sys tier-${c.tier}"${can ? ` data-card="${c.id}" data-lobby="${esc(c.lobby)}" title="Put ${esc(c.lobby)} on stream"` : ''}>
+    ${it ? '' : `<button class="x" data-dismiss="${c.id}" title="Dismiss">×</button>`}
+    <div class="t1"><span class="tier">${{ lobbyDown: 'Lobby down', lobbyBack: 'Back', interrupted: 'Interrupted', replayGame: 'Replay game' }[c.rule] || 'Notice'}</span><b>${esc(c.lobby)}</b>${c.onAir ? `<span class="live">${esc(c.onAir)}</span>` : ''}</div>
+    <div class="play">${rich(c.text)}</div>
+    <div class="t3"><span>${ago(c.ago)}</span></div>
+    ${it ? `<div class="acts"><button class="b" data-decide="count" data-iid="${it}" title="Put it in the standings">Count</button><button class="b" data-decide="void" data-iid="${it}" title="Posts !void for it">Void</button><button class="b primary" data-decide="replay" data-iid="${it}" title="Void it; the lobby plays it again">Replay</button></div>` : ''}
+  </div>`;
+}
+async function decide(id, decision) { const r = await api('POST', '/app/admin/interrupted', { id, decision }); toast(r.message); loadDesk(); }
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-decide]'); if (!b) return;
+  e.stopPropagation(); decide(b.dataset.iid, b.dataset.decide);
+}, true);
+// The health panel: one row per lobby, its colour and what's wrong in plain words; test buttons in simulation.
+const SIMFAIL = [['video', 'Video'], ['audio', 'Audio'], ['data', 'Data'], ['all', 'All'], ['lag', 'Lag'], ['crash', 'Crash'], ['reconnect', 'Reconnect']];
+let hlKey = '';
+function renderHealth(d) {
+  const h = d.health; if (!h) return;
+  $('hl-card').hidden = !h.lobbies.length && !h.interrupted.length && !d.simulating;
+  $('hl-auto').classList.toggle('on', !!h.settings.autoSwitch);
+  $('hl-slate').classList.toggle('on', !!h.settings.slate);
+  const red = h.lobbies.filter(x => x.level === 'red').length, yellow = h.lobbies.filter(x => x.level === 'yellow').length;
+  $('hl-line').textContent = h.lobbies.length ? (red || yellow ? `${red ? red + ' down' : ''}${red && yellow ? ' · ' : ''}${yellow ? yellow + ' degraded' : ''}` : 'all good') : 'no lobbies yet';
+  const key = JSON.stringify([h, d.simulating]); if (key === hlKey) return; hlKey = key;
+  $('hl-list').innerHTML = h.lobbies.map(x => `<div class="hl ${x.level}"><span class="dot" title="${x.level}"></span><span class="nm">${esc(x.lobby)}</span>
+      <span class="pr">${x.problems.length ? esc(x.problems.join(' · ')) : 'All good'}${x.lagMs != null && !x.problems.length ? ` <span class="muted" style="font-size:11.5px">· ${x.lagMs} ms lag</span>` : ''}</span>
+      <span class="sim">${d.simulating && x.sim ? SIMFAIL.map(([k, n]) => `<button class="b${x.sim[k] ? ' on' : ''}" data-hlsim="${k}" data-hllobby="${esc(x.lobby)}" title="Simulate: ${n === 'Reconnect' ? 'everything comes back' : n.toLowerCase() + ' problem'}">${n}</button>`).join('') : x.level === 'red' ? `<button class="b" data-hlsim="forget" data-hllobby="${esc(x.lobby)}" title="Take it off the list (its referee has gone)">Forget</button>` : ''}</span></div>`).join('');
+  $('hl-int').innerHTML = h.interrupted.filter(i => !i.decision).map(i => `<div class="it"><span class="tag">INTERRUPTED</span><b>${esc(i.game)}</b><span class="muted">round ${i.round} · ${esc(i.why)} · not in the standings</span><span style="flex:1"></span>
+      <button class="b" data-decide="count" data-iid="${i.id}">Count</button><button class="b" data-decide="void" data-iid="${i.id}">Void</button><button class="b primary" data-decide="replay" data-iid="${i.id}">Replay</button></div>`).join('');
+}
+$('hl-list').addEventListener('click', async e => {
+  const b = e.target.closest('[data-hlsim]'); if (!b) return;
+  const r = await api('POST', '/app/admin/health', { lobby: b.dataset.hllobby, what: b.dataset.hlsim }); toast(r.message); hlKey = ''; loadDesk();
+});
+$('hl-auto').addEventListener('click', async () => { const r = await api('POST', '/app/admin/health', { what: 'autoSwitch', on: String(!(DESK && DESK.health.settings.autoSwitch)) }); toast(r.message); hlKey = ''; loadDesk(); });
+$('hl-slate').addEventListener('click', async () => { const r = await api('POST', '/app/admin/health', { what: 'slate', on: String(!(DESK && DESK.health.settings.slate)) }); toast(r.message); hlKey = ''; loadDesk(); });
+$('hl-open').addEventListener('click', async () => { const r = await api('POST', '/app/admin/health', { what: 'open' }); toast(r.message); });
 function playerCard(key, lobby) { api('POST', '/app/admin/card', { key, lobby: lobby || '' }).then(r => toast(r.message)); }
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-pcard]'); if (!b) return;

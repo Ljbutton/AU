@@ -174,7 +174,7 @@ namespace TournamentTracker.App.Broadcast
             double w = obs?.Connected == true ? obs.Width : 1920, h = obs?.Connected == true ? obs.Height : 1080;
             double gap = obs?.Settings.Gap ?? 8;
             var layout = air.Layout;
-            if (layout is "none" or "replay" or "intermission") return (w, h, new List<(string?, Box)>());
+            if (layout is "none" or "replay" or "intermission" or "slate") return (w, h, new List<(string?, Box)>());
             var boxes = air.Boxes ?? ObsDirector.Slots(layout, w, h, layout == "full" ? 0 : gap, air.Slots.Count);
             var slots = new List<(string?, Box)>();
             for (int i = 0; i < boxes.Count; i++) slots.Add((i < air.Slots.Count ? air.Slots[i] : null, boxes[i]));
@@ -197,6 +197,9 @@ namespace TournamentTracker.App.Broadcast
                 number++;
                 numbers[r.Lobby] = number;
                 var live = _desk.Board.Lobby(r.Lobby);
+                // Part 22: a lobby that's dropped keeps its last state, marked, and nothing of it counts down as if live.
+                var health = _desk.Health.Lobbies.Contains(r.Lobby, StringComparer.OrdinalIgnoreCase) ? _desk.Health.Status(r.Lobby) : null;
+                bool reconnecting = health != null && (health.Level == "red" || health.DataAge >= _desk.HealthConfig.DataYellowSeconds);
                 string Who(LobbyPlayer p) => live == null ? p.Name : _desk.Board.DisplayName(live, p.Id, p.Name);
                 lobbies[r.Lobby] = new
                 {
@@ -214,6 +217,8 @@ namespace TournamentTracker.App.Broadcast
                         : null,
                     game = r.Game,
                     round = r.Round,
+                    health = health?.Level ?? "green",
+                    reconnecting,
                 };
             }
             return new
@@ -229,8 +234,8 @@ namespace TournamentTracker.App.Broadcast
                 standings = s.Elements.GetValueOrDefault("standings") ? Standings(round) : null,
                 standingsChange = s.Elements.GetValueOrDefault("standingsChange") && _desk.Tables.Change != null && (now - _desk.Tables.ChangeAt).TotalSeconds < 15 ? _desk.Tables.Change : null,
                 storyline = s.Elements.GetValueOrDefault("storyline") && _desk.ShownNote is { } note && (now - note.At).TotalSeconds < 12 ? note.Text : null,
-                intermission = air.Layout == "intermission" ? Intermission(round) : null,
-                wins = s.Elements.GetValueOrDefault("winCounter") || air.Layout == "intermission" ? new { impostors = _desk.Wins().Impostors, crew = _desk.Wins().Crew, scope = _desk.WinScope } : null,
+                intermission = air.Layout is "intermission" or "slate" ? Intermission(round, air.Layout == "slate") : null,
+                wins = s.Elements.GetValueOrDefault("winCounter") || air.Layout is "intermission" or "slate" ? new { impostors = _desk.Wins().Impostors, crew = _desk.Wins().Crew, scope = _desk.WinScope } : null,
                 playerCard = s.Elements.GetValueOrDefault("playerCards") ? PlayerCard(air, w, h, slots) : null,
                 alerts = s.Elements.GetValueOrDefault("alerts") ? _desk.Alerts.Active().Select(a => new { a.Id, a.Lobby, number = numbers.GetValueOrDefault(a.Lobby), a.Kind, a.Text, a.Count }).ToList() : null,
                 extras = Extras.ToDictionary(kv => kv.Key, kv => { try { return kv.Value(); } catch (Exception) { return null; } }),
@@ -238,13 +243,15 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>The intermission screen: countdown to the next round, standings, notes taking turns, the montage up next.</summary>
-        private object Intermission(int round)
+        private object Intermission(int round, bool slate = false)
         {
             var notes = _desk.Storylines.Notes(new HashSet<string>(), 6);
             int turn = notes.Count == 0 ? 0 : (int)(DateTime.UtcNow.Ticks / TimeSpan.TicksPerSecond / 8 % notes.Count);
             return new
             {
                 title = Settings.Current.Theme.TournamentName,
+                // Part 22: "Technical difficulties: be right back" when every lobby is down.
+                slate,
                 nextRoundAt = _desk.NextRoundAt?.ToString("o"),
                 nextRoundIn = _desk.NextRoundAt is { } at ? Math.Max(0, (int)Math.Ceiling((at - DateTime.UtcNow).TotalSeconds)) : (int?)null,
                 round,

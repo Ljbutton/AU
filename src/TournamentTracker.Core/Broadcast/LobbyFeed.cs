@@ -28,6 +28,8 @@ namespace TournamentTracker
         private readonly object _feedLock = new object();
         private readonly List<(long Seq, string Json)> _feed = new List<(long, string)>();
         private long _feedSeq;
+        /// <summary>This run of the mod: with each message's number, lets the caster drop repeats when the referee's page sends again after a drop.</summary>
+        private static readonly string FeedSource = Guid.NewGuid().ToString("N").Substring(0, 10);
 
         public FeedTuning Tuning { get; set; } = new FeedTuning();
 
@@ -83,9 +85,11 @@ namespace TournamentTracker
             };
             if (kind == null) msg.Remove("kind");
             if (data != null) foreach (var kv in data) msg[kv.Key] = kv.Value;
-            string json = JsonSerializer.Serialize(msg, FeedJson);
+            msg["src"] = FeedSource;
             lock (_feedLock)
             {
+                msg["seq"] = _feedSeq + 1;
+                string json = JsonSerializer.Serialize(msg, FeedJson);
                 _feed.Add((++_feedSeq, json));
                 if (_feed.Count > FeedKeep) _feed.RemoveRange(0, _feed.Count - FeedKeep);
             }

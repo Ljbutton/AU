@@ -125,7 +125,7 @@ namespace TournamentTracker.App.Broadcast
             var v = Settings.Voice;
             if (!v.On || v.MuteAll) return null;
             if (v.Pin.Length > 0) return v.Pin;
-            if (air == null || air.Layout is "replay" or "intermission" or "none") return null;
+            if (air == null || air.Layout is "replay" or "intermission" or "slate" or "none") return null;
             return air.Slots.FirstOrDefault(s => s != null);
         }
 

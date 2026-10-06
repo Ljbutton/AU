@@ -17,7 +17,7 @@ public class ShowTests : IDisposable
     public void Dispose() { _desk.Dispose(); _dir.Dispose(); }
 
     private void Snap(string lobby, string phase = "ingame") =>
-        _desk.Apply(JsonSerializer.Serialize(new { type = "snap", lobby, phase, crewAlive = 6, impAlive = 2, taskPct = 20, t = 1 }));
+        _desk.Apply(JsonSerializer.Serialize(new { type = "snap", lobby, phase, crewAlive = 6, impAlive = 2, taskPct = 20, t = new DateTimeOffset(_clock.Now).ToUnixTimeMilliseconds() }));
 
     private static object P(int id, string name, int color, bool imp = false) => new { id, name, color, colorName = "X", imp, key = name.ToLower() + "#1" };
 

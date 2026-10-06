@@ -64,6 +64,36 @@ namespace TournamentTracker.App.Broadcast
 
         public IEnumerable<string> Lobbies => _lobbies.Select(l => l.Label);
 
+        /// <summary>
+        /// Part 22 test buttons: "video", "audio" or "data" drops, "all" drops, "lag" (data arrives late),
+        /// "crash" (the referee's game dies mid-game and comes back in the lobby), "reconnect" (all fixed).
+        /// While data is down, the referee's page holds the lobby's messages and sends them on reconnect.
+        /// </summary>
+        public bool Fail(string lobby, string what, DateTime now)
+        {
+            var l = _lobbies.FirstOrDefault(x => string.Equals(x.Label, lobby, StringComparison.OrdinalIgnoreCase));
+            if (l == null) return false;
+            switch (what)
+            {
+                case "video": l.VideoLost = true; break;
+                case "audio": l.AudioLost = true; break;
+                case "data": l.DataLost = true; break;
+                case "all": l.VideoLost = l.AudioLost = l.DataLost = true; break;
+                case "lag": l.LagMs = l.LagMs > 0 ? 0 : 4000; break;
+                case "crash": l.Crash(); break;
+                case "reconnect": l.Reconnect(now); break;
+                default: return false;
+            }
+            return true;
+        }
+
+        /// <summary>What's switched off for a lobby (for the buttons).</summary>
+        public object? Failures(string lobby)
+        {
+            var l = _lobbies.FirstOrDefault(x => string.Equals(x.Label, lobby, StringComparison.OrdinalIgnoreCase));
+            return l == null ? null : new { video = l.VideoLost, audio = l.AudioLost, data = l.DataLost, lag = l.LagMs > 0, crash = l.Crashed };
+        }
+
         /// <summary>A "spec …" command, as a real host's mod would take it; the next snapshot shows it.</summary>
         public bool Spec(string lobby, string command)
         {
@@ -89,7 +119,7 @@ namespace TournamentTracker.App.Broadcast
         {
             var all = new List<(DateTime At, string Json)>();
             foreach (var l in _lobbies) all.AddRange(l.Advance(now));
-            return all.OrderBy(m => m.At).Select(m => m.Json).ToList();
+            return all.Select((m, i) => (m, i)).OrderBy(x => x.m.At).ThenBy(x => x.i).Select(x => x.m.Json).ToList();
         }
 
         private sealed class SimPlayer
@@ -109,6 +139,12 @@ namespace TournamentTracker.App.Broadcast
         {
             public readonly string Label;
             public bool Offline;
+            // Part 22: what's broken, and the referee page's held messages (released when the link is back).
+            public bool VideoLost, AudioLost, DataLost, Crashed;
+            public double LagMs;
+            private string _src;
+            private long _seq;
+            private readonly List<(DateTime Release, DateTime At, string Json)> _outbox = new List<(DateTime, DateTime, string)>();
             public bool SpecLit = true, SpecReport = true, SpecEye = true;
             public string SpecVision = "focus";
             public int? SpecFocus;
@@ -142,6 +178,37 @@ namespace TournamentTracker.App.Broadcast
                 _now = start;
                 _nextSnap = start;
                 _phaseEnds = start.AddSeconds(4 + index * 6);    // staggered, so the lobbies aren't in step
+                _src = NewSrc();
+            }
+
+            private string NewSrc() => "sim" + _r.Next(100000, 999999);
+
+            /// <summary>The referee's game dies: nothing more from the lobby until it reconnects, back in the lobby.</summary>
+            public void Crash() => Crashed = true;
+
+            public void Reconnect(DateTime now)
+            {
+                if (Crashed)
+                {
+                    // Among Us restarted: a new run of the mod, back in the lobby, and the game it was in never ended.
+                    Crashed = false;
+                    _src = NewSrc();
+                    _seq = 0;
+                    _rec = null;
+                    _phase = "lobby";
+                    _phaseEnds = _now.AddSeconds(Rand(12, 20));
+                    _sab = null; _sabLeft = null; _danger = false; _bodyToReport = null;
+                    foreach (var p in _players) { p.Dead = false; }
+                }
+                VideoLost = AudioLost = false;
+                LagMs = 0;
+                if (DataLost)
+                {
+                    DataLost = false;
+                    // Sent again with their own times, marked as sent again.
+                    for (int i = 0; i < _outbox.Count; i++)
+                        if (_outbox[i].Release == DateTime.MaxValue) _outbox[i] = (now, _outbox[i].At, "{\"re\":true," + _outbox[i].Json.Substring(1));
+                }
             }
 
             private double Rand(double a, double b) => a + _r.NextDouble() * (b - a);
@@ -156,7 +223,7 @@ namespace TournamentTracker.App.Broadcast
                 while (_now < until)
                 {
                     _now = _now.AddSeconds(0.5);
-                    if (Offline) continue;
+                    if (Offline || Crashed) continue;
                     Step(0.5);
                     Move(0.5);
                     if (_now >= _nextSnap)
@@ -165,8 +232,19 @@ namespace TournamentTracker.App.Broadcast
                         Snap();
                         TrackOut();
                         VoiceOut();
+                        HealthOut();
                     }
                 }
+                // What gets through to the caster now: held while the data link is down, late with lag.
+                foreach (var (at, json, queued) in _pending)
+                {
+                    if (DataLost) { if (queued) _outbox.Add((DateTime.MaxValue, at, json)); continue; }
+                    _outbox.Add((at.AddMilliseconds(LagMs), at, json));
+                }
+                _pending.Clear();
+                var ready = _outbox.Where(x => x.Release <= until).ToList();
+                _outbox.RemoveAll(x => x.Release <= until);
+                foreach (var x in ready) _out.Add((x.Release, x.Json));
                 return _out.ToList();
             }
 
@@ -184,8 +262,16 @@ namespace TournamentTracker.App.Broadcast
                 };
                 if (kind != null) msg["kind"] = kind;
                 foreach (var kv in data) msg[kv.Key] = kv.Value;
-                _out.Add((_now, JsonSerializer.Serialize(msg, Json)));
+                // The mod's messages are numbered (so repeats after a drop are dropped); the page's own aren't, and aren't held.
+                bool queued = type is not ("voice" or "health");
+                if (queued) { msg["src"] = _src; msg["seq"] = ++_seq; }
+                _pending.Add((_now, JsonSerializer.Serialize(msg, Json), queued));
             }
+
+            private readonly List<(DateTime At, string Json, bool Queued)> _pending = new List<(DateTime, string, bool)>();
+
+            // The referee's page says whether its screen share is sending.
+            private void HealthOut() => Emit("health", null, new Dictionary<string, object?> { ["video"] = VideoLost ? "lost" : "ok" });
 
             private void Event(string kind, Dictionary<string, object?> data) => Emit("event", kind, data);
 
@@ -208,11 +294,11 @@ namespace TournamentTracker.App.Broadcast
             // The referee's lobby voice status (Part 11): talking louder in meetings, the game quieter.
             private void VoiceOut()
             {
-                double voice = _phase == "meeting" ? Rand(-18, -6) : _r.NextDouble() < 0.3 ? Rand(-35, -15) : -60;
-                double game = _phase == "ingame" ? Rand(-30, -16) : -60;
+                double voice = AudioLost ? -60 : _phase == "meeting" ? Rand(-18, -6) : _r.NextDouble() < 0.3 ? Rand(-35, -15) : -60;
+                double game = AudioLost ? -60 : _phase == "ingame" ? Rand(-30, -16) : -60;
                 Emit("voice", null, new Dictionary<string, object?>
                 {
-                    ["on"] = true, ["sending"] = true, ["problem"] = null, ["discord"] = "capturing", ["game"] = "capturing",
+                    ["on"] = true, ["sending"] = !AudioLost, ["problem"] = AudioLost ? "voice stream dropped" : null, ["discord"] = "capturing", ["game"] = "capturing",
                     ["voiceDb"] = Math.Round(voice, 1), ["gameDb"] = Math.Round(game, 1), ["mic"] = false,
                 });
             }

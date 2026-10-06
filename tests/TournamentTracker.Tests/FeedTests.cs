@@ -78,6 +78,10 @@ public class FeedTests : IDisposable
 
         var snap = items.Single(e => e.GetProperty("type").GetString() == "snap");
         Assert.Equal("ingame", snap.GetProperty("phase").GetString());
+        // Part 22: numbered in order, with this run of the mod's id, so the caster takes each once after a drop.
+        var seqs = items.Select(e => e.GetProperty("seq").GetInt64()).ToList();
+        Assert.Equal(Enumerable.Range((int)seqs[0], seqs.Count).Select(i => (long)i), seqs);
+        Assert.Single(items.Select(e => e.GetProperty("src").GetString()).Distinct());
         Assert.Equal(6, snap.GetProperty("alive").GetInt32());
         Assert.Equal(0, snap.GetProperty("taskPct").GetInt32());
     }

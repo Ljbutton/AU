@@ -164,7 +164,11 @@ footer{color:var(--muted);font-size:13px;display:flex;gap:14px}
 #voice .meter i{display:block;height:100%;width:0;background:var(--good);transition:width .15s}
 #voice input[type=range]{width:110px}
 #voice .st{font-weight:600}
+#drop{display:none;padding:9px 16px;background:#5a1f24;color:#fff;font-weight:600}
+#drop.on{display:block}
+body.dropped{grid-template-rows:auto auto 1fr auto auto}
 </style></head><body>
+<div id=""drop"">Disconnected from caster, reconnecting… Keep playing: nothing is lost, it's all sent when the link is back.</div>
 <header id=""howto"">Sending your game to the caster. Below, press the share button and pick <b>Entire screen</b>. Then leave this tab open while you play.</header>
 <iframe id=""v"" allow=""camera;microphone;display-capture;autoplay;fullscreen;clipboard-write""></iframe>
 <div id=""voice"">
@@ -189,6 +193,25 @@ async function info(){
   }catch(e){}
 }
 function send(items){ if(v.contentWindow) v.contentWindow.postMessage({sendData:{tt:items},type:'pcs'},'*'); }
+// Part 22: every message from Among Us is kept until the caster says it arrived, and sent again (with its
+// own time, marked as sent again) while it hasn't, less often the longer the link is down. Old snapshots and
+// positions are no use late, so only a tiny stand-in for each is kept; the events all are.
+let queue=[],acked=0,everAcked=false,resendAt=0,resendWait=1000;
+function trim(){
+  const now=Date.now();
+  for(let i=0;i<queue.length;i++){const q=queue[i];if(!q.stub&&(q.it.type==='snap'||q.it.type==='track')&&now-q.first>15000){q.it={type:'skip',lobby:q.it.lobby,src:q.it.src,seq:q.it.seq,t:q.it.t};q.stub=true;}}
+  if(queue.length>3000)queue.splice(0,queue.length-3000);
+}
+function resend(){
+  const now=Date.now();
+  if(!queue.length){resendWait=1000;return;}
+  if(now<resendAt)return;
+  trim();
+  const old=queue.filter(q=>now-q.sent>1500);
+  for(let i=0;i<old.length;i+=40){send(old.slice(i,i+40).map(q=>Object.assign({},q.it,{re:1})));}
+  old.forEach(q=>q.sent=now);
+  resendAt=now+resendWait;resendWait=Math.min(30000,resendWait*2);
+}
 async function pump(){
   try{
     const d=await (await fetch(q('/app/sendfeed?since='+(since??0)),{cache:'no-store'})).json();
@@ -197,18 +220,46 @@ async function pump(){
     since=d.last;
     if(d.items&&d.items.length&&v.contentWindow){
       // VDO.Ninja's iframe API: sends to everyone viewing this stream (only the caster has the password).
-      for(const it of d.items) if(it.lobby) lobby=it.lobby;
+      const now=Date.now();
+      for(const it of d.items){ if(it.lobby) lobby=it.lobby; if(it.src&&it.seq) queue.push({it,first:now,sent:now}); }
       send(d.items);
       sent+=d.items.length;lastOk=Date.now();
     }
   }catch(e){}
+  resend();
+  // The banner: only after the caster has been connected, when something has waited over 5 seconds.
+  const waiting=queue.length&&Date.now()-queue[0].first>5000;
+  const down=everAcked&&waiting;
+  document.getElementById('drop').classList.toggle('on',down);document.body.classList.toggle('dropped',down);
   const el=document.getElementById('data');
-  el.textContent=lastOk?`Live data: ${sent} sent`:'';el.className=lastOk&&Date.now()-lastOk<5000?'ok':'';
+  el.textContent=!lastOk?'':down?`Live data: ${queue.length} waiting to send`:everAcked?`Live data: ${sent} sent`:`Live data: ${sent} sent · waiting for the caster to connect`;el.className=lastOk&&!down&&Date.now()-lastOk<5000?'ok':down?'bad':'';
 }
+function ack(a){
+  // {run of the mod: last message the caster has}
+  if(!a||typeof a!=='object')return;
+  const before=queue.length;
+  queue=queue.filter(x=>!(x.it.src in a)||x.it.seq>a[x.it.src]);
+  everAcked=true;acked=Date.now();
+  if(queue.length<before){resendWait=1000;resendAt=0;}
+}
+// Is the screen share sending pictures? Asked of VDO.Ninja every 2 s; told to the caster with the rest.
+let frames=-1,stillFor=0,video='unknown';
+function askStats(){ if(v.contentWindow) v.contentWindow.postMessage({getStats:true},'*'); }
+function gotStats(st){
+  const out=st&&st.outbound?Object.values(st.outbound).filter(Boolean):[];
+  if(!out.length){video='unknown';frames=-1;stillFor=0;return;}
+  const f=Math.max(...out.map(o=>o._framesEncoded||0)),kbps=Math.max(...out.map(o=>o.video_bitrate_kbps||0));
+  if(f>frames||kbps>0){stillFor=0;video='ok';}else if(++stillFor>=2)video='lost';
+  frames=f;
+}
+function health(){ if(lobby) send([{type:'health',lobby,t:Date.now(),video,queued:queue.length}]); }
+setInterval(()=>{askStats();health();},2000);
 // The caster switches this lobby's spectator view (lit map, vision, ""!"", eye): only ""spec …"" commands are taken.
 addEventListener('message',e=>{
   if(e.source!==v.contentWindow)return;
+  if(e.data&&e.data.stats){gotStats(e.data.stats);return;}
   const got=e.data&&e.data.dataReceived;const cmd=got&&got.ttc;
+  if(got&&got.ttack){ack(got.ttack);return;}
   // Roster names for this lobby's players, for the referee's nameplates.
   if(got&&got.ttn&&typeof got.ttn==='object'){fetch(q('/app/names'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({names:got.ttn})}).catch(()=>{});return;}
   if(typeof cmd!=='string'||!/^spec [a-z]+( [a-z0-9.]+)?$/.test(cmd))return;
@@ -219,7 +270,7 @@ addEventListener('message',e=>{
 // The Button captures Discord's sound (the lobby as you hear it, never your own voice) and Among Us's
 // sound separately; this page mixes them (plus your microphone if you want) and sends the mix to the
 // caster as its own stream next to your screen. Nothing is played back here or to the players.
-let ctx=null,node=null,dest=null,micNode=null,micStream=null,vdo=null,publishing=null,voiceProblem='',VS=null,noticeSent=false;
+let ctx=null,node=null,dest=null,micNode=null,micStream=null,vdo=null,publishing=null,voiceProblem='',VS=null,noticeSent=false,retryAt=0,retryWait=5000;
 const WORKLET=`class TTMix extends AudioWorkletProcessor{constructor(){super();this.q=[];this.off=0;this.buffered=0;this.started=false;
   this.port.onmessage=e=>{this.q.push(e.data);this.buffered+=e.data.length/2;while(this.buffered>48000*0.6&&this.q.length>1){const d=this.q.shift();this.buffered-=(d.length-this.off)/2;this.off=0;}};}
   process(_,outs){const L=outs[0][0],R=outs[0][1]||outs[0][0];
@@ -257,7 +308,7 @@ async function mic(on){
   } else if(!on&&micNode){ micNode.disconnect(); micStream.getTracks().forEach(t=>t.stop()); micNode=null; micStream=null; }
 }
 async function publishVoice(){
-  if(!pushUrl||!VS||!VS.on||publishing)return;
+  if(!pushUrl||!VS||!VS.on||publishing||Date.now()<retryAt)return;
   const u=new URL(pushUrl),id=u.searchParams.get('push'),pw=u.searchParams.get('password');
   if(!id||!pw)return;
   publishing=(async()=>{
@@ -269,9 +320,11 @@ async function publishVoice(){
       vdo=new VDONinjaSDK({password:pw});
       await vdo.connect();
       await vdo.publish(dest.stream,{streamID:id+'v',label:'Lobby voice'});
-      voiceProblem='';
+      voiceProblem='';retryWait=5000;
+      // Dropped later: try again (5 s, 10 s … 1 min apart).
+      try{ vdo.addEventListener&&vdo.addEventListener('disconnected',()=>{ vdo=null; voiceProblem='Lobby voice dropped: reconnecting…'; }); }catch(x){}
       if(!noticeSent){ noticeSent=true; fetch(q('/app/command'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:'voicenotice'})}).catch(()=>{}); }
-    }catch(e){ voiceProblem='Lobby voice not sent: '+e.message; vdo=null; }
+    }catch(e){ voiceProblem='Lobby voice not sent: '+e.message+' (trying again)'; vdo=null; retryAt=Date.now()+retryWait; retryWait=Math.min(60000,retryWait*2); }
     publishing=null;
   })();
 }

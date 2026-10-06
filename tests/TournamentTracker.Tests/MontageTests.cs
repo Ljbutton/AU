@@ -242,13 +242,14 @@ public class MontageTests : IDisposable
         desk.Sponsors.Refresh(force: true);
         try
         {
-            void Snap(string lobby) => desk.Apply(JsonSerializer.Serialize(new { type = "snap", lobby, phase = "ingame", crewAlive = 6, impAlive = 2, taskPct = 20, t = 1 }));
+            void Snap(string lobby) => desk.Apply(JsonSerializer.Serialize(new { type = "snap", lobby, phase = "ingame", crewAlive = 6, impAlive = 2, taskPct = 20, t = new DateTimeOffset(_clock.Now).ToUnixTimeMilliseconds() }));
             Snap("LJ"); Snap("MAL"); Snap("ZED");
             desk.Show("LJ");
             Assert.StartsWith("Sponsor break: Acme for 20s", desk.StartBreak());
             Assert.Equal("break", desk.OnAir.Layout);
             Assert.Equal("LIVE (sponsor break)", desk.OnAir.Label("LJ"));
             _clock.Advance(21);
+            Snap("LJ"); Snap("MAL"); Snap("ZED");
             desk.Tick();
             Assert.Equal("full", desk.OnAir.Layout);
             Assert.Equal(21, desk.Sponsors.Appearances().Single().Seconds);
@@ -256,7 +257,7 @@ public class MontageTests : IDisposable
             // Again, and a must-show play in another lobby: straight to it, full screen.
             desk.StartBreak();
             _clock.Advance(3);
-            desk.Apply(JsonSerializer.Serialize(new { type = "event", kind = "eject", lobby = "MAL", ejected = new { id = 3, name = "Sam", color = 2 }, wasImpostor = true, t = 2 }));
+            desk.Apply(JsonSerializer.Serialize(new { type = "event", kind = "eject", lobby = "MAL", ejected = new { id = 3, name = "Sam", color = 2 }, wasImpostor = true, t = new DateTimeOffset(_clock.Now).ToUnixTimeMilliseconds() }));
             Assert.Equal("full", desk.OnAir.Layout);
             Assert.Equal("MAL", desk.OnAir.Slots[0]);
             Assert.Null(desk.Break);

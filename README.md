@@ -437,9 +437,34 @@ the caster's PC and off stream.
   bot posts "voice in this channel may be recorded" in the lobby's voice channel chat. On older
   Windows, the referee ticks *Share system audio* instead (the old way: game sound and voice
   together, no separate levels).
+* **Lobby drops:** the **Lobby health** card shows each lobby green (all good), yellow
+  (degraded: no data for 3 s, sound silent for 2 min while sending voice, a voice problem, data
+  2 s later than usual) or red (down: no data for 10 s, video lost for 3 s, data more than 8 s
+  late), with the problem in plain words. All of it is in `health.json` (**Thresholds**).
+  * A lobby on stream that goes red is switched away from at once, even when you switch by hand
+    (**Auto switch** turns that off): to the next lobby worth showing, else the grid. A card says
+    what happened; another says when it's back. It isn't put back by itself.
+  * In 2-up, quad and the grid the tile says **LOBBY 3 · RECONNECTING** and its graphics (label,
+    impostor tags, countdowns, status bar cell) stay at their last state, greyed and marked;
+    after 45 s the next lobby takes the slot (the grid closes up).
+  * Every lobby down mid-game: the **TT Be Right Back** scene ("Technical difficulties", standings
+    and storylines taking turns); between games it's intermission instead. **Be right back** puts
+    it up by hand. It goes back to a lobby when one returns.
+  * Nothing is lost: the referee's page keeps every message until the caster's tab says it
+    arrived and sends the rest again when the link is back, with their own times. Repeats are
+    dropped; anything more than 8 s old counts for the stats but is never shown as live. The
+    referee sees "Disconnected from caster, reconnecting…" meanwhile; their game isn't touched.
+    Data links reconnect by themselves (5 s, then longer each time, up to a minute), and so does
+    lobby voice.
+  * A referee's game that crashes or restarts mid-game (or starts a new game before the last one
+    ended, or abandons it) is **INTERRUPTED**: a card, and that game stays out of the standings
+    on stream until you pick **Count**, **Void** (posts `!void <game> interrupted`) or **Replay**
+    (void it, and a card to replay it).
 * **Simulation:** the Simulation button plays four fake lobbies (with stand-in video in OBS, or
   stand-in clips made with ffmpeg when OBS isn't connected), to try everything above without
-  real games.
+  real games. In simulation each lobby's health row has test buttons: Video, Audio, Data, All
+  (drops), Lag, Crash (the referee's game dies mid-game and comes back in the lobby) and
+  Reconnect.
 
 ### Replays
 

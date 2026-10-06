@@ -83,6 +83,18 @@ img.sw{display:inline-block;height:1.1em;width:auto;margin-right:.25em;vertical-
 @keyframes alin{from{opacity:0;transform:translateY(-.6em)}}
 /* Intermission */
 .inter{box-sizing:border-box;display:grid;grid-template-columns:1.25fr 1fr;gap:60px;padding:90px 110px 140px;background:radial-gradient(ellipse at 20% 10%,rgba(31,161,67,.28),transparent 60%),linear-gradient(160deg,rgba(6,9,13,.96),rgba(12,16,22,.96))}
+/* Part 22: a lobby that dropped (frozen graphics, covered picture) and the be-right-back slate */
+.ph.rc{background:var(--danger)!important;color:#fff!important;animation:rcblink 1.2s ease-in-out infinite}
+@keyframes rcblink{50%{opacity:.55}}
+.frozen{filter:grayscale(1);opacity:.6}
+.cell.rc{opacity:.85}.cell.rc .ph{padding:.1em .35em;border-radius:.25em}
+.rcbox{box-sizing:border-box;display:grid;place-items:center;background:repeating-linear-gradient(135deg,rgba(10,12,16,.94) 0 26px,rgba(18,21,27,.94) 26px 52px);border:4px solid var(--danger)}
+.rcbox div{display:grid;gap:.25em;text-align:center}
+.rcbox b{font:700 1.5em/1 var(--head),sans-serif;letter-spacing:.06em}
+.rcbox span{font:700 .8em/1 var(--font),sans-serif;letter-spacing:.32em;color:var(--danger)}
+.rcbox i{font-style:normal;animation:rcdot 1.4s infinite}.rcbox i:nth-child(2){animation-delay:.2s}.rcbox i:nth-child(3){animation-delay:.4s}
+@keyframes rcdot{0%,60%,100%{opacity:.2}30%{opacity:1}}
+.inter .td{margin-top:.4em;font:700 1em/1 var(--font),sans-serif;letter-spacing:.3em;color:var(--danger)}
 .inter .tn{font:700 1.1em/1 var(--font),sans-serif;letter-spacing:.18em;text-transform:uppercase;color:var(--primary)}
 .inter h1{margin:.1em 0 .2em;font:700 4.6em/.9 var(--head),sans-serif;letter-spacing:.04em;text-transform:uppercase}
 .inter .cd{margin-top:.6em;display:grid;gap:.1em}
@@ -167,14 +179,14 @@ let S = null;
 const ELEMENTS = {
   lobbyLabels(slot, l, k) {
     if (!l) return;
-    put(`label-${slot.slot}`, `<div class="label"><span class="num">#${l.number}</span>${esc(slot.lobby)}<span class="ph ${l.phase}">${PH[l.phase] || l.phase}</span></div>`,
+    put(`label-${slot.slot}`, `<div class="label"><span class="num">#${l.number}</span>${esc(slot.lobby)}${l.reconnecting ? '<span class="ph rc">RECONNECTING</span>' : `<span class="ph ${l.phase}">${PH[l.phase] || l.phase}</span>`}</div>`,
       { left: slot.x + 18 * k + 'px', top: slot.y + 14 * k + 'px', fontSize: 34 * k + 'px' });
   },
   impostorTags(slot, l, k) {
     if (!l) return;
     const live = (l.phase === 'ingame' || l.phase === 'meeting') && l.impostors.length;
     if (!live) return;                      // fades out (after the game ends)
-    put(`imps-${slot.slot}`, `<div class="imps"><b>Impostors</b>${l.impostors.map(p => `<span class="p${p.dead ? ' dead' : ''}">${sw(p.color)}${esc(p.name)}</span>`).join('')}</div>`,
+    put(`imps-${slot.slot}`, `<div class="imps${l.reconnecting ? ' frozen' : ''}"><b>Impostors</b>${l.impostors.map(p => `<span class="p${p.dead ? ' dead' : ''}">${sw(p.color)}${esc(p.name)}</span>`).join('')}</div>`,
       { right: (S.canvas.w - slot.x - slot.w) + 18 * k + 'px', top: slot.y + 14 * k + 'px', fontSize: 30 * k + 'px' });
   },
   sabotage(slot, l, k) {
@@ -182,7 +194,7 @@ const ELEMENTS = {
     const s = l.sabotage;
     if (s.critical && s.left != null) {
       const fix = s.fixing != null ? `<div class="fix"><i style="width:${Math.round(s.fixing * 100)}%"></i></div><div class="fixl">${s.fixing >= 1 ? 'FIXED' : s.fixing > 0 ? 'FIXING ' + Math.round(s.fixing * 2) + '/2' : 'NOBODY FIXING'}</div>` : '';
-      put(`sab-${slot.slot}`, `<div class="sab"><div class="what">${esc(s.system)}</div><div class="left">${Math.max(0, Math.ceil(s.left))}</div>${fix}</div>`,
+      put(`sab-${slot.slot}`, `<div class="sab${l.reconnecting ? ' frozen' : ''}"><div class="what">${esc(s.system)}</div><div class="left">${Math.max(0, Math.ceil(s.left))}</div>${l.reconnecting ? '<div class="fixl">RECONNECTING</div>' : fix}</div>`,
         { left: slot.x + slot.w / 2 + 'px', top: slot.y + slot.h * 0.2 + 'px', transform: 'translateX(-50%)', fontSize: 30 * Math.max(k, 0.55) + 'px' });
     } else {
       put(`sabi-${slot.slot}`, `<div class="sabicon">${sabIcon(s.system)}${esc(s.system)}</div>`,
@@ -197,7 +209,7 @@ ELEMENTS.gridTiles = (slot, l, k) => {
   const hot = l.tier === 'must' || l.tier === 'veryHigh', high = l.tier === 'high';
   put(`tile-${slot.slot}`, `<div class="tile${hot ? ' hot' : high ? ' high' : ''}" style="width:${slot.w}px;height:${slot.h}px"></div>`, { left: slot.x + 'px', top: slot.y + 'px', fontSize: 30 + 'px' });
   const playing = l.phase === 'ingame' || l.phase === 'meeting';
-  put(`mini-${slot.slot}`, `<div class="mini"><span class="ph ${l.phase}">${(PH[l.phase] || l.phase).toUpperCase()}</span>${playing && l.crew != null ? `<span>${CNT.crew} ${l.crew}</span><span>${CNT.imp} ${l.imps}</span><span>tasks ${l.tasks ?? 0}%</span>` : ''}${l.sabotage ? `<span style="color:var(--danger)">${esc(l.sabotage.system)}${l.sabotage.left != null ? ' ' + Math.ceil(l.sabotage.left) + 's' : ''}</span>` : ''}</div>`,
+  put(`mini-${slot.slot}`, `<div class="mini${l.reconnecting ? ' frozen' : ''}">${l.reconnecting ? '<span class="ph rc">RECONNECTING</span>' : `<span class="ph ${l.phase}">${(PH[l.phase] || l.phase).toUpperCase()}</span>`}${playing && l.crew != null ? `<span>${CNT.crew} ${l.crew}</span><span>${CNT.imp} ${l.imps}</span><span>tasks ${l.tasks ?? 0}%</span>` : ''}${l.sabotage ? `<span style="color:var(--danger)">${esc(l.sabotage.system)}${l.sabotage.left != null ? ' ' + Math.ceil(l.sabotage.left) + 's' : ''}</span>` : ''}</div>`,
     { left: slot.x + 14 * k + 'px', top: slot.y + slot.h - 52 * k + 'px', fontSize: 34 * k + 'px' });
 };
 function emptyTile(slot) {
@@ -218,6 +230,8 @@ function statusBar() {
     const sab = l.sabotage ? `<span class="sb" title="${esc(l.sabotage.system)}">${sabIcon(l.sabotage.system)}</span>` : '';
     const hot = l.tier === 'must' || l.tier === 'veryHigh';
     const playing = l.phase === 'ingame' || l.phase === 'meeting';
+    if (l.reconnecting && l.phase !== 'menu') return `<div class="cell rc${onAir.has(name) ? ' on' : ''}" style="flex-basis:${100 / Math.ceil(list.length / rows) - 1}%">
+      <span class="n">${l.number}</span><span class="nm">${esc(name)}</span>${playing && l.crew != null ? `<span class="ct">${CNT.crew}${l.crew}</span><span class="ct">${CNT.imp}${l.imps}</span>` : ''}<span class="ph rc">RECONNECTING</span></div>`;
     return `<div class="cell${onAir.has(name) ? ' on' : ''}${hot ? ' hot' : ''}${l.online ? '' : ' off'}" style="flex-basis:${100 / Math.ceil(list.length / rows) - 1}%">
       <span class="n">${l.number}</span><span class="nm">${esc(name)}</span>
       ${playing && l.crew != null ? `<span class="ct">${CNT.crew}${l.crew}</span><span class="ct">${CNT.imp}${l.imps}</span><span class="tk">${l.tasks ?? 0}%</span>` : ''}
@@ -228,7 +242,7 @@ function statusBar() {
 
 // Standings: the round's (or the tournament's) top ten, from the tournament's own scoring.
 function standings() {
-  const st = S.standings; if (!st || !st.rows.length || S.layout === 'intermission') return;
+  const st = S.standings; if (!st || !st.rows.length || S.layout === 'intermission' || S.layout === 'slate') return;
   const sp = S.extras && S.extras.standingsSponsor;
   put('standings', `<div class="panel"><h2>${esc(st.title)}</h2><table class="st">${st.rows.map(r => `<tr class="${r.advancing ? 'adv' : ''}"><td class="r">${r.rank}</td><td>${sw(r.color)}${esc(r.name)}</td><td class="p">${r.points}</td></tr>`).join('')}</table>${sp ? `<div class="by">Presented by ${sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : ''}<b>${esc(sp.name)}</b></div>` : ''}</div>`,
     { right: '40px', top: '120px', width: '520px', fontSize: '32px' });
@@ -280,13 +294,13 @@ function alerts() {
 // Intermission: the whole screen between rounds (the status bar stays along the bottom).
 const mmss = n => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
 function intermission() {
-  const it = S.intermission; if (!it || S.layout !== 'intermission') return;
+  const it = S.intermission; if (!it || (S.layout !== 'intermission' && S.layout !== 'slate')) return;
   const st = it.standings;
   const table = st && st.rows.length ? `<div class="panel"><h2>${esc(st.title)}</h2><table class="st">${st.rows.map(r => `<tr class="${r.advancing ? 'adv' : ''}"><td class="r">${r.rank}</td><td>${sw(r.color)}${esc(r.name)}</td><td class="p">${r.points}</td></tr>`).join('')}</table></div>` : '';
   const sp = S.extras && S.extras.standingsSponsor;
   put('inter-bg', `<div class="inter" style="width:${S.canvas.w}px;height:${S.canvas.h}px"><div>
-      <div class="tn">${esc(it.title || '')}</div><h1>Intermission</h1>
-      ${it.nextRoundIn != null ? `<div class="cd"><small>Round ${(it.round || 0) + 1} starts in</small><b id="inter-cd"></b></div>` : ''}
+      <div class="tn">${esc(it.title || '')}</div>${it.slate ? '<div class="td">TECHNICAL DIFFICULTIES</div><h1>Be right back</h1>' : '<h1>Intermission</h1>'}
+      ${it.nextRoundIn != null && !it.slate ? `<div class="cd"><small>Round ${(it.round || 0) + 1} starts in</small><b id="inter-cd"></b></div>` : ''}
       ${it.note ? `<div class="nt" data-note="${esc(it.note)}"><b>Storyline</b><span>${rich(it.note)}</span></div>` : ''}
       ${it.montage ? `<div class="nx"><b style="color:var(--accent)">UP NEXT</b> ${rich(it.montage)}</div>` : ''}
     </div><div class="side">${table}${sp ? `<div class="by">Presented by ${sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : ''}<b>${esc(sp.name)}</b></div>` : ''}</div></div>`,
@@ -301,7 +315,7 @@ function winCounter() {
   for (const [k, v] of [['i', w.impostors], ['c', w.crew]]) { if (winsSeen[k] !== null && winsSeen[k] !== v) winsSeen.at[k] = now; winsSeen[k] = v; }
   const b = k => now - winsSeen.at[k] < 1300 ? ' class="bump"' : '';
   const html = `<div class="wins"><span class="i">IMPOSTOR WINS<b${b('i')}>${w.impostors}</b></span><span class="sep">·</span><span class="c">CREWMATE WINS<b${b('c')}>${w.crew}</b></span><small>${w.scope === 'round' ? 'THIS ROUND' : 'TODAY'}</small></div>`;
-  if (S.layout === 'intermission') put('wins', html, { left: '110px', bottom: '150px', right: 'auto', top: 'auto', fontSize: '40px' });
+  if (S.layout === 'intermission' || S.layout === 'slate') put('wins', html, { left: '110px', bottom: '150px', right: 'auto', top: 'auto', fontSize: '40px' });
   else if (S.elements.winCounter) put('wins', html, { right: '40px', bottom: (S.elements.statusBar ? (Object.keys(S.lobbies).length * 230 > S.canvas.w - 20 ? 130 : 84) : 30) + 'px', left: 'auto', top: 'auto', fontSize: '28px' });
 }
 // A player's card: on their lobby's tile in a multi-view, else bottom left.
@@ -314,6 +328,13 @@ function playerCard() {
       <div class="rec"><span class="i">IMPOSTOR ${d.imp.w}–${d.imp.l}</span><span class="c">CREW ${d.crew.w}–${d.crew.l}</span><span>${d.kills} KILL${d.kills === 1 ? '' : 'S'} TODAY</span></div></div>`,
     // Above the status bar when the tile reaches down to it.
     { left: c.x + 40 * k + 'px', top: Math.min(c.y + c.h - (c.full ? 330 : 250 * k), S.canvas.h - (S.elements.statusBar ? 150 : 40) - 190 * k) + 'px', fontSize: 34 * k + 'px' });
+}
+
+// Part 22: a lobby that dropped: its picture is covered (it would be frozen or black) until it's back.
+function reconnecting(slot, l, k) {
+  if (!l || !l.reconnecting) return;
+  put(`rc-${slot.slot}`, `<div class="rcbox" style="width:${slot.w}px;height:${slot.h}px"><div><b>LOBBY ${l.number} · ${esc(slot.lobby)}</b><span>RECONNECTING<i>.</i><i>.</i><i>.</i></span></div></div>`,
+    { left: slot.x + 'px', top: slot.y + 'px', fontSize: 46 * k + 'px', zIndex: '-1' });
 }
 
 // More elements are added by later parts (sponsors, alerts, counters…).
@@ -335,6 +356,7 @@ function render() {
     if (!slot.lobby) { emptyTile(slot); continue; }
     const l = S.lobbies[slot.lobby], k = slot.w / S.canvas.w;
     for (const [name, draw] of Object.entries(ELEMENTS)) if (S.elements[name]) draw(slot, l, Math.max(k, 0.42));
+    reconnecting(slot, l, Math.max(k, 0.42));
   }
   for (const [name, draw] of Object.entries(GLOBAL)) if (S.elements[name] || ALWAYS.has(name)) draw();
   for (const el of Object.values(shown)) if (!el.dataset.seen) el.classList.add('hide');

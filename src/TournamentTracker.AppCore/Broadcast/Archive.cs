@@ -122,8 +122,9 @@ namespace TournamentTracker.App.Broadcast
 
         /// <summary>
         /// One message from a lobby. <paramref name="who"/> turns a player object into (key, real name, colour).
+        /// <paramref name="when"/>: when it happened, for a message that arrives late (after a drop); else now.
         /// </summary>
-        public void Feed(string lobby, JsonElement m, Func<JsonElement, (string Key, string Name, int Color)?> who)
+        public void Feed(string lobby, JsonElement m, Func<JsonElement, (string Key, string Name, int Color)?> who, DateTime? when = null)
         {
             if (!m.TryGetProperty("kind", out var k) || m.GetProperty("type").GetString() != "event") return;
             string kind = k.GetString() ?? "";
@@ -142,7 +143,7 @@ namespace TournamentTracker.App.Broadcast
                             Round = m.TryGetProperty("round", out var r) && r.ValueKind == JsonValueKind.Number ? r.GetInt32() : 0,
                             Game = m.TryGetProperty("game", out var gn) ? gn.GetString() ?? "" : "",
                             Map = m.TryGetProperty("map", out var map) ? map.GetString() : null,
-                            StartedAt = _clock(),
+                            StartedAt = when ?? _clock(),
                         };
                         g.Id = $"{Safe(g.Game.Length > 0 ? g.Game : lobby)}-{g.StartedAt:yyyyMMdd-HHmmss}";
                         if (m.TryGetProperty("players", out var ps))
@@ -196,7 +197,7 @@ namespace TournamentTracker.App.Broadcast
                         if (m.TryGetProperty("pct", out var pct) && pct.ValueKind == JsonValueKind.Number) g.TaskPct = pct.GetInt32();
                         break;
                     case "gameEnd" when g != null:
-                        g.EndedAt = _clock();
+                        g.EndedAt = when ?? _clock();
                         g.Length = at > 0 ? at : (g.EndedAt.Value - g.StartedAt).TotalSeconds;
                         g.Winner = Str(m, "winner");
                         g.How = Str(m, "how");

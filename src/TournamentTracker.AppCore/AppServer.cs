@@ -421,9 +421,43 @@ namespace TournamentTracker.App
                         names = _organizer.DataLinks().ToDictionary(d => d.Lobby, d => _desk.NamesFor(d.Lobby)), receivers = _organizer.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList() });
                 case ("POST", "/app/admin/feedin"):
                     if (_desk == null) return Ok(new { ok = false });
+                {
+                    var from = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     if (input.ValueKind == JsonValueKind.Object && input.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
-                        foreach (var item in items.EnumerateArray()) _desk.Apply(item);
-                    return Ok(new { ok = true });
+                        foreach (var item in items.EnumerateArray())
+                        {
+                            _desk.Apply(item);
+                            if (item.TryGetProperty("lobby", out var il) && il.ValueKind == JsonValueKind.String && item.TryGetProperty("src", out _)) from.Add(il.GetString()!);
+                        }
+                    // Part 22: tells each referee's page what arrived, so it stops sending those again.
+                    return Ok(new { ok = true, acks = from.ToDictionary(l => l, l => _desk.Acks(l)) });
+                }
+                case ("POST", "/app/admin/health"):
+                {
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    string lobby = Arg("lobby"), what = Arg("what");
+                    switch (what)
+                    {
+                        case "forget": _desk.ForgetHealth(lobby); return Ok(new { ok = true, message = $"{lobby} taken off the health list." });
+                        case "autoSwitch": _desk.HealthConfig.AutoSwitch = Arg("on") == "true"; _desk.HealthConfig.Save(_desk.HealthPath); return Ok(new { ok = true, message = _desk.HealthConfig.AutoSwitch ? "Auto switch away from a lobby that drops: on." : "Auto switch away from a lobby that drops: off." });
+                        case "slate": _desk.HealthConfig.Slate = Arg("on") == "true"; _desk.HealthConfig.Save(_desk.HealthPath); return Ok(new { ok = true, message = _desk.HealthConfig.Slate ? "Be-right-back screen when every lobby is down: on." : "Every lobby down: intermission instead of the be-right-back screen." });
+                        case "open": if (_desk.HealthPath != null) { _desk.HealthConfig.Save(_desk.HealthPath); try { _env.Open(_desk.HealthPath); } catch (Exception) { } } return Ok(new { ok = true, message = "Opened health.json." });
+                        default:
+                            if (!_desk.Simulating) return Ok(new { ok = false, message = "Those buttons are for simulation mode." });
+                            return Ok(new { ok = _desk.SimFail(lobby, what), message = what == "reconnect" ? $"{lobby}: reconnecting." : $"{lobby}: simulated {what} problem." });
+                    }
+                }
+                case ("POST", "/app/admin/interrupted"):
+                {
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    var (command, message) = _desk.Decide(Arg("id"), Arg("decision"));
+                    if (command != null)
+                    {
+                        if (_desk.Simulating || _organizer == null) message += " (Simulation: nothing posted to Discord.)";
+                        else message += " " + await _organizer.CommandAsync(command).ConfigureAwait(false);
+                    }
+                    return Ok(new { ok = true, message });
+                }
                 case ("POST", "/app/admin/show"):
                 {
                     if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });

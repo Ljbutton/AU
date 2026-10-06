@@ -32,12 +32,17 @@ namespace TournamentTracker.App.Broadcast
         public string? ClipId { get; set; }
         public string? ClipState { get; set; }
         internal string PlayKey = "";
+        /// <summary>A card from the desk itself (a lobby down or back, a game interrupted), not a play: kept until <see cref="Expires"/>.</summary>
+        public bool System { get; set; }
+        public DateTime Expires { get; set; } = DateTime.MaxValue;
+        /// <summary>An interrupted game waiting for the caster's decision (its id).</summary>
+        public string? Interruption { get; set; }
     }
 
     /// <summary>What's on stream: one lobby full screen, two side by side, or four.</summary>
     public sealed class OnAir
     {
-        /// <summary>"full", "2up", "4up", or "none".</summary>
+        /// <summary>"full", "2up", "4up", "grid", "break", "intermission", "slate" (be right back), "replay" or "none".</summary>
         public string Layout { get; set; } = "none";
         public List<string?> Slots { get; set; } = new List<string?>();
         /// <summary>Who set it: "button" (a click here) or "obs" (switched in OBS).</summary>
@@ -63,6 +68,7 @@ namespace TournamentTracker.App.Broadcast
                 "grid" => $"LIVE (grid, tile {i + 1})",
                 "break" => "LIVE (sponsor break)",
                 "intermission" => null,
+                "slate" => null,
                 "replay" => "REPLAY",
                 _ => null,
             };
@@ -76,7 +82,7 @@ namespace TournamentTracker.App.Broadcast
     /// keeps the notification cards (one per play, merged), the history, and what's on stream.
     /// Only on the PC with the administration code; may show impostors, so it never goes anywhere else.
     /// </summary>
-    public sealed class CasterDesk : IDisposable
+    public sealed partial class CasterDesk : IDisposable
     {
         private const int KeepHistory = 200;
         private readonly object _lock = new object();
@@ -150,6 +156,9 @@ namespace TournamentTracker.App.Broadcast
                 FeedSimulator? sim;
                 lock (_lock) sim = _sim;
                 if (sim != null) list.AddRange(sim.Games);
+                // Interrupted games stay out of the standings until the caster counts them.
+                var held = HeldGames();
+                if (held.Count > 0) list.RemoveAll(g => held.Contains((g.Name, g.Round)));
                 return list;
             }
         }
@@ -161,6 +170,9 @@ namespace TournamentTracker.App.Broadcast
             Tables = new Tables(() => Games, Roster, () => Advance(), () => GamesPerRound());
             Storylines = new Storylines(Archive, () => Tables, dataFolder == null ? null : System.IO.Path.Combine(dataFolder, "notes-state.json"));
             _clock = clock ?? (() => DateTime.UtcNow);
+            HealthPath = dataFolder == null ? null : System.IO.Path.Combine(dataFolder, HealthSettings.FileName);
+            HealthConfig = HealthSettings.Load(HealthPath);
+            Health = new LobbyHealth(_clock, () => HealthConfig);
             Sponsors = new SponsorBook(dataFolder, _clock);
             Alerts = new AlertQueue(_clock, dataFolder == null ? null : System.IO.Path.Combine(dataFolder, "alerts.json"));
             if (config != null) _config = () => config;
@@ -194,19 +206,59 @@ namespace TournamentTracker.App.Broadcast
             try
             {
                 string lobby = item.TryGetProperty("lobby", out var l) && l.ValueKind == JsonValueKind.String ? l.GetString() ?? "" : "";
-                if (lobby.Length > 0 && item.TryGetProperty("t", out var t) && t.ValueKind == JsonValueKind.Number) Tracks.Arrived(lobby, t.GetInt64(), _clock());
-                if (item.TryGetProperty("type", out var vt) && vt.GetString() == "voice")
+                string type = item.TryGetProperty("type", out var ty) && ty.ValueKind == JsonValueKind.String ? ty.GetString() ?? "" : "";
+                long? t = item.TryGetProperty("t", out var tt) && tt.ValueKind == JsonValueKind.Number && tt.GetInt64() > 0 ? tt.GetInt64() : null;
+                var now = _clock();
+                // Sent again after a drop: each message once, in order (Part 22).
+                if (lobby.Length > 0 && !FirstTime(lobby, item)) return;
+                if (type == "skip") return;
+                if (type == "health")
                 {
-                    if (lobby.Length > 0) lock (_lock) _voice[lobby] = (item.Clone(), _clock());
+                    if (lobby.Length > 0 && item.TryGetProperty("video", out var vs) && vs.ValueKind == JsonValueKind.String) Health.Video(lobby, vs.GetString() ?? "unknown");
                     return;
                 }
-                if (item.TryGetProperty("type", out var type) && type.GetString() == "track")
+                bool resent = item.TryGetProperty("re", out var re) && re.ValueKind is JsonValueKind.True or JsonValueKind.Number;
+                if (lobby.Length > 0 && t is { } ms)
                 {
-                    if (lobby.Length > 0) Tracks.Add(lobby, item, _clock());
+                    Tracks.Arrived(lobby, ms, now);
+                    if (type != "voice") Health.Data(lobby, ms, resent);
+                }
+                // Older than a few seconds (held back by a drop, or very late): it still counts for the
+                // stats with its own time, but nothing shows it as live.
+                DateTime? at = lobby.Length > 0 && t is { } ms2 ? Tracks.ToCaster(lobby, ms2) : null;
+                bool stale = at is { } a0 && (now - a0).TotalSeconds > HealthConfig.StaleSeconds;
+                if (type == "voice")
+                {
+                    if (lobby.Length > 0 && !stale)
+                    {
+                        lock (_lock) _voice[lobby] = (item.Clone(), now);
+                        bool B(string p) => item.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.True;
+                        double N(string p) => item.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.Number ? x.GetDouble() : -60;
+                        string? problem = item.TryGetProperty("problem", out var pr) && pr.ValueKind == JsonValueKind.String ? pr.GetString() : null;
+                        Health.Audio(lobby, B("on") && B("sending"), N("voiceDb"), N("gameDb"), B("on") ? problem : null);
+                    }
+                    return;
+                }
+                if (type == "track")
+                {
+                    if (lobby.Length > 0 && !stale) Tracks.Add(lobby, item, now);
+                    return;
+                }
+                if (stale)
+                {
+                    if (lobby.Length > 0 && type == "event")
+                    {
+                        Archive.Feed(lobby, item, p => WhoIs(lobby, p), at);
+                        TrackGame(lobby, item, at ?? now);
+                    }
                     return;
                 }
                 Board.Apply(item);
-                if (lobby.Length > 0) Archive.Feed(lobby, item, p => WhoIs(lobby, p));
+                if (lobby.Length > 0)
+                {
+                    Archive.Feed(lobby, item, p => WhoIs(lobby, p));
+                    TrackGame(lobby, item, now);
+                }
             }
             catch (Exception) { }
         }
@@ -400,13 +452,14 @@ namespace TournamentTracker.App.Broadcast
         /// Puts a lobby on stream. Full screen by default; 2-up or 4-up put it in the given slot (or
         /// the first) and fill the other slots with the top-ranked lobbies.
         /// </summary>
-        public OnAir Show(string lobby, string layout = "full", int? slot = null, IList<string>? slots = null)
+        public OnAir Show(string lobby, string layout = "full", int? slot = null, IList<string>? slots = null, string by = "button")
         {
-            if (layout == "grid") return ShowGrid();
-            if (layout == "intermission") return ShowIntermission();
+            if (layout == "grid") return ShowGrid(by);
+            if (layout == "intermission") return ShowIntermission(by);
+            if (layout == "slate") return ShowSlate(by);
             layout = OnAir.SlotsFor(layout) > 0 && layout != "break" ? layout : "full";
             int n = OnAir.SlotsFor(layout);
-            var ranked = Board.Ranking().Where(r => r.Online).Select(r => r.Lobby).ToList();
+            var ranked = Board.Ranking().Where(r => r.Online && !IsDown(r.Lobby)).Select(r => r.Lobby).ToList();
             OnAir next;
             lock (_lock)
             {
@@ -428,7 +481,7 @@ namespace TournamentTracker.App.Broadcast
                     if (free < 0) break;
                     if (!filled.Any(f => string.Equals(f, top, StringComparison.OrdinalIgnoreCase))) filled[free] = top;
                 }
-                next = new OnAir { Layout = layout, Slots = filled, By = "button", Since = _clock() };
+                next = new OnAir { Layout = layout, Slots = filled, By = by, Since = _clock() };
                 _onAir = next;
                 MarkShown(next);
             }
@@ -460,7 +513,7 @@ namespace TournamentTracker.App.Broadcast
             OnAir next;
             lock (_lock)
             {
-                if (_onAir.Layout is not ("intermission" or "replay" or "none")) _beforeIntermission = _onAir;
+                if (_onAir.Layout is not ("intermission" or "replay" or "none" or "slate")) _beforeIntermission = _onAir;
                 next = new OnAir { Layout = "intermission", Slots = new List<string?>(), By = by, Since = _clock() };
                 _onAir = next;
                 IntermissionOffer = false;
@@ -481,7 +534,7 @@ namespace TournamentTracker.App.Broadcast
             if (live != null) return Show(live);
             if (back != null && back.Layout is "full" or "2up" or "4up") return Show("", back.Layout, null, back.Slots.Select(x => x ?? "").ToList());
             if (back?.Layout == "grid") return ShowGrid();
-            return Show(Board.Ranking().FirstOrDefault(r => r.Online)?.Lobby ?? "");
+            return Show(Board.Ranking().FirstOrDefault(r => r.Online && !IsDown(r.Lobby))?.Lobby ?? "");
         }
 
         public void DismissIntermissionOffer() { IntermissionOffer = false; _quietSince = _clock(); }
@@ -637,8 +690,11 @@ namespace TournamentTracker.App.Broadcast
 
         // ---- The grid: every active lobby at once ----------------------------------------------
 
-        /// <summary>Lobbies in the grid: everyone sending and in a lobby or a game, in name order.</summary>
-        public List<string> GridLobbies() => Board.Ranking().Where(r => r.Online && r.Phase != "menu").Select(r => r.Lobby)
+        /// <summary>
+        /// Lobbies in the grid: everyone sending and in a lobby or a game, in name order. A lobby that
+        /// drops keeps its tile (RECONNECTING) for a while, then the rest close up.
+        /// </summary>
+        public List<string> GridLobbies() => Board.Ranking().Where(r => r.Phase != "menu" && (r.Online ? !DownLong(r.Lobby) : Reconnecting(r.Lobby) && !DownLong(r.Lobby))).Select(r => r.Lobby)
             .OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
 
         /// <summary>The grid on stream: one tile per active lobby, empty tiles left for sponsors or the logo.</summary>
@@ -684,9 +740,10 @@ namespace TournamentTracker.App.Broadcast
                 Archive.Merge(games);
                 Tables.Update(Board.Ranking().Select(r => r.Lobby), _clock());
             }
+            if (HealthTick()) return;
             OnAir air;
             lock (_lock) air = _onAir;
-            if (air.Layout == "replay") return;
+            if (air.Layout is "replay" or "slate") return;
             if (IntermissionTick(air)) return;
             if (air.Layout == "break")
             {
@@ -702,7 +759,7 @@ namespace TournamentTracker.App.Broadcast
                     var back = _beforeGrid;
                     _beforeGrid = null;
                     if (back.Layout is "full" or "2up" or "4up") Show("", back.Layout, null, back.Slots.Select(x => x ?? "").ToList());
-                    else if (Board.Ranking().FirstOrDefault(r => r.Online) is { } top) Show(top.Lobby);
+                    else if (Board.Ranking().FirstOrDefault(r => r.Online && !IsDown(r.Lobby)) is { } top) Show(top.Lobby);
                     return;
                 }
                 var want = GridLobbies();
@@ -771,6 +828,13 @@ namespace TournamentTracker.App.Broadcast
                 // A card whose play has faded (or was dismissed) moves to the history.
                 foreach (var card in _cards.ToList())
                 {
+                    if (card.System)
+                    {
+                        if (now < card.Expires && !card.Dismissed) continue;
+                        _cards.Remove(card);
+                        _history.Insert(0, card);
+                        continue;
+                    }
                     bool alive = values.TryGetValue(card.PlayKey, out var v) && v >= 5;
                     card.Value = alive ? v : 0;
                     if (alive && !card.Dismissed) continue;
@@ -793,6 +857,8 @@ namespace TournamentTracker.App.Broadcast
                     Clip = x.ClipId == null ? null : new { Id = x.ClipId, State = x.ClipState },
                     People = CardPeople(x),
                     Offline = online.TryGetValue(x.Lobby, out var on) && !on,
+                    x.System,
+                    x.Interruption,
                 };
                 return new
                 {
@@ -800,6 +866,7 @@ namespace TournamentTracker.App.Broadcast
                     ConfigPath,
                     Problem = _file?.Problem,
                     AutoGrid,
+                    Health = HealthState(),
                     Intermission = new { On = _onAir.Layout == "intermission", Offer = IntermissionOffer, Auto = AutoIntermission, Live = LiveDuringIntermission, NextRoundAt = NextRoundAt?.ToString("o"), Montage = QueuedMontage?.Title },
                     WinScope, Wins = new { Impostors = Wins().Impostors, Crew = Wins().Crew },
                     Break = Break is { } br ? new { Sponsor = br.Sponsor.Name, Left = Math.Max(0, (int)Math.Ceiling((br.Until - now).TotalSeconds)), br.Lobby } : null,
@@ -816,6 +883,7 @@ namespace TournamentTracker.App.Broadcast
                             Imp = p.TryGetProperty("imp", out var im) && im.ValueKind == JsonValueKind.True,
                         }).ToList(),
                         OnAir = _onAir.Label(r.Lobby),
+                        Health = Health.Status(r.Lobby).Level,
                     }).ToList(),
                     Cards = _cards.OrderByDescending(x => x.Value).ThenByDescending(x => x.Updated).Select(View).ToList(),
                     History = _history.OrderByDescending(x => x.At).Take(60).Select(View).ToList(),
