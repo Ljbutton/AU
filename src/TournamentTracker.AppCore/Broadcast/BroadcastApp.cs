@@ -37,6 +37,7 @@ namespace TournamentTracker.App.Broadcast
         public static Dictionary<string, bool> DefaultElements() => new Dictionary<string, bool>
         {
             ["lobbyLabels"] = true,       // the lobby's name on each feed
+            ["gridTiles"] = true,         // Part 12: grid tiles' status line, pulsing border, logo in empty tiles
             ["statusBar"] = true,         // Part 9: one cell per lobby along the bottom
             ["impostorTags"] = true,      // Part 10: "IMPOSTORS: …" on each feed
             ["sabotage"] = true,          // Part 10: reactor/O2 countdown, lights/comms icon
@@ -49,6 +50,7 @@ namespace TournamentTracker.App.Broadcast
         public static readonly Dictionary<string, string> ElementNames = new Dictionary<string, string>
         {
             ["lobbyLabels"] = "Lobby labels",
+            ["gridTiles"] = "Grid tiles",
             ["statusBar"] = "Status bar",
             ["impostorTags"] = "Impostor tags",
             ["sabotage"] = "Sabotage countdown",
@@ -153,7 +155,7 @@ namespace TournamentTracker.App.Broadcast
             double gap = obs?.Settings.Gap ?? 8;
             var layout = air.Layout;
             if (layout == "none" || layout == "replay") return (w, h, new List<(string?, Box)>());
-            var boxes = air.Boxes ?? ObsDirector.Slots(layout, w, h, layout == "full" ? 0 : gap);
+            var boxes = air.Boxes ?? ObsDirector.Slots(layout, w, h, layout == "full" ? 0 : gap, air.Slots.Count);
             var slots = new List<(string?, Box)>();
             for (int i = 0; i < boxes.Count; i++) slots.Add((i < air.Slots.Count ? air.Slots[i] : null, boxes[i]));
             return (w, h, slots);

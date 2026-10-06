@@ -462,19 +462,30 @@ namespace TournamentTracker.Plugin
                 if (shown == null && !_applied) continue;          // never touched: leave the game's own text alone
                 if (pc.cosmetics.nameText.text != want) pc.cosmetics.nameText.text = want;
             }
+            // Meetings: the vote areas show names too. Matched by their text (real name ↔ roster name).
             var meeting = MeetingHud.Instance;
             if (meeting != null && meeting.playerStates != null)
+            {
+                var toShow = new System.Collections.Generic.Dictionary<string, string>();
+                var toReal = new System.Collections.Generic.Dictionary<string, string>();
+                for (int i = 0; i < all.Count; i++)
+                {
+                    var pc = all[i];
+                    if (pc == null || pc.Data == null) continue;
+                    string real = pc.Data.PlayerName ?? "";
+                    string? shown = session?.DisplayName(PlayerSnapshot.MakeKey(pc.Data.FriendCode, real));
+                    if (shown == null || shown == real) continue;
+                    toShow[real] = shown;
+                    toReal[shown] = real;
+                }
                 foreach (var area in meeting.playerStates)
                 {
                     if (area == null || area.NameText == null) continue;
-                    var data = GameData.Instance != null ? GameData.Instance.GetPlayerById(area.TargetPlayerId) : null;
-                    if (data == null) continue;
-                    string real = data.PlayerName ?? "";
-                    string? shown = on ? session!.DisplayName(PlayerSnapshot.MakeKey(data.FriendCode, real)) : null;
-                    if (shown == null && !_applied) continue;
-                    string want = shown ?? real;
-                    if (area.NameText.text != want) area.NameText.text = want;
+                    string text = area.NameText.text ?? "";
+                    if (on && toShow.TryGetValue(text, out var shown)) area.NameText.text = shown;
+                    else if (!on && toReal.TryGetValue(text, out var real)) area.NameText.text = real;
                 }
+            }
             _applied = on;
         }
     }

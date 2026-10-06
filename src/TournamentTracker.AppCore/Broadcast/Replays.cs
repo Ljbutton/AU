@@ -57,6 +57,8 @@ namespace TournamentTracker.App.Broadcast
             ["specVision"] = "KeyV",
             ["specReport"] = "KeyX",
             ["specEye"] = "KeyE",
+            // Layouts.
+            ["grid"] = "KeyG",
         };
     }
 

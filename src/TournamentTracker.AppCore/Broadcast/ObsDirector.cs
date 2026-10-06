@@ -24,7 +24,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Connect when The Button starts (after the first successful connect).</summary>
         public bool AutoConnect { get; set; }
         /// <summary>The scenes The Button builds and switches between: full screen, 2-up, quad.</summary>
-        public Dictionary<string, string> Scenes { get; set; } = new Dictionary<string, string> { ["full"] = "TT Full", ["2up"] = "TT 2-up", ["4up"] = "TT Quad" };
+        public Dictionary<string, string> Scenes { get; set; } = new Dictionary<string, string> { ["full"] = "TT Full", ["2up"] = "TT 2-up", ["4up"] = "TT Quad", ["grid"] = "TT Grid" };
         /// <summary>Each lobby's VDO.Ninja source is called this plus the lobby name.</summary>
         public string SourcePrefix { get; set; } = "TT Lobby ";
         /// <summary>Space between the pictures in 2-up and quad, in canvas pixels.</summary>
@@ -195,10 +195,33 @@ namespace TournamentTracker.App.Broadcast
         // ---- Building the TT scenes --------------------------------------------------------------
 
         /// <summary>The slots of a layout on the canvas: full screen, two side by side, or a 2×2 grid.</summary>
-        public static List<Box> Slots(string layout, double w, double h, double gap)
+        /// <summary>The grid for a number of lobbies: 1 full, 2 side by side, 3–4 2×2, 5–6 3×2, 7–9 3×3, 10–12 4×3, 13–16 4×4.</summary>
+        public static (int Cols, int Rows) GridShape(int count) => count switch
+        {
+            <= 1 => (1, 1),
+            2 => (2, 1),
+            <= 4 => (2, 2),
+            <= 6 => (3, 2),
+            <= 9 => (3, 3),
+            <= 12 => (4, 3),
+            <= 16 => (4, 4),
+            _ => (5, (count + 4) / 5),
+        };
+
+        public static List<Box> Slots(string layout, double w, double h, double gap, int count = 0)
         {
             switch (layout)
             {
+                case "grid":
+                {
+                    var (cols, rows) = GridShape(count);
+                    double bw = (w - (cols + 1) * gap) / cols, bh = (h - (rows + 1) * gap) / rows;
+                    var boxes = new List<Box>();
+                    for (int r = 0; r < rows; r++)
+                        for (int c = 0; c < cols; c++)
+                            boxes.Add(new Box(gap + c * (bw + gap), gap + r * (bh + gap), bw, bh));
+                    return boxes;
+                }
                 case "2up":
                 {
                     double bw = (w - 3 * gap) / 2, bh = bw * 9 / 16;
@@ -327,7 +350,7 @@ namespace TournamentTracker.App.Broadcast
             await _busy.WaitAsync().ConfigureAwait(false);
             try
             {
-                var boxes = Slots(air.Layout, Width, Height, air.Layout == "full" ? 0 : Settings.Gap);
+                var boxes = Slots(air.Layout, Width, Height, air.Layout == "full" ? 0 : Settings.Gap, air.Slots.Count);
                 var items = await ItemsAsync(obs, scene).ConfigureAwait(false);
                 foreach (var item in items)
                 {
@@ -405,9 +428,10 @@ namespace TournamentTracker.App.Broadcast
                 _desk.ObsChanged(new OnAir { Layout = "none", Slots = new List<string?>(), Scene = scene });
                 return;
             }
-            var boxes = Slots(layout, Width, Height, layout == "full" ? 0 : Settings.Gap);
+            var shown = (await ItemsAsync(obs, scene).ConfigureAwait(false)).Where(i => i.Enabled && LobbyOf(i.Source) != null).ToList();
+            var boxes = Slots(layout, Width, Height, layout == "full" ? 0 : Settings.Gap, shown.Count);
             var slots = new List<string?>(new string?[boxes.Count]);
-            foreach (var item in (await ItemsAsync(obs, scene).ConfigureAwait(false)).Where(i => i.Enabled))
+            foreach (var item in shown)
             {
                 string? lobby = LobbyOf(item.Source);
                 if (lobby == null) continue;

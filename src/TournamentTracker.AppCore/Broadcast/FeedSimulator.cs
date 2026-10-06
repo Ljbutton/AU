@@ -115,6 +115,7 @@ namespace TournamentTracker.App.Broadcast
             private double _tasks;
             private string? _sab;
             private double? _sabLeft;
+            private double _sabFix;
             private bool _danger;
             private DateTime _dangerEnds;
             private (SimPlayer Imp, SimPlayer Crew, string Room)? _dangerPair;
@@ -209,7 +210,7 @@ namespace TournamentTracker.App.Broadcast
                     ["impAlive"] = game ? Alive(true).Count : (int?)null,
                     ["alive"] = game ? Alive().Count : (int?)null,
                     ["taskPct"] = game ? (int)_tasks : (int?)null,
-                    ["sabotage"] = _sab == null ? null : new { system = _sab, critical = _sabLeft.HasValue, timeLeft = _sabLeft.HasValue ? Math.Round(_sabLeft.Value, 1) : (double?)null },
+                    ["sabotage"] = _sab == null ? null : new { system = _sab, critical = _sabLeft.HasValue, timeLeft = _sabLeft.HasValue ? Math.Round(_sabLeft.Value, 1) : (double?)null, fixing = _sabLeft.HasValue ? _sabFix : (double?)null },
                     ["danger"] = _danger,
                     ["video"] = true,
                     ["players"] = _players.Select(p => p.Roster(_phase != "lobby")).ToList(),
@@ -277,6 +278,9 @@ namespace TournamentTracker.App.Broadcast
                     if (_sabLeft.HasValue)
                     {
                         _sabLeft -= dt;
+                        // Someone runs to the panels: one hand on, then the other.
+                        if (_sabFix < 1 && Chance(0.12)) _sabFix = Math.Min(1, _sabFix + 0.5);
+                        if (_sabFix >= 1) { FixSabotage(); return; }
                         if (_sabLeft <= 0) { End("Impostors", "ImpostorsBySabotage", "sabotage"); return; }
                         if (Chance(_sabLeft < 12 ? 0.05 : 0.03)) FixSabotage();
                     }
@@ -286,7 +290,7 @@ namespace TournamentTracker.App.Broadcast
                 {
                     var options = new[] { ("Reactor", (double?)30), ("O2", 30), ("Lights", null), ("Comms", null) };
                     var (sys, left) = options[_r.Next(options.Length)];
-                    _sab = sys; _sabLeft = left;
+                    _sab = sys; _sabLeft = left; _sabFix = 0;
                     Event("sabotage", new Dictionary<string, object?> { ["system"] = sys, ["state"] = "start", ["critical"] = left.HasValue, ["timeLeft"] = left, ["by"] = Pick(Alive(true)).Who });
                 }
 

@@ -482,6 +482,10 @@ namespace TournamentTracker.App
                 case ("POST", "/app/admin/dismiss"):
                     _desk?.Dismiss(Arg("id"));
                     return Ok(new { ok = true });
+                case ("POST", "/app/admin/autogrid"):
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    _desk.AutoGrid = Arg("on") == "true";
+                    return Ok(new { ok = true, message = _desk.AutoGrid ? "Auto grid on: the grid comes up whenever no lobby is mid-game." : "Auto grid off." });
                 case ("POST", "/app/admin/sim"):
                     if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
                     _desk.Simulate(Arg("on") == "true");

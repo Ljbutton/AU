@@ -47,7 +47,7 @@ namespace TournamentTracker.App.Broadcast
         public List<Box>? Boxes { get; set; }
         public DateTime Since { get; set; }
 
-        public static int SlotsFor(string layout) => layout == "4up" ? 4 : layout == "2up" ? 2 : layout == "full" ? 1 : 0;
+        public static int SlotsFor(string layout) => layout == "4up" ? 4 : layout == "2up" ? 2 : layout == "full" ? 1 : layout == "grid" ? 1 : 0;
 
         /// <summary>"LIVE (full)", "LIVE (2-up, slot 1)", "LIVE (quad, slot 2)", "REPLAY", or null when not on.</summary>
         public string? Label(string lobby)
@@ -59,6 +59,7 @@ namespace TournamentTracker.App.Broadcast
                 "full" => "LIVE (full)",
                 "2up" => $"LIVE (2-up, slot {i + 1})",
                 "4up" => $"LIVE (quad, slot {i + 1})",
+                "grid" => $"LIVE (grid, tile {i + 1})",
                 "replay" => "REPLAY",
                 _ => null,
             };
@@ -111,6 +112,7 @@ namespace TournamentTracker.App.Broadcast
             }
             Board = new LobbyBoard(_config, _clock) { RosterName = (key, discord, name) => Roster.Match(key, discord, name).Entry?.Name };
             Board.PlayChanged += OnPlay;
+            if (clock == null) _tick = new Timer(_ => { try { Tick(); } catch (Exception) { } }, null, 1000, 1000);
         }
 
         public string? ConfigPath => _file?.Path;
@@ -276,6 +278,7 @@ namespace TournamentTracker.App.Broadcast
         /// </summary>
         public OnAir Show(string lobby, string layout = "full", int? slot = null, IList<string>? slots = null)
         {
+            if (layout == "grid") return ShowGrid();
             layout = OnAir.SlotsFor(layout) > 0 ? layout : "full";
             int n = OnAir.SlotsFor(layout);
             var ranked = Board.Ranking().Where(r => r.Online).Select(r => r.Lobby).ToList();
@@ -306,6 +309,65 @@ namespace TournamentTracker.App.Broadcast
             }
             Switch?.Invoke(next);
             return next;
+        }
+
+        // ---- The grid: every active lobby at once ----------------------------------------------
+
+        /// <summary>Lobbies in the grid: everyone sending and in a lobby or a game, in name order.</summary>
+        public List<string> GridLobbies() => Board.Ranking().Where(r => r.Online && r.Phase != "menu").Select(r => r.Lobby)
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+
+        /// <summary>The grid on stream: one tile per active lobby, empty tiles left for sponsors or the logo.</summary>
+        public OnAir ShowGrid(string by = "button")
+        {
+            var lobbies = GridLobbies();
+            var (cols, rows) = ObsDirector.GridShape(lobbies.Count);
+            var slots = lobbies.Cast<string?>().ToList();
+            while (slots.Count < cols * rows) slots.Add(null);
+            OnAir next;
+            lock (_lock)
+            {
+                next = new OnAir { Layout = "grid", Slots = slots, By = by, Since = _clock() };
+                _onAir = next;
+                MarkShown(next);
+            }
+            Switch?.Invoke(next);
+            return next;
+        }
+
+        /// <summary>Use the grid by itself whenever no lobby is mid-game (all in meetings or between games).</summary>
+        public bool AutoGrid { get; set; }
+        private OnAir? _beforeGrid;
+        private Timer? _tick;
+
+        /// <summary>Once a second: keeps the grid's tiles matching the active lobbies, and runs auto grid.</summary>
+        public void Tick()
+        {
+            OnAir air;
+            lock (_lock) air = _onAir;
+            if (air.Layout == "replay") return;
+            var ranking = Board.Ranking().Where(r => r.Online && r.Phase != "menu").ToList();
+            bool quiet = ranking.Count > 0 && ranking.All(r => r.Phase != "ingame");
+            if (air.Layout == "grid")
+            {
+                if (AutoGrid && _beforeGrid != null && !quiet)
+                {
+                    var back = _beforeGrid;
+                    _beforeGrid = null;
+                    if (back.Layout is "full" or "2up" or "4up") Show("", back.Layout, null, back.Slots.Select(x => x ?? "").ToList());
+                    else if (Board.Ranking().FirstOrDefault(r => r.Online) is { } top) Show(top.Lobby);
+                    return;
+                }
+                var want = GridLobbies();
+                var have = air.Slots.Where(x => x != null).ToList();
+                if (!want.SequenceEqual(have!, StringComparer.OrdinalIgnoreCase)) ShowGrid(air.By);
+                return;
+            }
+            if (AutoGrid && quiet && air.Layout != "none")
+            {
+                _beforeGrid = air;
+                ShowGrid("auto");
+            }
         }
 
         /// <summary>OBS switched by itself (Part 4 calls this when you change scenes there).</summary>
@@ -388,6 +450,7 @@ namespace TournamentTracker.App.Broadcast
                     Simulating,
                     ConfigPath,
                     Problem = _file?.Problem,
+                    AutoGrid,
                     OnAir = new { _onAir.Layout, _onAir.Slots, _onAir.By, _onAir.Scene, Since = _onAir.Since == default ? null : _onAir.Since.ToString("o") },
                     Lobbies = ranking.Select(r => new
                     {
@@ -409,6 +472,7 @@ namespace TournamentTracker.App.Broadcast
 
         public void Dispose()
         {
+            _tick?.Dispose();
             lock (_lock) { _simTimer?.Dispose(); _simTimer = null; _sim = null; }
         }
     }
