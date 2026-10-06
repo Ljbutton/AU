@@ -45,6 +45,9 @@ namespace TournamentTracker.App
         public bool VoiceIncludeMic { get; set; }
         public bool VoiceOff { get; set; }
 
+        /// <summary>The host's Twitch channel: shown on the tournament stream with their lobby (sent with their game).</summary>
+        public string? Twitch { get; set; }
+
         public static AppSettings Load(string file)
         {
             try { if (File.Exists(file)) return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(file)) ?? new AppSettings(); }
@@ -314,7 +317,7 @@ namespace TournamentTracker.App
                         if (status != null && JsonDocument.Parse(status).RootElement.TryGetProperty("feed", out var feed)
                             && feed.TryGetProperty("pushUrl", out var pu) && pu.ValueKind == JsonValueKind.String) push = pu.GetString();
                     }
-                    return Ok(new { pushUrl = push != null && push.StartsWith(TournamentSession.VdoNinja, StringComparison.Ordinal) ? push : null });
+                    return Ok(new { pushUrl = push != null && push.StartsWith(TournamentSession.VdoNinja, StringComparison.Ordinal) ? push : null, twitch = _settings.Twitch });
                 }
                 case ("GET", "/app/voice/pcm"):
                     // The mix of Discord's and Among Us's sound since the last call, for the send page (never played here).
@@ -361,6 +364,15 @@ namespace TournamentTracker.App
                     TrySave();
                     _nextAutoModUpdate = DateTime.MinValue;
                     return Ok(new { ok = true, message = _settings.AutoUpdateMod ? "The mod updates itself while Among Us is closed." : "Automatic mod updates are off: Settings shows when a new version is out." });
+                case ("POST", "/app/twitch"):
+                {
+                    string typed = Arg("name").Trim();
+                    string? handle = TournamentTracker.Broadcast.FeedProtocol.TwitchHandle(typed);
+                    if (typed.Length > 0 && handle == null) return Ok(new { ok = false, message = "That isn't a Twitch channel name (letters, numbers and _, like your twitch.tv/ link)." });
+                    _settings.Twitch = handle;
+                    _settings.Save(_env.SettingsFile);
+                    return Ok(new { ok = true, message = handle == null ? "Twitch channel removed." : $"Your Twitch: {handle}. It shows on the tournament stream with your lobby." });
+                }
                 case ("POST", "/app/autoupdate"):
                     _settings.AutoUpdateApp = Arg("on") == "true";
                     TrySave();
@@ -390,6 +402,7 @@ namespace TournamentTracker.App
             return new
             {
                 App = _env.Version,
+                Twitch = _settings.Twitch,
                 Game = new { Path = GamePath, Found = mod.GameFound, Candidates = Candidates() },
                 Mod = new
                 {

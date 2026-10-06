@@ -237,7 +237,7 @@ public class MontageTests : IDisposable
         Assert.Contains("\"Bolt, Inc\",killcam,", csv);
         Assert.Contains("Jake killed Maria", csv);
         Assert.Contains("Acme: 1 appearances, 1 minutes on screen", summary);
-        Assert.Contains("Kill Cam (replays): 1 times, 7 s", summary);
+        Assert.Contains("Kill Cam (kill replays): 1 times, 7 s", summary);
     }
 
     [Fact]

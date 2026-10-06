@@ -17,7 +17,7 @@ namespace TournamentTracker.App.Broadcast
         public string Tagline { get; set; } = "";
         /// <summary>Optional video or graphic for the split-screen break (a file on this PC or a web link).</summary>
         public string Video { get; set; } = "";
-        /// <summary>Where they appear: killcam, montage, standings, grid, break.</summary>
+        /// <summary>Where they appear: killcam, replay, montage, standings, grid, multiview, break.</summary>
         public List<string> Placements { get; set; } = new List<string>();
         /// <summary>How long a split-screen break lasts, in seconds.</summary>
         public int BreakSeconds { get; set; } = 30;
@@ -32,7 +32,7 @@ namespace TournamentTracker.App.Broadcast
     {
         public const string FileName = "sponsors.json";
         public const string LogName = "sponsor-log.jsonl";
-        public static readonly string[] AllPlacements = { "killcam", "montage", "standings", "grid", "break" };
+        public static readonly string[] AllPlacements = { "killcam", "replay", "montage", "standings", "grid", "multiview", "break" };
         private static readonly JsonSerializerOptions Json = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase, ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
 
         private readonly string? _path, _logPath;
@@ -68,7 +68,7 @@ namespace TournamentTracker.App.Broadcast
                 {
                     Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_path)!);
                     // An example with no placements, so nothing shows until it's filled in.
-                    File.WriteAllText(_path, JsonSerializer.Serialize(new { sponsors = new[] { new Sponsor { Name = "Example Sponsor", Tagline = "Fill this in, then list its placements: killcam, montage, standings, grid, break", Logo = "C:\\\\Sponsors\\\\example-logo.png" } } }, Json));
+                    File.WriteAllText(_path, JsonSerializer.Serialize(new { sponsors = new[] { new Sponsor { Name = "Example Sponsor", Tagline = "Fill this in, then list its placements: killcam, replay, montage, standings, grid, multiview, break", Logo = "C:\\\\Sponsors\\\\example-logo.png" } } }, Json));
                 }
                 var stamp = File.GetLastWriteTimeUtc(_path);
                 if (stamp == _stamp) return;
@@ -215,7 +215,9 @@ namespace TournamentTracker.App.Broadcast
 
         public static string Placement(string p) => p switch
         {
-            "killcam" => "Kill Cam (replays)",
+            "killcam" => "Kill Cam (kill replays)",
+            "replay" => "Replays",
+            "multiview" => "Multiview (4 or more lobbies)",
             "montage" => "Montage intro",
             "standings" => "Standings graphic",
             "grid" => "Grid tile",

@@ -38,7 +38,9 @@ namespace TournamentTracker.App.Broadcast
         {
             ["lobbyLabels"] = true,       // the lobby's name on each feed
             ["gridTiles"] = true,         // Part 12: grid tiles' status line, pulsing border, logo in empty tiles
-            ["statusBar"] = true,         // Part 9: one cell per lobby along the bottom
+            ["statusBar"] = false,        // Part 9: one cell per lobby along the bottom (off: the top 3 and the stats ticker took its place)
+            ["top3"] = true,              // the top 3 of a lobby's round, top left, taking turns through the lobbies
+            ["ticker"] = true,            // leader boards along the bottom (vote %, kills…), taking turns
             ["impostorTags"] = true,      // Part 10: "IMPOSTORS: …" on each feed
             ["sabotage"] = true,          // Part 10: reactor/O2 countdown, lights/comms icon
             ["standings"] = false,        // Part 14: the standings table
@@ -55,6 +57,8 @@ namespace TournamentTracker.App.Broadcast
             ["lobbyLabels"] = "Lobby labels",
             ["gridTiles"] = "Grid tiles",
             ["statusBar"] = "Status bar",
+            ["top3"] = "Top 3 by lobby",
+            ["ticker"] = "Stats ticker",
             ["impostorTags"] = "Impostor tags",
             ["sabotage"] = "Sabotage countdown",
             ["standings"] = "Standings",
@@ -162,6 +166,16 @@ namespace TournamentTracker.App.Broadcast
             };
             Extras["sponsorTiles"] = () => desk.OnAir.Layout != "grid" ? null
                 : desk.GridSponsors.ToDictionary(kv => kv.Key.ToString(), kv => new { name = kv.Value.Name, logo = SponsorBook.LogoUrl(kv.Value), tagline = kv.Value.Tagline });
+            // A multiview (quad or grid) with 4 or more lobbies on it, presented by a "multiview" sponsor.
+            Extras["multiviewSponsor"] = () =>
+            {
+                var air = desk.OnAir;
+                bool on = air.Layout is "4up" or "grid" && air.Slots.Count(x => x != null) >= 4;
+                var sp = on ? desk.Sponsors.Current("multiview") : null;
+                if (sp == null) { desk.Sponsors.End("multiview"); return null; }
+                desk.Sponsors.Begin("multiview", sp, "multiview");
+                return new { name = sp.Name, logo = SponsorBook.LogoUrl(sp), tagline = sp.Tagline };
+            };
             Extras["sponsorBreak"] = () => desk.OnAir.Layout == "break" && desk.Break is { } b
                 ? new { name = b.Sponsor.Name, logo = SponsorBook.LogoUrl(b.Sponsor), video = SponsorBook.VideoUrl(b.Sponsor), tagline = b.Sponsor.Tagline, left = Math.Max(0, Math.Ceiling((b.Until - DateTime.UtcNow).TotalSeconds)), total = Math.Max(5, b.Sponsor.BreakSeconds) }
                 : null;
@@ -217,6 +231,7 @@ namespace TournamentTracker.App.Broadcast
                         : null,
                     game = r.Game,
                     round = r.Round,
+                    twitch = _desk.TwitchOf(r.Lobby),
                     health = health?.Level ?? "green",
                     reconnecting,
                 };
@@ -231,7 +246,9 @@ namespace TournamentTracker.App.Broadcast
                 logo = string.IsNullOrEmpty(s.Theme.Logo) ? null : s.Theme.Logo.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? s.Theme.Logo : "/broadcast/logo",
                 elements = s.Elements,
                 lobbies,
-                standings = s.Elements.GetValueOrDefault("standings") ? Standings(round) : null,
+                standings = s.Elements.GetValueOrDefault("standings") ? Standings() : null,
+                top3 = s.Elements.GetValueOrDefault("top3") ? Top3(ranking) : null,
+                ticker = s.Elements.GetValueOrDefault("ticker") ? Ticker() : null,
                 standingsChange = s.Elements.GetValueOrDefault("standingsChange") && _desk.Tables.Change != null && (now - _desk.Tables.ChangeAt).TotalSeconds < 15 ? _desk.Tables.Change : null,
                 storyline = s.Elements.GetValueOrDefault("storyline") && _desk.ShownNote is { } note && (now - note.At).TotalSeconds < 12 ? note.Text : null,
                 intermission = air.Layout is "intermission" or "slate" ? Intermission(round, air.Layout == "slate") : null,
@@ -284,6 +301,44 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Close to ending: worth showing what's on the line.</summary>
         private static bool Close(LobbyRank r) =>
             (r.Phase == "ingame" || r.Phase == "meeting") && r.Plays.Any(p => p.Rule is "oneKillFromWin" or "taskBar" or "finalPlayers" or "criticalSabotage" or "closeCounts");
+
+        /// <summary>The standings on stream: the featured lobby's own round, every lobby's round, or the tournament.</summary>
+        private object Standings()
+        {
+            var (title, round, lobby, rows) = _desk.StandingsTable();
+            return new
+            {
+                title, round, lobby,
+                rows = rows.Take(10).Select(r => new { r.Rank, r.Name, r.Color, r.Points, r.Games, r.Wins, r.Advancing }).ToList(),
+            };
+        }
+
+        /// <summary>Each playing lobby's top 3 for its own round (they take turns on stream).</summary>
+        private object Top3(IReadOnlyList<LobbyRank> ranking)
+        {
+            var list = new List<object>();
+            foreach (var r in ranking.Where(r => r.Online || r.Phase != "menu").OrderBy(r => r.Lobby, StringComparer.OrdinalIgnoreCase))
+            {
+                var (round, rows) = _desk.Tables.LobbyTable(r.Lobby, r.Round > 0 ? r.Round : _desk.Tables.CurrentRound);
+                if (rows.Count == 0) continue;
+                list.Add(new { lobby = r.Lobby, twitch = _desk.TwitchOf(r.Lobby), round, rows = rows.Take(3).Select(x => new { x.Rank, x.Name, x.Color, x.Points }).ToList() });
+            }
+            return list;
+        }
+
+        /// <summary>The stats ticker's boards (worked out at most every 10 s: every counted game is read).</summary>
+        private object Ticker()
+        {
+            var now = DateTime.UtcNow;
+            if (_ticker == null || now - _tickerAt > TimeSpan.FromSeconds(10))
+            {
+                _ticker = _desk.Tables.Leaders().Select(b => new { title = b.Title, unit = b.Unit, rows = b.Rows.Select((x, i) => new { rank = i + 1, name = x.Name, color = x.Color, value = x.Value }).ToList() }).ToList<object>();
+                _tickerAt = now;
+            }
+            return _ticker;
+        }
+        private List<object>? _ticker;
+        private DateTime _tickerAt;
 
         private object Standings(int round)
         {

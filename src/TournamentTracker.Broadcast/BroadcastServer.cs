@@ -233,6 +233,10 @@ namespace TournamentTracker.App.Broadcast
 
 
         /// <summary>What each lobby's OBS source shows: its VDO.Ninja video, or a stand-in page in simulation mode.</summary>
+        /// <summary>A small live picture of each lobby sending its game, for the Multiview card (VDO.Ninja asked for a low resolution).</summary>
+        private object Previews() => _caster == null || _desk == null ? new List<object>()
+            : ObsFeeds(_caster, _desk).Select(f => new { lobby = f.Lobby, url = f.Url.Contains("vdo.ninja", StringComparison.OrdinalIgnoreCase) ? f.Url + "&scale=25&noaudio" : f.Url }).ToList<object>();
+
         private static IReadOnlyList<(string Lobby, string Url)> ObsFeeds(CasterServer caster, CasterDesk desk)
         {
             var list = caster.ObsLinks();
@@ -447,7 +451,8 @@ namespace TournamentTracker.App.Broadcast
                         voice = new { status = _desk.VoiceState(), obs = _obs?.VoiceStatus() },
                         twitch = _twitch?.State(),
                         broadcast = _broadcast == null ? null : new { url = _caster?.Url == null ? null : _caster.Url + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem, alerts = _desk.Alerts.Settings, alertsWaiting = _desk.Alerts.Waiting },
-                        names = _caster!.DataLinks().ToDictionary(d => d.Lobby, d => _desk.NamesFor(d.Lobby)), receivers = _caster.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList() });
+                        names = _caster!.DataLinks().ToDictionary(d => d.Lobby, d => _desk.NamesFor(d.Lobby)), receivers = _caster.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList(),
+                        previews = Previews(), twitchHandles = _desk.Board.Ranking().ToDictionary(r => r.Lobby, r => _desk.TwitchOf(r.Lobby)) });
                 case ("POST", "/app/admin/feedin"):
                     if (_desk == null) return Ok(new { ok = false });
                 {
@@ -780,9 +785,19 @@ namespace TournamentTracker.App.Broadcast
                 }
                 case ("POST", "/app/admin/standings"):
                     if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
-                    if (Arg("scope").Length > 0) _desk.StandingsScope = Arg("scope") == "overall" ? "overall" : "round";
+                    if (Arg("scope").Length > 0) _desk.StandingsScope = Arg("scope") is "overall" or "round" ? Arg("scope") : "lobby";
                     if (Arg("show").Length > 0) _broadcast?.Settings.Set("standings", Arg("show") == "true");
-                    return Ok(new { ok = true, message = Arg("show") == "true" ? "Standings on stream." : Arg("show") == "false" ? "Standings off stream." : $"Standings: {(_desk.StandingsScope == "overall" ? "whole tournament" : "this round")}." });
+                    return Ok(new { ok = true, message = Arg("show") == "true" ? "Standings on stream." : Arg("show") == "false" ? "Standings off stream." : $"Standings: {(_desk.StandingsScope == "overall" ? "whole tournament" : _desk.StandingsScope == "round" ? "the round, every lobby" : "the lobby on stream")}." });
+                case ("POST", "/app/admin/multiview"):
+                {
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    var pick = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("lobbies", out var pl) && pl.ValueKind == JsonValueKind.Array
+                        ? pl.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString() ?? "").ToList() : new List<string>();
+                    if (pick.Count == 0) return Ok(new { ok = false, message = "Pick one or more lobbies first." });
+                    var air = _desk.ShowPicked(pick);
+                    string how = air.Layout switch { "full" => "Full screen", "2up" => "2-up", "4up" => "Quad", "grid" => "Grid", _ => air.Layout };
+                    return Ok(new { ok = true, message = $"On stream ({how}): {string.Join(", ", air.Slots.Where(x => x != null))}." });
+                }
                 case ("POST", "/app/admin/voice"):
                 {
                     if (_obs == null) return Ok(new { ok = false, message = "Administration is locked." });

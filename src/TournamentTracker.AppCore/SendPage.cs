@@ -48,10 +48,11 @@ const token=new URLSearchParams(location.search).get('token')||'';
 const PROTOCOL=1;   // the broadcast feed's version (FeedProtocol.Version, docs/broadcast-protocol.md)
 const q=p=>p+(p.includes('?')?'&':'?')+'token='+encodeURIComponent(token);
 const v=document.getElementById('v');
-let pushUrl=null,since=null,sent=0,lastOk=0,lobby=null;
+let pushUrl=null,since=null,sent=0,lastOk=0,lobby=null,twitch=null;
 async function info(){
   try{
     const r=await (await fetch(q('/app/sendinfo'),{cache:'no-store'})).json();
+    twitch=r.twitch||null;
     if(r.pushUrl&&r.pushUrl!==pushUrl){pushUrl=r.pushUrl;v.src=pushUrl;publishVoice();}
     document.getElementById('link').textContent=pushUrl?'Video link ready.':'Waiting for Among Us with ""Send my game to the caster"" on.';
   }catch(e){}
@@ -116,7 +117,7 @@ function gotStats(st){
   if(f>frames||kbps>0){stillFor=0;video='ok';}else if(++stillFor>=2)video='lost';
   frames=f;
 }
-function health(){ if(lobby) send([{v:PROTOCOL,type:'health',lobby,t:Date.now(),video,queued:queue.length}]); }
+function health(){ if(lobby) send([{v:PROTOCOL,type:'health',lobby,t:Date.now(),video,queued:queue.length},{v:PROTOCOL,type:'host',lobby,t:Date.now(),twitch}]); }
 setInterval(()=>{askStats();health();},2000);
 // The caster switches this lobby's spectator view (lit map, vision, ""!"", eye): only ""spec …"" commands are taken.
 addEventListener('message',e=>{

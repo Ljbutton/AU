@@ -553,6 +553,11 @@ details.advanced[open] summary h2::before{content:'▾ '}
     </div>
     <p id="code-result" class="note" hidden style="margin-top:8px"></p>
   </div>
+  <div class="card" id="twitch-card">
+    <h2>Your Twitch</h2>
+    <p class="muted" style="margin:0 0 8px">Shown on the tournament stream with your lobby, with the Twitch logo, so viewers can find your stream. Sent with your game when you turn on "Send my game to the caster".</p>
+    <form class="row" id="twitch-form"><input id="twitch-name" placeholder="your channel name (twitch.tv/…)" autocomplete="off" spellcheck="false" style="flex:1;min-width:220px"><button class="b primary">Save</button></form>
+  </div>
   <div class="card" id="tour-card" hidden>
     <h2>Tournament</h2>
     <div class="toggle"><div><b>Lead lobby</b><span>The lead lobby's game carries out referee commands typed in the private results channel (!start, !move, !void…). One lobby at a time: usually yours.</span></div><button class="b" id="t-lead"></button></div>
@@ -927,6 +932,11 @@ function renderOrganiser() {
 $('game-change').addEventListener('click', () => { $('game-pick').hidden = false; $('game-input').value = S?.game?.path || ''; $('game-input').focus(); });
 $('game-save').addEventListener('click', async () => { const r = await api('POST', '/app/game', { path: $('game-input').value }); toast(r.message); if (r.ok) $('game-pick').hidden = true; refresh(); });
 $('mod-install').addEventListener('click', async () => { const r = await api('POST', '/app/install'); toast(r.message); refresh(); });
+$('twitch-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const r = await api('POST', '/app/twitch', { name: $('twitch-name').value });
+  toast(r.message); if (r.ok) $('twitch-name').blur(); refresh();
+});
 $('code-save').addEventListener('click', async () => {
   const r = await api('POST', '/app/setup', { code: $('code').value });
   const n = $('code-result'); n.hidden = false; n.textContent = r.message; n.className = 'note ' + (r.ok ? 'good' : 'bad');
@@ -938,6 +948,7 @@ $('code-clear').addEventListener('click', async () => { const r = await api('POS
 
 function renderSettings() {
   const g = S.game, m = S.mod;
+  if (document.activeElement !== $('twitch-name')) $('twitch-name').value = S.twitch || '';
   $('game-found').hidden = !g.found; $('game-missing').hidden = g.found;
   if (!g.found) $('game-pick').hidden = false;
   $('game-path').textContent = g.path || '';

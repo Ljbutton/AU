@@ -82,6 +82,45 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>One lobby's table for the round (who moves on is decided per lobby).</summary>
         public List<TableRow> Lobby(string lobby, int round) => Rows(Standings.Lobby(Games.ToList(), lobby, round, _advance(), _perRound()));
 
+        /// <summary>
+        /// A lobby's table for its own round. Lobbies can be in different rounds (a big tournament starts
+        /// round 2 in one lobby while another finishes round 1), so each keeps its own; before the new
+        /// round's first game, the last round's final table stays up.
+        /// </summary>
+        public (int Round, List<TableRow> Rows) LobbyTable(string lobby, int round)
+        {
+            for (int r = round; r >= 1; r--)
+            {
+                var rows = Lobby(lobby, r);
+                if (rows.Count > 0) return (r, rows);
+                if (r == round && Games.Any(g => g.Counted && g.Round == r && string.Equals(g.Host, lobby, StringComparison.OrdinalIgnoreCase))) return (r, rows);
+            }
+            return (round, new List<TableRow>());
+        }
+
+        /// <summary>
+        /// Leader boards for the stats ticker: the top ten in each, over the tournament's counted games
+        /// (vote % needs 3 votes, impostor win % 2 impostor games).
+        /// </summary>
+        public List<(string Title, string Unit, List<(string Name, int Color, string Value)> Rows)> Leaders(int top = 10)
+        {
+            var all = Standings.Build(Games.Where(g => g.Counted), "").Leaderboard().ToList();
+            string Name(PlayerTotals p) => _roster.Match(p.Key, DiscordOf(p.Key), p.Name).Entry?.Name ?? p.Name;
+            string Pct(double v) => Math.Round(v * 100).ToString(System.Globalization.CultureInfo.InvariantCulture) + "%";
+            List<(string, int, string)> Board(IEnumerable<PlayerTotals> rows, Func<PlayerTotals, string> value) =>
+                rows.Take(top).Select(p => (Name(p), p.LastColorId, value(p))).ToList();
+            var boards = new List<(string, string, List<(string, int, string)>)>
+            {
+                ("Tournament points", "pts", Board(all.OrderByDescending(p => p.Points), p => Math.Round(p.Points, 1).ToString(System.Globalization.CultureInfo.InvariantCulture))),
+                ("Sharpest voters", "right", Board(all.Where(p => p.CorrectVotes + p.IncorrectVotes >= 3).OrderByDescending(p => p.VoteAccuracy).ThenByDescending(p => p.CorrectVotes), p => Pct(p.VoteAccuracy))),
+                ("Most kills", "kills", Board(all.Where(p => p.Kills > 0).OrderByDescending(p => p.Kills).ThenBy(p => p.Games), p => p.Kills.ToString())),
+                ("Impostor win %", "", Board(all.Where(p => p.ImpostorGames >= 2).OrderByDescending(p => (double)p.ImpostorWins / p.ImpostorGames).ThenByDescending(p => p.ImpostorWins), p => Pct((double)p.ImpostorWins / p.ImpostorGames))),
+                ("Task machines", "tasks", Board(all.Where(p => p.TasksCompleted > 0).OrderByDescending(p => p.TasksCompleted), p => p.TasksCompleted.ToString())),
+                ("Survivors", "games", Board(all.Where(p => p.Survived > 0).OrderByDescending(p => p.Survived).ThenBy(p => p.Games), p => p.Survived + "/" + p.Games)),
+            };
+            return boards.Where(b => b.Item3.Count >= 3).ToList();
+        }
+
         /// <summary>Every counted game of the tournament.</summary>
         public List<TableRow> Overall() => Rows(Standings.Build(Games.Where(g => g.Counted), "").Leaderboard().Select(t => new StandingRow { Stats = t, Total = t.Points }));
 

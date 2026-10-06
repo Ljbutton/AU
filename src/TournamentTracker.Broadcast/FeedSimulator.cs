@@ -264,7 +264,7 @@ namespace TournamentTracker.App.Broadcast
                 if (kind != null) msg["kind"] = kind;
                 foreach (var kv in data) msg[kv.Key] = kv.Value;
                 // The mod's messages are numbered (so repeats after a drop are dropped); the page's own aren't, and aren't held.
-                bool queued = type is not ("voice" or "health");
+                bool queued = type is not ("voice" or "health" or "host");
                 if (queued) { msg["src"] = _src; msg["seq"] = ++_seq; }
                 _pending.Add((_now, JsonSerializer.Serialize(msg, Json), queued));
             }
@@ -297,6 +297,8 @@ namespace TournamentTracker.App.Broadcast
             {
                 double voice = AudioLost ? -60 : _phase == "meeting" ? Rand(-18, -6) : _r.NextDouble() < 0.3 ? Rand(-35, -15) : -60;
                 double game = AudioLost ? -60 : _phase == "ingame" ? Rand(-30, -16) : -60;
+                // Who's hosting, from the host's page: a made-up Twitch channel for each fake lobby.
+                Emit("host", null, new Dictionary<string, object?> { ["twitch"] = Label.ToLowerInvariant() + "_plays_au" });
                 Emit("voice", null, new Dictionary<string, object?>
                 {
                     ["on"] = true, ["sending"] = !AudioLost, ["problem"] = AudioLost ? "voice stream dropped" : null, ["discord"] = "capturing", ["game"] = "capturing",

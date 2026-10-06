@@ -65,7 +65,9 @@ public class BroadcastTests : IDisposable
     public void Theme_and_switches_come_from_broadcast_json()
     {
         var s = State();
-        Assert.True(s.GetProperty("elements").GetProperty("statusBar").GetBoolean());
+        Assert.False(s.GetProperty("elements").GetProperty("statusBar").GetBoolean());   // the top 3 and the ticker took its place
+        Assert.True(s.GetProperty("elements").GetProperty("top3").GetBoolean());
+        Assert.True(s.GetProperty("elements").GetProperty("ticker").GetBoolean());
         Assert.Equal("#1fa143", s.GetProperty("theme").GetProperty("primary").GetString());
         _app.Settings.Set("statusBar", false);
         Assert.False(State().GetProperty("elements").GetProperty("statusBar").GetBoolean());
@@ -78,6 +80,56 @@ public class BroadcastTests : IDisposable
         Assert.Equal("#ff8800", t.GetProperty("theme").GetProperty("primary").GetString());
         Assert.Equal("https://example.com/logo.png", t.GetProperty("logo").GetString());
         Assert.True(t.GetProperty("elements").GetProperty("impostorTags").GetBoolean());
+    }
+
+    [Fact]
+    public void A_hosts_Twitch_channel_comes_with_their_lobby_and_bad_names_are_dropped()
+    {
+        Snap("LJ"); Snap("MAL");
+        _desk.Apply(JsonSerializer.Serialize(new { v = 1, type = "host", lobby = "LJ", t = 0, twitch = "@LJ_Plays" }));
+        _desk.Apply(JsonSerializer.Serialize(new { v = 1, type = "host", lobby = "MAL", t = 0, twitch = "not a name!" }));
+        var l = State().GetProperty("lobbies");
+        Assert.Equal("LJ_Plays", l.GetProperty("LJ").GetProperty("twitch").GetString());
+        Assert.Equal(JsonValueKind.Null, l.GetProperty("MAL").GetProperty("twitch").ValueKind);
+        _desk.Apply(JsonSerializer.Serialize(new { v = 1, type = "host", lobby = "LJ", t = 0, twitch = (string?)null }));   // removed in their Button
+        Assert.Null(_desk.TwitchOf("LJ"));
+        Assert.Equal("someone", TournamentTracker.Broadcast.FeedProtocol.TwitchHandle("https://www.twitch.tv/someone?ref=x"));
+        Assert.Null(TournamentTracker.Broadcast.FeedProtocol.TwitchHandle("ab"));
+    }
+
+    [Fact]
+    public void The_multiview_picker_puts_exactly_the_picked_lobbies_on_in_the_layout_their_number_needs()
+    {
+        foreach (var x in new[] { "A", "B", "C", "D", "E" }) Snap(x);
+        Assert.Equal("full", _desk.ShowPicked(new[] { "C" }).Layout);
+        var two = _desk.ShowPicked(new[] { "D", "A" });
+        Assert.Equal("2up", two.Layout); Assert.Equal(new[] { "D", "A" }, two.Slots.ToArray());
+        var four = _desk.ShowPicked(new[] { "E", "B", "A", "C" });
+        Assert.Equal("4up", four.Layout); Assert.Equal(new[] { "E", "B", "A", "C" }, four.Slots.ToArray());
+        var three = _desk.ShowPicked(new[] { "B", "C", "E" });
+        Assert.Equal("grid", three.Layout);
+        Assert.Equal(new[] { "B", "C", "E" }, three.Slots.Where(x => x != null).ToArray());   // the fourth tile is left for a sponsor or the logo
+        Assert.Equal(5, _desk.ShowPicked(new[] { "A", "B", "C", "D", "E", "A" }).Slots.Count(x => x != null));
+    }
+
+    [Fact]
+    public void A_multiview_of_four_or_more_is_presented_by_its_sponsor()
+    {
+        File.WriteAllText(Path.Combine(_dir.Path, SponsorBook.FileName), "{\"sponsors\":[{\"name\":\"Among Us All Stars\",\"placements\":[\"multiview\",\"replay\"]}]}");
+        using var desk = new CasterDesk(null, () => _clock.Now, new PriorityConfig(), null, _dir.Path);
+        var app = new BroadcastApp(desk, () => null, Path.Combine(_dir.Path, BroadcastSettings.FileName));
+        JsonElement State() => JsonSerializer.SerializeToElement(app.State(), Camel);
+        foreach (var x in new[] { "A", "B", "C", "D" }) desk.Apply(JsonSerializer.Serialize(new { type = "snap", lobby = x, round = 1, phase = "ingame", t = 0 }));
+        var _desk = desk;
+        _desk.ShowPicked(new[] { "A", "B" });
+        Assert.Equal(JsonValueKind.Null, State().GetProperty("extras").GetProperty("multiviewSponsor").ValueKind);
+        _desk.ShowPicked(new[] { "A", "B", "C", "D" });
+        Assert.Equal("Among Us All Stars", State().GetProperty("extras").GetProperty("multiviewSponsor").GetProperty("name").GetString());
+        _clock.Advance(40);
+        _desk.ShowPicked(new[] { "A" });
+        Assert.Equal(JsonValueKind.Null, State().GetProperty("extras").GetProperty("multiviewSponsor").ValueKind);
+        var (csv, _) = _desk.Sponsors.Export();
+        Assert.Contains("Among Us All Stars,multiview,", csv);
     }
 }
 
@@ -109,4 +161,5 @@ public class BroadcastObsTests : IAsyncLifetime
         Assert.Equal(new[] { "TT Broadcast", "TT Swoosh" }, _obs.Scenes["TT Quad"].TakeLast(2).Select(i => i.Source));
         Assert.Equal("http://127.0.0.1:8767/broadcast", _obs.Inputs["TT Broadcast"]["url"]!.ToString());
     }
+
 }

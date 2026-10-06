@@ -265,20 +265,26 @@ namespace TournamentTracker.App.Broadcast
                 await _obs.ShowReplaySceneAsync().ConfigureAwait(false);
                 await _obs.MediaAsync("play").ConfigureAwait(false);
                 _desk.ReplayOn(clip.Lobby);
-                // Kill Cam presented by a sponsor, on kill replays.
+                // Kill Cam presented by a sponsor on kill replays; any replay presented by a "replay" sponsor.
                 EndSponsor();
-                Sponsor? killcam = null;
-                if (clip.Rule is "kill" or "winningKill" or "witnessedKill" && Sponsors?.Next("killcam") is { } sp)
-                {
-                    killcam = sp;
-                    _sponsorKey = "killcam:" + clip.Id + ":" + _clock().Ticks;
-                    Sponsors.Begin(_sponsorKey, sp, "killcam", clip.Lobby, clip.Title);
-                }
                 bool montage = clip.Rule == "montage";
+                bool kill = clip.Rule is "kill" or "winningKill" or "witnessedKill";
+                Sponsor? killcam = null;
+                string placement = "replay";
+                if (!montage && Sponsors != null)
+                {
+                    if (kill && Sponsors.Next("killcam") is { } kc) { killcam = kc; placement = "killcam"; }
+                    else if (Sponsors.Next("replay") is { } rs) killcam = rs;
+                }
+                if (killcam != null)
+                {
+                    _sponsorKey = placement + ":" + clip.Id + ":" + _clock().Ticks;
+                    Sponsors!.Begin(_sponsorKey, killcam, placement, clip.Lobby, clip.Title);
+                }
                 TagChanged?.Invoke(JsonSerializer.Serialize(new
                 {
                     on = true, lobby = clip.Lobby, title = clip.Title,
-                    kind = montage ? "montage" : clip.Rule is "kill" or "winningKill" or "witnessedKill" ? "killcam" : "replay",
+                    kind = montage ? "montage" : kill ? "killcam" : "replay",
                     sponsor = killcam?.Name ?? (montage ? _montageSponsor : null),
                     sponsorLogo = killcam != null ? SponsorBook.LogoUrl(killcam) : null,
                 }));

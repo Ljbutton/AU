@@ -40,6 +40,7 @@ namespace TournamentTracker.Broadcast
             public const string Voice = "voice";    // from the host's page: lobby voice status (Part 11)
             public const string Health = "health";  // from the host's page: is the screen share sending pictures (Part 22)
             public const string Skip = "skip";      // from the host's page: a stand-in for an old snap/track it dropped while the link was down
+            public const string Host = "host";      // from the host's page: who's hosting (their Twitch channel), when it opens and when it changes
         }
 
         /// <summary>Event kinds.</summary>
@@ -61,6 +62,18 @@ namespace TournamentTracker.Broadcast
         public const string AckKey = "ttack";
         /// <summary>The only commands a host's page passes on to the mod.</summary>
         public const string CommandPattern = @"^spec [a-z]+( [a-z0-9.]+)?$";
+
+        /// <summary>
+        /// A Twitch channel name as a host typed it (with or without @, or as a twitch.tv link), or null
+        /// when it isn't one (4–25 letters, digits or _; Twitch allows 3 for old accounts).
+        /// </summary>
+        public static string? TwitchHandle(string? s)
+        {
+            s = (s ?? "").Trim().TrimStart('@');
+            int at = s.LastIndexOf("twitch.tv/", StringComparison.OrdinalIgnoreCase);
+            if (at >= 0) s = s.Substring(at + 10).Split('/', '?')[0];
+            return System.Text.RegularExpressions.Regex.IsMatch(s, "^[A-Za-z0-9_]{3,25}$") ? s : null;
+        }
 
         /// <summary>A message's version (0 when it has none: a host from before versions).</summary>
         public static int VersionOf(JsonElement message) =>

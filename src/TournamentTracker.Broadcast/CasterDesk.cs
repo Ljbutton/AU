@@ -216,6 +216,12 @@ namespace TournamentTracker.App.Broadcast
                 // How up to date the host's mod is (the broadcast feed's version).
                 if (lobby.Length > 0 && TournamentTracker.Broadcast.FeedProtocol.FromMod(type)) lock (_lock) _versions[lobby] = TournamentTracker.Broadcast.FeedProtocol.VersionOf(item);
                 if (type == "skip") return;
+                if (type == TournamentTracker.Broadcast.FeedProtocol.Types.Host)
+                {
+                    string? tw = item.TryGetProperty("twitch", out var th) && th.ValueKind == JsonValueKind.String ? th.GetString() : null;
+                    if (lobby.Length > 0) lock (_lock) { if (TwitchHandle(tw) is { } h) _twitch[lobby] = h; else _twitch.Remove(lobby); }
+                    return;
+                }
                 if (type == "health")
                 {
                     if (lobby.Length > 0 && item.TryGetProperty("video", out var vs) && vs.ValueKind == JsonValueKind.String) Health.Video(lobby, vs.GetString() ?? "unknown");
@@ -410,12 +416,13 @@ namespace TournamentTracker.App.Broadcast
         public object StoryState()
         {
             int round = Tables.CurrentRound;
-            var rows = StandingsScope == "overall" || round == 0 ? Tables.Overall() : Tables.Round(round);
+            var table = StandingsTable();
             return new
             {
                 Scope = StandingsScope,
                 Round = round,
-                Standings = rows.Take(20).ToList(),
+                Title = table.Title,
+                Standings = table.Rows.Take(20).ToList(),
                 Notes = Storylines.Notes(FocusKeys()).Select(n => new { n.Id, n.Kind, n.Text, n.Pinned }).ToList(),
                 Shown = ShownNote?.Text,
                 Games = Archive.Today().Count,
@@ -702,10 +709,27 @@ namespace TournamentTracker.App.Broadcast
         public List<string> GridLobbies() => Board.Ranking().Where(r => r.Phase != "menu" && (r.Online ? !DownLong(r.Lobby) : Reconnecting(r.Lobby) && !DownLong(r.Lobby))).Select(r => r.Lobby)
             .OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
 
-        /// <summary>The grid on stream: one tile per active lobby, empty tiles left for sponsors or the logo.</summary>
-        public OnAir ShowGrid(string by = "button")
+        /// <summary>
+        /// Exactly these lobbies on stream, picked in the Multiview card: one full screen, two side by
+        /// side, four in the quad, three or five and more in the grid (in the order they were picked).
+        /// </summary>
+        public OnAir ShowPicked(IList<string> lobbies, string by = "button")
         {
-            var lobbies = GridLobbies();
+            var pick = lobbies.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            return pick.Count switch
+            {
+                0 => OnAir,
+                1 => Show(pick[0], "full", null, null, by),
+                2 => Show("", "2up", null, pick, by),
+                4 => Show("", "4up", null, pick, by),
+                _ => ShowGrid(by, pick),
+            };
+        }
+
+        /// <summary>The grid on stream: one tile per active lobby (or the ones picked), empty tiles left for sponsors or the logo.</summary>
+        public OnAir ShowGrid(string by = "button", IList<string>? pick = null)
+        {
+            var lobbies = pick?.ToList() ?? GridLobbies();
             var (cols, rows) = ObsDirector.GridShape(lobbies.Count);
             var slots = lobbies.Cast<string?>().ToList();
             while (slots.Count < cols * rows) slots.Add(null);
@@ -726,7 +750,43 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>The storyline note on stream (a lower third), and when it went up.</summary>
         public (string Text, DateTime At)? ShownNote { get; set; }
         /// <summary>Standings on stream: "round" (this round, every lobby) or "overall".</summary>
-        public string StandingsScope { get; set; } = "round";
+        /// <summary>
+        /// What the standings show: "lobby" (the lobby on stream, its own round: lobbies can be in
+        /// different rounds), "round" (that round, every lobby) or "overall" (the whole tournament).
+        /// </summary>
+        public string StandingsScope { get; set; } = "lobby";
+
+        /// <summary>The lobby the standings follow: the one full screen, or slot 1 of a multi-view (else the last one).</summary>
+        public string? FeaturedLobby
+        {
+            get
+            {
+                var on = OnAir.Slots.FirstOrDefault(x => x != null);
+                if (on != null) _featured = on;
+                return _featured;
+            }
+        }
+        private string? _featured;
+
+        /// <summary>The standings table for <see cref="StandingsScope"/>: its title, round and rows.</summary>
+        public (string Title, int Round, string? Lobby, List<TableRow> Rows) StandingsTable()
+        {
+            int latest = Tables.CurrentRound;
+            string? lobby = FeaturedLobby;
+            int round = lobby != null && Board.Lobby(lobby) is { Round: > 0 } live ? live.Round : latest;
+            if (StandingsScope == "overall" || round == 0) return ("Tournament standings", 0, null, Tables.Overall());
+            if (StandingsScope == "round" || lobby == null) return ($"Round {round} · every lobby", round, null, Tables.Round(round));
+            var (r, rows) = Tables.LobbyTable(lobby, round);
+            return ($"{lobby} · round {r}{(r < round ? " final" : "")}", r, lobby, rows);
+        }
+
+        // ---- Hosts' Twitch channels (from their Button: the "host" message) ----------------------
+        private readonly Dictionary<string, string> _twitch = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>A lobby host's Twitch channel name, or null.</summary>
+        public string? TwitchOf(string lobby) { lock (_lock) return _twitch.TryGetValue(lobby, out var h) ? h : null; }
+
+        public static string? TwitchHandle(string? s) => TournamentTracker.Broadcast.FeedProtocol.TwitchHandle(s);
 
         /// <summary>Use the grid by itself whenever no lobby is mid-game (all in meetings or between games).</summary>
         public bool AutoGrid { get; set; }
