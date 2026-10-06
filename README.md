@@ -170,9 +170,12 @@ put back by itself.
   back and the host is told. A game that still starts on the wrong settings says so in its
   report (and to the referees). For a casual game the host turns **Settings lock** off on
   The Button's Home page (until they restart Among Us); without a code nothing is ever touched.
-* **Fair impostor rotation** (off unless ticked): within a round nobody is impostor a
-  second time until everyone has been once, still drawn at random. The mod swaps the
-  roles the game handed out, and announces it when a round starts.
+* **Impostor rotation** (off unless ticked): last game's impostors are rarely impostor
+  again straight away. Each of them has a 2% chance (`RepeatImpostorChance` in the config)
+  and everyone else shares the rest equally, so in a 10-player game with 2 impostors the
+  other 8 each have about 24.5%. Back to back is possible but rare (about 1 in 50), three
+  in a row almost never happens. The mod swaps the roles the game handed out, and announces
+  it when a round starts.
 
 ### 4. The combined preliminary leaderboard
 

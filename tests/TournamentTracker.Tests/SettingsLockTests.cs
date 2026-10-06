@@ -90,25 +90,59 @@ public class RotationTests : IDisposable
     public void Dispose() => _dir.Dispose();
 
     [Fact]
-    public void Everyone_is_impostor_once_before_anyone_is_twice()
+    public void Last_games_impostors_are_impostor_again_about_2_percent_of_the_time_each()
     {
-        var counts = new Dictionary<string, int>();
         var players = Enumerable.Range(0, 10).Select(i => ((byte)i, "p" + i)).ToList();
-        var random = new Random(1);
-        for (int game = 0; game < 5; game++)
+        var last = new[] { "p0", "p1" };
+        var random = new Random(7);
+        var times = new int[10];
+        const int Games = 50000;
+        for (int g = 0; g < Games; g++)
         {
-            foreach (var id in Rotation.Pick(players, counts, 2, random))
-                counts["p" + id] = counts.TryGetValue("p" + id, out var n) ? n + 1 : 1;
+            var pick = Rotation.Pick(players, last, 2, random);
+            Assert.Equal(2, pick.Distinct().Count());
+            foreach (var id in pick) times[id]++;
         }
-        Assert.Equal(10, counts.Count);
-        Assert.All(counts.Values, n => Assert.Equal(1, n));
+        // 2% each for last game's impostors; the other 8 share the rest (about 24.5% each).
+        Assert.InRange(times[0] / (double)Games, 0.017, 0.023);
+        Assert.InRange(times[1] / (double)Games, 0.017, 0.023);
+        for (int i = 2; i < 10; i++) Assert.InRange(times[i] / (double)Games, 0.235, 0.255);
     }
 
     [Fact]
-    public void Rotation_is_off_unless_the_code_turns_it_on_and_counts_per_round()
+    public void Three_in_a_row_is_possible_but_very_rare()
+    {
+        var players = Enumerable.Range(0, 10).Select(i => ((byte)i, "p" + i)).ToList();
+        var random = new Random(3);
+        IReadOnlyCollection<string> last = new[] { "p0", "p1" };
+        int streak = 0, doubles = 0, triples = 0;
+        for (int g = 0; g < 200000; g++)
+        {
+            var pick = Rotation.Pick(players, last, 2, random);
+            bool p0 = pick.Contains((byte)0);
+            streak = p0 ? streak + 1 : 0;
+            if (streak == 2) doubles++;                                    // p0 impostor two games running
+            if (streak >= 3) triples++;                                    // …and three
+            last = pick.Select(id => "p" + id).ToList();
+        }
+        Assert.InRange(doubles, 650, 950);                                 // about 20% × 2% of games
+        Assert.InRange(triples, 0, 60);                                    // about 20% × 2% × 2%: some 16 in 200,000
+    }
+
+    [Fact]
+    public void A_lobby_too_small_to_avoid_them_still_fills_every_slot()
+    {
+        var players = new List<(byte, string)> { (0, "a"), (1, "b"), (2, "c") };
+        var pick = Rotation.Pick(players, new[] { "a", "b" }, 2, new Random(1), 0);
+        Assert.Equal(2, pick.Count);
+        Assert.Contains((byte)2, pick);
+    }
+
+    [Fact]
+    public void Rotation_is_off_unless_the_code_turns_it_on_and_remembers_last_games_impostors()
     {
         var clock = new FakeClock();
-        TournamentSession Make(bool rot) => new(new TrackerSettings { LiveStatus = false, PublicChat = true, ControlPort = -1 }, _dir.Path, NullLog.Instance, new HttpClient(new FakeHttp()), () => clock.Now,
+        TournamentSession Make(bool rot) => new(new TrackerSettings { LiveStatus = false, PublicChat = true, ControlPort = -1, RepeatImpostorChance = 0 }, _dir.Path, NullLog.Instance, new HttpClient(new FakeHttp()), () => clock.Now,
             new FakeVoiceApi(), new TournamentTracker.Discord.VoicePresenceState("g1"),
             new TournamentTracker.Setup.SetupCode { TournamentId = "t", TournamentName = "T", Webhook = "https://discord.com/api/webhooks/1/a", ImpostorRotation = rot });
 
@@ -121,7 +155,7 @@ public class RotationTests : IDisposable
         for (int i = 0; i < 20; i++)
         {
             var pick = s.PickImpostors(lobby, 2)!;
-            Assert.DoesNotContain((byte)0, pick);                       // Alice and Bob have had their turn
+            Assert.DoesNotContain((byte)0, pick);                       // with the chance at 0, Alice and Bob sit this one out
             Assert.DoesNotContain((byte)1, pick);
         }
     }

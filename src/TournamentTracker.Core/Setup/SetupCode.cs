@@ -52,7 +52,7 @@ namespace TournamentTracker.Setup
         /// <summary>Game settings the host's lobby is locked to (both kinds of code).</summary>
         [JsonPropertyName("set")] public LobbySettings? Lobby { get; set; }
 
-        /// <summary>Fair impostor rotation within each round.</summary>
+        /// <summary>Impostor rotation: last game's impostors rarely impostor again straight away.</summary>
         [JsonPropertyName("rot")] public bool? ImpostorRotation { get; set; }
 
         /// <summary>Tournament host codes: this host's mod answers the results-channel commands. Give it to one host (you).</summary>

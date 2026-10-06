@@ -6,10 +6,11 @@ using TournamentTracker.Stats;
 namespace TournamentTracker
 {
     /// <summary>
-    /// Fair impostor rotation (off unless the setup code turns it on): within a round, the
-    /// impostors are drawn at random from the players who've been impostor the fewest times,
-    /// so nobody gets a second impostor game before everyone has had one. The host's game
-    /// still hands out roles; the mod then swaps them to the picked players.
+    /// Impostor rotation (off unless the setup code turns it on): last game's impostors are rarely
+    /// impostor again straight away. Each of them gets a small chance (2% by default) and everyone
+    /// else shares the rest equally, so back-to-back impostor games are possible but unlikely, and
+    /// three in a row almost never happen. The host's game still hands out roles; the mod then
+    /// swaps them to the picked players.
     /// </summary>
     public sealed partial class TournamentSession
     {
@@ -17,8 +18,8 @@ namespace TournamentTracker
 
         public bool RotationOn => _settings.ImpostorRotation;
 
-        /// <summary>Impostor games per player (by key) in a round, from this lobby's counted games.</summary>
-        private Dictionary<int, Dictionary<string, int>> _impostorGames = new Dictionary<int, Dictionary<string, int>>();
+        /// <summary>The impostors of this lobby's last counted game (player keys), whatever the round.</summary>
+        private List<string> _lastImpostors = new List<string>();
 
         /// <summary>
         /// Who should be impostor this game, or null when rotation is off. Picks
@@ -29,31 +30,39 @@ namespace TournamentTracker
             if (!RotationOn || count <= 0) return null;
             var eligible = WithoutReferee(players).Where(p => !p.Disconnected).ToList();
             if (eligible.Count <= count) return null;
-            var counts = _impostorGames.TryGetValue(Round, out var c) ? c : new Dictionary<string, int>();
-            return Rotation.Pick(eligible.Select(p => (p.PlayerId, p.Key)).ToList(), counts, count, _rotationRandom);
+            return Rotation.Pick(eligible.Select(p => (p.PlayerId, p.Key)).ToList(), _lastImpostors, count, _rotationRandom, _settings.RepeatImpostorChance);
         }
 
+        /// <summary>A game counted (or uncounted, when voided): remember its impostors for the next pick.</summary>
         private void CountImpostorGames(GameRecord game, int change)
         {
             if (!RotationOn) return;
-            if (!_impostorGames.TryGetValue(game.Round, out var counts)) _impostorGames[game.Round] = counts = new Dictionary<string, int>();
-            foreach (var p in game.Players.Where(p => p.IsImpostor))
-                counts[p.Key] = Math.Max(0, (counts.TryGetValue(p.Key, out var n) ? n : 0) + change);
+            var keys = game.Players.Where(p => p.IsImpostor).Select(p => p.Key).ToList();
+            if (change > 0) _lastImpostors = keys;
+            else if (_lastImpostors.SequenceEqual(keys)) _lastImpostors = new List<string>();   // the last game was voided
             SaveState();
         }
     }
 
     public static class Rotation
     {
-        public static List<byte> Pick(IReadOnlyList<(byte Id, string Key)> players, IReadOnlyDictionary<string, int> impostorGames, int count, Random random)
+        /// <summary>
+        /// Each of last game's impostors is impostor again with probability <paramref name="repeatChance"/>
+        /// (on their own, one after another); the slots left are drawn evenly from everyone else.
+        /// </summary>
+        public static List<byte> Pick(IReadOnlyList<(byte Id, string Key)> players, IReadOnlyCollection<string> lastImpostors, int count, Random random, double repeatChance = 0.02)
         {
-            int Games((byte Id, string Key) p) => impostorGames.TryGetValue(p.Key, out var n) ? n : 0;
-            return players
-                .OrderBy(Games)
-                .ThenBy(_ => random.Next())
-                .Take(count)
-                .Select(p => p.Id)
-                .ToList();
+            var last = players.Where(p => lastImpostors.Contains(p.Key)).OrderBy(_ => random.Next()).ToList();
+            var others = players.Where(p => !lastImpostors.Contains(p.Key)).OrderBy(_ => random.Next()).ToList();
+            var picked = new List<byte>();
+            foreach (var p in last)
+                if (picked.Count < count && random.NextDouble() < repeatChance) picked.Add(p.Id);
+            foreach (var p in others)
+                if (picked.Count < count) picked.Add(p.Id);
+            // A lobby too small to avoid them: fill up with last game's impostors.
+            foreach (var p in last)
+                if (picked.Count < count && !picked.Contains(p.Id)) picked.Add(p.Id);
+            return picked;
         }
     }
 }

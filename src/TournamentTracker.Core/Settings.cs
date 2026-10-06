@@ -34,8 +34,11 @@ namespace TournamentTracker
         /// <summary>The tournament's game settings, from the setup code; null: nothing locked or checked.</summary>
         public LobbySettings? LobbySettings { get; set; }
 
-        /// <summary>Spread impostor turns evenly within a round (see Rotation). Off unless the setup code turns it on.</summary>
+        /// <summary>Make it rare for last game's impostors to be impostor again straight away (see Rotation). Off unless the setup code turns it on.</summary>
         public bool ImpostorRotation { get; set; }
+
+        /// <summary>With rotation on: the chance each of last game's impostors is impostor again (0.02 = 2%).</summary>
+        public double RepeatImpostorChance { get; set; } = 0.02;
 
         /// <summary>This host's mod answers the organiser's commands in the results channel (!lobbies, !start…).</summary>
         public bool Lead { get; set; }
