@@ -265,7 +265,7 @@ function standings() {
 }
 // After a game: the lobby's table with arrows for who went up and down.
 function standingsChange() {
-  const ch = S.standingsChange; if (!ch) return;
+  const ch = S.standingsChange; if (!ch || S.layout === 'intermission' || S.layout === 'slate') return;   // those screens have their own tables
   put('stchange', `<div class="panel"><h2>${esc(ch.lobby)} <small>after the game</small></h2><table class="st">${ch.rows.slice(0, 10).map(r => {
     const d = r.was == null ? 0 : r.was - r.rank;
     return `<tr class="${r.advancing ? 'adv' : ''}"><td class="r">${r.rank}</td><td>${sw(r.color)}${esc(r.name)}${d > 0 ? `<span class="arrow up">▲${d}</span>` : d < 0 ? `<span class="arrow down">▼${-d}</span>` : ''}</td><td class="p">${r.points}</td></tr>`;
