@@ -164,7 +164,7 @@ tr:last-child td{border-bottom:0}
 .tier-must{--tier:#ff2d55}.tier-veryHigh{--tier:#ff8a3d}.tier-high{--tier:#ffc15a}.tier-medium{--tier:#5aa9ff}.tier-low{--tier:#56606e}.tier-offline{--tier:#3a404a}
 .desk-lobbies{display:grid;gap:6px}
 .who{white-space:nowrap}
-i.sw{display:inline-block;width:.72em;height:.72em;border-radius:3px;margin:0 .28em 0 .05em;vertical-align:-.04em;box-shadow:0 0 0 1px rgba(255,255,255,.35)}
+img.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 .05em;vertical-align:-.25em}
 .roster-card{margin-top:10px}
 .story-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:14px;margin-top:8px}
 @media (max-width:900px){.story-grid{grid-template-columns:minmax(0,1fr)}}
@@ -196,6 +196,7 @@ i.sw{display:inline-block;width:.72em;height:.72em;border-radius:3px;margin:0 .2
 .dlob .ppl{grid-column:1/-1}
 .ppl button{all:unset;cursor:pointer;font:600 11.5px/1 var(--round);padding:3px 6px;border-radius:6px;border:1px solid var(--line);color:var(--fg);white-space:nowrap}
 .ppl button:hover{border-color:var(--accent)}
+.ppl img.sw{height:1.5em;vertical-align:-.4em}
 .ppl button::after{content:" · card";color:var(--muted)}
 .vo-list{display:grid;gap:6px;margin-top:8px}
 .vo{display:grid;grid-template-columns:minmax(90px,.7fr) minmax(0,1.6fr) auto;gap:10px;align-items:center;padding:7px 10px;border-radius:10px;background:var(--sunk);font-size:13px}
@@ -1156,10 +1157,9 @@ const REASONS = { HumansByTask: 'Tasks done', HumansByVote: 'Impostors voted out
 // Every lobby's live data arrives through VDO.Ninja (hidden links below, data only), is ranked by
 // The Button, and shows here as cards. Clicking puts a lobby on stream.
 let DESK = null, deskKey = '';
-// Among Us colours, for the swatch next to every player's name.
-const CREW = ['#c51111','#132ed1','#117f2d','#ed54ba','#ef7d0d','#f5f557','#3f474e','#d6e0f0','#6b2fbb','#71491e','#38fedc','#50ef39','#5f1d2e','#ecc0d3','#f0e7a8','#758593','#918877','#d76464'];
-const sw = c => `<i class="sw" style="background:${CREW[c] || '#888'}"></i>`;
-// "[[6|Jake]]" in a text → a colour swatch and the name.
+// A player's colour is their crewmate head next to their name.
+const sw = c => `<img class="sw" src="${head(+c)}" alt="">`;
+// "[[6|Jake]]" in a text → their crewmate head and the name.
 const rich = t => esc(t || '').replace(/\[\[(\d+)\|([^\]]*)\]\]/g, (m, c, n) => `<span class="who">${sw(+c)}${n}</span>`);
 const plain = t => (t || '').replace(/\[\[(\d+)\|([^\]]*)\]\]/g, '$2');
 const TIER_NAME = { must: 'Must show', veryHigh: 'Very high', high: 'High', medium: 'Medium', low: 'Low', offline: 'Offline' };
