@@ -145,6 +145,20 @@ namespace TournamentTracker.App.Broadcast
             _desk = desk;
             _obs = obs;
             Settings = new BroadcastSettingsFile(settingsPath);
+            // Part 16: sponsors on the standings, the grid's empty tiles and the split-screen break.
+            Extras["standingsSponsor"] = () =>
+            {
+                bool on = Settings.Current.Elements.GetValueOrDefault("standings");
+                var sp = on ? desk.Sponsors.Current("standings") : null;
+                if (sp == null) { desk.Sponsors.End("standings"); return null; }
+                desk.Sponsors.Begin("standings", sp, "standings");
+                return new { name = sp.Name, logo = SponsorBook.LogoUrl(sp), tagline = sp.Tagline };
+            };
+            Extras["sponsorTiles"] = () => desk.OnAir.Layout != "grid" ? null
+                : desk.GridSponsors.ToDictionary(kv => kv.Key.ToString(), kv => new { name = kv.Value.Name, logo = SponsorBook.LogoUrl(kv.Value), tagline = kv.Value.Tagline });
+            Extras["sponsorBreak"] = () => desk.OnAir.Layout == "break" && desk.Break is { } b
+                ? new { name = b.Sponsor.Name, logo = SponsorBook.LogoUrl(b.Sponsor), video = SponsorBook.VideoUrl(b.Sponsor), tagline = b.Sponsor.Tagline, left = Math.Max(0, Math.Ceiling((b.Until - DateTime.UtcNow).TotalSeconds)), total = Math.Max(5, b.Sponsor.BreakSeconds) }
+                : null;
         }
 
         /// <summary>The canvas and where each lobby is on it, for the layout on stream.</summary>

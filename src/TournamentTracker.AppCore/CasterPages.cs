@@ -235,18 +235,33 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden;font:700 3
 .tag{position:absolute;left:48px;top:40px;display:flex;align-items:center;gap:18px;opacity:0;transform:translateX(-30px);transition:opacity .35s,transform .35s}
 .tag.on{opacity:1;transform:none}
 .badge{background:#ff2d55;padding:10px 22px 10px 18px;border-radius:12px;letter-spacing:.12em;display:flex;align-items:center;gap:12px;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+.badge.montage{background:#ffc15a;color:#16120a}
+.badge.montage .dot{background:#16120a}
 .dot{width:16px;height:16px;border-radius:50%;background:#fff;animation:p 1.1s infinite}
 @keyframes p{50%{opacity:.25}}
 .what{background:rgba(5,7,11,.72);padding:10px 18px;border-radius:12px;font-weight:600;font-size:30px;text-shadow:0 2px 6px #000}
+.sw{display:inline-block;width:.8em;height:.8em;border-radius:4px;margin:0 .3em -.06em 0;border:2px solid rgba(255,255,255,.55)}
+.by{background:rgba(5,7,11,.72);padding:8px 16px;border-radius:12px;font-size:22px;font-weight:600;color:#cfd6e2;display:flex;align-items:center;gap:12px;letter-spacing:.06em}
+.by b{color:#fff;font-size:28px;letter-spacing:0}
+.by img{height:44px;max-width:180px;object-fit:contain}
 </style></head><body>
-<div class=""tag"" id=""tag""><div class=""badge""><span class=""dot""></span>REPLAY</div><div class=""what"" id=""what""></div></div>
+<div class=""tag"" id=""tag""><div class=""badge"" id=""badge""><span class=""dot""></span><span id=""label"">REPLAY</span></div><div class=""what"" id=""what""></div><div class=""by"" id=""by"" hidden></div></div>
 <script>
+const CREW=['#c51111','#132ed1','#117f2d','#ed54ba','#ef7d0d','#f5f557','#3f474e','#d6e0f0','#6b2fbb','#71491e','#38fedc','#50ef39','#5f1d2e','#ecc0d3','#f0e7a8','#758593','#918877','#d76464'];
+const esc=s=>String(s??'').replace(/[&<>""]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','""':'&quot;'}[c]));
+const rich=s=>esc(s).replace(/\[\[(\d+)\|([^\]]*)\]\]/g,(m,c,n)=>`<i class=""sw"" style=""background:${CREW[+c]||'#888'}""></i>${n}`);
 async function tick(){
   try{
     const d=await (await fetch('/replaynow',{cache:'no-store'})).json();
     document.getElementById('tag').classList.toggle('on',!!d.on);
-    document.getElementById('what').textContent=d.on?`${d.lobby} · ${d.title}`:'';
-    document.getElementById('what').hidden=!d.on;
+    if(!d.on)return;
+    const kind=d.kind||'replay';
+    document.getElementById('label').textContent=kind==='montage'?'MONTAGE':kind==='killcam'?'KILL CAM':'REPLAY';
+    document.getElementById('badge').className='badge '+kind;
+    document.getElementById('what').innerHTML=kind==='montage'?rich(d.title):(d.lobby?esc(d.lobby)+' · ':'')+rich(d.title);
+    const by=document.getElementById('by');
+    by.hidden=!d.sponsor;
+    if(d.sponsor) by.innerHTML=`${kind==='montage'?'PRESENTED BY':'PRESENTED BY'} ${d.sponsorLogo?`<img src=""${esc(d.sponsorLogo)}"" alt="""">`:''}<b>${esc(d.sponsor)}</b>`;
   }catch(e){}
 }
 tick();setInterval(tick,400);

@@ -48,7 +48,7 @@ namespace TournamentTracker.App.Broadcast
         public List<Box>? Boxes { get; set; }
         public DateTime Since { get; set; }
 
-        public static int SlotsFor(string layout) => layout == "4up" ? 4 : layout == "2up" ? 2 : layout == "full" ? 1 : layout == "grid" ? 1 : 0;
+        public static int SlotsFor(string layout) => layout == "4up" ? 4 : layout == "2up" ? 2 : layout is "full" or "grid" or "break" ? 1 : 0;
 
         /// <summary>"LIVE (full)", "LIVE (2-up, slot 1)", "LIVE (quad, slot 2)", "REPLAY", or null when not on.</summary>
         public string? Label(string lobby)
@@ -61,6 +61,7 @@ namespace TournamentTracker.App.Broadcast
                 "2up" => $"LIVE (2-up, slot {i + 1})",
                 "4up" => $"LIVE (quad, slot {i + 1})",
                 "grid" => $"LIVE (grid, tile {i + 1})",
+                "break" => "LIVE (sponsor break)",
                 "replay" => "REPLAY",
                 _ => null,
             };
@@ -105,6 +106,8 @@ namespace TournamentTracker.App.Broadcast
         public GameArchive Archive { get; }
         public Tables Tables { get; }
         public Storylines Storylines { get; }
+        /// <summary>Sponsors, where they show, and the log of every appearance.</summary>
+        public SponsorBook Sponsors { get; }
         /// <summary>The tournament's scored game records (the organiser view's shared results).</summary>
         public Func<IReadOnlyList<GameRecord>>? ExternalGames { get; set; }
         public Func<int> Advance { get; set; } = () => 5;
@@ -130,6 +133,7 @@ namespace TournamentTracker.App.Broadcast
             Tables = new Tables(() => Games, Roster, () => Advance(), () => GamesPerRound());
             Storylines = new Storylines(Archive, () => Tables, dataFolder == null ? null : System.IO.Path.Combine(dataFolder, "notes-state.json"));
             _clock = clock ?? (() => DateTime.UtcNow);
+            Sponsors = new SponsorBook(dataFolder, _clock);
             if (config != null) _config = () => config;
             else
             {
@@ -208,6 +212,8 @@ namespace TournamentTracker.App.Broadcast
                 }
             }
             if (made != null) CardMade?.Invoke(made);
+            // A MUST SHOW play cuts a sponsor break short: straight back to full screen on it.
+            if (made != null && made.Tier == "must" && OnAir.Layout == "break") Show(lobby);
         }
 
         /// <summary>Notes a card's replay clip.</summary>
@@ -342,7 +348,7 @@ namespace TournamentTracker.App.Broadcast
         public OnAir Show(string lobby, string layout = "full", int? slot = null, IList<string>? slots = null)
         {
             if (layout == "grid") return ShowGrid();
-            layout = OnAir.SlotsFor(layout) > 0 ? layout : "full";
+            layout = OnAir.SlotsFor(layout) > 0 && layout != "break" ? layout : "full";
             int n = OnAir.SlotsFor(layout);
             var ranked = Board.Ranking().Where(r => r.Online).Select(r => r.Lobby).ToList();
             OnAir next;
@@ -370,8 +376,61 @@ namespace TournamentTracker.App.Broadcast
                 _onAir = next;
                 MarkShown(next);
             }
+            Left(next);
             Switch?.Invoke(next);
             return next;
+        }
+
+        // ---- Sponsors on stream -----------------------------------------------------------------
+
+        /// <summary>The split-screen sponsor break on now: who, until when, and the lobby kept on the left.</summary>
+        public (Sponsor Sponsor, DateTime Until, string? Lobby)? Break { get; private set; }
+        private readonly Dictionary<int, Sponsor> _gridSponsors = new Dictionary<int, Sponsor>();
+
+        /// <summary>
+        /// A split-screen sponsor break: the lobby (the one on now, or the top one) shrinks to the left,
+        /// the sponsor's video or logo fills the right. Ends by itself; a MUST SHOW play ends it at once.
+        /// </summary>
+        public string StartBreak(string? sponsorName = null, string? lobby = null)
+        {
+            var list = Sponsors.Sponsors.Where(x => x.Placements.Contains("break")).ToList();
+            var sp = sponsorName != null ? list.FirstOrDefault(x => string.Equals(x.Name, sponsorName, StringComparison.OrdinalIgnoreCase)) : Sponsors.Next("break");
+            if (sp == null) return list.Count == 0 ? "No sponsor has the \"break\" placement: add it in sponsors.json." : "No such sponsor.";
+            lobby ??= OnAir.Slots.FirstOrDefault(x => !string.IsNullOrEmpty(x)) ?? Board.Ranking().FirstOrDefault(r => r.Online)?.Lobby;
+            OnAir next;
+            lock (_lock)
+            {
+                next = new OnAir { Layout = "break", Slots = new List<string?> { lobby }, By = "button", Since = _clock() };
+                _onAir = next;
+                MarkShown(next);
+                Break = (sp, _clock().AddSeconds(Math.Max(5, sp.BreakSeconds)), lobby);
+            }
+            Sponsors.EndAll("grid:");
+            Sponsors.Begin("break", sp, "break", lobby);
+            Switch?.Invoke(next);
+            return $"Sponsor break: {sp.Name} for {Math.Max(5, sp.BreakSeconds)}s.";
+        }
+
+        /// <summary>Sponsors for the grid's empty tiles (tile number → sponsor), while the grid is on.</summary>
+        public Dictionary<int, Sponsor> GridSponsors { get { lock (_lock) return new Dictionary<int, Sponsor>(_gridSponsors); } }
+
+        /// <summary>Whatever was on before has gone: close its sponsor appearances.</summary>
+        private void Left(OnAir next)
+        {
+            if (next.Layout != "break" && Break != null) { Break = null; Sponsors.End("break"); }
+            if (next.Layout != "grid") { lock (_lock) _gridSponsors.Clear(); Sponsors.EndAll("grid:"); }
+            else
+            {
+                // Empty tiles take turns between the grid's sponsors.
+                Sponsors.EndAll("grid:");
+                lock (_lock)
+                {
+                    _gridSponsors.Clear();
+                    for (int i = 0; i < next.Slots.Count; i++)
+                        if (next.Slots[i] == null && Sponsors.Next("grid") is { } sp) _gridSponsors[i + 1] = sp;
+                }
+                foreach (var (tile, sp) in GridSponsors) Sponsors.Begin("grid:" + tile, sp, "grid");
+            }
         }
 
         // ---- The grid: every active lobby at once ----------------------------------------------
@@ -394,6 +453,7 @@ namespace TournamentTracker.App.Broadcast
                 _onAir = next;
                 MarkShown(next);
             }
+            Left(next);
             Switch?.Invoke(next);
             return next;
         }
@@ -425,6 +485,11 @@ namespace TournamentTracker.App.Broadcast
             OnAir air;
             lock (_lock) air = _onAir;
             if (air.Layout == "replay") return;
+            if (air.Layout == "break")
+            {
+                if (Break is { } b && _clock() >= b.Until) Show(b.Lobby ?? "");
+                return;
+            }
             var ranking = Board.Ranking().Where(r => r.Online && r.Phase != "menu").ToList();
             bool quiet = ranking.Count > 0 && ranking.All(r => r.Phase != "ingame");
             if (air.Layout == "grid")
@@ -459,6 +524,7 @@ namespace TournamentTracker.App.Broadcast
                 _onAir = state;
                 MarkShown(state);
             }
+            Left(state);
         }
 
         /// <summary>Live cards of lobbies that just went on air count as shown from now.</summary>
@@ -530,6 +596,7 @@ namespace TournamentTracker.App.Broadcast
                     ConfigPath,
                     Problem = _file?.Problem,
                     AutoGrid,
+                    Break = Break is { } br ? new { Sponsor = br.Sponsor.Name, Left = Math.Max(0, (int)Math.Ceiling((br.Until - now).TotalSeconds)), br.Lobby } : null,
                     OnAir = new { _onAir.Layout, _onAir.Slots, _onAir.By, _onAir.Scene, Since = _onAir.Since == default ? null : _onAir.Since.ToString("o") },
                     Lobbies = ranking.Select(r => new
                     {

@@ -24,7 +24,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Connect when The Button starts (after the first successful connect).</summary>
         public bool AutoConnect { get; set; }
         /// <summary>The scenes The Button builds and switches between: full screen, 2-up, quad.</summary>
-        public Dictionary<string, string> Scenes { get; set; } = new Dictionary<string, string> { ["full"] = "TT Full", ["2up"] = "TT 2-up", ["4up"] = "TT Quad", ["grid"] = "TT Grid" };
+        public Dictionary<string, string> Scenes { get; set; } = new Dictionary<string, string> { ["full"] = "TT Full", ["2up"] = "TT 2-up", ["4up"] = "TT Quad", ["grid"] = "TT Grid", ["break"] = "TT Sponsor Break" };
         /// <summary>Each lobby's VDO.Ninja source is called this plus the lobby name.</summary>
         public string SourcePrefix { get; set; } = "TT Lobby ";
         /// <summary>Space between the pictures in 2-up and quad, in canvas pixels.</summary>
@@ -221,6 +221,12 @@ namespace TournamentTracker.App.Broadcast
                         for (int c = 0; c < cols; c++)
                             boxes.Add(new Box(gap + c * (bw + gap), gap + r * (bh + gap), bw, bh));
                     return boxes;
+                }
+                case "break":
+                {
+                    // The lobby on the left two thirds; the sponsor's panel (drawn by the graphics app) on the right.
+                    double bw = Math.Round(w * 0.66), bh = bw * 9 / 16;
+                    return new List<Box> { new Box(Math.Round(w * 0.025), (h - bh) / 2, bw, bh) };
                 }
                 case "2up":
                 {

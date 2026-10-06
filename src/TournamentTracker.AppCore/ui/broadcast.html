@@ -62,6 +62,18 @@ i.sw{display:inline-block;width:.72em;height:.72em;border-radius:.18em;margin-ri
 /* Storyline note */
 .note{display:flex;align-items:center;gap:.6em;background:var(--panel);border-radius:.3em;border-left:.25em solid var(--accent);padding:.4em .9em;font-size:.9em;max-width:1300px}
 .note b{font:700 1em/1 var(--head),sans-serif;letter-spacing:.08em;color:var(--accent);text-transform:uppercase}
+/* Sponsor break */
+.brk{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5em;background:var(--panel);border-radius:.35em;border-top:.2em solid var(--accent);padding:1em;text-align:center}
+.brk .top{font:700 .7em/1 var(--font),sans-serif;letter-spacing:.2em;opacity:.75}
+.brk .nm{font:700 2em/1 var(--head),sans-serif;letter-spacing:.06em;text-transform:uppercase}
+.brk .tl{font-size:.8em;opacity:.85}
+.brk img{max-width:85%;max-height:9em;object-fit:contain}
+.brkv{box-sizing:border-box;border-radius:.3em;overflow:hidden;background:#000}
+.brkv video{width:100%;height:100%;object-fit:contain;display:block}
+.brkt{display:flex;align-items:center;gap:.6em;font-size:.7em;letter-spacing:.08em}
+.brkt .b{flex:1;height:.35em;border-radius:.2em;background:rgba(255,255,255,.18);overflow:hidden}
+.brkt .b i{display:block;height:100%;background:var(--accent)}
+.brklabel{font:700 1em/1 var(--head),sans-serif;letter-spacing:.12em;padding:.2em .6em .1em;border-radius:.3em;background:var(--accent);color:#111}
 /* Status bar */
 .bar{display:flex;flex-wrap:wrap;gap:6px;padding:6px 10px;box-sizing:border-box;background:linear-gradient(transparent,rgba(0,0,0,.55) 30%)}
 .cell{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:.45em;padding:.25em .55em;border-radius:.3em;background:var(--panel);border:.08em solid rgba(255,255,255,.12);font-size:.82em;white-space:nowrap;overflow:hidden;position:relative}
@@ -204,9 +216,24 @@ ELEMENTS.pointsOnTheLine = (slot, l, k) => {
     { left: slot.x + slot.w / 2 + 'px', top: slot.y + slot.h - 150 * k + 'px', transform: 'translateX(-50%)', fontSize: 34 * k + 'px' });
 };
 
+// A split-screen sponsor break: the lobby on the left, the sponsor on the right with a countdown.
+function sponsorBreak() {
+  const b = S.extras && S.extras.sponsorBreak; if (!b || S.layout !== 'break') return;
+  const slot = S.slots[0]; if (!slot) return;
+  const x = slot.x + slot.w + 40, w = S.canvas.w - x - 48;
+  const vh = b.video ? w * 9 / 16 : 0;
+  const top = slot.y;
+  put('brk-label', `<div class="brklabel">SPONSOR BREAK</div>`, { left: slot.x + 'px', top: slot.y - 60 + 'px', fontSize: '36px' });
+  if (b.video) put('brk-video', `<div class="brkv" style="width:${w}px;height:${vh}px"><video src="${esc(b.video)}" autoplay playsinline></video></div>`, { left: x + 'px', top: top + 'px' });
+  put('brk-panel', `<div class="brk" style="width:${w}px;height:${slot.h - vh - (b.video ? 16 : 0) - 50}px"><div class="top">PRESENTED BY</div>${b.logo ? `<img src="${esc(b.logo)}" alt="">` : ''}<div class="nm">${esc(b.name)}</div>${b.tagline ? `<div class="tl">${esc(b.tagline)}</div>` : ''}</div>`,
+    { left: x + 'px', top: top + vh + (b.video ? 16 : 0) + 'px', fontSize: '30px' });
+  put('brk-time', `<div class="brkt" style="width:${w}px"><span>BACK IN ${b.left}s</span><span class="b"><i style="width:${Math.round(100 * b.left / b.total)}%;transition:width 1s linear"></i></span></div>`,
+    { left: x + 'px', top: slot.y + slot.h - 30 + 'px', fontSize: '30px' });
+}
+
 // More elements are added by later parts (sponsors, alerts, counters…).
-const GLOBAL = { statusBar, standings, standingsChange, storyline };
-const ALWAYS = new Set();
+const GLOBAL = { statusBar, standings, standingsChange, storyline, sponsorBreak };
+const ALWAYS = new Set(['sponsorBreak']);
 
 function render() {
   const th = S.theme || {};

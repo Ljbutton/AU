@@ -98,6 +98,7 @@ namespace TournamentTracker.App
         private ObsDirector? _obs;
         private ReplayManager? _replays;
         private BroadcastApp? _broadcast;
+        private MontageManager? _montages;
 
         /// <summary>Starts (or stops) the organiser's view for the saved administration code.</summary>
         private void StartOrganizer()
@@ -132,8 +133,10 @@ namespace TournamentTracker.App
                 if (organizer.CasterUrl != null) obs.TagUrl = organizer.CasterUrl + "replaytag";
                 var broadcast = _broadcast = new BroadcastApp(desk, () => _obs, SideFile(BroadcastSettings.FileName));
                 if (organizer.CasterUrl != null) obs.BroadcastUrl = organizer.CasterUrl + "broadcast";
-                organizer.MorePages = path => BroadcastPage(broadcast, path);
-                _replays = new ReplayManager(desk, obs) { TagChanged = json => organizer.ReplayNow = json };
+                organizer.MorePages = path => BroadcastPage(broadcast, path) ?? SponsorPage(desk, path);
+                var builder = new MontageBuilder(() => obs.Settings.Replay, () => obs.ClipFolder, SideFolder() is { } side ? Path.Combine(side, "tools") : null);
+                var replays = _replays = new ReplayManager(desk, obs) { TagChanged = json => organizer.ReplayNow = json, Builder = builder, Sponsors = desk.Sponsors };
+                _montages = new MontageManager(desk, replays, builder, desk.Sponsors, () => obs.Settings.Replay);
                 obs.Start();
             }
         }
@@ -150,8 +153,37 @@ namespace TournamentTracker.App
             return null;
         }
 
+        /// <summary>A sponsor's logo or video (files on this PC) for the graphics app and the replay tag.</summary>
+        private static (string Type, byte[] Body)? SponsorPage(CasterDesk desk, string path)
+        {
+            if (path.Split('?')[0] != "/sponsorfile") return null;
+            string q = path.Contains('?') ? path.Substring(path.IndexOf('?') + 1) : "";
+            return desk.Sponsors.MediaFile(HttpRequest.Query(q, "name"), HttpRequest.Query(q, "what"));
+        }
+
         /// <summary>caster-priority.json, next to The Button's settings.</summary>
         private string? DeskConfigPath => SideFile(PriorityConfig.FileName);
+
+        private string? _ffmpegNote;
+
+        private object? SponsorState()
+        {
+            if (_desk == null) return null;
+            var list = _desk.Sponsors.Sponsors;
+            var log = _desk.Sponsors.Appearances();
+            return new
+            {
+                Path = _desk.Sponsors.Path,
+                Problem = _desk.Sponsors.Problem,
+                FfmpegNote = _ffmpegNote,
+                List = list.Select(x => new
+                {
+                    x.Name, x.Tagline, x.Placements, x.BreakSeconds, Logo = x.Logo.Length > 0,
+                    Shown = log.Count(a => a.Sponsor == x.Name),
+                    Seconds = Math.Round(log.Where(a => a.Sponsor == x.Name).Sum(a => a.Seconds)),
+                }).ToList(),
+            };
+        }
 
         private string? SideFolder() => string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.GetDirectoryName(_env.SettingsFile);
 
@@ -350,6 +382,7 @@ namespace TournamentTracker.App
                 case ("GET", "/app/admin/desk"):
                     if (_desk == null || _organizer == null) return Text(404, "application/json", "{\"error\":\"locked\"}");
                     return Ok(new { desk = _desk.State(), obs = _obs?.Status(), replay = _replays?.State(), roster = _desk.RosterState(), story = _desk.StoryState(),
+                        montages = _montages?.State(), moments = _replays?.Moments(), sponsors = SponsorState(),
                         broadcast = _broadcast == null ? null : new { url = _organizer.CasterUrl == null ? null : _organizer.CasterUrl + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem },
                         names = _organizer.DataLinks().ToDictionary(d => d.Lobby, d => _desk.NamesFor(d.Lobby)), receivers = _organizer.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList() });
                 case ("POST", "/app/admin/feedin"):
@@ -441,6 +474,88 @@ namespace TournamentTracker.App
                             string? said = await _replays.ControlAsync(action, Num("value"), Num("value2")).ConfigureAwait(false);
                             return Ok(new { ok = said == null || action == "live", message = said ?? "" });
                         }
+                    }
+                }
+                case ("POST", "/app/admin/montage"):
+                {
+                    if (_montages == null || _desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    string id = Arg("id");
+                    switch (Arg("action"))
+                    {
+                        case "play": return Ok(new { ok = true, message = await _montages.PlayAsync(id).ConfigureAwait(false) });
+                        case "discard": return Ok(new { ok = true, message = _montages.Discard(id) });
+                        case "ffmpeg":
+                            if (_montages.Builder.Ffmpeg != null) return Ok(new { ok = true, message = "ffmpeg is already here." });
+                            if (!OperatingSystem.IsWindows()) return Ok(new { ok = false, message = "Install ffmpeg with your package manager." });
+                            _ = Task.Run(async () => { try { _ffmpegNote = "Downloading ffmpeg…"; _ffmpegNote = await _montages.Builder.DownloadFfmpegAsync(_http).ConfigureAwait(false); } catch (Exception e) { _ffmpegNote = "ffmpeg download failed: " + e.Message; } });
+                            return Ok(new { ok = true, message = "Downloading ffmpeg (about 100 MB)…" });
+                        case "game":
+                        {
+                            if (_montages.Builder.Ffmpeg == null) return Ok(new { ok = false, message = "Get ffmpeg first." });
+                            var game = _desk.Archive.Games.LastOrDefault(g => id.Length == 0 || string.Equals(g.Lobby, id, StringComparison.OrdinalIgnoreCase));
+                            if (game == null) return Ok(new { ok = false, message = "No finished game yet." });
+                            _ = Task.Run(() => _montages.GameAsync(game));
+                            return Ok(new { ok = true, message = $"Building a montage of {game.Lobby}'s last game…" });
+                        }
+                        case "round":
+                        {
+                            if (_montages.Builder.Ffmpeg == null) return Ok(new { ok = false, message = "Get ffmpeg first." });
+                            int round = int.TryParse(id, out var r) ? r : _desk.Archive.Games.Select(g => g.Round).DefaultIfEmpty(0).Max();
+                            if (round <= 0) return Ok(new { ok = false, message = "No round played yet." });
+                            _ = Task.Run(() => _montages.RoundAsync(round, again: true));
+                            return Ok(new { ok = true, message = $"Building the round {round} montage…" });
+                        }
+                        case "custom":
+                        {
+                            if (_montages.Builder.Ffmpeg == null) return Ok(new { ok = false, message = "Get ffmpeg first." });
+                            var ids = input.TryGetProperty("clips", out var cl) && cl.ValueKind == JsonValueKind.Array ? cl.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).ToList() : new List<string>();
+                            if (ids.Count == 0) return Ok(new { ok = false, message = "Pick some moments first." });
+                            _ = Task.Run(() => _montages.CustomAsync(ids, Arg("title")));
+                            return Ok(new { ok = true, message = $"Building a montage of {ids.Count} moment{(ids.Count == 1 ? "" : "s")}…" });
+                        }
+                        default: return Ok(new { ok = false, message = "Unknown montage action." });
+                    }
+                }
+                case ("GET", "/app/admin/media"):
+                {
+                    // A montage, a clip or a clip's still, for the preview and the Moments library.
+                    string id = HttpRequest.Query(query, "id"), kind = HttpRequest.Query(query, "kind");
+                    string? file = kind == "montage" ? _montages?.Find(id)?.File : kind == "thumb" ? _replays?.Find(id)?.Thumbnail : _replays?.Find(id)?.File;
+                    if (file == null || !File.Exists(file)) return Text(404, "text/plain", "Not found");
+                    return (200, SponsorBook.MediaType(file), File.ReadAllBytes(file));
+                }
+                case ("POST", "/app/admin/sponsor"):
+                {
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    switch (Arg("action"))
+                    {
+                        case "break":
+                        {
+                            string said = _desk.StartBreak(Arg("name").Length > 0 ? Arg("name") : null);
+                            return Ok(new { ok = _desk.Break != null, message = said });
+                        }
+                        case "end":
+                            if (_desk.Break is not { } b) return Ok(new { ok = false, message = "No sponsor break is on." });
+                            _desk.Show(b.Lobby ?? "");
+                            return Ok(new { ok = true, message = "Back to full screen." });
+                        case "open":
+                            _desk.Sponsors.Refresh(force: true);
+                            if (_desk.Sponsors.Path != null) try { _env.Open(_desk.Sponsors.Path); } catch (Exception) { }
+                            return Ok(new { ok = true, message = "Opening sponsors.json." });
+                        case "export":
+                        {
+                            var folder = SideFolder();
+                            if (folder == null) return Ok(new { ok = false, message = "Nowhere to save it." });
+                            var (csv, summary) = _desk.Sponsors.Export();
+                            string stamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm");
+                            string dir = Path.Combine(folder, "Sponsor reports");
+                            Directory.CreateDirectory(dir);
+                            File.WriteAllText(Path.Combine(dir, $"sponsor appearances {stamp}.csv"), csv);
+                            File.WriteAllText(Path.Combine(dir, $"sponsor summary {stamp}.txt"), summary);
+                            try { _env.Open(dir); } catch (Exception) { }
+                            return Ok(new { ok = true, message = "Saved the appearance log (CSV) and summary in \"Sponsor reports\".", summary });
+                        }
+                        default: return Ok(new { ok = false, message = "Unknown sponsor action." });
                     }
                 }
                 case ("POST", "/app/admin/spec"):

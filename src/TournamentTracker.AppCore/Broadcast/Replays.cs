@@ -15,8 +15,20 @@ namespace TournamentTracker.App.Broadcast
         public double PreSeconds { get; set; } = 8;
         /// <summary>…to this long after it.</summary>
         public double PostSeconds { get; set; } = 2;
-        /// <summary>Save a clip on every kill, by itself.</summary>
+        /// <summary>Save clips by themselves (the plays listed in AutoSave).</summary>
         public bool OnEveryKill { get; set; } = true;
+        /// <summary>Which plays get a clip by themselves: kills, ejections, the game's end, witnessed kills, meetings.</summary>
+        public List<string> AutoSave { get; set; } = new List<string> { "kill", "winningKill", "eject", "gameEnd", "witnessedKill", "meeting" };
+        /// <summary>ffmpeg for montages (empty: The Button's own copy, or one on the PATH).</summary>
+        public string Ffmpeg { get; set; } = "";
+        /// <summary>Montage clips: this long before each moment and after it.</summary>
+        public double MontageBefore { get; set; } = 3.5;
+        public double MontageAfter { get; set; } = 2.0;
+        /// <summary>About how long the end-of-game montage is, and the end-of-round one.</summary>
+        public double GameMontageSeconds { get; set; } = 45;
+        public double RoundMontageSeconds { get; set; } = 120;
+        /// <summary>Build montages by themselves at the end of each game and each round.</summary>
+        public bool AutoMontages { get; set; } = true;
         /// <summary>The closest the crop zooms in (1 = the whole screen).</summary>
         public double MaxZoom { get; set; } = 2.5;
         /// <summary>The slow push-in from the wide shot takes this long.</summary>
@@ -137,6 +149,17 @@ namespace TournamentTracker.App.Broadcast
         public string Id { get; set; } = "";
         public string Lobby { get; set; } = "";
         public string Title { get; set; } = "";
+        /// <summary>The play it's of (kill, eject, gameEnd, meeting, witnessedKill…), the game and round.</summary>
+        public string Rule { get; set; } = "";
+        public string? Game { get; set; }
+        public int Round { get; set; }
+        public string? Room { get; set; }
+        /// <summary>The key player (the card shows them): killer, reporter, caller, ejected.</summary>
+        public string? KeyPlayer { get; set; }
+        public int? KeyPlayerId { get; set; }
+        /// <summary>A still for the Moments library, and whether a custom montage has used it.</summary>
+        public string? Thumbnail { get; set; }
+        public bool Used { get; set; }
         public string? CardId { get; set; }
         /// <summary>When the play happened (caster's clock).</summary>
         public DateTime EventAt { get; set; }

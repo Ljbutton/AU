@@ -186,6 +186,33 @@ i.sw{display:inline-block;width:.72em;height:.72em;border-radius:3px;margin:0 .2
 .dcard .t3 .rpb.ready{background:var(--hi);border-color:var(--hi);color:#fff}
 .dcard .t3 .rpb.saving{color:var(--muted)}
 .dcard .t3 .rpb.failed{color:var(--danger);border-color:var(--danger)}
+.mt-list{display:grid;gap:6px;margin-top:8px}
+.mt{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:10px;background:var(--sunk);font-size:13.5px}
+.mt.ready{box-shadow:inset 3px 0 0 #ffc15a;background:rgba(255,193,90,.08)}
+.mt .st{font:700 11px/1 var(--round);letter-spacing:.08em;padding:4px 7px;border-radius:6px;background:var(--panel);border:1px solid var(--line)}
+.mt.ready .st{background:#ffc15a;color:#16120a;border-color:#ffc15a}
+.mt.failed .st{color:var(--danger);border-color:var(--danger)}
+.mt .acts{display:flex;gap:6px}
+.mom-sel{display:flex;gap:6px;flex-wrap:wrap;min-height:34px;padding:6px;border-radius:10px;border:1.5px dashed var(--line);margin-top:8px;align-items:center}
+.mom-sel .chip{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:8px;background:var(--panel);border:1px solid var(--line);font-size:12.5px;cursor:grab}
+.mom-sel .chip.drag{opacity:.4}
+.mom-sel .chip b{color:#ffc15a}
+.mom-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-top:8px;max-height:420px;overflow:auto}
+.mom{position:relative;border-radius:10px;background:var(--sunk);border:2px solid transparent;cursor:pointer;overflow:hidden;font-size:12.5px}
+.mom.sel{border-color:#ffc15a}
+.mom .th{aspect-ratio:16/9;background:#0b0e13 center/cover no-repeat;display:flex;align-items:center;justify-content:center;color:var(--muted);font:700 11px/1 var(--round);letter-spacing:.1em}
+.mom .tx{padding:5px 7px 7px;display:grid;gap:2px}
+.mom .tx .m{color:var(--muted);font-size:11.5px}
+.mom .num{position:absolute;left:6px;top:6px;min-width:22px;height:22px;border-radius:11px;background:#ffc15a;color:#16120a;font:700 12px/22px var(--round);text-align:center}
+.mom .used{position:absolute;right:6px;top:6px;font:700 10px/1 var(--round);letter-spacing:.08em;padding:3px 6px;border-radius:5px;background:rgba(0,0,0,.7);color:#cfd6e2}
+.mom .pv{position:absolute;right:6px;bottom:52px;all:unset;cursor:pointer}
+.sp-list{display:grid;gap:5px;margin-top:8px}
+.sp{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:6px 10px;border-radius:8px;background:var(--sunk);font-size:13px}
+.sp .pl{display:flex;gap:4px;flex-wrap:wrap}
+.sp .pl span{font:600 11px/1 var(--round);padding:3px 6px;border-radius:5px;border:1px solid var(--line);color:var(--muted)}
+.vmodal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:50}
+.vmodal video{max-width:90vw;max-height:80vh;border-radius:10px;background:#000}
+.vmodal .cl{position:absolute;top:18px;right:24px}
 .rp-card{margin-top:10px;border-color:var(--hi);box-shadow:inset 0 2px 0 rgba(255,45,85,.45);display:grid;gap:8px}
 .rp-title{font:600 16px/1.3 var(--round)}
 .rp-badge{display:inline-block;background:var(--hi);color:#fff;font:700 12px/1 var(--round);letter-spacing:.12em;padding:4px 8px;border-radius:6px}
@@ -458,6 +485,26 @@ details.advanced[open] summary h2::before{content:'▾ '}
       <div><table class="pts" id="st-table"></table></div>
       <div class="notes" id="notes"></div>
     </div>
+  </details>
+  <details class="card roster-card" id="mt-card" open>
+    <summary><div><b>Montages</b> <span class="muted" id="mt-line"></span></div>
+      <div class="row"><button class="b" id="mt-ffmpeg" hidden>Get ffmpeg</button><button class="b" data-mtbuild="game" title="A montage of the last game that ended">Last game</button><button class="b" data-mtbuild="round" title="Every kill and the top plays of the round">This round</button></div></summary>
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Built by themselves when each game and each round ends: the moments cut to a few seconds, cropped like replays, with names in the lower third. Play puts it in the replay scene.</p>
+    <div class="mt-list" id="mt-list"></div>
+  </details>
+  <details class="card roster-card" id="mom-card">
+    <summary><div><b>Moments</b> <span class="muted" id="mom-line"></span></div></summary>
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Every saved clip. Click to pick (double-click to preview), drag the picked ones to change the order, then Build montage. A montage from here is deleted once it has played; its clips stay, marked USED.</p>
+    <div class="row" style="margin-top:6px"><input id="mom-title" placeholder="Montage title (optional)" style="width:220px" autocomplete="off"><button class="b" id="mom-clear">Clear</button><button class="b primary" id="mom-build">Build montage</button></div>
+    <div class="mom-sel" id="mom-sel"></div>
+    <div class="mom-grid" id="mom-grid"></div>
+  </details>
+  <details class="card roster-card" id="sp-card">
+    <summary><div><b>Sponsors</b> <span class="muted" id="sp-line"></span></div>
+      <div class="row"><button class="b" id="sp-break" title="Split screen: the lobby on the left, the sponsor on the right">Sponsor break</button><button class="b" id="sp-export" title="Every appearance (CSV) and a summary">Export report</button><button class="b" id="sp-open" title="Open sponsors.json">Edit sponsors</button></div></summary>
+    <p class="note bad" id="sp-problem" hidden></p>
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Placements: killcam ("Kill Cam presented by" on kill replays), montage (an opening card), standings ("Presented by" under the table), grid (empty grid tiles), break (split-screen breaks; they end by themselves, and a MUST SHOW play cuts straight back). Every appearance is logged.</p>
+    <div class="sp-list" id="sp-list"></div>
   </details>
   <details class="card roster-card" id="roster-card">
     <summary><div><b>Players</b> <span class="muted" id="roster-line"></span></div><button class="b" id="roster-open" title="Open roster.csv">Edit roster</button></summary>
@@ -1083,6 +1130,7 @@ async function loadDesk() {
   let r; try { r = await api('GET', '/app/admin/desk'); } catch (e) { return; }
   if (!r || !r.desk) return;
   DESK = r.desk; OBS = r.obs || null; RP = r.replay || null; ROSTER = r.roster || null; r_broadcast = r.broadcast || null; r_story = r.story || null; rpSync = performance.now();
+  MONT = r.montages || null; MOMENTS = r.moments || []; SPON = r.sponsors || null;
   receivers(r.receivers || []);
   sendNames(r.names || {});
   if ($('caster').classList.contains('on')) renderDesk();
@@ -1123,6 +1171,7 @@ function renderDesk() {
   renderRoster();
   renderGfx(r_broadcast);
   renderStory(r_story);
+  renderMontages(); renderMoments(); renderSponsors();
   const key = JSON.stringify([DESK, OBS, RP && RP.clips]);
   if (key === deskKey) return;
   deskKey = key;
@@ -1263,6 +1312,88 @@ $('notes').addEventListener('click', async e => {
 });
 document.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/standings', { scope: b.dataset.scope }); toast(r.message); storyKey = ''; loadDesk(); }));
 $('st-show').addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/standings', { show: String(!$('st-show').classList.contains('on')) }); toast(r.message); gfxKey = ''; loadDesk(); });
+
+// ---- Montages, moments, sponsors ----------------------------------------------------------------
+let MONT = null, MOMENTS = [], SPON = null, mtKey = '', momKey = '', spKey = '', momPick = [], momPlayed = null;
+const media = (kind, id) => `/app/admin/media?kind=${kind}&id=${encodeURIComponent(id)}&token=${TOKEN}`;
+function preview(kind, id, title) {
+  const m = document.createElement('div'); m.className = 'vmodal';
+  m.innerHTML = `<button class="b cl">Close</button><div style="display:grid;gap:8px;justify-items:center"><video src="${media(kind, id)}" controls autoplay></video><div>${rich(title || '')}</div></div>`;
+  m.addEventListener('click', e => { if (e.target === m || e.target.closest('.cl')) { m.remove(); } });
+  document.body.appendChild(m);
+}
+const MT_STATE = { building: 'BUILDING', ready: 'MONTAGE READY', failed: 'FAILED', played: 'PLAYED' };
+function renderMontages() {
+  const m = MONT; if (!m) return;
+  $('mt-ffmpeg').hidden = m.ffmpeg;
+  $('mt-line').textContent = m.ffmpeg ? `${m.list.filter(x => x.state === 'ready').length} ready` : 'needs ffmpeg' + (SPON && SPON.ffmpegNote ? ' · ' + SPON.ffmpegNote : '');
+  const key = JSON.stringify(m.list); if (key === mtKey) return; mtKey = key;
+  $('mt-list').innerHTML = m.list.length ? m.list.map(x => `<div class="mt ${x.state}">
+      <span class="st">${x.playing ? 'ON STREAM' : MT_STATE[x.state] || x.state}</span>
+      <div style="min-width:0"><b>${rich(x.title)}</b> <span class="muted">${{ game: 'end of game', round: 'end of round', custom: 'from Moments' }[x.kind] || x.kind} · ${x.clips} clips${x.duration ? ' · ' + Math.round(x.duration) + 's' : ''}${x.sponsor ? ' · presented by ' + esc(x.sponsor) : ''} · ${ago(x.ago)}</span>${x.problem ? `<div class="bad-text" style="font-size:12px">${esc(x.problem)}</div>` : ''}</div>
+      <span class="acts">${x.state === 'ready' || x.state === 'played' ? `<button class="b primary" data-mt="play" data-id="${x.id}">Play</button><button class="b" data-mt="preview" data-id="${x.id}">Preview</button>` : ''}${x.state !== 'building' ? `<button class="b" data-mt="discard" data-id="${x.id}">Discard</button>` : ''}</span>
+    </div>`).join('') : '<p class="empty" style="font-size:13px">No montages yet: they appear here when games end.</p>';
+}
+$('mt-list').addEventListener('click', async e => {
+  const b = e.target.closest('[data-mt]'); if (!b) return;
+  const x = MONT.list.find(m => m.id === b.dataset.id);
+  if (b.dataset.mt === 'preview') { preview('montage', b.dataset.id, x && x.title); return; }
+  const r = await api('POST', '/app/admin/montage', { action: b.dataset.mt, id: b.dataset.id }); toast(plain(r.message)); mtKey = ''; loadDesk();
+});
+document.querySelectorAll('[data-mtbuild]').forEach(b => b.addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/montage', { action: b.dataset.mtbuild }); toast(r.message); loadDesk(); }));
+$('mt-ffmpeg').addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/montage', { action: 'ffmpeg' }); toast(r.message); });
+const RULE_NAME = { kill: 'Kill', winningKill: 'Winning kill', eject: 'Ejection', gameEnd: 'Game end', witnessedKill: 'Witnessed kill', meeting: 'Meeting', ejectSkipped: 'Vote', witnessedVent: 'Seen venting', vent: 'Vent', danger: 'Danger' };
+function renderMoments() {
+  // A custom montage played: start the selection again.
+  if (MONT && momPlayed !== null && MONT.customPlayed !== momPlayed) { momPick = []; $('mom-title').value = ''; momKey = ''; }
+  if (MONT) momPlayed = MONT.customPlayed;
+  momPick = momPick.filter(id => MOMENTS.some(m => m.id === id));
+  $('mom-line').textContent = `${MOMENTS.length} clips${momPick.length ? ` · ${momPick.length} picked` : ''}`;
+  const key = JSON.stringify([MOMENTS, momPick]); if (key === momKey) return; momKey = key;
+  $('mom-sel').innerHTML = momPick.length ? momPick.map((id, i) => { const m = MOMENTS.find(x => x.id === id); return `<span class="chip" draggable="true" data-pick="${id}"><b>${i + 1}</b>${rich(m.title)}</span>`; }).join('') : '<span class="muted" style="font-size:12.5px">Picked moments show here, in montage order.</span>';
+  $('mom-grid').innerHTML = MOMENTS.length ? MOMENTS.map(m => { const n = momPick.indexOf(m.id); return `<div class="mom${n >= 0 ? ' sel' : ''}" data-mom="${m.id}" title="Click to pick; double-click to preview">
+      <div class="th" style="${m.thumb ? `background-image:url('${media('thumb', m.id)}')` : ''}">${m.thumb ? '' : esc(RULE_NAME[m.rule] || m.rule).toUpperCase()}</div>
+      ${n >= 0 ? `<span class="num">${n + 1}</span>` : ''}${m.used ? '<span class="used">USED</span>' : ''}
+      <div class="tx"><span>${rich(m.title)}</span><span class="m">${esc(m.lobby)} · ${esc(RULE_NAME[m.rule] || m.rule)} · ${clock(m.at)}</span></div></div>`; }).join('')
+    : '<p class="empty" style="font-size:13px">Clips are saved by themselves for kills, ejections, meetings and game ends (needs OBS, or Simulation with ffmpeg).</p>';
+}
+$('mom-grid').addEventListener('click', e => {
+  const t = e.target.closest('[data-mom]'); if (!t) return;
+  const id = t.dataset.mom, i = momPick.indexOf(id);
+  if (i >= 0) momPick.splice(i, 1); else momPick.push(id);
+  renderMoments();
+});
+$('mom-grid').addEventListener('dblclick', e => { const t = e.target.closest('[data-mom]'); if (!t) return; const m = MOMENTS.find(x => x.id === t.dataset.mom); preview('clip', t.dataset.mom, m && m.title); });
+let dragId = null;
+$('mom-sel').addEventListener('dragstart', e => { const c = e.target.closest('[data-pick]'); if (!c) return; dragId = c.dataset.pick; c.classList.add('drag'); });
+$('mom-sel').addEventListener('dragover', e => {
+  e.preventDefault();
+  const over = e.target.closest('[data-pick]'); if (!over || !dragId || over.dataset.pick === dragId) return;
+  const from = momPick.indexOf(dragId), to = momPick.indexOf(over.dataset.pick);
+  momPick.splice(from, 1); momPick.splice(to, 0, dragId); renderMoments();
+});
+$('mom-sel').addEventListener('dragend', () => { dragId = null; momKey = ''; renderMoments(); });
+$('mom-clear').addEventListener('click', e => { e.preventDefault(); momPick = []; renderMoments(); });
+$('mom-build').addEventListener('click', async e => {
+  e.preventDefault();
+  const r = await api('POST', '/app/admin/montage', { action: 'custom', clips: momPick, title: $('mom-title').value });
+  toast(r.message); loadDesk();
+});
+function renderSponsors() {
+  const s = SPON; if (!s) return;
+  const br = DESK && DESK.break;
+  $('sp-break').textContent = br ? `End break (${br.left}s)` : 'Sponsor break';
+  $('sp-break').classList.toggle('on', !!br);
+  $('sp-line').textContent = `${s.list.length} sponsor${s.list.length === 1 ? '' : 's'}${br ? ' · BREAK ON: ' + br.sponsor : ''}`;
+  $('sp-problem').hidden = !s.problem; $('sp-problem').textContent = s.problem || '';
+  const key = JSON.stringify(s.list); if (key === spKey) return; spKey = key;
+  $('sp-list').innerHTML = s.list.length ? s.list.map(x => `<div class="sp"><div><b>${esc(x.name)}</b>${x.tagline ? ` <span class="muted">${esc(x.tagline)}</span>` : ''}</div>
+      <span class="pl">${x.placements.length ? x.placements.map(p => `<span>${esc(p)}</span>`).join('') : '<span>no placements yet</span>'}</span>
+      <span class="muted" style="font-size:12px">${x.shown} shown · ${Math.round(x.seconds / 60 * 10) / 10} min</span></div>`).join('') : '<p class="empty" style="font-size:13px">No sponsors: Edit sponsors.</p>';
+}
+$('sp-break').addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/sponsor', { action: DESK && DESK.break ? 'end' : 'break' }); toast(r.message); loadDesk(); });
+$('sp-open').addEventListener('click', e => { e.preventDefault(); api('POST', '/app/admin/sponsor', { action: 'open' }).then(r => toast(r.message)); });
+$('sp-export').addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/sponsor', { action: 'export' }); toast(r.message); });
 
 // ---- On-stream graphics ------------------------------------------------------------------------
 let r_broadcast = null, gfxKey = '';
