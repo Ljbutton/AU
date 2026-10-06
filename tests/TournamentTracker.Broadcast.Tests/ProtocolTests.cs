@@ -7,7 +7,7 @@ using Xunit;
 
 namespace TournamentTracker.Tests;
 
-/// <summary>The broadcast feed from the mod, through the shared protocol, into TT Broadcast (docs/broadcast-protocol.md).</summary>
+/// <summary>The broadcast feed from the mod, through the shared protocol, into Red Alert (docs/broadcast-protocol.md).</summary>
 public class ProtocolTests : IDisposable
 {
     private readonly TempDir _dir = new();

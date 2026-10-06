@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TT Broadcast</title>
+<title>Red Alert</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22dome%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ff5a4f%22/%3E%3Cstop%20offset%3D%22.55%22%20stop-color%3D%22%23e10600%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%239e0400%22/%3E%3C/linearGradient%3E%0A%20%20%20%20%3CradialGradient%20id%3D%22glow%22%20cx%3D%22.5%22%20cy%3D%22.62%22%20r%3D%22.55%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ff2a1f%22%20stop-opacity%3D%22.55%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23ff2a1f%22%20stop-opacity%3D%220%22/%3E%3C/radialGradient%3E%0A%20%20%3C/defs%3E%0A%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2238%22%20r%3D%2230%22%20fill%3D%22url%28%23glow%29%22/%3E%0A%20%20%3Cg%20stroke%3D%22%23ff3b30%22%20stroke-width%3D%224.2%22%20stroke-linecap%3D%22round%22%3E%0A%20%20%20%20%3Cpath%20d%3D%22M32%204.5v7.5%22/%3E%3Cpath%20d%3D%22M10.5%2013.5l5.3%205.3%22/%3E%3Cpath%20d%3D%22M53.5%2013.5l-5.3%205.3%22/%3E%3Cpath%20d%3D%22M3.5%2033h7.5%22/%3E%3Cpath%20d%3D%22M60.5%2033h-7.5%22/%3E%0A%20%20%3C/g%3E%0A%20%20%3Cpath%20d%3D%22M16.5%2047V36a15.5%2015.5%200%200%201%2031%200v11z%22%20fill%3D%22url%28%23dome%29%22/%3E%0A%20%20%3Cpath%20d%3D%22M22.2%2036.5a9.8%209.8%200%200%201%207.3-9.4%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-opacity%3D%22.85%22%20stroke-width%3D%223.2%22%20stroke-linecap%3D%22round%22/%3E%0A%20%20%3Crect%20x%3D%2211%22%20y%3D%2247%22%20width%3D%2242%22%20height%3D%229%22%20rx%3D%222%22%20fill%3D%22%23f2f2f4%22/%3E%0A%20%20%3Crect%20x%3D%2211%22%20y%3D%2253%22%20width%3D%2242%22%20height%3D%223%22%20rx%3D%221%22%20fill%3D%22%23b9b9c2%22/%3E%0A%3C/svg%3E">
 <style>
 @font-face{font-family:"Teko";font-weight:700;font-display:swap;src:url(/fonts/teko-700.woff2) format("woff2")}
 @font-face{font-family:"Rajdhani";font-weight:700;font-display:swap;src:url(/fonts/rajdhani-700.woff2) format("woff2")}
@@ -383,7 +384,7 @@ details.advanced summary h2::before{content:'▸ ';font-size:.8em}
 details.advanced[open] summary h2::before{content:'▾ '}
 body{grid-template-columns:minmax(0,1fr)}
 nav{display:none}
-/* ==== TT Broadcast: RedZone look (this screen only; the stream's graphics are broadcast.html) ==== */
+/* ==== Red Alert: RedZone look (this screen only; the stream's graphics are broadcast.html) ==== */
 :root{
   --bg:#08080a;--panel:#141417;--panel-solid:#141417;--sunk:#1d1d22;--fg:#f4f4f6;--muted:#9a9aa4;--line:#2c2c33;--edge:#4a4a54;
   --accent:#e10600;--accent-2:#a30400;--accent-fg:#fff;--accent-soft:rgba(225,6,0,.14);--hi:#e10600;--hi-soft:rgba(225,6,0,.16);
@@ -394,6 +395,7 @@ header{background:linear-gradient(180deg,#000,#0d0d10);border-bottom:0;box-shado
 .brand .word{flex-direction:row;align-items:stretch;line-height:1}
 .brand .word b{font:700 30px/1 "Teko",sans-serif;letter-spacing:.08em;display:flex;align-items:stretch;color:#fff}
 .brand .word b span{color:#fff;background:var(--red);padding:3px 10px 0;margin-left:6px;transform:skewX(-12deg);display:inline-block}
+.brand .logo-mark{width:34px;height:34px;flex:none;margin-right:2px}
 .brand .word b::after{content:"LIVE DESK";font:600 11px/1 "Segoe UI",sans-serif;letter-spacing:.24em;color:var(--muted);align-self:center;margin-left:14px}
 main{padding:14px 20px 22px}
 h1,.title{font:700 42px/.95 var(--hand);letter-spacing:.04em;text-transform:uppercase}
@@ -460,16 +462,16 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
 </head>
 <body>
 <header>
-  <div class="brand"><span class="word"><b>TT <span>Broadcast</span></b></span></div>
+  <div class="brand"><svg class="logo-mark" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="ra-dome" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff5a4f"/><stop offset=".55" stop-color="#e10600"/><stop offset="1" stop-color="#9e0400"/></linearGradient><radialGradient id="ra-glow" cx=".5" cy=".62" r=".55"><stop offset="0" stop-color="#ff2a1f" stop-opacity=".55"/><stop offset="1" stop-color="#ff2a1f" stop-opacity="0"/></radialGradient></defs><circle cx="32" cy="38" r="30" fill="url(#ra-glow)"/><g stroke="#ff3b30" stroke-width="4.2" stroke-linecap="round"><path d="M32 4.5v7.5"/><path d="M10.5 13.5l5.3 5.3"/><path d="M53.5 13.5l-5.3 5.3"/><path d="M3.5 33h7.5"/><path d="M60.5 33h-7.5"/></g><path d="M16.5 47V36a15.5 15.5 0 0 1 31 0v11z" fill="url(#ra-dome)"/><path d="M22.2 36.5a9.8 9.8 0 0 1 7.3-9.4" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="3.2" stroke-linecap="round"/><rect x="11" y="47" width="42" height="9" rx="2" fill="#f2f2f4"/><rect x="11" y="53" width="42" height="3" rx="1" fill="#b9b9c2"/></svg><span class="word"><b>Red <span>Alert</span></b></span></div>
   <div class="alerts" id="alerts"></div>
-  <label class="autoup" id="autoup" hidden title="Download new versions of TT Broadcast by themselves (they're used from the next start)"><input type="checkbox" id="autoup-on"> <span id="autoup-ver"></span> · update automatically</label>
+  <label class="autoup" id="autoup" hidden title="Download new versions of Red Alert by themselves (they're used from the next start)"><input type="checkbox" id="autoup-on"> <span id="autoup-ver"></span> · update automatically</label>
   <div class="winctl" id="winctl" hidden>
     <button data-win="min" title="Minimise" aria-label="Minimise"><svg viewBox="0 0 12 12"><path d="M2 6.5h8"/></svg></button>
     <button data-win="max" title="Maximise" aria-label="Maximise"><svg viewBox="0 0 12 12" class="i-max"><rect x="2" y="2" width="8" height="8" rx="1"/></svg><svg viewBox="0 0 12 12" class="i-restore"><rect x="2" y="4" width="6" height="6" rx="1"/><path d="M4 4V2.5a.5.5 0 0 1 .5-.5H9.5a.5.5 0 0 1 .5.5V7.5a.5.5 0 0 1-.5.5H8"/></svg></button>
     <button data-win="close" class="x" title="Close" aria-label="Close"><svg viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button>
   </div>
 </header>
-<nav id="side" aria-label="TT Broadcast sections">
+<nav id="side" aria-label="Red Alert sections">
   <div class="grp">On air</div>
   <button data-go="live" class="on">Live desk <span class="st count" id="st-live" title="Plays happening now"></span></button>
   <button data-go="health">Lobby health <span class="st dot" id="st-health"></span></button>
@@ -488,7 +490,7 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
 <main>
   <div class="card lock-card" id="lock-card" hidden>
     <h2>Administration code</h2>
-    <p class="muted" style="margin:0 0 8px">TT Broadcast opens with the tournament's administration code (the organiser's, as in The Button's Organiser tab). It shows who the impostors are: keep this PC's screen off stream.</p>
+    <p class="muted" style="margin:0 0 8px">Red Alert opens with the tournament's administration code (the organiser's, as in The Button's Organiser tab). It shows who the impostors are: keep this PC's screen off stream.</p>
     <form class="row" id="lock-form"><input id="lock-code" placeholder="Paste the administration code" class="mono" style="flex:1;min-width:240px" autocomplete="off" spellcheck="false"><button class="b primary">Unlock</button></form>
   </div>
   <p id="org-problem" class="note bad" hidden></p>
@@ -525,12 +527,12 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
       <input id="obs-pass" type="password" placeholder="Password (Tools → WebSocket Server Settings)" style="flex:1;min-width:200px" autocomplete="off">
       <button class="b primary">Connect</button>
     </form>
-    <p class="muted" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. TT Broadcast then builds the scenes TT Full, TT 2-up and TT Quad, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
+    <p class="muted" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. Red Alert then builds the scenes TT Full, TT 2-up and TT Quad, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
   </div>
   <details class="card roster-card" id="gfx-card" data-page="graphics">
     <summary><div><b>On-stream graphics</b> <span class="muted" id="gfx-line"></span></div><button class="b" id="gfx-theme" title="Colours, fonts and logo (broadcast.json)">Edit theme</button></summary>
     <p class="note bad" id="gfx-problem" hidden></p>
-    <p class="muted" style="font-size:12.5px;margin:6px 0 0">One transparent page with every graphic, placed on each lobby's picture in every layout. TT Broadcast puts it on top of the TT scenes in OBS (source "TT Broadcast"); to add it by hand, use the link at 1920×1080.</p>
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">One transparent page with every graphic, placed on each lobby's picture in every layout. Red Alert puts it on top of the TT scenes in OBS (source "Red Alert"); to add it by hand, use the link at 1920×1080.</p>
     <div class="row" id="gfx-els" style="margin-top:8px"></div>
     <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Off-screen alerts</span><span id="gfx-alerts" class="row"></span></div>
     <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Win counter counts</span><span class="row" id="gfx-wins"><button class="b" data-wins="today">Today</button><button class="b" data-wins="round">This round</button></span><span class="muted" id="gfx-wins-now" style="font-size:12.5px"></span></div>
@@ -1386,7 +1388,7 @@ function renderSide() {
 }
 setInterval(() => { if (S && S.admin) renderSide(); }, 1000);
 
-// ---- TT Broadcast: unlocking, the caster overlay's lobby, updates -------------------------------
+// ---- Red Alert: unlocking, the caster overlay's lobby, updates -------------------------------
 let ORG = null, showRoles = false;
 async function refresh() {
   try { S = await api('GET', '/app/state'); } catch (e) { return; }

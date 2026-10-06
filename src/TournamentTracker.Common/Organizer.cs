@@ -15,7 +15,7 @@ namespace TournamentTracker.App
     /// The tournament as the organiser sees it, unlocked with an administration code: every
     /// tournament lobby live (read from the "Live data" messages the hosts' games keep in the
     /// private results channel), the combined standings, and referee actions posted to that
-    /// channel. The Button's Organiser tab and the broadcast app (TT Broadcast) both use it.
+    /// channel. The Button's Organiser tab and the broadcast app (Red Alert) both use it.
     /// </summary>
     public sealed class Organizer : IDisposable
     {

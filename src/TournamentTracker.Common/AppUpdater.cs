@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 namespace TournamentTracker.App
 {
     /// <summary>
-    /// Puts a new version of an app (TheButton.exe, TTBroadcast.exe) in place of the running one.
+    /// Puts a new version of an app (TheButton.exe, RedAlert.exe) in place of the running one.
     /// Windows won't overwrite a running program but lets it be renamed, so the old one becomes
     /// *.old.exe (deleted on the next start) and the new one takes its name. The new version runs
     /// from the next start.

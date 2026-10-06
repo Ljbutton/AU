@@ -2,7 +2,7 @@ name: Build
 
 # Tests the core, compiles the BepInEx plugin against the Among Us game libraries,
 # and packages a drop-in ZIP. Pushing a v* tag also publishes a GitHub Release of The Button
-# and the mod; pushing a broadcast-v* tag publishes TT Broadcast on its own (a pre-release
+# and the mod; pushing a broadcast-v* tag publishes Red Alert on its own (a pre-release
 # while it's in beta, never "latest", so The Button's updates never see it).
 
 on:
@@ -14,7 +14,7 @@ on:
         description: 'AmongUs.GameLibs.Steam version to build against (blank = latest)'
         required: false
       release_tag:
-        description: 'Publish a GitHub release with this tag: v1.0.1 (The Button + mod) or broadcast-v0.1.0 (TT Broadcast); blank = just build'
+        description: 'Publish a GitHub release with this tag: v1.0.1 (The Button + mod) or broadcast-v0.1.0 (Red Alert); blank = just build'
         required: false
       delete_tags:
         description: 'Delete these releases and tags first, space separated (blank = none)'
@@ -57,7 +57,7 @@ jobs:
       - name: Test the core and The Button
         run: dotnet test tests/TournamentTracker.Tests -c Release
 
-      - name: Test TT Broadcast
+      - name: Test Red Alert
         run: dotnet test tests/TournamentTracker.Broadcast.Tests -c Release
 
       - name: Build the plugin
@@ -71,7 +71,7 @@ jobs:
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
           -o dist/app
 
-      - name: Build TT Broadcast, the broadcaster's app (Windows)
+      - name: Build Red Alert, the broadcaster's app (Windows)
         run: >
           dotnet publish src/TournamentTracker.BroadcastApp -c Release -r win-x64 --self-contained
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
@@ -99,7 +99,7 @@ jobs:
         shell: pwsh
         run: |
           ./installer/test/installer.tests.ps1
-          ./installer/test/install-broadcast.tests.ps1
+          ./installer/test/install-redalert.tests.ps1
 
       # BepInEx's build server often drops downloads, so keep the files once we have them.
       - name: Cache BepInEx be.735 (win-x86)
@@ -157,11 +157,13 @@ jobs:
           # The installer: a .bat that runs the PowerShell stored after its #PS-START line.
           { cat installer/Install-TournamentTracker.header.bat; echo '#PS-START'; cat installer/install.ps1; } \
             | sed 's/$/\r/' > dist/Install-TheButton.bat
-          # TT Broadcast's installer downloads the TTBroadcast.exe of its own release.
+          # Red Alert's installer downloads the RedAlert.exe of its own release.
           version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/TournamentTracker.BroadcastApp/TournamentTracker.BroadcastApp.csproj)
-          url="https://github.com/$GITHUB_REPOSITORY/releases/download/broadcast-v$version/TTBroadcast.exe"
-          { cat installer/Install-TTBroadcast.header.bat; echo '#PS-START'; sed "s#__TTB_URL__#$url#" installer/install-broadcast.ps1; } \
-            | sed 's/$/\r/' > dist/Install-TTBroadcast.bat
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/broadcast-v$version/RedAlert.exe"
+          { cat installer/Install-RedAlert.header.bat; echo '#PS-START'; sed "s#__TTB_URL__#$url#" installer/install-redalert.ps1; } \
+            | sed 's/$/\r/' > dist/Install-RedAlert.bat
+          # Installs from before the rename (TT Broadcast 0.1.0) update themselves by this name.
+          cp dist/broadcast/RedAlert.exe dist/broadcast/TTBroadcast.exe
           echo "BROADCAST_VERSION=$version" >> "$GITHUB_ENV"
           ls -la dist
 
@@ -175,8 +177,8 @@ jobs:
             dist/TournamentTracker-Full.zip
             dist/Install-TheButton.bat
             dist/app/TheButton.exe
-            dist/Install-TTBroadcast.bat
-            dist/broadcast/TTBroadcast.exe
+            dist/Install-RedAlert.bat
+            dist/broadcast/RedAlert.exe
 
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/v') || startsWith(inputs.release_tag, 'v')
@@ -209,7 +211,7 @@ jobs:
             dist/TournamentTracker-Full.zip dist/Install-TheButton.bat dist/app/TheButton.exe docs/setup-codes.html \
             --target "$GITHUB_SHA" --title "The Button $TAG" --notes-file notes.md --latest
 
-      - name: Publish TT Broadcast release
+      - name: Publish Red Alert release
         if: startsWith(github.ref, 'refs/tags/broadcast-v') || startsWith(inputs.release_tag, 'broadcast-v')
         env:
           GH_TOKEN: ${{ github.token }}
@@ -218,18 +220,20 @@ jobs:
           set -euo pipefail
           # The tag has to match the app's own version (src/TournamentTracker.BroadcastApp/*.csproj).
           if [ "$TAG" != "broadcast-v$BROADCAST_VERSION" ]; then
-            echo "::error::Tag $TAG doesn't match TT Broadcast's version $BROADCAST_VERSION"; exit 1
+            echo "::error::Tag $TAG doesn't match Red Alert's version $BROADCAST_VERSION"; exit 1
           fi
           {
-            echo "## TT Broadcast (beta)"
+            echo "## Red Alert (beta)"
             echo "The broadcaster's app: the caster desk, OBS control, replays and montages, the on-stream"
             echo "graphics, Twitch and simulation mode. Only whoever runs the stream needs it; hosts don't."
             echo
-            echo "Download **Install-TTBroadcast.bat** below and double-click it. The first time it opens it"
+            echo "Download **Install-RedAlert.bat** below and double-click it. The first time it opens it"
             echo "takes your caster setup (OBS, priorities, keys, roster, administration code) from The Button"
             echo "on the same PC. After that it updates itself."
             echo
+            echo "TTBroadcast.exe is the same app, for copies installed before it was renamed (they update by that name)."
+            echo
             echo "Built from commit $GITHUB_SHA."
           } > broadcast-notes.md
-          gh release create "$TAG" dist/broadcast/TTBroadcast.exe dist/Install-TTBroadcast.bat \
-            --target "$GITHUB_SHA" --title "TT Broadcast $TAG" --notes-file broadcast-notes.md --prerelease --latest=false
+          gh release create "$TAG" dist/broadcast/RedAlert.exe dist/Install-RedAlert.bat dist/broadcast/TTBroadcast.exe \
+            --target "$GITHUB_SHA" --title "Red Alert $TAG" --notes-file broadcast-notes.md --prerelease --latest=false

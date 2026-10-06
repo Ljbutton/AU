@@ -14,10 +14,11 @@ namespace TournamentTracker.App
         [STAThread]
         private static void Main()
         {
-            NativeMethods.Title = "TT Broadcast";
-            NativeMethods.ProcessName = "TTBroadcast";
+            NativeMethods.Title = "Red Alert";
+            // An install from before the rename still runs as TTBroadcast.exe (it updated itself in place).
+            NativeMethods.ProcessName = Path.GetFileNameWithoutExtension(Environment.ProcessPath) ?? "RedAlert";
             // One copy at a time: a second start just brings the first to the front.
-            using var single = new Mutex(true, "TTBroadcast.App", out bool first);
+            using var single = new Mutex(true, "RedAlert.App", out bool first);
             // After an update the old copy is still closing: give it a few seconds.
             if (!first && Environment.GetCommandLineArgs().Contains("--after-update"))
             {
@@ -33,8 +34,10 @@ namespace TournamentTracker.App
             ApplicationConfiguration.Initialize();
             string? exe = Environment.ProcessPath;       // before any update renames the running copy
             string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string appData = Path.Combine(local, "TTBroadcast");
+            string appData = Path.Combine(local, "RedAlert");
             string settings = Path.Combine(appData, "settings.json");
+            // The app was called TT Broadcast until 0.2: its folder comes over once.
+            Migration.FromOldName(Path.Combine(local, "TTBroadcast"), appData);
             // The first time: the caster's setup from The Button's folder (copied; The Button keeps its own).
             Migration.Run(Path.Combine(local, "TheButton"), settings);
             var env = new BroadcastEnvironment

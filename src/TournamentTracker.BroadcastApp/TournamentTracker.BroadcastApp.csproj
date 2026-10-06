@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    TT Broadcast: the broadcaster's app for Windows (the caster desk, OBS, replays, graphics,
+    Red Alert: the broadcaster's app for Windows (the caster desk, OBS, replays, graphics,
     Twitch), served by TournamentTracker.Broadcast on this computer and shown in a WebView2
-    window. Published as one self-contained TTBroadcast.exe. Its own version line (beta: 0.x),
+    window. Published as one self-contained RedAlert.exe. Its own version line (beta: 0.x),
     released as broadcast-v… so it updates without The Button.
   -->
   <PropertyGroup>
@@ -11,11 +11,11 @@
     <UseWindowsForms>true</UseWindowsForms>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <RootNamespace>TournamentTracker.App</RootNamespace>
-    <AssemblyName>TTBroadcast</AssemblyName>
+    <AssemblyName>RedAlert</AssemblyName>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <Product>TT Broadcast</Product>
-    <Version>0.1.0</Version>
-    <ApplicationIcon>TTBroadcast.ico</ApplicationIcon>
+    <Product>Red Alert</Product>
+    <Version>0.2.0</Version>
+    <ApplicationIcon>RedAlert.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />

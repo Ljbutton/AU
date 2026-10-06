@@ -7,13 +7,13 @@ using Xunit;
 
 namespace TournamentTracker.Tests;
 
-/// <summary>TT Broadcast's own server: its screen, the administration code, its own updates.</summary>
+/// <summary>Red Alert's own server: its screen, the administration code, its own updates.</summary>
 public class BroadcastServerTests : IDisposable
 {
     private readonly TempDir _dir = new();
     public void Dispose() => _dir.Dispose();
 
-    private BroadcastServer Server() => new(new BroadcastEnvironment { SettingsFile = Path.Combine(_dir.Path, "TTBroadcast", "settings.json"), Port = 0, CasterPort = 0, Version = "0.1.0" },
+    private BroadcastServer Server() => new(new BroadcastEnvironment { SettingsFile = Path.Combine(_dir.Path, "RedAlert", "settings.json"), Port = 0, CasterPort = 0, Version = "0.1.0" },
         new HttpClient(new FakeHttp()));
 
     private static async Task<JsonElement> Call(HttpClient http, HttpMethod method, string path, object? body = null)
@@ -29,7 +29,7 @@ public class BroadcastServerTests : IDisposable
         using var server = Server();
         using var anon = new HttpClient { BaseAddress = new Uri(server.Url) };
         string page = await anon.GetStringAsync("/");
-        Assert.Contains("TT Broadcast", page);
+        Assert.Contains("Red Alert", page);
         Assert.Contains(server.Token, page);
         Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync("app/state")).StatusCode);
         var head = await anon.GetByteArrayAsync("/crew/7.png");                       // players' colours
@@ -64,9 +64,9 @@ public class BroadcastServerTests : IDisposable
     {
         var releases = JsonDocument.Parse("""
             [ { "tag_name": "v0.1.30", "draft": false, "assets": [ { "name": "TheButton.exe", "browser_download_url": "https://x/TheButton.exe" } ] },
-              { "tag_name": "broadcast-v0.1.3", "draft": true, "assets": [ { "name": "TTBroadcast.exe", "browser_download_url": "https://x/draft" } ] },
-              { "tag_name": "broadcast-v0.1.2", "draft": false, "assets": [ { "name": "TTBroadcast.exe", "browser_download_url": "https://x/012" } ] },
-              { "tag_name": "broadcast-v0.1.1", "draft": false, "assets": [ { "name": "TTBroadcast.exe", "browser_download_url": "https://x/011" } ] } ]
+              { "tag_name": "broadcast-v0.1.3", "draft": true, "assets": [ { "name": "RedAlert.exe", "browser_download_url": "https://x/draft" } ] },
+              { "tag_name": "broadcast-v0.1.2", "draft": false, "assets": [ { "name": "RedAlert.exe", "browser_download_url": "https://x/012" } ] },
+              { "tag_name": "broadcast-v0.1.1", "draft": false, "assets": [ { "name": "RedAlert.exe", "browser_download_url": "https://x/011" } ] } ]
             """).RootElement;
         Assert.Equal(("broadcast-v0.1.2", "https://x/012"), BroadcastServer.PickRelease(releases));
         Assert.True(BroadcastServer.Newer("broadcast-v0.1.2", "0.1.0"));

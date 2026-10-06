@@ -6,11 +6,11 @@ using System.Text.Json;
 namespace TournamentTracker.App.Broadcast
 {
     /// <summary>
-    /// The first time TT Broadcast starts, it takes the caster's setup from The Button's folder, so
+    /// The first time Red Alert starts, it takes the caster's setup from The Button's folder, so
     /// nothing has to be set up again: OBS (obs.json, with the key bindings and the replay folder),
     /// the priority rules, roster, graphics, sponsors, alerts, health, Twitch, the stats database, the
     /// tools (ffmpeg) and the administration code. Copied, not moved: The Button's folder is left as it
-    /// was. Files TT Broadcast already has are never overwritten.
+    /// was. Files Red Alert already has are never overwritten.
     /// </summary>
     public static class Migration
     {
@@ -70,6 +70,26 @@ namespace TournamentTracker.App.Broadcast
             }
             File.WriteAllText(marker, DateTime.UtcNow.ToString("o") + "\n" + string.Join("\n", copied));
             return copied;
+        }
+
+        /// <summary>
+        /// The app's folder from when it was called TT Broadcast (%LOCALAPPDATA%\TTBroadcast), copied
+        /// once into <paramref name="newFolder"/> when that doesn't exist yet. True when it copied.
+        /// </summary>
+        public static bool FromOldName(string oldFolder, string newFolder)
+        {
+            if (Directory.Exists(newFolder) || !Directory.Exists(oldFolder)) return false;
+            // WebView2's cache isn't worth taking; the app makes a new one.
+            int n = 0;
+            foreach (var file in Directory.GetFiles(oldFolder, "*", SearchOption.AllDirectories))
+            {
+                string rel = Path.GetRelativePath(oldFolder, file);
+                if (rel.StartsWith("WebView2", StringComparison.OrdinalIgnoreCase)) continue;
+                string dst = Path.Combine(newFolder, rel);
+                try { Directory.CreateDirectory(Path.GetDirectoryName(dst)!); File.Copy(file, dst); n++; } catch (Exception) { }
+            }
+            Directory.CreateDirectory(newFolder);
+            return n > 0;
         }
 
         private static int CopyFolder(string from, string to)

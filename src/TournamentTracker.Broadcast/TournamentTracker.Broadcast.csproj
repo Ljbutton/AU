@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    TT Broadcast, minus its window: the caster desk (ranking, cards, what's on stream), OBS
+    Red Alert, minus its window: the caster desk (ranking, cards, what's on stream), OBS
     control, replays and montages, the on-stream graphics, the caster pages on port 8767, Twitch,
     simulation mode, and the server for its own screen (ui/caster.html). Reads the tournament
     through TournamentTracker.Common and the hosts' games through the broadcast feed

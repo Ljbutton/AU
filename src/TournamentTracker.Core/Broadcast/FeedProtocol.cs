@@ -6,7 +6,7 @@ namespace TournamentTracker.Broadcast
 {
     /// <summary>
     /// The broadcast feed, as one versioned contract between a host (the mod in their game, and their
-    /// Button's "send to the caster" page) and the broadcast app (TT Broadcast). Every message carries
+    /// Button's "send to the caster" page) and the broadcast app (Red Alert). Every message carries
     /// <see cref="V"/> = <see cref="Version"/>. Readers ignore fields they don't know, so a newer host
     /// never breaks an older reader; a host older than <see cref="Version"/> still works but is shown as
     /// "host needs update". Field by field: docs/broadcast-protocol.md.

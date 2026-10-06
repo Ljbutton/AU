@@ -17,7 +17,7 @@ using TournamentTracker.Setup;
 
 namespace TournamentTracker.App.Broadcast
 {
-    /// <summary>TT Broadcast's own settings (settings.json in its folder).</summary>
+    /// <summary>Red Alert's own settings (settings.json in its folder).</summary>
     public sealed class BroadcastAppSettings
     {
         /// <summary>The administration code that unlocks everything (null: locked).</summary>
@@ -47,7 +47,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Opens a folder, file or web link with Windows.</summary>
         public Action<string> Open { get; set; } = _ => { };
         public string Version { get; set; } = "";
-        /// <summary>The running TTBroadcast.exe, so it can update itself. Null: no self-update (tests, other platforms).</summary>
+        /// <summary>The running RedAlert.exe, so it can update itself. Null: no self-update (tests, other platforms).</summary>
         public string? ExePath { get; set; }
         /// <summary>Starts the new version and closes this one.</summary>
         public Action Restart { get; set; } = () => { };
@@ -58,7 +58,7 @@ namespace TournamentTracker.App.Broadcast
     }
 
     /// <summary>
-    /// TT Broadcast's screen and everything behind it, served on this computer only: the caster desk
+    /// Red Alert's screen and everything behind it, served on this computer only: the caster desk
     /// (the RedZone-style tab that used to be in The Button), OBS, replays, the caster pages and
     /// Twitch. Every /app/ call needs the per-launch token the page was given, so no website can
     /// drive it. Unlocked with the tournament's administration code.
@@ -66,7 +66,7 @@ namespace TournamentTracker.App.Broadcast
     public sealed class BroadcastServer : IDisposable
     {
         public const int DefaultPort = 8768;
-        public const string ExeName = "TTBroadcast.exe";
+        public const string ExeName = "RedAlert.exe";
         /// <summary>Its releases on GitHub are tagged broadcast-v0.1.0 and so on (The Button's are v0.1.23…).</summary>
         public const string TagPrefix = "broadcast-v";
         private static readonly JsonSerializerOptions Json = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -265,7 +265,7 @@ namespace TournamentTracker.App.Broadcast
                 return new { ok = true, message = "Locked." };
             }
             if (!SetupCode.TryParse(text, out var code, out var error)) return new { ok = false, message = error };
-            if (!code.IsAdmin) return new { ok = false, message = "That's a host setup code. TT Broadcast needs the administration code from the organiser." };
+            if (!code.IsAdmin) return new { ok = false, message = "That's a host setup code. Red Alert needs the administration code from the organiser." };
             _settings.AdminCode = code.Encode();
             TrySave();
             StartDesk();
@@ -291,7 +291,7 @@ namespace TournamentTracker.App.Broadcast
             return l != null && (i == null || l > i);
         }
 
-        /// <summary>The newest broadcast release with a TTBroadcast.exe, from the repository's release list.</summary>
+        /// <summary>The newest broadcast release with a RedAlert.exe, from the repository's release list.</summary>
         public static (string Tag, string Url)? PickRelease(JsonElement releases)
         {
             foreach (var r in releases.EnumerateArray())
@@ -311,7 +311,7 @@ namespace TournamentTracker.App.Broadcast
             try
             {
                 using var req = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{GitHubRepo.Name}/releases?per_page=30");
-                req.Headers.TryAddWithoutValidation("User-Agent", "TTBroadcast");
+                req.Headers.TryAddWithoutValidation("User-Agent", "RedAlert");
                 req.Headers.TryAddWithoutValidation("Accept", "application/vnd.github+json");
                 using var r = await _http.SendAsync(req).ConfigureAwait(false);
                 if (!r.IsSuccessStatusCode) return;
@@ -330,7 +330,7 @@ namespace TournamentTracker.App.Broadcast
             _updateError = null;
             try
             {
-                string error = await AppUpdater.InstallAsync(_http, release.Value.Url, exe, "TT Broadcast").ConfigureAwait(false);
+                string error = await AppUpdater.InstallAsync(_http, release.Value.Url, exe, "Red Alert").ConfigureAwait(false);
                 if (error.Length > 0) _updateError = error;
                 else _ready = release.Value.Tag;
             }
@@ -887,9 +887,9 @@ namespace TournamentTracker.App.Broadcast
                     _desk.Simulate(Arg("on") == "true");
                     return Ok(new { ok = true, message = _desk.Simulating ? "Simulation on: four fake lobbies are playing." : "Simulation off." });
                 case ("POST", "/app/update"):
-                    if (!UpdateAvailable) return Ok(new { ok = false, message = "TT Broadcast is up to date." });
+                    if (!UpdateAvailable) return Ok(new { ok = false, message = "Red Alert is up to date." });
                     _ = Task.Run(UpdateAsync);
-                    return Ok(new { ok = true, message = "Downloading the new version of TT Broadcast…" });
+                    return Ok(new { ok = true, message = "Downloading the new version of Red Alert…" });
                 case ("POST", "/app/restart"):
                     if (_ready == null) return Ok(new { ok = false, message = "No update is waiting." });
                     _ = Task.Run(async () => { await Task.Delay(300).ConfigureAwait(false); _env.Restart(); });
@@ -898,7 +898,7 @@ namespace TournamentTracker.App.Broadcast
                     _settings.AutoUpdate = Arg("on") == "true";
                     TrySave();
                     if (_settings.AutoUpdate && UpdateAvailable) _ = Task.Run(UpdateAsync);
-                    return Ok(new { ok = true, message = _settings.AutoUpdate ? "TT Broadcast updates itself." : "Automatic updates are off." });
+                    return Ok(new { ok = true, message = _settings.AutoUpdate ? "Red Alert updates itself." : "Automatic updates are off." });
                 default: return Text(404, "application/json", "{\"error\":\"not found\"}");
             }
         }

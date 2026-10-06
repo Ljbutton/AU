@@ -285,7 +285,7 @@ seconds after anything changes; the Organiser tab reads them all:
   top score, most kills, best impostor, sharpest voter, impostor hunter, task machine and
   survivor. **Copy for Discord** copies them; you pick the winners.
 * **Caster tools** (the caster overlay, game video, the Caster tab, OBS, replays) are in
-  their own app now, **TT Broadcast** (below), for whoever runs the stream. The Organiser tab
+  their own app now, **Red Alert** (below), for whoever runs the stream. The Organiser tab
   links to it.
 * **Referee** (on **Home**, for whoever has the administration code): adjust points, void or
   unvoid a game, or type any `!` command; it's posted in the results channel as the
@@ -335,19 +335,21 @@ referee. At the start of every game the host becomes a ghost: never an impostor,
 always talk). The host can zoom out with the **mouse wheel** or **+ / −** to see the
 whole map (for refereeing and streaming). The same switch turns it off; the choice is remembered.
 
-## TT Broadcast (the broadcaster's app)
+## Red Alert (the broadcaster's app)
 
-**TT Broadcast** is a separate Windows app for whoever runs the stream: the Caster tab, OBS
+<img src="docs/red-alert-logo.svg" alt="" width="56" align="left">
+
+**Red Alert** is a separate Windows app for whoever runs the stream: the Caster tab, OBS
 scenes, replays and montages, the on-stream graphics, the caster overlay and video pages,
 spectator view switches, Twitch, and Simulation. Hosts, referees and the organiser only need
-The Button; a host still turns on **Send my game to the caster** in their Button, and TT
-Broadcast receives it. It shows who the impostors are, so it stays on the caster's PC and off
+The Button; a host still turns on **Send my game to the caster** in their Button, and Red
+Alert receives it. It shows who the impostors are, so it stays on the caster's PC and off
 stream.
 
-* **Install:** download **`Install-TTBroadcast.bat`** from the
-  [TT Broadcast releases](https://github.com/Ljbutton/AU/releases?q=broadcast-v) (tags
+* **Install:** download **`Install-RedAlert.bat`** from the
+  [Red Alert releases](https://github.com/Ljbutton/AU/releases?q=broadcast-v) (tags
   `broadcast-v…`, a beta from v0.1.0) and double-click it. It installs to
-  `%LOCALAPPDATA%\Programs\TTBroadcast` with Start menu and desktop shortcuts, and can sit
+  `%LOCALAPPDATA%\Programs\RedAlert` with Start menu and desktop shortcuts, and can sit
   next to The Button on the same PC.
 * **The side menu** has a page per job: **Live desk** (lobby buttons, layouts, what's happening
   and the lobbies), **Lobby health**, **Montages**, **Graphics**, **Standings**, **Sponsors**,
@@ -355,12 +357,15 @@ stream.
   what needs a look. The keys (1-9, N, replay keys) and the replay controls work on every page.
 * **Unlock** it with the tournament's administration code (the same one as The Button's
   Organiser tab).
-* **First start:** on a PC that already had The Button's caster tools, TT Broadcast copies
+* **First start:** on a PC that already had The Button's caster tools, Red Alert copies
   their settings once (never overwriting): `obs.json` (OBS, replay folder and keys),
   `caster-priority.json`, `roster.csv`, `broadcast.json`, `sponsors.json`, `health.json`, the
   Twitch settings and sign-in, the kept games and the administration code. Its own folder is
-  `%LOCALAPPDATA%\TTBroadcast`.
-* **Updates:** TT Broadcast updates itself from its own releases, separately from The Button
+  `%LOCALAPPDATA%\RedAlert`.
+* **It was called TT Broadcast** (v0.1.0). Installing Red Alert replaces it (its shortcuts and
+  program folder go) and its settings come over the first time Red Alert opens; a TT Broadcast
+  that updates itself becomes Red Alert where it is.
+* **Updates:** Red Alert updates itself from its own releases, separately from The Button
   (its header says when a new version is ready to restart into; untick **update automatically**
   there to update only when you choose). Hosts never
   need to reinstall anything for a broadcast change.
@@ -368,7 +373,7 @@ stream.
   pages are on `localhost:8767`, as before. The mod uses 8765 and 8766 on the host's PC.
 * **Older hosts:** hosts send their game data in a versioned format
   ([docs/broadcast-protocol.md](docs/broadcast-protocol.md)). A host whose mod is older than
-  TT Broadcast still shows, with **host needs update** in Lobby health.
+  Red Alert still shows, with **host needs update** in Lobby health.
 
 ### Caster overlay and game video
 
@@ -376,7 +381,7 @@ stream.
   whatever just happened, else the next lobby in turn). A lobby whose host has gone silent
   for a couple of minutes gets a warning at the top.
 * **Caster overlay:** an OBS Browser source at `http://localhost:8767/` that shows whichever
-  lobby you pick (its numbered button, or the number keys 1-9 while TT Broadcast is open), switching
+  lobby you pick (its numbered button, or the number keys 1-9 while Red Alert is open), switching
   live: players, round standings and the latest meetings and ejections for that game.
   `http://localhost:8767/?full=1` adds roles, kills and task bars (for a stream on a delay
   only).
@@ -401,7 +406,7 @@ stream.
 
 ### Caster tab (RedZone broadcast)
 
-TT Broadcast's main screen is the **Caster** tab: every lobby's live play,
+Red Alert's main screen is the **Caster** tab: every lobby's live play,
 ranked, and one click to put a lobby on stream. It shows who the impostors are, so it stays on
 the caster's PC and off stream.
 
@@ -409,22 +414,22 @@ the caster's PC and off stream.
   *Send my game to the caster*. Their Button opens its own page with VDO.Ninja inside: it shares
   the screen and sends the mod's live data (kills with room and position, meetings, ejections,
   sabotages with time left, vents, task bar, kill-ready, danger, a snapshot every second) along
-  the same private stream. TT Broadcast joins each stream for its data. A lobby that
+  the same private stream. Red Alert joins each stream for its data. A lobby that
   stops sending shows as offline; the rest keep going.
 * **Cards:** "Happening now" lists plays highest priority first (must show, very high, high,
   medium), with the lobby, the play ("Reactor 12s, nobody fixing", "Purple killed Lime in
   Electrical"), crew v impostors, task bar and time. Repeats update the same card. Each card and
   lobby says if it's on stream and how (LIVE (full), LIVE (quad, slot 2)); plays that happened on
   stream get a SHOWN badge. Calmed-down plays move to *Earlier*, with **Watch again**.
-* **Ranking:** every weight and limit is in `caster-priority.json` in TT Broadcast's
+* **Ranking:** every weight and limit is in `caster-priority.json` in Red Alert's
   folder (written the first time, re-read when you save it).
 * **OBS:** in OBS, Tools → WebSocket Server Settings → Enable WebSocket server, set a password,
-  and connect from the Caster tab. TT Broadcast builds the scenes **TT Full**, **TT 2-up**,
+  and connect from the Caster tab. Red Alert builds the scenes **TT Full**, **TT 2-up**,
   **TT Quad**, **TT Grid**, **TT Sponsor Break** and **TT Intermission** with one source per lobby (each stays connected, so switching is instant), places
   the lobbies in their slots, plays only slot 1's game sound, and switches scene when you click.
   It never touches your other scenes. Switch in OBS yourself and the LIVE labels follow.
-  Settings and the lobby → source mapping are in `obs.json` in TT Broadcast's folder.
-* **Replays** (needs the free **Source Record** plugin for OBS, by Exeldro): TT Broadcast puts a
+  Settings and the lobby → source mapping are in `obs.json` in Red Alert's folder.
+* **Replays** (needs the free **Source Record** plugin for OBS, by Exeldro): Red Alert puts a
   Source Record replay buffer (last 30 s) on every lobby source. Every kill saves a clip by itself
   (8 s before to 2 s after); any card can save one with **Save replay**, while OBS still has it.
   **▶ REPLAY** on the card (or **Watch again**) plays it in the **TT Replay** scene: a Media
@@ -444,13 +449,13 @@ the caster's PC and off stream.
   vent in MedBay" card. Switch each one per lobby under its row in the Caster tab (it goes to
   the host over their VDO.Ninja link), or with keys for the lobby on stream (M lit, V vision,
   X "!", E eye; change them under Keys).
-* **Real names:** `roster.csv` in TT Broadcast's folder (name, Discord ID, in-game names,
+* **Real names:** `roster.csv` in Red Alert's folder (name, Discord ID, in-game names,
   friend codes, pronunciation; `;` between several). Each player is matched by the Discord
   account automute links them to, then friend code, then in-game name; pick someone by hand in
   the **Players** card to override. Names show with their colour swatch everywhere (cards, on
   stream, montages), and each referee's nameplates show the roster names (on their screen only).
-* **On-stream graphics:** one transparent 1920×1080 page (`/broadcast` on the caster port; TT
-  Broadcast adds it as **TT Broadcast** on top of every TT scene) that places each graphic on the
+* **On-stream graphics:** one transparent 1920×1080 page (`/broadcast` on the caster port; Red
+  Alert adds it as **TT Broadcast** on top of every TT scene) that places each graphic on the
   right lobby in every layout. Colours, fonts and logo are in `broadcast.json`; switch each
   graphic in the **On-stream graphics** card: lobby labels, a status bar with a cell per lobby
   (on air highlighted, pulsing at very high and must show), impostor tags per feed (dead crossed
@@ -470,7 +475,7 @@ the caster's PC and off stream.
   the whole tournament. Near the end of a game, *points on the line* shows what each ending
   does to the lobby's table; after each game, arrows show who moved.
 * **Montages:** clips are saved by themselves for kills, ejections, meetings, witnessed kills and
-  game ends. When a game ends TT Broadcast builds a 30–60 s montage of it with ffmpeg (each moment
+  game ends. When a game ends Red Alert builds a 30–60 s montage of it with ffmpeg (each moment
   cut to a few seconds, cropped like replays, a lower third such as "Jake → Maria,
   Electrical", wipes between them); when a round ends, "every kill" then the top plays counting
   down. The **Montages** card shows them ready with Play (in the replay scene), Preview and
@@ -486,7 +491,7 @@ the caster's PC and off stream.
 * **Swoosh:** a stinger plays on every switch (scenes, pictures moving within a layout, the grid
   changing, replays coming up), once per 1.5 s, never while scrubbing a replay. Add a Stinger
   transition called **TT Swoosh** in OBS (Scene Transitions → +) to have OBS play it for scene
-  changes; TT Broadcast sets its video. It's made with ffmpeg in the tournament's colours (from
+  changes; Red Alert sets its video. It's made with ffmpeg in the tournament's colours (from
   `broadcast.json`): a slanted band with crewmate heads of every colour tumbling across it and the
   logo in the middle as it covers the screen; it's made again when the colours or logo change.
   `swoosh.path` in `obs.json` uses your own video instead.
@@ -531,7 +536,7 @@ the caster's PC and off stream.
   * Every lobby down mid-game: the **TT Be Right Back** scene ("Technical difficulties", standings
     and storylines taking turns); between games it's intermission instead. **Be right back** puts
     it up by hand. It goes back to a lobby when one returns.
-  * Nothing is lost: the referee's page keeps every message until TT Broadcast says it
+  * Nothing is lost: the referee's page keeps every message until Red Alert says it
     arrived and sends the rest again when the link is back, with their own times. Repeats are
     dropped; anything more than 8 s old counts for the stats but is never shown as live. The
     referee sees "Disconnected from caster, reconnecting…" meanwhile; their game isn't touched.
@@ -547,12 +552,12 @@ the caster's PC and off stream.
   2. Paste its Client ID into the card.
   3. Press **Sign in**: enter the code shown at twitch.tv/activate, signed in as the channel.
 
-  TT Broadcast keeps the sign-in fresh (it's in `twitch-token.json` on this PC only) and listens to
+  Red Alert keeps the sign-in fresh (it's in `twitch-token.json` on this PC only) and listens to
   the channel with EventSub. Settings are in `twitch.json`. Polls, predictions and channel point
   rewards need **Affiliate or Partner** (the card says so if the channel isn't); the !sus vote and
   Chat Detective work on any channel. Twitch allows one poll and one prediction at a time; polls
   have 2–5 choices of up to 25 characters and last 15–1800 s; predictions have 2–10 outcomes and
-  a 30–1800 s window. TT Broadcast keeps to those. **Stream delay** (0 by default) holds every
+  a 30–1800 s window. Red Alert keeps to those. **Stream delay** (0 by default) holds every
   action back so it matches what viewers see.
   * **Predictions:** "LJ: Impostors or Crewmates?" opens when a game starts in the featured lobby
     (the one you pick, else the one on stream), locks after 90 s and resolves when the game ends;
@@ -569,7 +574,7 @@ the caster's PC and off stream.
   * **Which lobby next?** in a calm moment (by hand, or by itself with Auto): chat's pick becomes a
     card with a **Put it on** button. Nothing switches until you press it.
   * **Round MVP:** a poll of the round's top five from the standings when intermission starts.
-  * **Channel points:** TT Broadcast makes "Request a replay" and "Shoutout a player". Requests wait in
+  * **Channel points:** Red Alert makes "Request a replay" and "Shoutout a player". Requests wait in
     the card: approve a replay (pick the clip) or a shoutout (their player card goes up and chat is
     told), or deny it (points back). Shoutouts must name someone on the roster; a filter turns
     away bad words at once, with the points back.
@@ -852,7 +857,7 @@ game is saved as `-void`.
 
 ```bash
 dotnet test tests/TournamentTracker.Tests          # core logic and The Button, no game needed
-dotnet test tests/TournamentTracker.Broadcast.Tests # TT Broadcast
+dotnet test tests/TournamentTracker.Broadcast.Tests # Red Alert
 dotnet build src/TournamentTracker.Plugin -c Release -p:GameLibsVersion=2025.x.y
 ```
 
@@ -862,8 +867,8 @@ uses the newest game version (currently 2026.8.18); pass `GameLibsVersion` to ma
 game. BepInEx is pinned to be.735, because newer builds use an Il2CppInterop version the
 interop generator can't run. On GitHub, run the
 **Build** workflow by hand (Actions → Build → Run workflow) to choose the version; give it a
-`release_tag` (e.g. `v0.1.1` for The Button and the mod, `broadcast-v0.1.0` for TT
-Broadcast) to publish a release, and `delete_tags` to remove old ones.
+`release_tag` (e.g. `v0.1.1` for The Button and the mod, `broadcast-v0.1.0` for Red
+Alert) to publish a release, and `delete_tags` to remove old ones.
 
 Layout:
 
@@ -874,9 +879,9 @@ Layout:
   `src/TournamentTracker.App` is the Windows window around it (WebView2), built in CI.
 * `src/TournamentTracker.Common` is what both apps share: the organiser's tournament link
   (the Live data messages) and self-updating.
-* `src/TournamentTracker.Broadcast` is TT Broadcast's engine and pages (cross-platform, tested);
+* `src/TournamentTracker.Broadcast` is Red Alert's engine and pages (cross-platform, tested);
   `src/TournamentTracker.BroadcastApp` is its Windows window, built in CI. The feed between a
-  host and TT Broadcast is defined in `Core/Broadcast/FeedProtocol.cs` and
+  host and Red Alert is defined in `Core/Broadcast/FeedProtocol.cs` and
   `docs/broadcast-protocol.md`.
 * `src/TournamentTracker.Plugin` is the BepInEx plugin: Harmony hooks on the game, and a
   per-frame driver that reads the game phase for automute. It compiles the core in, so the

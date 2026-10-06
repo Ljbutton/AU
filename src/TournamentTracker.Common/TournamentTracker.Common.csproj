@@ -2,7 +2,7 @@
   <!--
     What both desktop apps share (and the mod doesn't): the organiser's link to the tournament's
     private Discord channels (live lobbies, standings, referee commands) and self-updating. The
-    Button and the broadcast app (TT Broadcast) each use it; scoring itself stays in Core.
+    Button and the broadcast app (Red Alert) each use it; scoring itself stays in Core.
   -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>

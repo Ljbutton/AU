@@ -1,6 +1,6 @@
 # The broadcast feed (protocol v1)
 
-How a host's game talks to the broadcast app (TT Broadcast), and how the broadcast app talks back.
+How a host's game talks to the broadcast app (Red Alert), and how the broadcast app talks back.
 The definitions in code are `src/TournamentTracker.Core/Broadcast/FeedProtocol.cs`; the mod writes
 the feed in `LobbyFeed.cs` / `SpectatorView.cs`; the broadcast app reads it in `CasterDesk`,
 `LobbyBoard`, `Tracks` and `GameArchive`.
@@ -8,14 +8,14 @@ the feed in `LobbyFeed.cs` / `SpectatorView.cs`; the broadcast app reads it in `
 ## The path
 
 ```
-Among Us + mod ──(local control port, /feed)──▶ host's Button ──(send page, VDO.Ninja data channel)──▶ TT Broadcast
+Among Us + mod ──(local control port, /feed)──▶ host's Button ──(send page, VDO.Ninja data channel)──▶ Red Alert
                 ◀──────── "spec …" commands ──── /app/command ◀──────────── ttc / ttn / ttack ─────────
 ```
 
 * The mod keeps the last 600 messages; the host's Button page polls them (`/app/sendfeed?since=N`)
   and sends them over VDO.Ninja with the screen share: `postMessage({sendData:{tt:[…]}, type:'pcs'})`.
   Only someone with the stream's password (the caster) receives them.
-* TT Broadcast joins each host's stream with a hidden, data-only VDO.Ninja view (`&novideo&noaudio`),
+* Red Alert joins each host's stream with a hidden, data-only VDO.Ninja view (`&novideo&noaudio`),
   takes `tt` messages from it, and answers on the same link with `type:'rpcs'`.
 
 ## Rules

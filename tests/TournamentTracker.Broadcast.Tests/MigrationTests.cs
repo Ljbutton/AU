@@ -5,7 +5,7 @@ using Xunit;
 
 namespace TournamentTracker.Tests;
 
-/// <summary>TT Broadcast's first start: the caster's setup comes over from The Button's folder.</summary>
+/// <summary>Red Alert's first start: the caster's setup comes over from The Button's folder.</summary>
 public class MigrationTests : IDisposable
 {
     private readonly TempDir _dir = new();
@@ -14,7 +14,7 @@ public class MigrationTests : IDisposable
     [Fact]
     public void The_casters_setup_comes_over_once_and_nothing_is_overwritten_or_taken_away()
     {
-        string button = Path.Combine(_dir.Path, "TheButton"), settings = Path.Combine(_dir.Path, "TTBroadcast", "settings.json");
+        string button = Path.Combine(_dir.Path, "TheButton"), settings = Path.Combine(_dir.Path, "RedAlert", "settings.json");
         Directory.CreateDirectory(Path.Combine(button, "broadcast-games"));
         Directory.CreateDirectory(Path.Combine(button, "tools"));
         var admin = new SetupCode { Mode = "admin", TournamentId = "c", TournamentName = "Cup", BotTokens = new() { "admin" }, ResultsChannelId = "results" }.Encode();
@@ -47,9 +47,32 @@ public class MigrationTests : IDisposable
         Assert.Equal(admin, BroadcastAppSettings.Load(settings).AdminCode);
         Assert.True(File.Exists(Path.Combine(button, "obs.json")));                    // copied, not moved
 
-        // Only once: a change made in TT Broadcast later is never overwritten.
+        // Only once: a change made in Red Alert later is never overwritten.
         File.WriteAllText(Path.Combine(to, "obs.json"), "{\"port\":4456}");
         Assert.Empty(Migration.Run(button, settings));
         Assert.Equal("{\"port\":4456}", File.ReadAllText(Path.Combine(to, "obs.json")));
+    }
+
+    [Fact]
+    public void The_folder_from_before_the_rename_comes_over_once_and_skips_the_browser_cache()
+    {
+        string old = Path.Combine(_dir.Path, "TTBroadcast"), now = Path.Combine(_dir.Path, "RedAlert");
+        Directory.CreateDirectory(Path.Combine(old, "broadcast-games"));
+        Directory.CreateDirectory(Path.Combine(old, "WebView2", "Default"));
+        File.WriteAllText(Path.Combine(old, "settings.json"), "{\"AdminCode\":\"x\"}");
+        File.WriteAllText(Path.Combine(old, Migration.Marker), "done");
+        File.WriteAllText(Path.Combine(old, "broadcast-games", "LJ-1.json"), "{}");
+        File.WriteAllText(Path.Combine(old, "WebView2", "Default", "cache"), "big");
+
+        Assert.True(Migration.FromOldName(old, now));
+        Assert.Equal("{\"AdminCode\":\"x\"}", File.ReadAllText(Path.Combine(now, "settings.json")));
+        Assert.True(File.Exists(Path.Combine(now, Migration.Marker)));             // so The Button's isn't copied over it again
+        Assert.True(File.Exists(Path.Combine(now, "broadcast-games", "LJ-1.json")));
+        Assert.False(Directory.Exists(Path.Combine(now, "WebView2")));
+
+        File.WriteAllText(Path.Combine(now, "settings.json"), "{}");
+        Assert.False(Migration.FromOldName(old, now));                             // only once
+        Assert.Equal("{}", File.ReadAllText(Path.Combine(now, "settings.json")));
+        Assert.False(Migration.FromOldName(Path.Combine(_dir.Path, "none"), Path.Combine(_dir.Path, "fresh")));
     }
 }

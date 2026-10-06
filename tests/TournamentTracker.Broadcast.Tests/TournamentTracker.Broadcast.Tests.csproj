@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- TT Broadcast's tests: the desk, OBS, replays, montages, graphics, Twitch, the caster pages and its server. -->
+  <!-- Red Alert's tests: the desk, OBS, replays, montages, graphics, Twitch, the caster pages and its server. -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <IsPackable>false</IsPackable>

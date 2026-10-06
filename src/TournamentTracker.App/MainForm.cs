@@ -13,7 +13,7 @@ using Microsoft.Win32;
 namespace TournamentTracker.App
 {
     /// <summary>
-    /// The app's window (The Button's, and TT Broadcast's: this file is shared): borderless, with its own title bar drawn by the app's page (drag it
+    /// The app's window (The Button's, and Red Alert's: this file is shared): borderless, with its own title bar drawn by the app's page (drag it
     /// to move, double-click to maximise, and minimise, maximise and close buttons). The thin
     /// edge around the page is the window's own, for resizing.
     /// </summary>
