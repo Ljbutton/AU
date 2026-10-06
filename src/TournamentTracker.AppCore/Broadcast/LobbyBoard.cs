@@ -58,6 +58,7 @@ namespace TournamentTracker.App.Broadcast
         public string? MeetingText { get; set; }
         /// <summary>The meeting event (caller and body), for the meeting card's players and replay.</summary>
         public JsonElement? MeetingSource { get; set; }
+        public JsonElement? DangerSource { get; set; }
         public bool Video { get; set; }
         public double? Clock { get; set; }
         /// <summary>The spectator view on the host's screen (lit, vision, "!", eye, focus), as it last said.</summary>
@@ -191,7 +192,7 @@ namespace TournamentTracker.App.Broadcast
             State(l, now, "lobby", "lobby", !inGame, l.Phase == "ended" ? "Game over" : l.Phase == "menu" ? "Not in a lobby" : "In the lobby");
             State(l, now, "inGame", "inGame", inGame, "Playing");
             State(l, now, "meeting", "meeting", l.Phase == "meeting", l.MeetingText ?? "Meeting", l.MeetingSource);
-            State(l, now, "danger", "danger", inGame && l.Danger, l.DangerText ?? "Danger: an impostor is alone with a crewmate");
+            State(l, now, "danger", "danger", inGame && l.Danger, l.DangerText ?? "Danger: an impostor is alone with a crewmate", l.DangerSource);
             var crit = c.Rule("criticalSabotage");
             bool critical = inGame && l.SabotageCritical && l.SabotageLeft.HasValue && l.SabotageLeft.Value < (crit.Threshold ?? 15);
             string sabText = l.Sabotage == null ? "" : l.SabotageLeft.HasValue ? $"{l.Sabotage} {Math.Ceiling(l.SabotageLeft.Value)}s" : $"{l.Sabotage} sabotaged";
@@ -293,7 +294,8 @@ namespace TournamentTracker.App.Broadcast
                     if (Str(m, "state") == "start")
                     {
                         l.DangerText = $"{Name("impostor") ?? "An impostor"} alone with {Name("crewmate") ?? "a crewmate"}{In(Str(m, "room"))}, kill ready";
-                        if (l.Plays.TryGetValue("danger", out var dp) && dp.Ended == null) { dp.Text = l.DangerText; dp.Updated = now; dp.Source = m.Clone(); PlayChanged?.Invoke(l.Lobby, dp); }
+                        l.DangerSource = m.Clone();
+                        if (l.Plays.TryGetValue("danger", out var dp) && dp.Ended == null) { dp.Text = l.DangerText; dp.Updated = now; dp.Source = l.DangerSource; PlayChanged?.Invoke(l.Lobby, dp); }
                     }
                     break;
                 case "vent":
