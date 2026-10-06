@@ -40,6 +40,12 @@ namespace TournamentTracker.App
         /// </summary>
         public string? SetupCode { get; set; }
 
+        /// <summary>Lobby voice for the broadcast (when sending the game to the caster): levels, and whether the referee's own microphone goes in.</summary>
+        public double VoiceLevel { get; set; } = 1.0;
+        public double GameSoundLevel { get; set; } = 0.5;
+        public bool VoiceIncludeMic { get; set; }
+        public bool VoiceOff { get; set; }
+
         public static AppSettings Load(string file)
         {
             try { if (File.Exists(file)) return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(file)) ?? new AppSettings(); }
@@ -99,6 +105,18 @@ namespace TournamentTracker.App
         private ReplayManager? _replays;
         private BroadcastApp? _broadcast;
         private MontageManager? _montages;
+        private Voice.VoiceCapture? _voice;
+
+        /// <summary>The lobby's voice and game sound for the send page (started the first time it asks).</summary>
+        private Voice.VoiceCapture VoiceNow()
+        {
+            if (_voice == null)
+            {
+                _voice = new Voice.VoiceCapture { VoiceLevel = _settings.VoiceLevel, GameLevel = _settings.GameSoundLevel };
+                if (!_settings.VoiceOff) _voice.Start();
+            }
+            return _voice;
+        }
 
         /// <summary>Starts (or stops) the organiser's view for the saved administration code.</summary>
         private void StartOrganizer()
@@ -122,7 +140,7 @@ namespace TournamentTracker.App
                     Advance = () => organizer.Advance,
                     GamesPerRound = () => organizer.GamesPerRound,
                 };
-                var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(organizer, desk));
+                var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(organizer, desk)) { VoiceFeeds = () => VoiceFeeds(organizer, desk) };
                 // The overlay and video page follow the lobby in the first slot; OBS (when connected) shows the whole layout.
                 desk.Switch = air =>
                 {
@@ -199,6 +217,17 @@ namespace TournamentTracker.App
                 foreach (var r in desk.Board.Ranking())
                     if (!list.Any(l => string.Equals(l.Lobby, r.Lobby, StringComparison.OrdinalIgnoreCase)))
                         list.Add((r.Lobby, organizer.CasterUrl + "sim?lobby=" + Uri.EscapeDataString(r.Lobby)));
+            return list;
+        }
+
+        /// <summary>Each lobby's voice stream for OBS; simulated lobbies get a stand-in that blips.</summary>
+        private static IReadOnlyList<(string Lobby, string Url)> VoiceFeeds(Organizer organizer, CasterDesk desk)
+        {
+            var list = organizer.VoiceLinks();
+            if (desk.Simulating && organizer.CasterUrl != null)
+                foreach (var r in desk.Board.Ranking())
+                    if (!list.Any(l => string.Equals(l.Lobby, r.Lobby, StringComparison.OrdinalIgnoreCase)))
+                        list.Add((r.Lobby, organizer.CasterUrl + "simvoice?lobby=" + Uri.EscapeDataString(r.Lobby)));
             return list;
         }
 
@@ -384,6 +413,7 @@ namespace TournamentTracker.App
                     if (_desk == null || _organizer == null) return Text(404, "application/json", "{\"error\":\"locked\"}");
                     return Ok(new { desk = _desk.State(), obs = _obs?.Status(), replay = _replays?.State(), roster = _desk.RosterState(), story = _desk.StoryState(),
                         montages = _montages?.State(), moments = _replays?.Moments(), sponsors = SponsorState(),
+                        voice = new { status = _desk.VoiceState(), obs = _obs?.VoiceStatus() },
                         broadcast = _broadcast == null ? null : new { url = _organizer.CasterUrl == null ? null : _organizer.CasterUrl + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem, alerts = _desk.Alerts.Settings, alertsWaiting = _desk.Alerts.Waiting },
                         names = _organizer.DataLinks().ToDictionary(d => d.Lobby, d => _desk.NamesFor(d.Lobby)), receivers = _organizer.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList() });
                 case ("POST", "/app/admin/feedin"):
@@ -645,6 +675,47 @@ namespace TournamentTracker.App
                     if (Arg("scope").Length > 0) _desk.StandingsScope = Arg("scope") == "overall" ? "overall" : "round";
                     if (Arg("show").Length > 0) _broadcast?.Settings.Set("standings", Arg("show") == "true");
                     return Ok(new { ok = true, message = Arg("show") == "true" ? "Standings on stream." : Arg("show") == "false" ? "Standings off stream." : $"Standings: {(_desk.StandingsScope == "overall" ? "whole tournament" : "this round")}." });
+                case ("POST", "/app/admin/voice"):
+                {
+                    if (_obs == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    var v = _obs.Settings.Voice;
+                    string lobby = Arg("lobby");
+                    double Num(string name) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty(name, out var n)
+                        ? n.ValueKind == JsonValueKind.Number ? n.GetDouble() : double.TryParse(n.GetString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0 : 0;
+                    string said;
+                    bool duck = false;
+                    switch (Arg("action"))
+                    {
+                        case "mute":
+                            v.MuteAll = Arg("on").Length > 0 ? Arg("on") == "true" : !v.MuteAll;
+                            said = v.MuteAll ? "Every lobby voice muted." : "Lobby voice back on: it follows the picture.";
+                            break;
+                        case "pin":
+                            v.Pin = lobby == v.Pin ? "" : lobby;
+                            said = v.Pin.Length > 0 ? $"{v.Pin}'s voice stays up whatever is on screen." : "Lobby voice follows the picture again.";
+                            break;
+                        case "volume":
+                            v.Volume[lobby] = Math.Round(Math.Max(-30, Math.Min(12, Num("value"))), 1);
+                            said = $"{lobby} voice {v.Volume[lobby]:+0.#;-0.#;0} dB.";
+                            break;
+                        case "offset":
+                            v.Offset[lobby] = (int)Math.Max(0, Math.Min(5000, Num("value")));
+                            said = $"{lobby} voice {v.Offset[lobby]} ms later.";
+                            break;
+                        case "duck":
+                            v.DuckUnder = Arg("name").Trim();
+                            duck = true;
+                            said = v.DuckUnder.Length > 0 ? $"Lobby voice ducks under {v.DuckUnder}." : "No ducking.";
+                            break;
+                        case "on":
+                            v.On = Arg("on") == "true";
+                            said = v.On ? "Lobby voice on stream." : "Lobby voice off stream.";
+                            break;
+                        default: return Ok(new { ok = false, message = "Unknown voice action." });
+                    }
+                    await _obs.VoiceChangedAsync(duck).ConfigureAwait(false);
+                    return Ok(new { ok = true, message = said });
+                }
                 case ("POST", "/app/admin/intermission"):
                 {
                     if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
@@ -717,6 +788,30 @@ namespace TournamentTracker.App
                             && feed.TryGetProperty("pushUrl", out var pu) && pu.ValueKind == JsonValueKind.String) push = pu.GetString();
                     }
                     return Ok(new { pushUrl = push != null && push.StartsWith(TournamentSession.VdoNinja, StringComparison.Ordinal) ? push : null });
+                }
+                case ("GET", "/app/voice/pcm"):
+                    // The mix of Discord's and Among Us's sound since the last call, for the send page (never played here).
+                    if (_settings.VoiceOff) return (200, "application/octet-stream", Array.Empty<byte>());
+                    return (200, "application/octet-stream", VoiceNow().Read());
+                case ("GET", "/app/voice"):
+                {
+                    var v = VoiceNow();
+                    return Ok(new { on = !_settings.VoiceOff, mic = _settings.VoiceIncludeMic, state = v.State() });
+                }
+                case ("POST", "/app/voice"):
+                {
+                    var v = VoiceNow();
+                    double Level(string name, double was) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty(name, out var n) && n.ValueKind == JsonValueKind.Number ? Math.Max(0, Math.Min(1.5, n.GetDouble())) : was;
+                    _settings.VoiceLevel = v.VoiceLevel = Level("voiceLevel", _settings.VoiceLevel);
+                    _settings.GameSoundLevel = v.GameLevel = Level("gameLevel", _settings.GameSoundLevel);
+                    if (Arg("mic").Length > 0) _settings.VoiceIncludeMic = Arg("mic") == "true";
+                    if (Arg("on").Length > 0)
+                    {
+                        _settings.VoiceOff = Arg("on") != "true";
+                        if (_settings.VoiceOff) v.Stop(); else v.Start();
+                    }
+                    TrySave();
+                    return Ok(new { ok = true });
                 }
                 case ("GET", "/app/sendfeed"):
                 {
@@ -1087,6 +1182,7 @@ namespace TournamentTracker.App
             _organizer?.Dispose();
             _desk?.Dispose();
             _replays?.Dispose();
+            _voice?.Dispose();
             if (_obs != null) try { _obs.DisposeAsync().AsTask().Wait(1500); } catch (Exception) { }
             try { _listener.Stop(); } catch (Exception) { }
         }

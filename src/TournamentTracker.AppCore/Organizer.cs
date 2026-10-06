@@ -229,6 +229,28 @@ namespace TournamentTracker.App
         }
 
         /// <summary>
+        /// Each sending lobby's voice stream (Part 11): its referee's Discord and game sound, sent by
+        /// their Button as its own VDO.Ninja stream (the video's id plus "v"), no picture.
+        /// </summary>
+        public List<(string Lobby, string Url)> VoiceLinks()
+        {
+            lock (_lock)
+                return _lobbies.Select(kv => (kv.Key, VoiceUrl(kv.Value.Data)))
+                    .Where(x => x.Item2 != null)
+                    .Select(x => (x.Key, x.Item2!))
+                    .ToList();
+        }
+
+        /// <summary>A lobby's voice stream link. Public for tests.</summary>
+        public static string? VoiceUrl(JsonElement d)
+        {
+            var video = VideoUrl(d);
+            if (video == null) return null;
+            var m = System.Text.RegularExpressions.Regex.Match(video, @"view=([a-z0-9]+)&");
+            return m.Success ? video.Replace("view=" + m.Groups[1].Value + "&", "view=" + m.Groups[1].Value + "v&").Replace("&noaudio&cleanoutput", "&novideo&cleanoutput") : null;
+        }
+
+        /// <summary>
         /// The same host's game sound on its own (no picture). The caster's video page plays only
         /// the lobby on air: the pictures stay connected silently, and this moves with the cast,
         /// so two lobbies' sound can never play at once. Public for tests.
@@ -278,6 +300,7 @@ namespace TournamentTracker.App
                 "/video" => ("text/html; charset=utf-8", B(CasterPages.Video)),
                 "/multiview" => ("text/html; charset=utf-8", B(CasterPages.Multiview)),
                 "/sim" => ("text/html; charset=utf-8", B(CasterPages.SimFeed)),
+                "/simvoice" => ("text/html; charset=utf-8", B(CasterPages.SimVoice)),
                 "/replaytag" => ("text/html; charset=utf-8", B(CasterPages.ReplayTag)),
                 "/replaynow" => ("application/json", B(ReplayNow)),
                 _ => MorePages?.Invoke(path),

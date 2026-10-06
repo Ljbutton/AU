@@ -149,39 +149,56 @@ function playSound(d){
         public const string Send = @"<!doctype html>
 <html><head><meta charset=""utf-8""><title>Sending to the caster</title>
 <style>
-:root{--bg:#0b0e13;--fg:#f3f5f7;--muted:#9aa6b2;--good:#46c28b;--bad:#ff6b6b}
+:root{--bg:#0b0e13;--fg:#f3f5f7;--muted:#9aa6b2;--good:#46c28b;--bad:#ff6b6b;--line:#252c36}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:15px/1.4 ""Segoe UI"",system-ui,sans-serif}
-body{display:grid;grid-template-rows:auto 1fr auto}
+body{display:grid;grid-template-rows:auto 1fr auto auto}
 header,footer{padding:10px 16px}
 header b{color:#fff}
 iframe{border:0;width:100%;height:100%;background:#000}
 footer{color:var(--muted);font-size:13px;display:flex;gap:14px}
 .ok{color:var(--good)}.bad{color:var(--bad)}
+#voice{padding:10px 16px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center;font-size:13.5px}
+#voice .src{display:flex;align-items:center;gap:8px}
+#voice .meter{width:90px;height:8px;border-radius:4px;background:#1b222b;overflow:hidden}
+#voice .meter i{display:block;height:100%;width:0;background:var(--good);transition:width .15s}
+#voice input[type=range]{width:110px}
+#voice .st{font-weight:600}
 </style></head><body>
-<header>Sending your game to the caster. Below, press the share button, pick <b>Entire screen</b> and tick <b>Share system audio</b>. Then leave this tab open while you play.</header>
+<header id=""howto"">Sending your game to the caster. Below, press the share button and pick <b>Entire screen</b>. Then leave this tab open while you play.</header>
 <iframe id=""v"" allow=""camera;microphone;display-capture;autoplay;fullscreen;clipboard-write""></iframe>
+<div id=""voice"">
+  <span class=""st"" id=""vstate"">Lobby voice: starting…</span>
+  <span class=""src"">Discord <span class=""meter""><i id=""mv""></i></span><input type=""range"" id=""lv"" min=""0"" max=""150"" title=""Lobby voice level""></span>
+  <span class=""src"">Among Us <span class=""meter""><i id=""mg""></i></span><input type=""range"" id=""lg"" min=""0"" max=""150"" title=""Game sound level""></span>
+  <label class=""src""><input type=""checkbox"" id=""mic""> Include my microphone</label>
+  <label class=""src""><input type=""checkbox"" id=""von""> Send lobby voice</label>
+</div>
 <footer><span id=""link"">Connecting to Among Us…</span><span id=""data""></span></footer>
+<script src=""https://unpkg.com/@vdoninja/sdk/vdoninja-sdk.min.js""></script>
 <script>
 const token=new URLSearchParams(location.search).get('token')||'';
+const q=p=>p+(p.includes('?')?'&':'?')+'token='+encodeURIComponent(token);
 const v=document.getElementById('v');
-let pushUrl=null,since=null,sent=0,lastOk=0;
+let pushUrl=null,since=null,sent=0,lastOk=0,lobby=null;
 async function info(){
   try{
-    const r=await (await fetch('/app/sendinfo?token='+encodeURIComponent(token),{cache:'no-store'})).json();
-    if(r.pushUrl&&r.pushUrl!==pushUrl){pushUrl=r.pushUrl;v.src=pushUrl;}
+    const r=await (await fetch(q('/app/sendinfo'),{cache:'no-store'})).json();
+    if(r.pushUrl&&r.pushUrl!==pushUrl){pushUrl=r.pushUrl;v.src=pushUrl;publishVoice();}
     document.getElementById('link').textContent=pushUrl?'Video link ready.':'Waiting for Among Us with ""Send my game to the caster"" on.';
   }catch(e){}
 }
+function send(items){ if(v.contentWindow) v.contentWindow.postMessage({sendData:{tt:items},type:'pcs'},'*'); }
 async function pump(){
   try{
-    const d=await (await fetch('/app/sendfeed?since='+(since??0)+'&token='+encodeURIComponent(token),{cache:'no-store'})).json();
+    const d=await (await fetch(q('/app/sendfeed?since='+(since??0)),{cache:'no-store'})).json();
     if(d.last<0)return;
     if(since===null||d.last<since){since=d.last;return;}   // start from now (and again if Among Us restarted)
     since=d.last;
     if(d.items&&d.items.length&&v.contentWindow){
       // VDO.Ninja's iframe API: sends to everyone viewing this stream (only the caster has the password).
-      v.contentWindow.postMessage({sendData:{tt:d.items},type:'pcs'},'*');
+      for(const it of d.items) if(it.lobby) lobby=it.lobby;
+      send(d.items);
       sent+=d.items.length;lastOk=Date.now();
     }
   }catch(e){}
@@ -193,13 +210,125 @@ addEventListener('message',e=>{
   if(e.source!==v.contentWindow)return;
   const got=e.data&&e.data.dataReceived;const cmd=got&&got.ttc;
   // Roster names for this lobby's players, for the referee's nameplates.
-  if(got&&got.ttn&&typeof got.ttn==='object'){fetch('/app/names?token='+encodeURIComponent(token),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({names:got.ttn})}).catch(()=>{});return;}
+  if(got&&got.ttn&&typeof got.ttn==='object'){fetch(q('/app/names'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({names:got.ttn})}).catch(()=>{});return;}
   if(typeof cmd!=='string'||!/^spec [a-z]+( [a-z0-9.]+)?$/.test(cmd))return;
-  fetch('/app/command?token='+encodeURIComponent(token),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:cmd})}).catch(()=>{});
+  fetch(q('/app/command'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:cmd})}).catch(()=>{});
 });
-info();setInterval(info,5000);setInterval(pump,500);
+
+// ---- Lobby voice (Part 11) -------------------------------------------------------------------
+// The Button captures Discord's sound (the lobby as you hear it, never your own voice) and Among Us's
+// sound separately; this page mixes them (plus your microphone if you want) and sends the mix to the
+// caster as its own stream next to your screen. Nothing is played back here or to the players.
+let ctx=null,node=null,dest=null,micNode=null,micStream=null,vdo=null,publishing=null,voiceProblem='',VS=null,noticeSent=false;
+const WORKLET=`class TTMix extends AudioWorkletProcessor{constructor(){super();this.q=[];this.off=0;this.buffered=0;this.started=false;
+  this.port.onmessage=e=>{this.q.push(e.data);this.buffered+=e.data.length/2;while(this.buffered>48000*0.6&&this.q.length>1){const d=this.q.shift();this.buffered-=(d.length-this.off)/2;this.off=0;}};}
+  process(_,outs){const L=outs[0][0],R=outs[0][1]||outs[0][0];
+    if(!this.started){if(this.buffered<48000*0.12){L.fill(0);R.fill(0);return true;}this.started=true;}
+    for(let i=0;i<L.length;i++){
+      if(!this.q.length){L[i]=R[i]=0;this.started=false;continue;}
+      const d=this.q[0];L[i]=d[this.off]/32768;R[i]=d[this.off+1]/32768;this.off+=2;this.buffered--;
+      if(this.off>=d.length){this.q.shift();this.off=0;}}
+    return true;}}
+registerProcessor('tt-mix',TTMix);`;
+async function audio(){
+  if(ctx)return;
+  ctx=new AudioContext({sampleRate:48000});
+  await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET],{type:'text/javascript'})));
+  node=new AudioWorkletNode(ctx,'tt-mix',{numberOfInputs:0,outputChannelCount:[2]});
+  dest=ctx.createMediaStreamDestination();
+  node.connect(dest);                       // only to the stream: never to the speakers
+  pull();
+}
+async function pull(){
+  for(;;){
+    try{
+      if(VS&&VS.on){
+        const b=await (await fetch(q('/app/voice/pcm'),{cache:'no-store'})).arrayBuffer();
+        if(b.byteLength>=4) node.port.postMessage(new Int16Array(b));
+      }
+    }catch(e){}
+    await new Promise(r=>setTimeout(r,40));
+  }
+}
+async function mic(on){
+  if(on&&!micNode){
+    try{ micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}}); micNode=ctx.createMediaStreamSource(micStream); micNode.connect(dest); }
+    catch(e){ voiceProblem='Microphone blocked: '+e.message; document.getElementById('mic').checked=false; }
+  } else if(!on&&micNode){ micNode.disconnect(); micStream.getTracks().forEach(t=>t.stop()); micNode=null; micStream=null; }
+}
+async function publishVoice(){
+  if(!pushUrl||!VS||!VS.on||publishing)return;
+  const u=new URL(pushUrl),id=u.searchParams.get('push'),pw=u.searchParams.get('password');
+  if(!id||!pw)return;
+  publishing=(async()=>{
+    try{
+      await audio();
+      if(ctx.state!=='running') await ctx.resume().catch(()=>{});
+      if(!window.VDONinjaSDK) throw new Error('the VDO.Ninja SDK did not load');
+      if(vdo){ try{ await vdo.disconnect(); }catch(e){} }
+      vdo=new VDONinjaSDK({password:pw});
+      await vdo.connect();
+      await vdo.publish(dest.stream,{streamID:id+'v',label:'Lobby voice'});
+      voiceProblem='';
+      if(!noticeSent){ noticeSent=true; fetch(q('/app/command'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:'voicenotice'})}).catch(()=>{}); }
+    }catch(e){ voiceProblem='Lobby voice not sent: '+e.message; vdo=null; }
+    publishing=null;
+  })();
+}
+const pct=db=>Math.max(0,Math.min(100,(db+60)/60*100));
+const STATE={capturing:'on','not running':'not open',unsupported:'needs Windows 10 2004 or later',off:'off'};
+async function voiceTick(){
+  try{
+    const r=await (await fetch(q('/app/voice'),{cache:'no-store'})).json();
+    const first=!VS; VS=r;
+    const s=r.state;
+    if(first){ document.getElementById('lv').value=Math.round(s.voiceLevel*100); document.getElementById('lg').value=Math.round(s.gameLevel*100); document.getElementById('mic').checked=r.mic; document.getElementById('von').checked=r.on; }
+    document.getElementById('mv').style.width=pct(s.voice.level)+'%';
+    document.getElementById('mg').style.width=pct(s.game.level)+'%';
+    const working=r.on&&s.supported&&s.voice.state==='capturing';
+    const st=document.getElementById('vstate');
+    st.textContent=!r.on?'Lobby voice: off':!s.supported?'Lobby voice needs Windows 10 2004 or later':voiceProblem||`Lobby voice: Discord ${STATE[s.voice.state]||s.voice.state} · Among Us ${STATE[s.game.state]||s.game.state}${vdo?' · sending':''}`;
+    st.className='st '+(voiceProblem||!working&&r.on?'bad':vdo?'ok':'');
+    // With The Button sending the game sound, the screen share must not carry it too.
+    document.getElementById('howto').innerHTML=r.on&&s.supported
+      ?'Sending your game to the caster. Below, press the share button, pick <b>Entire screen</b> and leave <b>Share system audio</b> unticked: The Button sends the game sound and the lobby voice itself. Then leave this tab open while you play.'
+      :'Sending your game to the caster. Below, press the share button, pick <b>Entire screen</b> and tick <b>Share system audio</b> (so the caster gets the game sound). Then leave this tab open while you play.';
+    if(ctx) await mic(r.on&&r.mic);
+    if(r.on&&!vdo) publishVoice();
+    // The caster's tab shows this lobby's voice status.
+    if(lobby) send([{type:'voice',lobby,t:Date.now(),on:r.on,sending:!!vdo,problem:voiceProblem||null,discord:s.voice.state,game:s.game.state,voiceDb:s.voice.level,gameDb:s.game.level,mic:!!micNode}]);
+  }catch(e){}
+}
+function save(body){ fetch(q('/app/voice'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(voiceTick); }
+document.getElementById('lv').oninput=e=>save({voiceLevel:e.target.value/100});
+document.getElementById('lg').oninput=e=>save({gameLevel:e.target.value/100});
+document.getElementById('mic').onchange=e=>save({mic:String(e.target.checked)});
+document.getElementById('von').onchange=e=>{ if(!e.target.checked&&vdo){ try{vdo.disconnect();}catch(x){} vdo=null; } save({on:String(e.target.checked)}); };
+// Browsers start audio only after a click on the page.
+addEventListener('pointerdown',()=>{ if(ctx&&ctx.state!=='running') ctx.resume(); },{capture:true});
+info();setInterval(info,5000);setInterval(pump,500);voiceTick();setInterval(voiceTick,1000);
 </script></body></html>";
     
+        /// <summary>
+        /// A stand-in for a lobby's voice in simulation mode (?lobby=LJ): soft blips at a pitch of
+        /// its own, so in OBS you can hear the voice follow the picture without real games.
+        /// </summary>
+        public const string SimVoice = @"<!doctype html>
+<html><head><meta charset=""utf-8""><title>Simulated lobby voice</title></head><body style=""margin:0;background:transparent"">
+<script>
+const lobby=new URLSearchParams(location.search).get('lobby')||'?';
+let h=0;for(const c of lobby)h=(h*31+c.charCodeAt(0))%1000;
+const base=220+h%5*55;
+const ctx=new AudioContext();
+function blip(){
+  const o=ctx.createOscillator(),g=ctx.createGain();
+  o.frequency.value=base*(1+Math.floor(Math.random()*4)/4);
+  g.gain.setValueAtTime(0,ctx.currentTime);g.gain.linearRampToValueAtTime(0.08,ctx.currentTime+0.03);g.gain.linearRampToValueAtTime(0,ctx.currentTime+0.25);
+  o.connect(g).connect(ctx.destination);o.start();o.stop(ctx.currentTime+0.3);
+}
+setInterval(()=>{ if(ctx.state!=='running')ctx.resume(); if(Math.random()<0.6)blip(); },400);
+</script></body></html>";
+
         /// <summary>
         /// A stand-in for a lobby's video in simulation mode (?lobby=LJ): big lobby name, a clock
         /// and moving crewmates, so switching in OBS can be checked without real games.

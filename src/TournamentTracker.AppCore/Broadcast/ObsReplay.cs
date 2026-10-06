@@ -213,6 +213,8 @@ namespace TournamentTracker.App.Broadcast
             _lastAppliedScene = Settings.Replay.Scene;
             await obs.RequestAsync("SetCurrentProgramScene", new { sceneName = Settings.Replay.Scene }).ConfigureAwait(false);
             Scene = Settings.Replay.Scene;
+            // Live voice doesn't belong over a replay.
+            await SetVoicesAsync(new OnAir { Layout = "replay" }).ConfigureAwait(false);
         }
 
         /// <summary>Crops and zooms the replay: moves and scales the clip so the view's centre is in the middle of the canvas.</summary>

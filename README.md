@@ -421,6 +421,19 @@ the caster's PC and off stream.
   roster row, key **C** for the top notification's player, and by itself for the key player of
   each replay and montage moment. One at a time, gone after 6 s; on the lobby's tile in a
   multi-view, or skipped when the tile is too small.
+* **Lobby voice:** the referee's Button captures what Discord plays (the lobby voice as they
+  hear it, which never includes their own voice) and what Among Us plays, each on its own
+  (Windows 10 2004 or later; no virtual cables), mixes them with a level for each and, if they
+  tick it, their microphone, and sends that as a second VDO.Ninja stream next to their screen.
+  Their send page shows a meter for each. In OBS each lobby gets a **TT Voice** source; the
+  voice follows the picture (the full-screen lobby, or slot 1), and replays, montages and
+  intermission are silent. The **Lobby voice** card shows each lobby's status and levels, and
+  has a volume and delay per lobby, **Listen** to keep one lobby up whatever is on screen,
+  **Mute all** (key **U**), and **Duck under** your mic (an OBS compressor keyed to it). It only
+  goes to the stream: nothing is played back to the players, and when voice sending starts the
+  bot posts "voice in this channel may be recorded" in the lobby's voice channel chat. On older
+  Windows, the referee ticks *Share system audio* instead (the old way: game sound and voice
+  together, no separate levels).
 * **Simulation:** the Simulation button plays four fake lobbies (with stand-in video in OBS, or
   stand-in clips made with ffmpeg when OBS isn't connected), to try everything above without
   real games.

@@ -35,6 +35,8 @@ namespace TournamentTracker.App.Broadcast
         public ReplaySettings Replay { get; set; } = new ReplaySettings();
         /// <summary>The swoosh on every switch (Part 17).</summary>
         public SwooshSettings Swoosh { get; set; } = new SwooshSettings();
+        /// <summary>The lobbies' voice (Part 11).</summary>
+        public VoiceSettings Voice { get; set; } = new VoiceSettings();
         /// <summary>Lobby → OBS source, as built. The Button keeps this up to date.</summary>
         public Dictionary<string, string> Sources { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -53,6 +55,9 @@ namespace TournamentTracker.App.Broadcast
                     s.Sources = new Dictionary<string, string>(s.Sources ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
                     s.Replay ??= new ReplaySettings();
                     s.Swoosh ??= new SwooshSettings();
+                    s.Voice ??= new VoiceSettings();
+                    s.Voice.Volume = new Dictionary<string, double>(s.Voice.Volume ?? new Dictionary<string, double>(), StringComparer.OrdinalIgnoreCase);
+                    s.Voice.Offset = new Dictionary<string, int>(s.Voice.Offset ?? new Dictionary<string, int>(), StringComparer.OrdinalIgnoreCase);
                     foreach (var kv in ReplaySettings.DefaultHotkeys()) if (!s.Replay.Hotkeys.ContainsKey(kv.Key)) s.Replay.Hotkeys[kv.Key] = kv.Value;
                     var d = new ObsSettings();
                     foreach (var kv in d.Scenes) if (!s.Scenes.ContainsKey(kv.Key)) s.Scenes[kv.Key] = kv.Value;
@@ -148,6 +153,8 @@ namespace TournamentTracker.App.Broadcast
                 await EnsureReplaySceneAsync().ConfigureAwait(false);
                 await EnsureBroadcastAsync().ConfigureAwait(false);
                 await EnsureSwooshAsync().ConfigureAwait(false);
+                _voiceInputs.Clear(); _voiceSet.Clear(); _duckWas = "\u0000";
+                await EnsureVoiceAsync().ConfigureAwait(false);
                 await ReadBackAsync().ConfigureAwait(false);
                 return $"Connected to OBS{(ObsVersion != null ? " " + ObsVersion : "")}. The TT scenes are ready.";
             }
@@ -191,7 +198,11 @@ namespace TournamentTracker.App.Broadcast
                     await ConnectAsync().ConfigureAwait(false);
                     return;
                 }
-                if (Connected) await AddSourcesAsync().ConfigureAwait(false);
+                if (Connected)
+                {
+                    await AddSourcesAsync().ConfigureAwait(false);
+                    await EnsureVoiceAsync().ConfigureAwait(false);
+                }
             }
             catch (Exception e) { Problem = e.Message; }
         }
@@ -410,6 +421,8 @@ namespace TournamentTracker.App.Broadcast
             }
             catch (Exception e) { Problem = "OBS: " + e.Message; }
             finally { _busy.Release(); }
+            // The voice follows the picture.
+            await SetVoicesAsync(air).ConfigureAwait(false);
         }
 
         private string? LobbyOf(string source)
@@ -474,6 +487,7 @@ namespace TournamentTracker.App.Broadcast
             Scenes = Settings.Scenes,
             Sources = Settings.Sources,
             Canvas = $"{Width}×{Height}",
+            Voice = VoiceStatus(),
             Swoosh = new { Settings.Swoosh.On, Stinger = _stinger, Problem = SwooshProblem, File = SwooshFile, Count = Swooshes },
         };
 

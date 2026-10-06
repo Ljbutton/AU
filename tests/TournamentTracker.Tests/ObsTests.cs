@@ -38,6 +38,8 @@ public sealed class FakeObs : IAsyncDisposable
     public double MediaCursorMs, MediaDurationMs = 30000;
     public string? MediaFile;
     public int SwooshPlays;
+    public readonly Dictionary<string, double> Volume = new();
+    public readonly Dictionary<string, int> SyncOffset = new();
     public List<(string Name, string Kind)> Transitions = new() { ("Fade", "fade_transition"), ("Cut", "cut_transition") };
     public string CurrentTransition = "Fade";
     public JsonElement TransitionSettings;
@@ -181,9 +183,12 @@ public sealed class FakeObs : IAsyncDisposable
             case "GetSourceFilterList":
                 return new { filters = Filters.Keys.Where(k => k.StartsWith(S(d, "sourceName") + "|")).Select(k => new { filterName = k.Split('|')[1], filterKind = "source_record_filter" }).ToList() };
             case "CreateSourceFilter":
-                if (!SourceRecordInstalled || S(d, "filterKind") != "source_record_filter") throw new Exception("Your specified filter kind is not supported by OBS.");
+                if (S(d, "filterKind") != "compressor_filter" && (!SourceRecordInstalled || S(d, "filterKind") != "source_record_filter")) throw new Exception("Your specified filter kind is not supported by OBS.");
                 Filters[S(d, "sourceName") + "|" + S(d, "filterName")] = d.GetProperty("filterSettings").EnumerateObject().ToDictionary(p => p.Name, p => p.Value.Clone());
                 return null;
+            case "RemoveSourceFilter": Filters.Remove(S(d, "sourceName") + "|" + S(d, "filterName")); return null;
+            case "SetInputVolume": Volume[S(d, "inputName")] = d.GetProperty("inputVolumeDb").GetDouble(); return null;
+            case "SetInputAudioSyncOffset": SyncOffset[S(d, "inputName")] = d.GetProperty("inputAudioSyncOffset").GetInt32(); return null;
             case "SetSourceFilterSettings":
                 foreach (var p in d.GetProperty("filterSettings").EnumerateObject()) Filters[S(d, "sourceName") + "|" + S(d, "filterName")][p.Name] = p.Value.Clone();
                 return null;

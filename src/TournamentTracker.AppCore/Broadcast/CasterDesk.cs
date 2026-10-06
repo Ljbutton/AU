@@ -112,6 +112,30 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Banners for plays in lobbies that aren't on screen.</summary>
         public AlertQueue Alerts { get; }
         private readonly HashSet<string> _alerted = new HashSet<string>();
+        private readonly Dictionary<string, (JsonElement Data, DateTime At)> _voice = new Dictionary<string, (JsonElement, DateTime)>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Each lobby's voice as its referee's Button reports it: sending, Discord and Among Us found, levels, mic.</summary>
+        public List<object> VoiceState()
+        {
+            var now = _clock();
+            var lobbies = Board.Ranking().Select(r => r.Lobby).ToList();
+            lock (_lock)
+                return lobbies.Concat(_voice.Keys.Where(k => !lobbies.Contains(k, StringComparer.OrdinalIgnoreCase))).Select(l =>
+                {
+                    if (!_voice.TryGetValue(l, out var v)) return (object)new { Lobby = l, Online = false, Reported = false };
+                    var d = v.Data;
+                    string? S(string p) => d.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.String ? x.GetString() : null;
+                    double N(string p) => d.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.Number ? x.GetDouble() : -60;
+                    bool B(string p) => d.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.True;
+                    return new
+                    {
+                        Lobby = l, Online = (now - v.At).TotalSeconds < 5, Reported = true,
+                        On = B("on"), Sending = B("sending"), Problem = S("problem"),
+                        Discord = S("discord"), Game = S("game"), VoiceDb = N("voiceDb"), GameDb = N("gameDb"), Mic = B("mic"),
+                        Ago = Math.Max(0, (int)(now - v.At).TotalSeconds),
+                    };
+                }).ToList();
+        }
         /// <summary>The tournament's scored game records (the organiser view's shared results).</summary>
         public Func<IReadOnlyList<GameRecord>>? ExternalGames { get; set; }
         public Func<int> Advance { get; set; } = () => 5;
@@ -171,6 +195,11 @@ namespace TournamentTracker.App.Broadcast
             {
                 string lobby = item.TryGetProperty("lobby", out var l) && l.ValueKind == JsonValueKind.String ? l.GetString() ?? "" : "";
                 if (lobby.Length > 0 && item.TryGetProperty("t", out var t) && t.ValueKind == JsonValueKind.Number) Tracks.Arrived(lobby, t.GetInt64(), _clock());
+                if (item.TryGetProperty("type", out var vt) && vt.GetString() == "voice")
+                {
+                    if (lobby.Length > 0) lock (_lock) _voice[lobby] = (item.Clone(), _clock());
+                    return;
+                }
                 if (item.TryGetProperty("type", out var type) && type.GetString() == "track")
                 {
                     if (lobby.Length > 0) Tracks.Add(lobby, item, _clock());

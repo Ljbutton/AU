@@ -75,6 +75,7 @@ namespace TournamentTracker.App.Broadcast
             // Graphics.
             ["alertsPause"] = "KeyB",
             ["playerCard"] = "KeyC",
+            ["voiceMute"] = "KeyU",
         };
     }
 

@@ -164,6 +164,7 @@ namespace TournamentTracker.App.Broadcast
                         _nextSnap = _now.AddSeconds(1);
                         Snap();
                         TrackOut();
+                        VoiceOut();
                     }
                 }
                 return _out.ToList();
@@ -202,6 +203,18 @@ namespace TournamentTracker.App.Broadcast
                     if (p.Y < 0.05 || p.Y > 0.95) { p.Vy = -p.Vy; p.Y = Math.Max(0.05, Math.Min(0.95, p.Y)); }
                 }
                 _samples.Add(new { t = new DateTimeOffset(_now).ToUnixTimeMilliseconds(), p = Alive().Select(p => new[] { (int)p.Id, (int)(p.X * 1000), (int)(p.Y * 1000), 0 }).ToList() });
+            }
+
+            // The referee's lobby voice status (Part 11): talking louder in meetings, the game quieter.
+            private void VoiceOut()
+            {
+                double voice = _phase == "meeting" ? Rand(-18, -6) : _r.NextDouble() < 0.3 ? Rand(-35, -15) : -60;
+                double game = _phase == "ingame" ? Rand(-30, -16) : -60;
+                Emit("voice", null, new Dictionary<string, object?>
+                {
+                    ["on"] = true, ["sending"] = true, ["problem"] = null, ["discord"] = "capturing", ["game"] = "capturing",
+                    ["voiceDb"] = Math.Round(voice, 1), ["gameDb"] = Math.Round(game, 1), ["mic"] = false,
+                });
             }
 
             private void TrackOut()

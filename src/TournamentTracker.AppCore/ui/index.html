@@ -197,6 +197,18 @@ i.sw{display:inline-block;width:.72em;height:.72em;border-radius:3px;margin:0 .2
 .ppl button{all:unset;cursor:pointer;font:600 11.5px/1 var(--round);padding:3px 6px;border-radius:6px;border:1px solid var(--line);color:var(--fg);white-space:nowrap}
 .ppl button:hover{border-color:var(--accent)}
 .ppl button::after{content:" · card";color:var(--muted)}
+.vo-list{display:grid;gap:6px;margin-top:8px}
+.vo{display:grid;grid-template-columns:minmax(90px,.7fr) minmax(0,1.6fr) auto;gap:10px;align-items:center;padding:7px 10px;border-radius:10px;background:var(--sunk);font-size:13px}
+.vo.heard{box-shadow:inset 3px 0 0 var(--good)}
+.vo .nm{font-weight:700;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.vo .chip{font:700 10.5px/1 var(--round);letter-spacing:.08em;padding:3px 6px;border-radius:5px;background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+.vo .chip.ok{color:var(--good);border-color:var(--good)}.vo .chip.bad{color:var(--danger);border-color:var(--danger)}.vo .chip.on{background:var(--good);border-color:var(--good);color:#05140b}
+.vo .lv{display:grid;grid-template-columns:auto 1fr;gap:3px 8px;align-items:center;color:var(--muted);font-size:12px}
+.vo .mtr{height:7px;border-radius:4px;background:var(--panel);overflow:hidden}
+.vo .mtr i{display:block;height:100%;background:var(--good);transition:width .3s}
+.vo .ctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.vo .ctl input[type=range]{width:90px}
+.vo .ctl input[type=number]{width:70px}
 .mt-list{display:grid;gap:6px;margin-top:8px}
 .mt{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:10px;background:var(--sunk);font-size:13.5px}
 .mt.ready{box-shadow:inset 3px 0 0 #ffc15a;background:rgba(255,193,90,.08)}
@@ -498,6 +510,13 @@ details.advanced[open] summary h2::before{content:'▾ '}
       <div><table class="pts" id="st-table"></table></div>
       <div class="notes" id="notes"></div>
     </div>
+  </details>
+  <details class="card roster-card" id="vo-card" open>
+    <summary><div><b>Lobby voice</b> <span class="muted" id="vo-line"></span></div>
+      <div class="row"><button class="b" id="vo-mute" title="Mute every lobby voice (key U)">Mute all</button><button class="b" id="vo-on" title="Lobby voice on stream at all">On stream</button></div></summary>
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Each referee's Button sends the lobby's Discord voice and game sound (and their own mic only if they tick it). The voice follows the picture: the full-screen lobby, or slot 1, is heard; replays, montages and intermission are silent. <b>Listen</b> keeps one lobby's voice up whatever is on screen. It only goes to the stream; nothing is played back to the players.</p>
+    <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Duck under</span><select id="vo-duck" title="Your mic in OBS: lobby voice gets quieter while you talk"></select></div>
+    <div class="vo-list" id="vo-list"></div>
   </details>
   <details class="card roster-card" id="mt-card" open>
     <summary><div><b>Montages</b> <span class="muted" id="mt-line"></span></div>
@@ -1151,7 +1170,7 @@ async function loadDesk() {
   let r; try { r = await api('GET', '/app/admin/desk'); } catch (e) { return; }
   if (!r || !r.desk) return;
   DESK = r.desk; OBS = r.obs || null; RP = r.replay || null; ROSTER = r.roster || null; r_broadcast = r.broadcast || null; r_story = r.story || null; rpSync = performance.now();
-  MONT = r.montages || null; MOMENTS = r.moments || []; SPON = r.sponsors || null;
+  MONT = r.montages || null; MOMENTS = r.moments || []; SPON = r.sponsors || null; LVOICE = r.voice || null;
   receivers(r.receivers || []);
   sendNames(r.names || {});
   if ($('caster').classList.contains('on')) renderDesk();
@@ -1192,7 +1211,7 @@ function renderDesk() {
   renderRoster();
   renderGfx(r_broadcast);
   renderStory(r_story);
-  renderMontages(); renderMoments(); renderSponsors();
+  renderMontages(); renderMoments(); renderSponsors(); renderVoice();
   const key = JSON.stringify([DESK, OBS, RP && RP.clips]);
   if (key === deskKey) return;
   deskKey = key;
@@ -1351,6 +1370,44 @@ $('notes').addEventListener('click', async e => {
 });
 document.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/standings', { scope: b.dataset.scope }); toast(r.message); storyKey = ''; loadDesk(); }));
 $('st-show').addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/standings', { show: String(!$('st-show').classList.contains('on')) }); toast(r.message); gfxKey = ''; loadDesk(); });
+
+// ---- Lobby voice (Part 11) -----------------------------------------------------------------------
+let LVOICE = null, voKey = '';
+const VO_STATE = { capturing: 'found', 'not running': 'not open', unsupported: 'Windows too old', off: 'off' };
+const meterPct = db => Math.max(0, Math.min(100, ((db ?? -60) + 60) / 60 * 100));
+function renderVoice() {
+  const v = LVOICE; if (!v) return;
+  const o = v.obs || { volume: {}, offset: {}, inputs: [], sources: [] };
+  $('vo-mute').classList.toggle('on', !!o.muteAll); $('vo-mute').textContent = o.muteAll ? 'Muted' : 'Mute all';
+  $('vo-on').classList.toggle('on', o.on !== false);
+  const sending = v.status.filter(x => x.online && x.sending).length;
+  $('vo-line').textContent = `${sending} of ${v.status.length} lobbies sending voice${o.heard ? ' · heard: ' + o.heard : ' · none heard'}${o.problem ? ' · ' + o.problem : ''}`;
+  if (!$('vo-duck').contains(document.activeElement)) {
+    const names = [...new Set([...(o.inputs || []), ...(o.duckUnder ? [o.duckUnder] : [])])];
+    $('vo-duck').innerHTML = `<option value="">No ducking</option>` + names.map(n => `<option${n === o.duckUnder ? ' selected' : ''}>${esc(n)}</option>`).join('');
+  }
+  if ($('vo-list').contains(document.activeElement)) return;
+  const key = JSON.stringify(v); if (key === voKey) return; voKey = key;
+  $('vo-list').innerHTML = v.status.length ? v.status.map(x => {
+    const chip = !x.reported ? '<span class="chip">NO VOICE YET</span>' : !x.online ? '<span class="chip bad">OFFLINE</span>' : x.problem ? `<span class="chip bad" title="${esc(x.problem)}">PROBLEM</span>` : x.sending ? '<span class="chip ok">SENDING</span>' : '<span class="chip">NOT SENDING</span>';
+    const heard = o.heard && o.heard.toLowerCase() === x.lobby.toLowerCase();
+    return `<div class="vo${heard ? ' heard' : ''}">
+      <div class="nm">${esc(x.lobby)} ${chip}${heard ? '<span class="chip on">HEARD</span>' : ''}${x.mic ? '<span class="chip" title="The referee\'s own mic is in">MIC</span>' : ''}</div>
+      <div class="lv">${x.reported ? `<span>Discord ${esc(VO_STATE[x.discord] || x.discord || '')}</span><span class="mtr"><i style="width:${meterPct(x.voiceDb)}%"></i></span><span>Among Us ${esc(VO_STATE[x.game] || x.game || '')}</span><span class="mtr"><i style="width:${meterPct(x.gameDb)}%"></i></span>` : '<span style="grid-column:1/-1">Their Button reports here once they send their game.</span>'}</div>
+      <div class="ctl"><label title="Volume (dB)">Vol <input type="range" min="-30" max="12" step="1" value="${o.volume[x.lobby] ?? 0}" data-vovol="${esc(x.lobby)}"></label>
+        <label title="Delay to line the voice up with the picture">Delay <input type="number" min="0" max="5000" step="50" value="${o.offset[x.lobby] ?? 0}" data-vooff="${esc(x.lobby)}"> ms</label>
+        <button class="b${o.pin && o.pin.toLowerCase() === x.lobby.toLowerCase() ? ' on' : ''}" data-vopin="${esc(x.lobby)}" title="Keep this lobby's voice up whatever is on screen">Listen</button></div></div>`;
+  }).join('') : '<p class="empty" style="font-size:13px">No lobbies yet.</p>';
+}
+async function voiceDo(body) { const r = await api('POST', '/app/admin/voice', body); toast(r.message); voKey = ''; document.activeElement.blur && document.activeElement.blur(); loadDesk(); }
+$('vo-mute').addEventListener('click', e => { e.preventDefault(); voiceDo({ action: 'mute' }); });
+$('vo-on').addEventListener('click', e => { e.preventDefault(); voiceDo({ action: 'on', on: String(!(LVOICE && LVOICE.obs && LVOICE.obs.on !== false)) }); });
+$('vo-duck').addEventListener('change', e => voiceDo({ action: 'duck', name: e.target.value }));
+$('vo-list').addEventListener('click', e => { const b = e.target.closest('[data-vopin]'); if (b) voiceDo({ action: 'pin', lobby: b.dataset.vopin }); });
+$('vo-list').addEventListener('change', e => {
+  const vol = e.target.closest('[data-vovol]'); if (vol) return voiceDo({ action: 'volume', lobby: vol.dataset.vovol, value: Number(vol.value) });
+  const off = e.target.closest('[data-vooff]'); if (off) return voiceDo({ action: 'offset', lobby: off.dataset.vooff, value: Number(off.value) });
+});
 
 // ---- Intermission -------------------------------------------------------------------------------
 let interLive = null;
@@ -1546,7 +1603,7 @@ $('roster-open').addEventListener('click', e => { e.preventDefault(); api('POST'
 
 // ---- Replay controls -------------------------------------------------------------------------
 let RP = null, rpSync = 0, keyWait = null;
-const RP_NAMES = { grid: 'Grid on / off', intermission: 'Intermission on / off', alertsPause: 'Pause off-screen alerts', playerCard: 'Card: top notification\'s player', specLit: 'View: lit map', specVision: 'View: vision mode', specReport: 'View: "!"', specEye: 'View: eye', playPause: 'Play / pause', back: 'Back 1 s', forward: 'Forward 1 s', frameBack: 'Back a frame', frameForward: 'Forward a frame', restart: 'Restart', zoomIn: 'Zoom in', zoomOut: 'Zoom out', panLeft: 'Pan left', panRight: 'Pan right', panUp: 'Pan up', panDown: 'Pan down', follow: 'Follow players', live: 'Back to live' };
+const RP_NAMES = { grid: 'Grid on / off', intermission: 'Intermission on / off', alertsPause: 'Pause off-screen alerts', playerCard: 'Card: top notification\'s player', voiceMute: 'Mute all lobby voice', specLit: 'View: lit map', specVision: 'View: vision mode', specReport: 'View: "!"', specEye: 'View: eye', playPause: 'Play / pause', back: 'Back 1 s', forward: 'Forward 1 s', frameBack: 'Back a frame', frameForward: 'Forward a frame', restart: 'Restart', zoomIn: 'Zoom in', zoomOut: 'Zoom out', panLeft: 'Pan left', panRight: 'Pan right', panUp: 'Pan up', panDown: 'Pan down', follow: 'Follow players', live: 'Back to live' };
 const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
 function rpCursor() { const n = RP && RP.now; if (!n) return 0; return Math.min(n.duration || 0, n.cursor + (n.playing ? (performance.now() - rpSync) / 1000 : 0)); }
 function renderReplay() {
@@ -1610,6 +1667,7 @@ document.addEventListener('keydown', e => {
   if (name === 'alertsPause') { e.preventDefault(); api('POST', '/app/admin/broadcast', { action: 'alerts' }).then(r => { toast(r.message); loadDesk(); }); return; }
   if (name === 'intermission') { e.preventDefault(); intermissionToggle(); return; }
   if (name === 'playerCard') { e.preventDefault(); cardForTop(); return; }
+  if (name === 'voiceMute') { e.preventDefault(); voiceDo({ action: 'mute' }); return; }
   // View keys: the lobby on stream (slot 1, or the one being replayed).
   if (name.startsWith('spec')) {
     const lobby = DESK && DESK.onAir.slots.find(x => x);
