@@ -425,6 +425,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .inter-card .tag{background:var(--red);color:#fff}
 .roster-card summary b,.tw-grid h3{font:700 20px/1 var(--hand);letter-spacing:.06em;text-transform:uppercase}
 .lock-card{border-top:2px solid var(--red)}
+.autoup{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);margin-right:10px;-webkit-app-region:no-drag;white-space:nowrap}
+.autoup input{accent-color:var(--red);margin:0}
 
 </style>
 </head>
@@ -432,6 +434,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 <header>
   <div class="brand"><span class="word"><b>TT <span>Broadcast</span></b></span></div>
   <div class="alerts" id="alerts"></div>
+  <label class="autoup" id="autoup" hidden title="Download new versions of TT Broadcast by themselves (they're used from the next start)"><input type="checkbox" id="autoup-on"> <span id="autoup-ver"></span> · update automatically</label>
   <div class="winctl" id="winctl" hidden>
     <button data-win="min" title="Minimise" aria-label="Minimise"><svg viewBox="0 0 12 12"><path d="M2 6.5h8"/></svg></button>
     <button data-win="max" title="Maximise" aria-label="Maximise"><svg viewBox="0 0 12 12" class="i-max"><rect x="2" y="2" width="8" height="8" rx="1"/></svg><svg viewBox="0 0 12 12" class="i-restore"><rect x="2" y="4" width="6" height="6" rx="1"/><path d="M4 4V2.5a.5.5 0 0 1 .5-.5H9.5a.5.5 0 0 1 .5.5V7.5a.5.5 0 0 1-.5.5H8"/></svg></button>
@@ -1304,11 +1307,15 @@ $('lock-form').addEventListener('submit', async e => {
   toast(r.message); if (r.ok) $('lock-code').value = ''; refresh();
 });
 function renderUpdate() {
-  const u = S.update || {}, el = $('alerts');
-  el.innerHTML = u.ready ? `<button class="alert good" data-app="restart">${esc(u.ready)} is ready: restart</button>`
-    : u.available && !u.busy ? `<button class="alert" data-app="update">Update to ${esc(u.available)}</button>`
+  const u = S.update || {}, el = $('alerts'), ver = s => esc(String(s).replace(/^broadcast-/, ''));   // tags are broadcast-v0.1.1
+  el.innerHTML = u.ready ? `<button class="alert good" data-app="restart">${ver(u.ready)} is ready: restart</button>`
+    : u.available && !u.busy ? `<button class="alert" data-app="update">Update to ${ver(u.available)}</button>`
     : u.busy ? '<button class="alert" disabled>Updating…</button>' : u.error ? `<button class="alert bad" disabled title="${esc(u.error)}">Update failed</button>` : '';
+  $('autoup').hidden = !u.supported;
+  $('autoup-ver').textContent = 'v' + (S.app || '');
+  $('autoup-on').checked = !!u.auto;
 }
+$('autoup-on').addEventListener('change', e => api('POST', '/app/autoupdate', { on: e.target.checked ? 'true' : 'false' }).then(r => { toast(r.message); refresh(); }));
 document.addEventListener('click', e => {
   const a = e.target.closest('[data-app]');
   if (a && a.dataset.app === 'restart') api('POST', '/app/restart').then(r => toast(r.message));

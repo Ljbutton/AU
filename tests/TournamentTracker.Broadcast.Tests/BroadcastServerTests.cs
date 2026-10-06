@@ -73,4 +73,21 @@ public class BroadcastServerTests : IDisposable
         Assert.False(BroadcastServer.Newer("broadcast-v0.1.0", "0.1.0"));
         Assert.True(BroadcastServer.Newer("broadcast-v1.0.0", "0.9.9"));
     }
+
+    [Fact]
+    public async Task Automatic_updates_can_be_turned_off_and_stay_off()
+    {
+        using (var server = Server())
+        {
+            using var http = new HttpClient { BaseAddress = new Uri(server.Url) };
+            http.DefaultRequestHeaders.Add("X-App-Token", server.Token);
+            Assert.True((await Call(http, HttpMethod.Get, "app/state")).GetProperty("update").GetProperty("auto").GetBoolean());
+            Assert.True((await Call(http, HttpMethod.Post, "app/autoupdate", new { on = "false" })).GetProperty("ok").GetBoolean());
+            Assert.False((await Call(http, HttpMethod.Get, "app/state")).GetProperty("update").GetProperty("auto").GetBoolean());
+        }
+        using var again = Server();
+        using var http2 = new HttpClient { BaseAddress = new Uri(again.Url) };
+        http2.DefaultRequestHeaders.Add("X-App-Token", again.Token);
+        Assert.False((await Call(http2, HttpMethod.Get, "app/state")).GetProperty("update").GetProperty("auto").GetBoolean());
+    }
 }
