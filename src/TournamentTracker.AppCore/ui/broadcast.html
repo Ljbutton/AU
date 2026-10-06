@@ -30,6 +30,38 @@ i.sw{display:inline-block;width:.72em;height:.72em;border-radius:.18em;margin-ri
 @keyframes alarm{50%{box-shadow:0 0 2.2em rgba(255,45,85,.9);border-color:#ff7a90}}
 .sabicon{display:flex;align-items:center;gap:.3em;padding:.2em .45em;border-radius:.3em;background:var(--panel);font-size:.7em;color:var(--accent)}
 .sabicon svg{width:1.2em;height:1.2em}
+/* Grid tiles */
+.tile{box-sizing:border-box;border:.12em solid rgba(255,255,255,.18);border-radius:.25em}
+.tile.high{border-color:var(--accent)}
+.tile.hot{border-color:var(--danger);animation:tilepulse 1s infinite}
+@keyframes tilepulse{50%{box-shadow:0 0 1.2em var(--danger),inset 0 0 .8em rgba(255,45,85,.6)}}
+.mini{display:flex;gap:.6em;align-items:center;padding:.18em .5em;border-radius:.3em;background:var(--panel);font-size:.72em;white-space:nowrap;font-variant-numeric:tabular-nums}
+.mini svg{width:.85em;height:.95em}
+.mini .ph{font:700 .9em/1 var(--head),sans-serif;letter-spacing:.08em}
+.mini .ph.meeting{color:var(--accent)}
+.empty{display:flex;align-items:center;justify-content:center;box-sizing:border-box;border-radius:.25em;background:rgba(8,10,14,.55);border:.08em dashed rgba(255,255,255,.18)}
+.empty img{max-width:60%;max-height:60%;object-fit:contain;opacity:.9}
+.empty .tn{font:700 1.4em/1 var(--head),sans-serif;letter-spacing:.1em;opacity:.7;text-transform:uppercase}
+/* Standings */
+.panel{background:var(--panel);border-radius:.35em;border-top:.2em solid var(--primary);padding:.5em .7em .6em;box-shadow:0 .6em 2em rgba(0,0,0,.45)}
+.panel h2{margin:0 0 .3em;font:700 1.35em/1 var(--head),sans-serif;letter-spacing:.08em;text-transform:uppercase}
+.panel h2 small{font:700 .5em/1 var(--font),sans-serif;opacity:.7;letter-spacing:.06em;margin-left:.6em}
+.st{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+.st td{padding:.18em .35em;font-size:.85em;white-space:nowrap}
+.st td.r{width:1.6em;text-align:right;color:var(--primary);font:700 1.05em/1 var(--head),sans-serif}
+.st td.p{text-align:right;font-weight:700}
+.st tr.adv td{background:rgba(31,161,67,.16)}
+.st tr.cut td{border-bottom:.08em dashed var(--danger)}
+.st .arrow{font-size:.8em;margin-left:.3em}
+.st .up{color:#46c28b}.st .down{color:var(--danger)}
+.by{margin-top:.4em;font-size:.6em;opacity:.8;letter-spacing:.05em;display:flex;align-items:center;gap:.4em}
+.by img{height:1.6em}
+/* Points on the line */
+.line{background:var(--panel);border-radius:.3em;border-left:.2em solid var(--accent);padding:.3em .6em;font-size:.72em;display:grid;gap:.15em;white-space:nowrap}
+.line b{font:700 1.05em/1 var(--head),sans-serif;letter-spacing:.06em;color:var(--accent);text-transform:uppercase}
+/* Storyline note */
+.note{display:flex;align-items:center;gap:.6em;background:var(--panel);border-radius:.3em;border-left:.25em solid var(--accent);padding:.4em .9em;font-size:.9em;max-width:1300px}
+.note b{font:700 1em/1 var(--head),sans-serif;letter-spacing:.08em;color:var(--accent);text-transform:uppercase}
 /* Status bar */
 .bar{display:flex;flex-wrap:wrap;gap:6px;padding:6px 10px;box-sizing:border-box;background:linear-gradient(transparent,rgba(0,0,0,.55) 30%)}
 .cell{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:.45em;padding:.25em .55em;border-radius:.3em;background:var(--panel);border:.08em solid rgba(255,255,255,.12);font-size:.82em;white-space:nowrap;overflow:hidden;position:relative}
@@ -108,6 +140,23 @@ const ELEMENTS = {
   },
 };
 
+// Grid: a frame on each tile that pulses at high priority, a status line, and the logo (or a sponsor) in empty tiles.
+ELEMENTS.gridTiles = (slot, l, k) => {
+  if (S.layout !== 'grid' || !l) return;
+  const hot = l.tier === 'must' || l.tier === 'veryHigh', high = l.tier === 'high';
+  put(`tile-${slot.slot}`, `<div class="tile${hot ? ' hot' : high ? ' high' : ''}" style="width:${slot.w}px;height:${slot.h}px"></div>`, { left: slot.x + 'px', top: slot.y + 'px', fontSize: 30 + 'px' });
+  const playing = l.phase === 'ingame' || l.phase === 'meeting';
+  put(`mini-${slot.slot}`, `<div class="mini"><span class="ph ${l.phase}">${(PH[l.phase] || l.phase).toUpperCase()}</span>${playing && l.crew != null ? `<span>${ICON.crew('#d6e0f0')} ${l.crew}</span><span>${ICON.crew('#ff2d55')} ${l.imps}</span><span>tasks ${l.tasks ?? 0}%</span>` : ''}${l.sabotage ? `<span style="color:var(--danger)">${esc(l.sabotage.system)}${l.sabotage.left != null ? ' ' + Math.ceil(l.sabotage.left) + 's' : ''}</span>` : ''}</div>`,
+    { left: slot.x + 14 * k + 'px', top: slot.y + slot.h - 52 * k + 'px', fontSize: 34 * k + 'px' });
+};
+function emptyTile(slot) {
+  if (S.layout !== 'grid' || !S.elements.gridTiles) return;
+  const sp = S.extras && S.extras.sponsorTiles && S.extras.sponsorTiles[slot.slot];
+  const inner = sp ? (sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : `<span class="tn">${esc(sp.name)}</span>`)
+    : S.logo ? `<img src="${esc(S.logo)}" alt="">` : `<span class="tn">${esc((S.theme && S.theme.tournamentName) || '')}</span>`;
+  put(`empty-${slot.slot}`, `<div class="empty" style="width:${slot.w}px;height:${slot.h}px">${inner}</div>`, { left: slot.x + 'px', top: slot.y + 'px', fontSize: 40 * slot.w / S.canvas.w * 2 + 'px' });
+}
+
 // The status bar: one cell per lobby, along the bottom of the screen.
 function statusBar() {
   const list = Object.entries(S.lobbies).filter(([, l]) => l.online || l.phase !== 'menu').sort((a, b) => a[1].number - b[1].number);
@@ -126,8 +175,38 @@ function statusBar() {
   put('statusbar', `<div class="bar">${cells}</div>`, { left: '0px', bottom: '0px', width: S.canvas.w + 'px', fontSize: (rows > 1 ? 24 : 28) + 'px' });
 }
 
-// More elements are added by later parts (standings, notes, sponsors…).
-const GLOBAL = { statusBar };
+// Standings: the round's (or the tournament's) top ten, from the tournament's own scoring.
+function standings() {
+  const st = S.standings; if (!st || !st.rows.length) return;
+  const sp = S.extras && S.extras.standingsSponsor;
+  put('standings', `<div class="panel"><h2>${esc(st.title)}</h2><table class="st">${st.rows.map(r => `<tr class="${r.advancing ? 'adv' : ''}"><td class="r">${r.rank}</td><td>${sw(r.color)}${esc(r.name)}</td><td class="p">${r.points}</td></tr>`).join('')}</table>${sp ? `<div class="by">Presented by ${sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : ''}<b>${esc(sp.name)}</b></div>` : ''}</div>`,
+    { right: '40px', top: '120px', width: '520px', fontSize: '32px' });
+}
+// After a game: the lobby's table with arrows for who went up and down.
+function standingsChange() {
+  const ch = S.standingsChange; if (!ch) return;
+  put('stchange', `<div class="panel"><h2>${esc(ch.lobby)} <small>after the game</small></h2><table class="st">${ch.rows.slice(0, 10).map(r => {
+    const d = r.was == null ? 0 : r.was - r.rank;
+    return `<tr class="${r.advancing ? 'adv' : ''}"><td class="r">${r.rank}</td><td>${sw(r.color)}${esc(r.name)}${d > 0 ? `<span class="arrow up">▲${d}</span>` : d < 0 ? `<span class="arrow down">▼${-d}</span>` : ''}</td><td class="p">${r.points}</td></tr>`;
+  }).join('')}</table></div>`, { left: '40px', top: '120px', width: '480px', fontSize: '30px' });
+}
+// A storyline note the caster put up, as a lower third.
+function storyline() {
+  if (!S.storyline) return;
+  put('storyline', `<div class="note"><b>Storyline</b><span>${rich(S.storyline)}</span></div>`, { left: '60px', bottom: '110px', fontSize: '34px' });
+}
+// Points on the line: what each ending does to the lobby's table, near the end of a game.
+ELEMENTS.pointsOnTheLine = (slot, l, k) => {
+  if (!l || !l.onTheLine) return;
+  const lines = l.onTheLine.filter(x => x.moves.length);
+  if (!lines.length) return;
+  put(`line-${slot.slot}`, `<div class="line">${lines.map(x => `<div><b>${esc(x.title)}:</b> ${x.moves.map(rich).join(' · ')}</div>`).join('')}</div>`,
+    { left: slot.x + slot.w / 2 + 'px', top: slot.y + slot.h - 150 * k + 'px', transform: 'translateX(-50%)', fontSize: 34 * k + 'px' });
+};
+
+// More elements are added by later parts (sponsors, alerts, counters…).
+const GLOBAL = { statusBar, standings, standingsChange, storyline };
+const ALWAYS = new Set();
 
 function render() {
   const th = S.theme || {};
@@ -141,11 +220,11 @@ function render() {
   stage.style.transform = `scale(${scale})`;
   for (const el of Object.values(shown)) el.dataset.seen = '';
   for (const slot of S.slots) {
-    if (!slot.lobby) continue;
+    if (!slot.lobby) { emptyTile(slot); continue; }
     const l = S.lobbies[slot.lobby], k = slot.w / S.canvas.w;
     for (const [name, draw] of Object.entries(ELEMENTS)) if (S.elements[name]) draw(slot, l, Math.max(k, 0.42));
   }
-  for (const [name, draw] of Object.entries(GLOBAL)) if (S.elements[name]) draw();
+  for (const [name, draw] of Object.entries(GLOBAL)) if (S.elements[name] || ALWAYS.has(name)) draw();
   for (const el of Object.values(shown)) if (!el.dataset.seen) el.classList.add('hide');
 }
 let fontKey = '';

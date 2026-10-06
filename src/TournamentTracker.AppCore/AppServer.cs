@@ -115,7 +115,12 @@ namespace TournamentTracker.App
             {
                 _organizer = new Organizer(code, _http, casterPort: _env.CasterPort);
                 var organizer = _organizer;
-                var desk = _desk = new CasterDesk(DeskConfigPath, rosterPath: SideFile(Roster.FileName));
+                var desk = _desk = new CasterDesk(DeskConfigPath, rosterPath: SideFile(Roster.FileName), dataFolder: SideFolder())
+                {
+                    ExternalGames = () => organizer.Games,
+                    Advance = () => organizer.Advance,
+                    GamesPerRound = () => organizer.GamesPerRound,
+                };
                 var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(organizer, desk));
                 // The overlay and video page follow the lobby in the first slot; OBS (when connected) shows the whole layout.
                 desk.Switch = air =>
@@ -147,6 +152,8 @@ namespace TournamentTracker.App
 
         /// <summary>caster-priority.json, next to The Button's settings.</summary>
         private string? DeskConfigPath => SideFile(PriorityConfig.FileName);
+
+        private string? SideFolder() => string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.GetDirectoryName(_env.SettingsFile);
 
         private string? SideFile(string name) =>
             string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.Combine(Path.GetDirectoryName(_env.SettingsFile) ?? ".", name);
@@ -342,7 +349,7 @@ namespace TournamentTracker.App
                     return Ok(new { ok = true, message = $"Casting {Arg("lobby")}." });
                 case ("GET", "/app/admin/desk"):
                     if (_desk == null || _organizer == null) return Text(404, "application/json", "{\"error\":\"locked\"}");
-                    return Ok(new { desk = _desk.State(), obs = _obs?.Status(), replay = _replays?.State(), roster = _desk.RosterState(),
+                    return Ok(new { desk = _desk.State(), obs = _obs?.Status(), replay = _replays?.State(), roster = _desk.RosterState(), story = _desk.StoryState(),
                         broadcast = _broadcast == null ? null : new { url = _organizer.CasterUrl == null ? null : _organizer.CasterUrl + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem },
                         names = _organizer.DataLinks().ToDictionary(d => d.Lobby, d => _desk.NamesFor(d.Lobby)), receivers = _organizer.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList() });
                 case ("POST", "/app/admin/feedin"):
@@ -482,6 +489,27 @@ namespace TournamentTracker.App
                 case ("POST", "/app/admin/dismiss"):
                     _desk?.Dismiss(Arg("id"));
                     return Ok(new { ok = true });
+                case ("POST", "/app/admin/note"):
+                {
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    string id = Arg("id"), action = Arg("action");
+                    if (action == "show")
+                    {
+                        var note = _desk.Storylines.Notes(_desk.FocusKeys(), 200).FirstOrDefault(n => n.Id == id);
+                        if (note == null) return Ok(new { ok = false, message = "That note is gone." });
+                        _desk.ShownNote = (note.Text, DateTime.UtcNow);
+                        _broadcast?.Settings.Set("storyline", true);
+                        _desk.Storylines.Mark(id, "used");
+                        return Ok(new { ok = true, message = "On stream: " + NameTag.Plain(note.Text) });
+                    }
+                    _desk.Storylines.Mark(id, action);
+                    return Ok(new { ok = true, message = action switch { "pin" => "Pinned.", "unpin" => "Unpinned.", "used" => "Marked used.", "dismiss" => "Dismissed.", _ => "Done." } });
+                }
+                case ("POST", "/app/admin/standings"):
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    if (Arg("scope").Length > 0) _desk.StandingsScope = Arg("scope") == "overall" ? "overall" : "round";
+                    if (Arg("show").Length > 0) _broadcast?.Settings.Set("standings", Arg("show") == "true");
+                    return Ok(new { ok = true, message = Arg("show") == "true" ? "Standings on stream." : Arg("show") == "false" ? "Standings off stream." : $"Standings: {(_desk.StandingsScope == "overall" ? "whole tournament" : "this round")}." });
                 case ("POST", "/app/admin/autogrid"):
                     if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
                     _desk.AutoGrid = Arg("on") == "true";

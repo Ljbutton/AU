@@ -182,3 +182,72 @@ public class CasterDeskTests : IDisposable
         finally { desk.Dispose(); }
     }
 }
+
+/// <summary>The grid: every active lobby at once, sized by count, kept up to date, and auto grid.</summary>
+public class GridTests : IDisposable
+{
+    private readonly FakeClock _clock = new();
+    private readonly CasterDesk _desk;
+    private readonly List<OnAir> _switched = new();
+
+    public GridTests()
+    {
+        _desk = new CasterDesk(null, () => _clock.Now, new PriorityConfig());
+        _desk.Switch = air => _switched.Add(air);
+    }
+
+    public void Dispose() => _desk.Dispose();
+
+    private void Snap(string lobby, string phase = "ingame") =>
+        _desk.Apply(JsonSerializer.Serialize(new { type = "snap", lobby, round = 1, phase, crewAlive = 7, impAlive = 2, taskPct = 30, t = 0 }));
+
+    [Theory]
+    [InlineData(1, 1, 1)] [InlineData(2, 2, 1)] [InlineData(3, 2, 2)] [InlineData(4, 2, 2)] [InlineData(5, 3, 2)] [InlineData(6, 3, 2)]
+    [InlineData(7, 3, 3)] [InlineData(9, 3, 3)] [InlineData(10, 4, 3)] [InlineData(12, 4, 3)] [InlineData(13, 4, 4)] [InlineData(16, 4, 4)]
+    public void The_grid_shape_follows_the_lobby_count(int count, int cols, int rows) =>
+        Assert.Equal((cols, rows), ObsDirector.GridShape(count));
+
+    [Fact]
+    public void Grid_tiles_fill_the_canvas_row_by_row()
+    {
+        var boxes = ObsDirector.Slots("grid", 1920, 1080, 8, 7);
+        Assert.Equal(9, boxes.Count);
+        Assert.Equal(boxes[0].Y, boxes[2].Y);
+        Assert.True(boxes[3].Y > boxes[0].Y);
+        Assert.Equal(1920, boxes[2].X + boxes[2].W + 8, 3);
+    }
+
+    [Fact]
+    public void The_grid_shows_every_active_lobby_with_empty_tiles_and_keeps_up()
+    {
+        foreach (var l in new[] { "E", "B", "A", "D", "C" }) Snap(l);
+        Snap("F", phase: "menu");                                   // not in a lobby: left out
+        var air = _desk.Show("", "grid");
+        Assert.Equal("grid", air.Layout);
+        Assert.Equal(new[] { "A", "B", "C", "D", "E", null }, air.Slots);   // 5 lobbies → 3×2
+        Assert.Equal("LIVE (grid, tile 3)", air.Label("C"));
+
+        // A lobby drops: the grid shrinks to 2×2.
+        _clock.Advance(7);
+        foreach (var l in new[] { "A", "B", "C", "D" }) Snap(l);
+        _desk.Tick();
+        Assert.Equal(new[] { "A", "B", "C", "D" }, _desk.OnAir.Slots);
+    }
+
+    [Fact]
+    public void Auto_grid_comes_up_when_nobody_is_mid_game_and_goes_back_after()
+    {
+        Snap("A"); Snap("B");
+        _desk.AutoGrid = true;
+        _desk.Show("A");
+        _desk.Tick();
+        Assert.Equal("full", _desk.OnAir.Layout);                  // still playing
+        Snap("A", "meeting"); Snap("B", "lobby");
+        _desk.Tick();
+        Assert.Equal("grid", _desk.OnAir.Layout);
+        Snap("A", "ingame");
+        _desk.Tick();
+        Assert.Equal("full", _desk.OnAir.Layout);
+        Assert.Equal("A", _desk.OnAir.Slots[0]);
+    }
+}

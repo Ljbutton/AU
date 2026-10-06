@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using TournamentTracker.Stats;
 
 namespace TournamentTracker.App.Broadcast
 {
@@ -41,12 +42,17 @@ namespace TournamentTracker.App.Broadcast
         private static readonly JsonSerializerOptions Json = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
         private readonly List<SimLobby> _lobbies;
+        private static readonly ScoringRules Rules = new ScoringRules();
+        private readonly List<GameRecord> _games = new List<GameRecord>();
+
+        /// <summary>The simulated tournament's finished games, scored with the tournament's point sheet.</summary>
+        public List<GameRecord> Games { get { lock (_games) return _games.ToList(); } }
 
         public FeedSimulator(DateTime start, int lobbies = 4, int seed = 7)
         {
             var labels = new[] { "LJ", "MAL", "Soggy", "Kai", "Ana", "Bo" };
             _lobbies = Enumerable.Range(0, Math.Min(lobbies, labels.Length))
-                .Select(i => new SimLobby(labels[i], new Random(seed * 31 + i), start, i)).ToList();
+                .Select(i => new SimLobby(labels[i], new Random(seed * 31 + i), start, i, g => { lock (_games) _games.Add(g); })).ToList();
         }
 
         /// <summary>Takes a lobby offline (or back), like a host's video dropping.</summary>
@@ -123,8 +129,14 @@ namespace TournamentTracker.App.Broadcast
             private DateTime _reportAt;
             private readonly List<(DateTime, string)> _out = new List<(DateTime, string)>();
 
-            public SimLobby(string label, Random r, DateTime start, int index)
+            private readonly Action<GameRecord> _finished;
+            private GameRecord? _rec;
+            private object? _ifEnded;
+            private DateTime _nextIfEnded;
+
+            public SimLobby(string label, Random r, DateTime start, int index, Action<GameRecord> finished)
             {
+                _finished = finished;
                 Label = label;
                 _r = r;
                 _now = start;
@@ -214,6 +226,7 @@ namespace TournamentTracker.App.Broadcast
                     ["danger"] = _danger,
                     ["video"] = true,
                     ["players"] = _players.Select(p => p.Roster(_phase != "lobby")).ToList(),
+                    ["ifEnded"] = IfEnded(),
                     ["spec"] = new { lit = SpecLit, vision = SpecVision, report = SpecReport, eye = SpecEye, focus = SpecFocus, focusing = SpecFocus ?? Alive(false).Select(p => (int?)p.Id).FirstOrDefault(), on = true },
                 });
             }
@@ -261,6 +274,10 @@ namespace TournamentTracker.App.Broadcast
                 _sab = null; _sabLeft = null; _danger = false; _bodyToReport = null;
                 _phase = "ingame";
                 _gameStart = _now;
+                _rec = new GameRecord { GameNumber = _gameNo, Host = Label, Round = _round, Map = _map, StartedUtc = _now, Mode = "Tournament", Tournament = "Simulated Cup" };
+                _rec.Id = $"{Label}-{_gameNo}-{_now:yyyyMMdd-HHmmss}";
+                foreach (var p in _players)
+                    _rec.Players.Add(new GamePlayer { PlayerId = p.Id, Key = p.Key, Name = p.Name, DiscordId = p.Discord, ColorId = p.Color, Role = p.Imp ? "Impostor" : "Crewmate", IsImpostor = p.Imp, TasksTotal = p.Imp ? 0 : 10 });
                 Event("gameStart", new Dictionary<string, object?>
                 {
                     ["map"] = _map, ["players"] = _players.Select(p => p.Who).ToList(), ["roster"] = _players.Select(p => p.Roster(true)).ToList(), ["crewAlive"] = 8, ["impAlive"] = 2,
@@ -344,6 +361,13 @@ namespace TournamentTracker.App.Broadcast
             private void Kill(SimPlayer imp, SimPlayer victim, string room)
             {
                 victim.Dead = true;
+                if (_rec != null)
+                {
+                    bool first = _rec.Players.All(x => x.DeathCause != "Killed");
+                    var k = _rec.ById(imp.Id)!; var v = _rec.ById(victim.Id)!;
+                    k.Kills++; if (first) k.FirstBlood = true;
+                    v.DeathCause = "Killed"; v.KilledByKey = k.Key; v.DiedFirst = first; v.DiedAtSeconds = (_now - _gameStart).TotalSeconds;
+                }
                 int crew = Alive(false).Count, imps = Alive(true).Count;
                 double sx = Math.Round(victim.X, 3), sy = Math.Round(victim.Y, 3);
                 imp.X = victim.X; imp.Y = victim.Y;
@@ -373,7 +397,18 @@ namespace TournamentTracker.App.Broadcast
             {
                 double roll = _r.NextDouble();
                 SimPlayer? ejected = roll < 0.35 ? Pick(Alive(true)) : roll < 0.7 ? Pick(Alive(false)) : null;
-                if (ejected != null) ejected.Dead = true;
+                if (ejected != null)
+                {
+                    ejected.Dead = true;
+                    if (_rec?.ById(ejected.Id) is { } e)
+                    {
+                        e.DeathCause = "Ejected";
+                        if (e.IsImpostor) e.ImpostorEjectOrder = 1 + _rec.Players.Count(x => x.ImpostorEjectOrder.HasValue);
+                        // Most of the crew voted with the room.
+                        foreach (var voter in _rec.Players.Where(x => x.DeathCause == null && !x.IsImpostor).Take(4))
+                            if (e.IsImpostor) voter.EjectVotesOnImpostor++; else voter.EjectVotesOnCrewmate++;
+                    }
+                }
                 int crew = Alive(false).Count, imps = Alive(true).Count;
                 Event("eject", new Dictionary<string, object?>
                 {
@@ -385,8 +420,38 @@ namespace TournamentTracker.App.Broadcast
                 else if (imps >= crew) End("Impostors", "ImpostorsByVote", "vote");
             }
 
+            /// <summary>Each ending's points, as a real host's mod sends them.</summary>
+            private object? IfEnded()
+            {
+                if (_rec == null || (_phase != "ingame" && _phase != "meeting")) return null;
+                if (_now < _nextIfEnded && _ifEnded != null) return _ifEnded;
+                _nextIfEnded = _now.AddSeconds(5);
+                SyncTasks();
+                _ifEnded = WhatIf.Points(_rec, Rules);
+                return _ifEnded;
+            }
+
+            private void SyncTasks()
+            {
+                if (_rec == null) return;
+                foreach (var p in _rec.Players.Where(x => !x.IsImpostor)) p.TasksCompleted = (int)Math.Round(_tasks / 10);
+            }
+
             private void End(string winner, string reason, string how)
             {
+                if (_rec != null)
+                {
+                    SyncTasks();
+                    _rec.EndedUtc = _now; _rec.EndReason = reason; _rec.Winner = winner;
+                    foreach (var p in _rec.Players)
+                    {
+                        p.Survived = p.DeathCause == null;
+                        p.Won = p.IsImpostor == (winner == Outcome.Impostors);
+                    }
+                    Scoring.ScoreGame(_rec, Rules);
+                    _finished(_rec);
+                    _rec = null;
+                }
                 _phase = "ended";
                 _sab = null; _sabLeft = null; _danger = false; _bodyToReport = null;
                 _phaseEnds = _now.AddSeconds(8);

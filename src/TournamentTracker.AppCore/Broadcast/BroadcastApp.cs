@@ -168,6 +168,8 @@ namespace TournamentTracker.App.Broadcast
             var (w, h, slots) = Layout(air);
             var ranking = _desk.Board.Ranking();
             var lobbies = new Dictionary<string, object>();
+            var now = DateTime.UtcNow;
+            int round = _desk.Tables.CurrentRound;
             int number = 0;
             foreach (var r in ranking.OrderBy(r => r.Lobby, StringComparer.OrdinalIgnoreCase))
             {
@@ -185,6 +187,9 @@ namespace TournamentTracker.App.Broadcast
                     clock = r.Clock,
                     sabotage = r.Sabotage == null ? null : new { system = r.Sabotage, critical = r.SabotageCritical, left = r.SabotageLeft, fixing = r.SabotageFixing },
                     impostors = r.People.Where(p => p.Imp == true).Select(p => new { name = Who(p), color = p.Color, dead = p.Dead == true }).ToList(),
+                    onTheLine = s.Elements.GetValueOrDefault("pointsOnTheLine") && live != null && Close(r)
+                        ? _desk.Tables.OnTheLine(r.Lobby, r.Round > 0 ? r.Round : round, live.IfEnded, r.TaskPct ?? 0, r.People.Where(p => p.Key.Length > 0).GroupBy(p => p.Key).ToDictionary(g => g.Key, g => (Who(g.First()), g.First().Color)))
+                        : null,
                     game = r.Game,
                     round = r.Round,
                 };
@@ -199,7 +204,25 @@ namespace TournamentTracker.App.Broadcast
                 logo = string.IsNullOrEmpty(s.Theme.Logo) ? null : s.Theme.Logo.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? s.Theme.Logo : "/broadcast/logo",
                 elements = s.Elements,
                 lobbies,
+                standings = s.Elements.GetValueOrDefault("standings") ? Standings(round) : null,
+                standingsChange = s.Elements.GetValueOrDefault("standingsChange") && _desk.Tables.Change != null && (now - _desk.Tables.ChangeAt).TotalSeconds < 15 ? _desk.Tables.Change : null,
+                storyline = s.Elements.GetValueOrDefault("storyline") && _desk.ShownNote is { } note && (now - note.At).TotalSeconds < 12 ? note.Text : null,
                 extras = Extras.ToDictionary(kv => kv.Key, kv => { try { return kv.Value(); } catch (Exception) { return null; } }),
+            };
+        }
+
+        /// <summary>Close to ending: worth showing what's on the line.</summary>
+        private static bool Close(LobbyRank r) =>
+            (r.Phase == "ingame" || r.Phase == "meeting") && r.Plays.Any(p => p.Rule is "oneKillFromWin" or "taskBar" or "finalPlayers" or "criticalSabotage" or "closeCounts");
+
+        private object Standings(int round)
+        {
+            bool overall = _desk.StandingsScope == "overall" || round == 0;
+            var rows = overall ? _desk.Tables.Overall() : _desk.Tables.Round(round);
+            return new
+            {
+                title = overall ? "Tournament standings" : $"Round {round} standings",
+                rows = rows.Take(10).Select(r => new { r.Rank, r.Name, r.Color, r.Points, r.Games, r.Wins, r.Advancing }).ToList(),
             };
         }
 

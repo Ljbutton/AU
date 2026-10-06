@@ -62,6 +62,8 @@ namespace TournamentTracker.App.Broadcast
         public JsonElement? Spec { get; set; }
         /// <summary>This game's players (from its start), for picking whose vision to show.</summary>
         public List<JsonElement> Players { get; set; } = new List<JsonElement>();
+        /// <summary>Each ending's points for this game, from the referee's mod ("points on the line").</summary>
+        public JsonElement? IfEnded { get; set; }
         /// <summary>Everyone in the lobby now (from the snapshots), by player id.</summary>
         public Dictionary<int, LobbyPlayer> People { get; } = new Dictionary<int, LobbyPlayer>();
         public Dictionary<string, Play> Plays { get; } = new Dictionary<string, Play>();
@@ -159,6 +161,7 @@ namespace TournamentTracker.App.Broadcast
             l.Video = Bool(m, "video") ?? false;
             if (m.TryGetProperty("spec", out var spec) && spec.ValueKind == JsonValueKind.Object) l.Spec = spec.Clone();
             if (m.TryGetProperty("players", out var people) && people.ValueKind == JsonValueKind.Array) People(l, people, replace: true);
+            l.IfEnded = m.TryGetProperty("ifEnded", out var ie) && ie.ValueKind == JsonValueKind.Object ? ie.Clone() : null;
             if (m.TryGetProperty("sabotage", out var s) && s.ValueKind == JsonValueKind.Object)
             {
                 l.Sabotage = Str(s, "system");

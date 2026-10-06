@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
+using TournamentTracker.Stats;
 
 namespace TournamentTracker.App.Broadcast
 {
@@ -100,9 +101,34 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>The tournament's players: real names for everyone in the lobbies.</summary>
         public Roster Roster { get; }
 
-        public CasterDesk(string? configPath, Func<DateTime>? clock = null, PriorityConfig? config = null, string? rosterPath = null)
+        /// <summary>Every finished game (the stats database), standings and storyline notes.</summary>
+        public GameArchive Archive { get; }
+        public Tables Tables { get; }
+        public Storylines Storylines { get; }
+        /// <summary>The tournament's scored game records (the organiser view's shared results).</summary>
+        public Func<IReadOnlyList<GameRecord>>? ExternalGames { get; set; }
+        public Func<int> Advance { get; set; } = () => 5;
+        public Func<int> GamesPerRound { get; set; } = () => 3;
+
+        /// <summary>The scored games standings come from: the tournament's, plus the simulator's in simulation mode.</summary>
+        public IReadOnlyList<GameRecord> Games
+        {
+            get
+            {
+                var list = new List<GameRecord>(ExternalGames?.Invoke() ?? Array.Empty<GameRecord>());
+                FeedSimulator? sim;
+                lock (_lock) sim = _sim;
+                if (sim != null) list.AddRange(sim.Games);
+                return list;
+            }
+        }
+
+        public CasterDesk(string? configPath, Func<DateTime>? clock = null, PriorityConfig? config = null, string? rosterPath = null, string? dataFolder = null)
         {
             Roster = new Roster(rosterPath);
+            Archive = new GameArchive(dataFolder == null ? null : System.IO.Path.Combine(dataFolder, "broadcast-games"), clock);
+            Tables = new Tables(() => Games, Roster, () => Advance(), () => GamesPerRound());
+            Storylines = new Storylines(Archive, () => Tables, dataFolder == null ? null : System.IO.Path.Combine(dataFolder, "notes-state.json"));
             _clock = clock ?? (() => DateTime.UtcNow);
             if (config != null) _config = () => config;
             else
@@ -142,6 +168,7 @@ namespace TournamentTracker.App.Broadcast
                     return;
                 }
                 Board.Apply(item);
+                if (lobby.Length > 0) Archive.Feed(lobby, item, p => WhoIs(lobby, p));
             }
             catch (Exception) { }
         }
@@ -230,6 +257,17 @@ namespace TournamentTracker.App.Broadcast
 
         public void SimOffline(string lobby, bool offline) => _sim?.SetOffline(lobby, offline);
 
+        /// <summary>A player object from a lobby's message as (key, real name, colour), for the stats database.</summary>
+        private (string Key, string Name, int Color)? WhoIs(string lobby, JsonElement p)
+        {
+            var l = Board.Lobby(lobby);
+            int id = p.TryGetProperty("id", out var i) && i.ValueKind == JsonValueKind.Number ? i.GetInt32() : -1;
+            string fallback = p.TryGetProperty("display", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString()! : p.TryGetProperty("name", out var n) ? n.GetString() ?? "?" : "?";
+            int color = p.TryGetProperty("color", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt32() : 0;
+            string key = l != null && l.People.TryGetValue(id, out var lp) && lp.Key.Length > 0 ? lp.Key : p.TryGetProperty("key", out var k) && k.ValueKind == JsonValueKind.String ? k.GetString()! : "name:" + fallback.ToLowerInvariant();
+            return (key, l == null ? fallback : Board.DisplayName(l, id, fallback), color);
+        }
+
         /// <summary>Roster names for a lobby's players (player key → name), for its referee's nameplates and events.</summary>
         public Dictionary<string, string> NamesFor(string lobby)
         {
@@ -239,6 +277,31 @@ namespace TournamentTracker.App.Broadcast
             foreach (var p in l.People.Values.ToList())
                 if (p.Key.Length > 0 && Roster.Match(p.Key, p.Discord, p.Name).Entry is { } e) names[p.Key] = e.Name;
             return names;
+        }
+
+        /// <summary>Players in the lobbies on stream: their notes come first.</summary>
+        public HashSet<string> FocusKeys()
+        {
+            var keys = new HashSet<string>();
+            foreach (var lobby in OnAir.Slots.Where(x => x != null))
+                if (Board.Lobby(lobby!) is { } l) foreach (var p in l.People.Values) keys.Add(p.Key);
+            return keys;
+        }
+
+        /// <summary>Standings and storyline notes for the caster tab.</summary>
+        public object StoryState()
+        {
+            int round = Tables.CurrentRound;
+            var rows = StandingsScope == "overall" || round == 0 ? Tables.Overall() : Tables.Round(round);
+            return new
+            {
+                Scope = StandingsScope,
+                Round = round,
+                Standings = rows.Take(20).ToList(),
+                Notes = Storylines.Notes(FocusKeys()).Select(n => new { n.Id, n.Kind, n.Text, n.Pinned }).ToList(),
+                Shown = ShownNote?.Text,
+                Games = Archive.Today().Count,
+            };
         }
 
         /// <summary>Everyone in every lobby and who they are on the roster, for the caster tab.</summary>
@@ -335,14 +398,30 @@ namespace TournamentTracker.App.Broadcast
             return next;
         }
 
+        // ---- What the caster puts on stream from the tab ---------------------------------------
+
+        /// <summary>The storyline note on stream (a lower third), and when it went up.</summary>
+        public (string Text, DateTime At)? ShownNote { get; set; }
+        /// <summary>Standings on stream: "round" (this round, every lobby) or "overall".</summary>
+        public string StandingsScope { get; set; } = "round";
+
         /// <summary>Use the grid by itself whenever no lobby is mid-game (all in meetings or between games).</summary>
         public bool AutoGrid { get; set; }
         private OnAir? _beforeGrid;
         private Timer? _tick;
 
         /// <summary>Once a second: keeps the grid's tiles matching the active lobbies, and runs auto grid.</summary>
+        private DateTime _nextSlowTick;
+
         public void Tick()
         {
+            if (_clock() >= _nextSlowTick)
+            {
+                _nextSlowTick = _clock().AddSeconds(5);
+                var games = Games;
+                Archive.Merge(games);
+                Tables.Update(Board.Ranking().Select(r => r.Lobby), _clock());
+            }
             OnAir air;
             lock (_lock) air = _onAir;
             if (air.Layout == "replay") return;

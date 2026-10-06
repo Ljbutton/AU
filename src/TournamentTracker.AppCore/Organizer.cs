@@ -67,6 +67,11 @@ namespace TournamentTracker.App
         public string? CasterProblem { get; }
         public string? CasterUrl => _caster?.Url;
 
+        /// <summary>The tournament's scored games since the last reset (shared results), for the broadcast.</summary>
+        public IReadOnlyList<GameRecord> Games { get { lock (_lock) return _load?.GameRecords.ToList() ?? new List<GameRecord>(); } }
+        public int Advance => _code.AdvanceCount ?? 5;
+        public int GamesPerRound => _code.GamesPerRound ?? 3;
+
         /// <summary>More pages on the caster port (the broadcast overlay app), by path.</summary>
         public Func<string, (string Type, byte[] Body)?>? MorePages { get; set; }
 

@@ -125,6 +125,21 @@ namespace TournamentTracker
             lock (_namesLock) return _displayNames.TryGetValue(key, out var n) ? n : null;
         }
 
+        // What each player would score if the game ended now (impostors win / crew by vote / crew by tasks), every few seconds.
+        private object? _ifEnded;
+        private DateTime _nextIfEnded;
+
+        private object? IfEnded(GameRecord? game)
+        {
+            if (game == null) { _ifEnded = null; return null; }
+            var now = _clock();
+            if (now < _nextIfEnded && _ifEnded != null) return _ifEnded;
+            _nextIfEnded = now.AddSeconds(5);
+            try { _ifEnded = WhatIf.Points(game, _settings.Scoring); }
+            catch (Exception e) { _log.Warn("Couldn't work out the points on the line: " + e.Message); _ifEnded = null; }
+            return _ifEnded;
+        }
+
         /// <summary>Everyone in the lobby with what the caster needs to match them to the roster.</summary>
         private List<object> PlayersForFeed()
         {
@@ -280,6 +295,13 @@ namespace TournamentTracker
             var (crew, imps) = AliveCounts();
             Event("eject", new Dictionary<string, object?>
             {
+                // Who voted for whom (null target: skipped or didn't vote).
+                ["votes"] = meeting.Votes.Select(v => new
+                {
+                    voter = game.ByKey(v.VoterKey)?.PlayerId,
+                    target = v.TargetKey == null ? (int?)null : game.ByKey(v.TargetKey)?.PlayerId,
+                    skipped = v.Skipped,
+                }).ToList(),
                 ["ejected"] = ejected == null ? null : Who(ejected.PlayerId),
                 ["wasImpostor"] = ejected?.IsImpostor,
                 ["skipped"] = ejected == null && !meeting.Tie,
@@ -521,6 +543,7 @@ namespace TournamentTracker
                 ["video"] = FeedForLive != null,
                 ["spec"] = SpectatorForFeed(),
                 ["players"] = PlayersForFeed(),
+                ["ifEnded"] = IfEnded(game),
             });
         }
     }
