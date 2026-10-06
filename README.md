@@ -337,8 +337,8 @@ the caster's PC and off stream.
 * **Ranking:** every weight and limit is in `caster-priority.json` next to The Button's
   settings (written the first time, re-read when you save it).
 * **OBS:** in OBS, Tools → WebSocket Server Settings → Enable WebSocket server, set a password,
-  and connect from the Caster tab. The Button builds the scenes **TT Full**, **TT 2-up** and
-  **TT Quad** with one source per lobby (each stays connected, so switching is instant), places
+  and connect from the Caster tab. The Button builds the scenes **TT Full**, **TT 2-up**,
+  **TT Quad**, **TT Grid**, **TT Sponsor Break** and **TT Intermission** with one source per lobby (each stays connected, so switching is instant), places
   the lobbies in their slots, plays only slot 1's game sound, and switches scene when you click.
   It never touches your other scenes. Switch in OBS yourself and the LIVE labels follow.
   Settings and the lobby → source mapping are in `obs.json` next to The Button's settings.
@@ -362,8 +362,68 @@ the caster's PC and off stream.
   vent in MedBay" card. Switch each one per lobby under its row in the Caster tab (it goes to
   the host over their VDO.Ninja link), or with keys for the lobby on stream (M lit, V vision,
   X "!", E eye; change them under Keys).
-* **Simulation:** the Simulation button plays four fake lobbies (with stand-in video in OBS), to
-  try the tab and OBS switching without real games.
+* **Real names:** `roster.csv` next to The Button's settings (name, Discord ID, in-game names,
+  friend codes, pronunciation; `;` between several). Each player is matched by the Discord
+  account automute links them to, then friend code, then in-game name; pick someone by hand in
+  the **Players** card to override. Names show with their colour swatch everywhere (cards, on
+  stream, montages), and each referee's nameplates show the roster names (on their screen only).
+* **On-stream graphics:** one transparent 1920×1080 page (`/broadcast` on the caster port; The
+  Button adds it as **TT Broadcast** on top of every TT scene) that places each graphic on the
+  right lobby in every layout. Colours, fonts and logo are in `broadcast.json`; switch each
+  graphic in the **On-stream graphics** card: lobby labels, a status bar with a cell per lobby
+  (on air highlighted, pulsing at very high and must show), impostor tags per feed (dead crossed
+  out), a big reactor/O2 countdown with the fixing progress (lights and comms as a small icon),
+  grid tiles, standings, points on the line, standings changes, storyline notes, off-screen
+  alerts, the win counter and player cards.
+* **Grid:** every active lobby at once in **TT Grid** (1 full, 2 side by side, up to 4×4), each
+  tile with its label, a status line, the impostor tag and a border that pulses at high
+  priority; empty tiles show a sponsor or the logo. Click a tile (on stream) for full screen.
+  **Auto grid** brings it up whenever no lobby is mid-game.
+* **Stats and storylines:** every game is kept on the caster's PC (`broadcast-games`), and the
+  **Standings & storylines** card lists talking points from them (records, streaks, first
+  blood, rivalries, who keeps getting voted out, milestones), the ones about players on stream
+  first: pin, dismiss, mark used, or put one on stream as a lower third.
+* **Standings** come from the tournament's own scoring (the same tables as the Points page and
+  Discord: `Stats/Scoring.cs` and `Stats/Standings.cs`, rules from the setup code), this round or
+  the whole tournament. Near the end of a game, *points on the line* shows what each ending
+  does to the lobby's table; after each game, arrows show who moved.
+* **Montages:** clips are saved by themselves for kills, ejections, meetings, witnessed kills and
+  game ends. When a game ends The Button builds a 30–60 s montage of it with ffmpeg (each moment
+  cut to a few seconds, cropped like replays, a lower third such as "Jake → Maria,
+  Electrical", wipes between them); when a round ends, "every kill" then the top plays counting
+  down. The **Montages** card shows them ready with Play (in the replay scene), Preview and
+  Discard; **Get ffmpeg** downloads it the first time. The **Moments** card lists every clip:
+  pick some, drag them into order and Build montage; that montage is deleted once it has played
+  and its clips are marked USED.
+* **Sponsors:** `sponsors.json` (name, logo, tagline, video, placements). Placements: `killcam`
+  ("Kill Cam presented by" on kill replays), `montage` (an opening card), `standings`
+  ("Presented by" under the table), `grid` (empty tiles), `break` (a split-screen break, the
+  lobby on the left and the sponsor on the right, that ends by itself, and straight back to
+  full screen on a must-show play). Every appearance is logged; **Export report** saves a CSV
+  and a summary.
+* **Swoosh:** a stinger plays on every switch (scenes, pictures moving within a layout, the grid
+  changing, replays coming up), once per 1.5 s, never while scrubbing a replay. Add a Stinger
+  transition called **TT Swoosh** in OBS (Scene Transitions → +) to have OBS play it for scene
+  changes; The Button sets its video. A placeholder is made with ffmpeg; `swoosh.path` in
+  `obs.json` uses your own.
+* **Off-screen alerts:** a banner for each kill, win, body report and emergency button in a lobby
+  that isn't on screen; about 4 s each, three at once, the rest queued, merged per lobby. Each
+  kind switches off in the graphics card; **B** pauses them all.
+* **Intermission:** the **TT Intermission** scene between rounds: a countdown to the next round
+  (set it in the tab: minutes or a time), standings, the win counter, storyline notes taking
+  turns and the montage up next. Offered when every lobby has been out of a game for 45 s, or by
+  itself with **Auto intermission**; a lobby going live brings it back (auto) or says so.
+  Key **I**.
+* **Win counter:** IMPOSTOR WINS · CREWMATE WINS, today or this round, in the corner and in
+  intermission.
+* **Player cards:** a lower third with the player's real name, rank, points and today's
+  impostor and crewmate records and kills. **Card** buttons on every notification, lobby and
+  roster row, key **C** for the top notification's player, and by itself for the key player of
+  each replay and montage moment. One at a time, gone after 6 s; on the lobby's tile in a
+  multi-view, or skipped when the tile is too small.
+* **Simulation:** the Simulation button plays four fake lobbies (with stand-in video in OBS, or
+  stand-in clips made with ffmpeg when OBS isn't connected), to try everything above without
+  real games.
 
 ### Replays
 
