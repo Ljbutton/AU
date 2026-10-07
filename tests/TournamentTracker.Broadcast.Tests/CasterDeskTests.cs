@@ -178,8 +178,58 @@ public class CasterDeskTests : IDisposable
             Assert.True(state.GetProperty("simulating").GetBoolean());
             Assert.Equal(4, state.GetProperty("lobbies").GetArrayLength());
             Assert.True(state.GetProperty("cards").GetArrayLength() + state.GetProperty("history").GetArrayLength() > 0);
+            Assert.All(state.GetProperty("lobbies").EnumerateArray(), l => Assert.StartsWith("SIM-", l.GetProperty("lobby").GetString()));
         }
         finally { desk.Dispose(); }
+    }
+
+    [Fact]
+    public void Stopping_simulation_leaves_nothing_fake_behind()
+    {
+        var dir = Directory.CreateTempSubdirectory("ra-sim-").FullName;
+        var desk = new CasterDesk(null, () => _clock.Now, new PriorityConfig(), dataFolder: dir);
+        var switched = new List<OnAir>();
+        desk.Switch = air => switched.Add(air);
+        Func<string, bool>? stopped = null;
+        desk.SimStopped += w => stopped = w;
+        try
+        {
+            // A real lobby is on too, and stays.
+            var real = JsonSerializer.Serialize(new { type = "snap", lobby = "LJ", round = 1, phase = "ingame", crewAlive = 7, impAlive = 2, taskPct = 10, t = 1 });
+            desk.Simulate(true);
+            for (int i = 0; i < 900; i++) { _clock.Advance(1); desk.SimTick(); if (i % 5 == 0) desk.Apply(real.Replace("\"t\":1", $"\"t\":{i + 2}")); if (i % 5 == 0) desk.Tick(); }
+            desk.Show("SIM-1", "2up", null, new List<string> { "SIM-1", "LJ" });
+            desk.Sponsors.Begin("grid:1", new Sponsor { Name = "S", Placements = { "grid" } }, "grid");
+            Assert.NotEmpty(desk.Archive.Games);
+            Assert.True(Directory.GetFiles(Path.Combine(dir, "broadcast-games")).Length > 0);
+            Assert.NotEmpty(desk.Health.Lobbies.Where(CasterDesk.IsSimLobby));
+            Assert.NotEmpty(desk.Games);
+            int switches = switched.Count;
+
+            desk.Simulate(false);
+
+            var state = JsonSerializer.SerializeToElement(desk.State(), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            string all = state.GetRawText() + JsonSerializer.Serialize(desk.StoryState()) + JsonSerializer.Serialize(desk.VoiceState()) + JsonSerializer.Serialize(desk.HealthState());
+            Assert.DoesNotContain("SIM-", all);
+            Assert.False(desk.Simulating);
+            Assert.Equal(new[] { "LJ" }, state.GetProperty("lobbies").EnumerateArray().Select(l => l.GetProperty("lobby").GetString()));
+            Assert.Empty(desk.Archive.Games.Where(g => CasterDesk.IsSimLobby(g.Lobby)));
+            Assert.Empty(Directory.GetFiles(Path.Combine(dir, "broadcast-games")));
+            Assert.Empty(desk.Games);
+            Assert.Empty(desk.Roster.Extra);
+            Assert.Empty(desk.Alerts.Active());
+            Assert.Null(desk.TwitchOf("SIM-1"));
+            // What was on stream: the real lobby stays in its slot, nothing is switched in OBS.
+            Assert.Equal(new string?[] { null, "LJ" }, desk.OnAir.Slots);
+            Assert.Equal(switches, switched.Count);
+            Assert.NotNull(stopped);
+            Assert.True(stopped!("SIM-3"));
+            Assert.False(stopped("LJ"));
+            // Nothing from the simulation reached the sponsor log.
+            desk.Sponsors.EndAll("grid:");
+            Assert.Empty(desk.Sponsors.Appearances());
+        }
+        finally { desk.Dispose(); try { Directory.Delete(dir, true); } catch (Exception) { } }
     }
 }
 

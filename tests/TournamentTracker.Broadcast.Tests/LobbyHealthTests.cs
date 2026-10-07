@@ -308,34 +308,34 @@ public class LobbyHealthTests : IDisposable
         void Run(double seconds) { for (double t = 0; t < seconds; t += 0.5) { _clock.Advance(0.5); _desk.SimTick(); } }
         HealthStatus H(string l) => _desk.Health.Status(l);
         Run(8);
-        Assert.All(new[] { "LJ", "MAL", "Soggy", "Kai" }, l => Assert.Equal("green", H(l).Level));
+        Assert.All(new[] { "SIM-1", "SIM-2", "SIM-3", "SIM-4" }, l => Assert.Equal("green", H(l).Level));
 
-        Assert.True(_desk.SimFail("LJ", "data"));
-        Assert.True(_desk.SimFail("MAL", "video"));
-        Assert.True(_desk.SimFail("Soggy", "audio"));
-        Assert.True(_desk.SimFail("Kai", "lag"));
+        Assert.True(_desk.SimFail("SIM-1", "data"));
+        Assert.True(_desk.SimFail("SIM-2", "video"));
+        Assert.True(_desk.SimFail("SIM-3", "audio"));
+        Assert.True(_desk.SimFail("SIM-4", "lag"));
         Run(12);
-        Assert.Equal("red", H("LJ").Level);
-        Assert.StartsWith("no data for", H("LJ").Problems.Single());
-        Assert.Equal("video lost", H("MAL").Problems.Single());
-        Assert.Equal("audio: voice stream dropped", H("Soggy").Problems.Single());
-        Assert.Equal("yellow", H("Kai").Level);
-        Assert.StartsWith("high lag", H("Kai").Problems.Single());
+        Assert.Equal("red", H("SIM-1").Level);
+        Assert.StartsWith("no data for", H("SIM-1").Problems.Single());
+        Assert.Equal("video lost", H("SIM-2").Problems.Single());
+        Assert.Equal("audio: voice stream dropped", H("SIM-3").Problems.Single());
+        Assert.Equal("yellow", H("SIM-4").Level);
+        Assert.StartsWith("high lag", H("SIM-4").Problems.Single());
 
-        // Back: LJ's held messages arrive with their own times, each once.
-        foreach (var l in new[] { "LJ", "MAL", "Soggy", "Kai" }) _desk.SimFail(l, "reconnect");
+        // Back: SIM-1's held messages arrive with their own times, each once.
+        foreach (var l in new[] { "SIM-1", "SIM-2", "SIM-3", "SIM-4" }) _desk.SimFail(l, "reconnect");
         Run(6);
-        Assert.All(new[] { "LJ", "MAL", "Soggy", "Kai" }, l => Assert.Equal("green", H(l).Level));
+        Assert.All(new[] { "SIM-1", "SIM-2", "SIM-3", "SIM-4" }, l => Assert.Equal("green", H(l).Level));
 
         // The referee's game crashes mid-game and comes back in the lobby: interrupted.
-        for (int i = 0; i < 240 && _desk.Board.Lobby("MAL")?.Phase != "ingame"; i++) Run(0.5);
-        Assert.Equal("ingame", _desk.Board.Lobby("MAL")!.Phase);
-        _desk.SimFail("MAL", "crash");
+        for (int i = 0; i < 240 && _desk.Board.Lobby("SIM-2")?.Phase != "ingame"; i++) Run(0.5);
+        Assert.Equal("ingame", _desk.Board.Lobby("SIM-2")!.Phase);
+        _desk.SimFail("SIM-2", "crash");
         Run(12);
-        Assert.Equal("red", H("MAL").Level);
-        _desk.SimFail("MAL", "reconnect");
+        Assert.Equal("red", H("SIM-2").Level);
+        _desk.SimFail("SIM-2", "reconnect");
         Run(2);
-        Assert.Contains(_desk.Interruptions, i => i.Lobby == "MAL" && i.Decision == null);
-        Assert.Equal("green", H("MAL").Level);
+        Assert.Contains(_desk.Interruptions, i => i.Lobby == "SIM-2" && i.Decision == null);
+        Assert.Equal("green", H("SIM-2").Level);
     }
 }

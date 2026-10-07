@@ -248,7 +248,7 @@ public class TwitchTests : IDisposable
         Assert.Equal("Player card on stream.", await _tw.DecideAsync("r2", true));
         Assert.Contains("fulfilled r2", api.Calls);
         Assert.Contains("Shoutout to Jake Rivera, requested by @Viewer!", api.ChatSent);
-        Assert.Equal("Jake Rivera", _desk.PlayerCard!.Value.Key.Length > 0 ? "Jake Rivera" : "");
+        Assert.NotNull(_desk.CardNow());
         await _tw.DecideAsync("r3", false);
         Assert.Contains("refunded r3", api.Calls);
 

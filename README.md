@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.25**, a beta.
+The current release is **v0.1.26**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -43,7 +43,10 @@ is typed in the game chat, so there's nothing for Among Us's anti-cheat to trip 
    setup code the organiser gave you; the page then shows the tournament and the locked
    lobby settings (point values stay with the organiser).
 2. **Start Among Us** and host a lobby. The first start takes a few minutes while BepInEx
-   sets itself up (a black console window appears). The app connects on its own.
+   sets itself up. The app connects on its own. BepInEx's black console window
+   (the mod's log) is hidden; with the administration code, Settings → Administration →
+   **Mod console window** shows it on your PC. The log is always in Settings → Mod and
+   updates → **Open log**.
 
 The top bar only shows the logo, plus a warning when something needs you: "No setup code
 installed", "New version available", "Mod not installed", "Mod needs repair", "Among Us not
@@ -353,8 +356,34 @@ stream.
   next to The Button on the same PC.
 * **The side menu** has a page per job: **Live desk** (lobby buttons, layouts, what's happening
   and the lobbies), **Lobby health**, **Montages**, **Graphics**, **Standings**, **Sponsors**,
-  **Twitch**, **OBS**, **Lobby voice** and **Players**. A dot or a number beside an item shows
-  what needs a look. The keys (1-9, N, replay keys) and the replay controls work on every page.
+  **Twitch**, **OBS**, **Lobby voice** and **Players**. A dot beside an item shows what needs a
+  look; the number on Live desk is new plays since you last looked there (it clears when you
+  open it). The replay keys work on every page; 1-9 and N on the Live desk. Each card's
+  explanation is behind its small **?**.
+* **On stream, at a glance:** the top of the Live desk says what OBS is showing right now:
+  LIVE (red), BREAK (amber) or OFF AIR, the layout and lobbies, whose lobby voice is heard, and a
+  shot timer that starts again on every switch. It follows OBS: switches made in OBS by hand
+  show too, and a switch OBS doesn't make within a couple of seconds is a red error. Beside it,
+  **Talking points**: the best two storyline notes about the lobbies on screen (Next, Used).
+* **Layouts:** **Views** (Full, 2-Up, Quad, Grid, Auto grid) and **Breaks** (Be right back,
+  Intermission, Auto intermission, in amber) are separate rows, so a break isn't clicked by
+  mistake.
+* **One order:** each lobby gets a number when it first connects and keeps it all session. The
+  lobby cards, the Multiview tiles, keys **1-9** (that lobby full screen) and the stream use it;
+  how exciting a lobby is shows as a badge and a glow, never by moving it. In 2-up, Quad and
+  Grid the numbers on stream are where each lobby is on screen (1 top left).
+* **Graphics queue:** one big graphic on stream at a time (a lobby's table after a game, a
+  player card, a storyline note, the standings), each for 8 s (change it on the Live desk), then
+  the next. One about a lobby goes on that lobby: full screen, inside its tile in a multi-view
+  when there's room, or in intermission; otherwise it waits. Off-screen alerts are one at a
+  time. The Live desk shows what's on and what's next, with **Skip** and **Clear**.
+* **After a game** the Live desk asks "MAL finished, show the table?": **Show**, **Skip** or
+  **Save for intermission** (saved tables play when intermission comes up). Unanswered, it goes
+  after a minute. Graphics → After a game → **Put the table up by itself** brings back the old way.
+* **Simulation** (OBS → Test): four fake lobbies, SIM-1 to SIM-4. While it runs a **TEST MODE**
+  bar with **Stop simulation** sits across every page. Stopping removes every trace of them
+  (lobbies, cards, games and standings, clips, montages, their OBS sources) without switching
+  anything in OBS; simulated games never reach the sponsor log or a real Twitch channel.
 * **Unlock** it with the tournament's administration code (the same one as The Button's
   Organiser tab).
 * **First start:** on a PC that already had The Button's caster tools, Red Alert copies
@@ -365,10 +394,15 @@ stream.
 * **It was called TT Broadcast** (v0.1.0). Installing Red Alert replaces it (its shortcuts and
   program folder go) and its settings come over the first time Red Alert opens; a TT Broadcast
   that updates itself becomes Red Alert where it is.
-* **Updates:** Red Alert updates itself from its own releases, separately from The Button
-  (its header says when a new version is ready to restart into; untick **update automatically**
-  there to update only when you choose). Hosts never
-  need to reinstall anything for a broadcast change.
+* **Updates:** from v0.3.0 Red Alert never updates itself, so nothing changes in the middle of
+  a stream. For a new version, download **`Install-RedAlert.bat`** (or `RedAlert.exe`) from the
+  newest Red Alert release when you choose. Hosts never need to reinstall anything for a
+  broadcast change.
+* **OBS setup check** (OBS page, when OBS connects): the scene collection and profile names
+  (steps to rename them), a leftover empty "Scene" (**Delete it**), Desktop Audio reaching the
+  stream (**Mute Desktop Audio**; the Live desk warns while it's on), what replays need (the
+  Source Record plugin; OBS's own Replay Buffer isn't used and can stay off), and Impostor tags
+  without a stream delay (**Set a 90 s delay**).
 * **Ports:** its screen is on `127.0.0.1:8768` (this PC only, with a private key); the OBS
   pages are on `localhost:8767`, as before. The mod uses 8765 and 8766 on the host's PC.
 * **Older hosts:** hosts send their game data in a versioned format
@@ -377,12 +411,13 @@ stream.
 
 ### Caster overlay and game video
 
-* **Jump to action** (or **N**): casts the lobby worth watching now (a meeting first, then
+* **Jump to action** (or **N**): puts the lobby worth watching on stream (a meeting first, then
   whatever just happened, else the next lobby in turn). A lobby whose host has gone silent
   for a couple of minutes gets a warning at the top.
-* **Caster overlay:** an OBS Browser source at `http://localhost:8767/` that shows whichever
-  lobby you pick (its numbered button, or the number keys 1-9 while Red Alert is open), switching
-  live: players, round standings and the latest meetings and ejections for that game.
+* **Caster overlay:** an OBS Browser source at `http://localhost:8767/` that follows what's on
+  stream (the full-screen lobby, or slot 1 of a multi-view), as do the video and multiview
+  pages; **Pin** keeps them on one lobby (shown as PINNED, with **Follow the stream**). It shows
+  players, round standings and the latest meetings and ejections for that game.
   `http://localhost:8767/?full=1` adds roles, kills and task bars (for a stream on a delay
   only).
 * **Game video, RedZone style:** each host turns on **Send my game to the caster** (Home →
@@ -499,15 +534,20 @@ the caster's PC and off stream.
   Electrical", wipes between them); when a round ends, "every kill" then the top plays counting
   down. The **Montages** card shows them ready with Play (in the replay scene), Preview and
   Discard; **Get ffmpeg** downloads it the first time. The **Moments** card lists every clip:
-  pick some, drag them into order and Build montage; that montage is deleted once it has played
-  and its clips are marked USED.
+  pick some, drag them into order and Build montage; its clips are marked USED and can go in
+  new montages. Once a montage has played it moves to the **Archive** (title, when, game or
+  round, its clips): **Replay**, **Rebuild** from its clips, **Open** the video or its
+  **Folder**, or **Delete** for good (a second click confirms).
 * **Sponsors:** `sponsors.json` (name, logo, tagline, video, placements). Placements: `killcam`
   ("Kill Cam presented by" on kill replays), `replay` ("presented by" on every other replay),
   `multiview` (a "Multiview presented by" badge while 4 or more lobbies are on screen),
   `montage` (an opening card), `standings`
   ("Presented by" under the table), `grid` (empty tiles), `break` (a split-screen break, the
   lobby on the left and the sponsor on the right, that ends by itself, and straight back to
-  full screen on a must-show play). Every appearance is logged; **Export report** saves a CSV
+  full screen on a must-show play). **Verbal reads:** give a sponsor `readScript` and
+  `readEveryMinutes`, `readEveryGames` or `readEveryRounds`; when one is due the Live desk
+  shows the script (only to you) with **Done** (logged as a read) and **Snooze 5 min**.
+  Every appearance is logged; **Export report** saves a CSV
   and a summary.
 * **Swoosh:** a stinger plays on every switch (scenes, pictures moving within a layout, the grid
   changing, replays coming up), once per 1.5 s, never while scrubbing a replay. Add a Stinger
@@ -538,8 +578,11 @@ the caster's PC and off stream.
   Their send page shows a meter for each. In OBS each lobby gets a **TT Voice** source; the
   voice follows the picture (the full-screen lobby, or slot 1), and replays, montages and
   intermission are silent. The **Lobby voice** card shows each lobby's status and levels, and
-  has a volume and delay per lobby, **Listen** to keep one lobby up whatever is on screen,
-  **Mute all** (key **U**), and **Duck under** your mic (an OBS compressor keyed to it). It only
+  has a volume and delay per lobby, a live meter of what OBS's TT Voice source is putting out
+  (also small on each lobby card), **Listen** to keep one lobby up whatever is on screen,
+  **Mute all** (key **U** in Red Alert, and **Ctrl+Shift+M** from any window, changed in Lobby
+  voice; the Live desk shows ALL LOBBY AUDIO MUTED with Unmute while it's on), and **Duck
+  under** your mic (an OBS compressor keyed to it; the obvious mic is picked the first time). It only
   goes to the stream: nothing is played back to the players, and when voice sending starts the
   bot posts "voice in this channel may be recorded" in the lobby's voice channel chat. On older
   Windows, the referee ticks *Share system audio* instead (the old way: game sound and voice

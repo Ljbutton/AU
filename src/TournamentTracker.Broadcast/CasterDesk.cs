@@ -175,8 +175,9 @@ namespace TournamentTracker.App.Broadcast
             HealthPath = dataFolder == null ? null : System.IO.Path.Combine(dataFolder, HealthSettings.FileName);
             HealthConfig = HealthSettings.Load(HealthPath);
             Health = new LobbyHealth(_clock, () => HealthConfig);
-            Sponsors = new SponsorBook(dataFolder, _clock);
+            Sponsors = new SponsorBook(dataFolder, _clock) { Hold = () => Simulating };
             Alerts = new AlertQueue(_clock, dataFolder == null ? null : System.IO.Path.Combine(dataFolder, "alerts.json"));
+            Graphics = new GraphicsQueue(_clock);
             if (config != null) _config = () => config;
             else
             {
@@ -189,6 +190,25 @@ namespace TournamentTracker.App.Broadcast
         }
 
         public string? ConfigPath => _file?.Path;
+
+        // ---- One fixed order: each lobby's number, given when it first connects ------------------
+        private readonly Dictionary<string, int> _numbers = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>A lobby's number (1, 2, 3… in the order they connected; the lowest free one). Kept for the session.</summary>
+        public int NumberOf(string lobby)
+        {
+            lock (_numbers)
+            {
+                if (_numbers.TryGetValue(lobby, out int n)) return n;
+                n = 1;
+                while (_numbers.ContainsValue(n)) n++;
+                _numbers[lobby] = n;
+                return n;
+            }
+        }
+
+        /// <summary>Lobbies in their fixed order (by number), never by score: what's on the desk doesn't move.</summary>
+        public List<LobbyRank> Ordered() => Board.Ranking().OrderBy(r => NumberOf(r.Lobby)).ToList();
         public bool Simulating => _sim != null;
 
         // ---- Feed in ------------------------------------------------------------------------
@@ -216,6 +236,7 @@ namespace TournamentTracker.App.Broadcast
                 // How up to date the host's mod is (the broadcast feed's version).
                 if (lobby.Length > 0 && TournamentTracker.Broadcast.FeedProtocol.FromMod(type)) lock (_lock) _versions[lobby] = TournamentTracker.Broadcast.FeedProtocol.VersionOf(item);
                 if (type == "skip") return;
+                if (lobby.Length > 0 && type is "snap" or "event") NumberOf(lobby);
                 if (type == TournamentTracker.Broadcast.FeedProtocol.Types.Host)
                 {
                     string? tw = item.TryGetProperty("twitch", out var th) && th.ValueKind == JsonValueKind.String ? th.GetString() : null;
@@ -342,11 +363,27 @@ namespace TournamentTracker.App.Broadcast
 
         // ---- Simulation -----------------------------------------------------------------------
 
-        /// <summary>Simulation mode: four fake lobbies feed the desk, so the tab and switching can be tried without games.</summary>
+        /// <summary>A lobby made up by the simulator (SIM-1, SIM-2…).</summary>
+        public static bool IsSimLobby(string? lobby) => FeedSimulator.IsSim(lobby);
+
+        /// <summary>
+        /// Simulation stopped and the desk is clean: everything else made for its fake lobbies (OBS
+        /// sources, clips, montages, Twitch) goes now. Gets which lobbies were fake.
+        /// </summary>
+        public event Action<Func<string, bool>>? SimStopped;
+
+        /// <summary>
+        /// Simulation mode: four fake lobbies (SIM-1…SIM-4) feed the desk, so the tab and switching can
+        /// be tried without games. Turning it off removes every trace of them: lobbies, cards, history,
+        /// alerts, health, voice, games and standings (on disk too), and whatever on stream was theirs.
+        /// Nothing in OBS is switched: a scene only changes when you click.
+        /// </summary>
         public void Simulate(bool on)
         {
+            bool was;
             lock (_lock)
             {
+                was = _sim != null;
                 _simTimer?.Dispose();
                 _simTimer = null;
                 _sim = on ? new FeedSimulator(_clock(), 4, Environment.TickCount) : null;
@@ -354,6 +391,54 @@ namespace TournamentTracker.App.Broadcast
                 if (on) Roster.Extra.AddRange(FeedSimulator.SimRoster());
                 if (_sim != null) _simTimer = new Timer(_ => SimTick(), null, 0, 500);
             }
+            if (!on && was) ForgetSim();
+        }
+
+        /// <summary>Removes everything the simulator left (public for tests).</summary>
+        public void ForgetSim()
+        {
+            Func<string, bool> sim = IsSimLobby;
+            Board.Forget(sim);
+            lock (_numbers) foreach (var k in _numbers.Keys.Where(sim).ToList()) _numbers.Remove(k);
+            Tracks.Forget(sim);
+            Health.Forget(sim);
+            Alerts.Forget(sim);
+            Archive.Forget(sim);
+            Tables.Forget(sim);
+            lock (_lock)
+            {
+                foreach (var c in _cards.Where(c => sim(c.Lobby)).ToList()) { _cards.Remove(c); _byPlay.Remove(c.PlayKey); }
+                _history.RemoveAll(c => sim(c.Lobby));
+                _alerted.RemoveWhere(k => sim(k.Split('|')[0]));
+                foreach (var d in new System.Collections.IDictionary[] { _voice, _twitch, _versions, _levels, _downCards, _playing })
+                    foreach (var k in d.Keys.Cast<string>().Where(sim).ToList()) d.Remove(k);
+                foreach (var k in _received.Keys.Where(k => sim(k.Split('|')[0])).ToList()) _received.Remove(k);
+                _interruptions.RemoveAll(i => sim(i.Lobby));
+                _offerDismissed.RemoveWhere(x => sim(x));
+                // Whatever on stream was theirs: the desk forgets it, OBS stays where it is.
+                if (_onAir.Slots.Any(x => sim(x ?? "")))
+                {
+                    var left = _onAir.Slots.Where(x => x != null && !sim(x)).ToList();
+                    _onAir = left.Count == 0 && _onAir.Layout is not ("intermission" or "slate")
+                        ? new OnAir { Layout = "none", Scene = _onAir.Scene, By = "button", Since = _clock() }
+                        : new OnAir { Layout = _onAir.Layout, Slots = _onAir.Slots.Select(x => x != null && sim(x) ? null : x).ToList(), Scene = _onAir.Scene, By = _onAir.By, Boxes = _onAir.Boxes, Since = _onAir.Since };
+                }
+                if (_beforeIntermission != null && _beforeIntermission.Slots.Any(x => sim(x ?? ""))) _beforeIntermission = null;
+                if (_beforeGrid != null && _beforeGrid.Slots.Any(x => sim(x ?? ""))) _beforeGrid = null;
+                _gridSponsors.Clear();
+            }
+            if (LiveDuringIntermission != null && sim(LiveDuringIntermission)) LiveDuringIntermission = null;
+            if (Break is { } b && sim(b.Lobby ?? "")) { Break = null; Sponsors.End("break"); }
+            if (PlayerCard is { } pc && sim(pc.Lobby ?? "")) PlayerCard = null;
+            Graphics.Remove(g => g.Lobby != null && sim(g.Lobby) || g.Kind == "storyline");
+            lock (_lock) { _prompts.RemoveAll(x => sim(x.Lobby)); _savedTables.RemoveAll(x => sim(x.Lobby)); }
+            if (_featured != null && sim(_featured)) _featured = null;
+            // A storyline or note from the fake games may be up: it goes too.
+            ShownNote = null;
+            IntermissionOffer = false;
+            _quietSince = null;
+            _nextSlowTick = default;
+            SimStopped?.Invoke(sim);
         }
 
         /// <summary>Runs the simulator up to now. Public for tests.</summary>
@@ -417,13 +502,14 @@ namespace TournamentTracker.App.Broadcast
         {
             int round = Tables.CurrentRound;
             var table = StandingsTable();
+            var focus = FocusKeys();
             return new
             {
                 Scope = StandingsScope,
                 Round = round,
                 Title = table.Title,
                 Standings = table.Rows.Take(20).ToList(),
-                Notes = Storylines.Notes(FocusKeys()).Select(n => new { n.Id, n.Kind, n.Text, n.Pinned }).ToList(),
+                Notes = Storylines.Notes(focus).Select(n => new { n.Id, n.Kind, n.Text, n.Pinned, Focus = n.Players.Any(focus.Contains) }).ToList(),
                 Shown = ShownNote?.Text,
                 Games = Archive.Today().Count,
             };
@@ -590,31 +676,109 @@ namespace TournamentTracker.App.Broadcast
         public double PlayerCardMinTile { get; set; } = 760;
 
         /// <summary>
-        /// A player's card as a lower third (one at a time; it goes after a few seconds). On the lobby's
-        /// tile when it's in a multi-view, or skipped when that tile is too small. Says what it did.
+        /// A player's card as a lower third, through the graphics queue (one big graphic at a time):
+        /// on the lobby's tile in a multi-view, waiting while that lobby isn't on screen or its tile is
+        /// too small. During a replay or montage, its own key player's card goes straight on.
         /// </summary>
         public string ShowPlayerCard(string key, string? lobby, bool auto = false)
         {
             var air = OnAir;
             lobby ??= Board.Ranking().FirstOrDefault(r => r.People.Any(p => p.Key == key))?.Lobby;
-            if (lobby != null && air.Layout is "2up" or "4up" or "grid" && air.Has(lobby))
+            if (auto && air.Layout == "replay")
             {
-                var boxes = air.Boxes ?? ObsDirector.Slots(air.Layout, 1920, 1080, 8, air.Slots.Count);
-                int i = air.Slots.FindIndex(x => string.Equals(x, lobby, StringComparison.OrdinalIgnoreCase));
-                if (i >= 0 && i < boxes.Count && boxes[i].W < PlayerCardMinTile) return "Skipped: that lobby's tile is too small for a card.";
+                PlayerCard = (key, lobby, _clock(), auto);
+                return "Player card on stream.";
             }
-            PlayerCard = (key, lobby, _clock(), auto);
-            return "Player card on stream.";
+            string name = lobby != null && Board.Lobby(lobby) is { } live && live.People.Values.FirstOrDefault(p => p.Key == key) is { } lp ? Board.DisplayName(live, lp.Id, lp.Name) : key;
+            var g = Graphics.Add("playerCard", lobby, $"{NameTag.Plain(name)}'s card", key);
+            var cur = Graphics.Current();
+            return cur?.Id == g.Id ? "Player card on stream." : Graphics.CanShow(g) ? "Player card queued: it goes on after what's showing." : $"Player card queued: it goes on when {lobby} is on screen with room for it.";
         }
 
-        /// <summary>The card still showing, or null once its time is up.</summary>
+        /// <summary>The card still showing, or null once its time is up (a replay's own card, else the queue's).</summary>
         public (string Key, string? Lobby, DateTime At, bool Auto)? CardNow()
         {
-            if (PlayerCard is { } c && (_clock() - c.At).TotalSeconds < PlayerCardSeconds) return c;
-            return null;
+            if (OnAir.Layout == "replay")
+                return PlayerCard is { } c && (_clock() - c.At).TotalSeconds < PlayerCardSeconds ? c : null;
+            return Graphics.Current() is { Kind: "playerCard" } g && g.Data is string key ? (key, g.Lobby, g.Started ?? _clock(), false) : null;
         }
 
-        public void HidePlayerCard() => PlayerCard = null;
+        public void HidePlayerCard() { PlayerCard = null; Graphics.Remove("playerCard"); }
+
+        // ---- Big graphics: one at a time; after-game tables asked about first (Part 14) ----------
+
+        /// <summary>Tables, player cards and storyline notes take turns on stream.</summary>
+        public GraphicsQueue Graphics { get; }
+        /// <summary>After a game: the lobby's table goes straight into the queue (the old way) instead of asking.</summary>
+        public Func<bool> AfterGameAuto { get; set; } = () => false;
+        /// <summary>The after-game table is switched on in Graphics at all.</summary>
+        public Func<bool> AfterGameOn { get; set; } = () => true;
+        public sealed class AfterGamePrompt { public string Id = ""; public string Lobby = ""; public int Round; public object? Data; public DateTime At; }
+        private readonly List<AfterGamePrompt> _prompts = new List<AfterGamePrompt>();
+        private readonly List<AfterGamePrompt> _savedTables = new List<AfterGamePrompt>();
+        private DateTime _changeSeen;
+        private long _promptSeq;
+        /// <summary>How long the "show table?" prompt waits before it counts as Skip.</summary>
+        public double PromptSeconds { get; set; } = 60;
+
+        /// <summary>A lobby finished a game and its table changed: ask (or, the old way, queue it).</summary>
+        private void AfterGameTick()
+        {
+            if (Tables.Change is not { } change || Tables.ChangeAt == _changeSeen) goto Expire;
+            _changeSeen = Tables.ChangeAt;
+            if (!AfterGameOn()) goto Expire;
+            var el = System.Text.Json.JsonSerializer.SerializeToElement(change);
+            string lobby = el.TryGetProperty("lobby", out var l) ? l.GetString() ?? "" : "";
+            int round = el.TryGetProperty("round", out var r) && r.ValueKind == System.Text.Json.JsonValueKind.Number ? r.GetInt32() : 0;
+            if (AfterGameAuto()) Graphics.Add("afterGame", lobby, $"{lobby} after the game", change);
+            else lock (_lock)
+            {
+                _prompts.RemoveAll(x => string.Equals(x.Lobby, lobby, StringComparison.OrdinalIgnoreCase));
+                _prompts.Add(new AfterGamePrompt { Id = "p" + (++_promptSeq), Lobby = lobby, Round = round, Data = change, At = _clock() });
+            }
+        Expire:
+            var now = _clock();
+            lock (_lock) _prompts.RemoveAll(x => (now - x.At).TotalSeconds >= PromptSeconds);     // unanswered: skipped
+            // Saved for intermission: they play once it's on.
+            if (OnAir.Layout is "intermission" or "slate")
+            {
+                List<AfterGamePrompt> play;
+                lock (_lock) { play = _savedTables.ToList(); _savedTables.Clear(); }
+                foreach (var p in play) Graphics.Add("afterGame", p.Lobby, $"{p.Lobby} after the game (saved)", p.Data);
+            }
+        }
+
+        /// <summary>The caster's answer to "show table?": show, skip or save (for intermission).</summary>
+        public string AnswerPrompt(string id, string answer)
+        {
+            AfterGamePrompt? p;
+            lock (_lock)
+            {
+                p = _prompts.FirstOrDefault(x => x.Id == id);
+                if (p == null) return "That table has gone.";
+                _prompts.Remove(p);
+                if (answer == "save") _savedTables.Add(p);
+            }
+            switch (answer)
+            {
+                case "show":
+                    var g = Graphics.Add("afterGame", p.Lobby, $"{p.Lobby} after the game", p.Data);
+                    return Graphics.CanShow(g) ? $"{p.Lobby}'s table is in the queue." : $"{p.Lobby}'s table goes on when {p.Lobby} is on screen with room for it.";
+                case "save": return $"{p.Lobby}'s table plays in the next intermission.";
+                default: return "Skipped.";
+            }
+        }
+
+        public object PromptState()
+        {
+            var now = _clock();
+            lock (_lock)
+                return new
+                {
+                    Prompts = _prompts.Select(x => new { x.Id, x.Lobby, x.Round, Left = Math.Max(0, (int)Math.Ceiling(PromptSeconds - (now - x.At).TotalSeconds)) }).ToList(),
+                    Saved = _savedTables.Select(x => x.Lobby).ToList(),
+                };
+        }
 
         /// <summary>Everything a player card says: name, rank and points, and today's records.</summary>
         public object? PlayerCardData(string key, string? lobby)
@@ -805,6 +969,7 @@ namespace TournamentTracker.App.Broadcast
                 Archive.Merge(games);
                 Tables.Update(Board.Ranking().Select(r => r.Lobby), _clock());
             }
+            AfterGameTick();
             if (HealthTick()) return;
             OnAir air;
             lock (_lock) air = _onAir;
@@ -840,6 +1005,9 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>OBS switched by itself (Part 4 calls this when you change scenes there).</summary>
+        /// <summary>What's on stream changed without a switch from here (in OBS): the caster pages follow.</summary>
+        public event Action<OnAir>? AirChangedInObs;
+
         public void ObsChanged(OnAir state)
         {
             lock (_lock)
@@ -850,6 +1018,13 @@ namespace TournamentTracker.App.Broadcast
                 MarkShown(state);
             }
             Left(state);
+            AirChangedInObs?.Invoke(state);
+        }
+
+        /// <summary>OBS made the switch the desk asked for (or showed it's on what the desk has): note its scene.</summary>
+        public void ObsConfirmed(OnAir air, string scene)
+        {
+            lock (_lock) if (ReferenceEquals(_onAir, air) || _onAir.Layout == air.Layout && _onAir.Slots.SequenceEqual(air.Slots)) _onAir.Scene = scene;
         }
 
         /// <summary>Live cards of lobbies that just went on air count as shown from now.</summary>
@@ -937,8 +1112,9 @@ namespace TournamentTracker.App.Broadcast
                     WinScope, Wins = new { Impostors = Wins().Impostors, Crew = Wins().Crew },
                     Break = Break is { } br ? new { Sponsor = br.Sponsor.Name, Left = Math.Max(0, (int)Math.Ceiling((br.Until - now).TotalSeconds)), br.Lobby } : null,
                     OnAir = new { _onAir.Layout, _onAir.Slots, _onAir.By, _onAir.Scene, Since = _onAir.Since == default ? null : _onAir.Since.ToString("o") },
-                    Lobbies = ranking.Select(r => new
+                    Lobbies = ranking.OrderBy(r => NumberOf(r.Lobby)).Select(r => new
                     {
+                        No = NumberOf(r.Lobby),
                         People = r.People.Where(p => p.Key.Length > 0).Select(p => { var l = Board.Lobby(r.Lobby); return new { p.Key, Name = l == null ? p.Name : Board.DisplayName(l, p.Id, p.Name), p.Color }; }).ToList(),
                         r.Lobby, r.Online, r.Score, r.Tier, r.Line, r.Phase, r.Crew, r.Imps, r.TaskPct, r.Game, r.Round, r.Spec,
                         Players = r.Players.Select(p => new

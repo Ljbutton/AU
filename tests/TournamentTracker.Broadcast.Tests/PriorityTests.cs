@@ -245,10 +245,10 @@ public class PriorityTests : IDisposable
             Assert.Contains(tier, tiers);
 
         // A lobby whose host drops goes offline; the others keep going.
-        sim.SetOffline("MAL", true);
+        sim.SetOffline("SIM-2", true);
         _clock.Advance(10);
         foreach (var json in sim.Advance(_clock.Now)) _board.Apply(json);
-        Assert.False(Rank("MAL").Online);
+        Assert.False(Rank("SIM-2").Online);
         Assert.Equal(3, _board.Ranking().Count(r => r.Online));
     }
 

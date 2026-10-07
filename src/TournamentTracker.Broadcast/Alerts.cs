@@ -119,6 +119,8 @@ namespace TournamentTracker.App.Broadcast
             lock (_lock) _list.RemoveAll(a => string.Equals(a.Lobby, lobby, StringComparison.OrdinalIgnoreCase));
         }
 
+        public void Forget(Func<string, bool> which) { lock (_lock) _list.RemoveAll(a => which(a.Lobby)); }
+
         /// <summary>The banners showing now (oldest first); the next in line come up as others finish.</summary>
         public List<Alert> Active()
         {
@@ -129,7 +131,8 @@ namespace TournamentTracker.App.Broadcast
                 if (Settings.Paused) { _list.Clear(); return new List<Alert>(); }
                 foreach (var a in _list.Where(a => a.Until == null).ToList())
                 {
-                    if (_list.Count(x => x.Until != null) >= Math.Max(1, Settings.Max)) break;
+                    // One at a time: off-screen alerts stay small and never pile up over the game.
+                    if (_list.Count(x => x.Until != null) >= 1) break;
                     a.Until = now.AddSeconds(Settings.Seconds);
                 }
                 return _list.Where(a => a.Until != null).OrderBy(a => a.Id).Select(a => new Alert { Id = a.Id, Lobby = a.Lobby, Kind = a.Kind, Text = a.Text, Count = a.Count, Queued = a.Queued, Until = a.Until }).ToList();

@@ -22,8 +22,8 @@ namespace TournamentTracker.App.Broadcast
     /// </summary>
     public sealed class ObsClient : IAsyncDisposable
     {
-        /// <summary>Event subscriptions: General (1), Scenes (4), Inputs (8), SceneItems (128), MediaInputs (256), Vendors (512).</summary>
-        public const int Subscriptions = 1 | 4 | 8 | 128 | 256 | 512;
+        /// <summary>Event subscriptions: General (1), Scenes (4), Inputs (8), SceneItems (128), MediaInputs (256), Vendors (512), InputVolumeMeters (65536, the level meters).</summary>
+        public const int Subscriptions = 1 | 4 | 8 | 128 | 256 | 512 | 65536;
 
         private readonly ClientWebSocket _ws = new ClientWebSocket();
         private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonElement>> _pending = new ConcurrentDictionary<string, TaskCompletionSource<JsonElement>>();

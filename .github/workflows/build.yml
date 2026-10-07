@@ -229,9 +229,10 @@ jobs:
             echo
             echo "Download **Install-RedAlert.bat** below and double-click it. The first time it opens it"
             echo "takes your caster setup (OBS, priorities, keys, roster, administration code) from The Button"
-            echo "on the same PC. After that it updates itself."
+            echo "on the same PC. It never updates itself: for a new version, download it again from the"
+            echo "newest Red Alert release when you choose (nothing changes in the middle of a stream)."
             echo
-            echo "TTBroadcast.exe is the same app, for copies installed before it was renamed (they update by that name)."
+            echo "TTBroadcast.exe is the same app, for copies from before the rename (v0.1, v0.2 updated themselves by name)."
             echo
             echo "Built from commit $GITHUB_SHA."
           } > broadcast-notes.md

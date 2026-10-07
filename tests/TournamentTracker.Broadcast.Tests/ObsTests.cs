@@ -42,6 +42,14 @@ public sealed class FakeObs : IAsyncDisposable
     public readonly Dictionary<string, int> SyncOffset = new();
     public List<(string Name, string Kind)> Transitions = new() { ("Fade", "fade_transition"), ("Cut", "cut_transition") };
     public string CurrentTransition = "Fade";
+    /// <summary>Like a real OBS with a transition: the scene changes (and says so) this long after it's asked.</summary>
+    public int SwitchDelayMs;
+    /// <summary>OBS doesn't switch at all (e.g. a studio-mode mix-up).</summary>
+    public bool IgnoreSwitch;
+    public string Collection = "Untitled", Profile = "Untitled";
+    public readonly Dictionary<string, string> Kinds = new();
+    public bool DelayEnable; public int DelaySec;
+    public readonly HashSet<string> FilterKinds = new() { "source_record_filter", "compressor_filter" };
     public JsonElement TransitionSettings;
 
     public FakeObs()
@@ -116,7 +124,16 @@ public sealed class FakeObs : IAsyncDisposable
                 catch (Exception e) { ok = false; comment = e.Message; response = null; }
             }
             await Send(ws, new { op = 7, d = new { requestType = type, requestId = id, requestStatus = new { result = ok, code = ok ? 100 : 600, comment }, responseData = response } });
-            if (ok && type == "SetCurrentProgramScene") await Event("CurrentProgramSceneChanged", new { sceneName = Program });
+            if (ok && type == "SetCurrentProgramScene" && !IgnoreSwitch)
+            {
+                string want = data.GetProperty("sceneName").GetString()!;
+                if (SwitchDelayMs > 0) _ = Task.Run(async () => { await Task.Delay(SwitchDelayMs); lock (this) Program = want; await Event("CurrentProgramSceneChanged", new { sceneName = want }); });
+                else if (_switchedFrom != want) await Event("CurrentProgramSceneChanged", new { sceneName = want });
+            }
+            if (ok && type == "SetSceneItemEnabled")
+                await Event("SceneItemEnableStateChanged", new { sceneName = data.GetProperty("sceneName").GetString(), sceneItemId = data.GetProperty("sceneItemId").GetInt32(), sceneItemEnabled = data.GetProperty("sceneItemEnabled").GetBoolean() });
+            if (ok && type == "SetInputMute")
+                await Event("InputMuteStateChanged", new { inputName = data.GetProperty("inputName").GetString(), inputMuted = data.GetProperty("inputMuted").GetBoolean() });
             if (ok && type == "CallVendorRequest")
             {
                 string source = data.GetProperty("requestData").GetProperty("source").GetString()!;
@@ -128,6 +145,7 @@ public sealed class FakeObs : IAsyncDisposable
         }
     }
 
+    private string _switchedFrom = "";
     private static string S(JsonElement d, string p) => d.GetProperty(p).GetString()!;
 
     private object? Handle(string type, JsonElement d)
@@ -139,7 +157,7 @@ public sealed class FakeObs : IAsyncDisposable
             case "CreateScene":
                 if (Scenes.ContainsKey(S(d, "sceneName"))) throw new Exception("exists");
                 Scenes[S(d, "sceneName")] = new(); return null;
-            case "GetInputList": return new { inputs = Inputs.Keys.Select(k => new { inputName = k, inputKind = "browser_source" }).ToList() };
+            case "GetInputList": return new { inputs = Inputs.Keys.Select(k => new { inputName = k, inputKind = Kinds.GetValueOrDefault(k, "browser_source") }).ToList() };
             case "CreateInput":
             {
                 string name = S(d, "inputName");
@@ -210,7 +228,28 @@ public sealed class FakeObs : IAsyncDisposable
             case "SetCurrentSceneTransition": CurrentTransition = S(d, "transitionName"); return null;
             case "SetCurrentSceneTransitionSettings": TransitionSettings = d.GetProperty("transitionSettings").Clone(); return null;
             case "SetMediaInputCursor": MediaCursorMs = d.GetProperty("mediaCursor").GetDouble(); return null;
-            case "SetCurrentProgramScene": Program = S(d, "sceneName"); return null;
+            case "SetCurrentProgramScene":
+                _switchedFrom = Program;
+                if (!IgnoreSwitch && SwitchDelayMs == 0) Program = S(d, "sceneName");
+                return null;
+            case "GetSceneCollectionList": return new { currentSceneCollectionName = Collection, sceneCollections = new[] { Collection } };
+            case "GetProfileList": return new { currentProfileName = Profile, profiles = new[] { Profile } };
+            case "GetSourceFilterKindList": return new { sourceFilterKinds = SourceRecordInstalled ? FilterKinds.ToList() : FilterKinds.Where(k => k != "source_record_filter").ToList() };
+            case "GetProfileParameter":
+                return S(d, "parameterName") switch { "DelayEnable" => new { parameterValue = DelayEnable ? "true" : "false" }, "DelaySec" => new { parameterValue = DelaySec.ToString() }, _ => new { parameterValue = (string?)null } };
+            case "SetProfileParameter":
+                if (S(d, "parameterName") == "DelayEnable") DelayEnable = S(d, "parameterValue") == "true";
+                if (S(d, "parameterName") == "DelaySec") DelaySec = int.Parse(S(d, "parameterValue"));
+                return null;
+            case "GetInputMute": return new { inputMuted = Muted.GetValueOrDefault(S(d, "inputName")) };
+            case "RemoveScene": Scenes.Remove(S(d, "sceneName")); return null;
+            case "RemoveInput":
+            {
+                string name = S(d, "inputName");
+                if (!Inputs.Remove(name)) throw new Exception("No such input.");
+                foreach (var sc in Scenes.Values) sc.RemoveAll(i => i.Source == name);
+                return null;
+            }
             case "SetSceneItemIndex":
             {
                 var list = Scenes[S(d, "sceneName")];
@@ -428,6 +467,95 @@ public class ObsTests : IAsyncLifetime
         _desk.Show("LJ");
         await Task.Delay(300);
         Assert.Equal("button", _desk.OnAir.By);
+    }
+
+    [Fact]
+    public async Task The_desk_follows_OBS_when_a_switch_lands_late_and_item_events_come_first()
+    {
+        await Connect();
+        _desk.Show("LJ");
+        await Until(() => _desk.OnAir.Scene == "TT Full");
+        // A real OBS: hiding and showing pictures sends events at once; the scene change comes after the transition.
+        _obs.SwitchDelayMs = 400;
+        _desk.Show("", "4up", null, new List<string> { "LJ", "MAL", "Soggy", "" });
+        Assert.Equal("TT Quad", _director.SwitchingTo);
+        await Until(() => _desk.OnAir.Scene == "TT Quad");
+        await Task.Delay(500);                               // any late read-backs have run
+        Assert.Equal("4up", _desk.OnAir.Layout);
+        Assert.Equal("button", _desk.OnAir.By);
+        Assert.Equal(new string?[] { "LJ", "MAL", "Soggy", null }, _desk.OnAir.Slots);
+        Assert.Null(_director.SwitchProblem);
+
+        // The Multiview card's Send: two lobbies side by side.
+        _desk.ShowPicked(new[] { "Soggy", "LJ" });
+        await Until(() => _desk.OnAir.Scene == "TT 2-up");
+        Assert.Equal(new string?[] { "Soggy", "LJ" }, _desk.OnAir.Slots);
+    }
+
+    [Fact]
+    public async Task A_switch_OBS_never_makes_is_reported_and_the_desk_shows_what_OBS_has()
+    {
+        var was = ObsDirector.SwitchTimeout;
+        ObsDirector.SwitchTimeout = TimeSpan.FromMilliseconds(300);
+        try
+        {
+            await Connect();
+            _desk.Show("LJ");
+            await Until(() => _desk.OnAir.Scene == "TT Full");
+            _obs.IgnoreSwitch = true;
+            _desk.Show("", "4up", null, new List<string> { "LJ", "MAL", "", "" });
+            await Until(() => _director.SwitchProblem != null);
+            Assert.Contains("TT Quad", _director.SwitchProblem);
+            await Until(() => _desk.OnAir.Layout == "full");
+            Assert.Equal("TT Full", _desk.OnAir.Scene);
+        }
+        finally { ObsDirector.SwitchTimeout = was; }
+    }
+
+    [Fact]
+    public async Task The_setup_check_finds_names_an_empty_scene_desktop_audio_replays_and_no_delay()
+    {
+        lock (_obs) { _obs.Scenes["Scene"] = new(); _obs.Inputs["Desktop Audio"] = new(); _obs.Kinds["Desktop Audio"] = "wasapi_output_capture"; _obs.Muted["Desktop Audio"] = false; _obs.SourceRecordInstalled = false; }
+        _director.ImpostorTagsOn = () => true;
+        await Connect();
+        var checks = _director.Checks.ToDictionary(c => c.Id);
+        Assert.False(checks["collection"].Ok);
+        Assert.Contains("Rename", checks["profile"].Detail);
+        Assert.Equal("Delete it", checks["emptyScene"].Fix);
+        Assert.False(checks["desktopAudio"].Ok);
+        Assert.Equal(new[] { "Desktop Audio" }, _director.DesktopAudioOn);
+        Assert.Contains("Source Record", checks["replays"].Title);
+        Assert.False(checks["delay"].Ok);
+
+        await _director.FixAsync("emptyScene");
+        Assert.False(_obs.Scenes.ContainsKey("Scene"));
+        await _director.FixAsync("desktopAudio");
+        Assert.True(_obs.Muted["Desktop Audio"]);
+        Assert.Empty(_director.DesktopAudioOn);
+        await _director.FixAsync("delay");
+        Assert.True(_obs.DelayEnable);
+        Assert.True(_director.Checks.Single(c => c.Id == "delay").Ok);
+        // Unmuted by hand in OBS: the desk hears about it.
+        await _obs.Event("InputMuteStateChanged", new { inputName = "Desktop Audio", inputMuted = false });
+        await Until(() => _director.DesktopAudioOn.Count == 1);
+    }
+
+    [Fact]
+    public async Task Stopping_simulation_removes_its_sources_from_OBS_and_leaves_the_scene_alone()
+    {
+        _feeds.Add(("SIM-1", "http://127.0.0.1:8767/sim?lobby=SIM-1"));
+        await Connect();
+        _desk.Show("LJ");
+        await Until(() => _desk.OnAir.Scene == "TT Full");
+        lock (_obs) { _obs.Inputs["TT Lobby OLD"] = new() { ["url"] = "http://localhost:8767/sim?lobby=OLD" }; }   // an older version's stand-in
+        Assert.Contains("TT Lobby SIM-1", _obs.Inputs.Keys);
+        _feeds.RemoveAll(f => f.Lobby == "SIM-1");
+        int gone = await _director.ForgetSimAsync(CasterDesk.IsSimLobby);
+        Assert.Equal(2, gone);
+        Assert.DoesNotContain(_obs.Inputs.Keys, k => k.Contains("SIM-") || k.Contains("OLD"));
+        Assert.Contains("TT Lobby LJ", _obs.Inputs.Keys);
+        Assert.Equal("TT Full", _obs.Program);
+        Assert.False(_director.Settings.Sources.ContainsKey("SIM-1"));
     }
 
     [Fact]

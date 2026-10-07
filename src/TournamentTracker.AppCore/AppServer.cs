@@ -45,6 +45,9 @@ namespace TournamentTracker.App
         public bool VoiceIncludeMic { get; set; }
         public bool VoiceOff { get; set; }
 
+        /// <summary>BepInEx's console window (the mod's log) shows when Among Us starts. Off: no window; the log file is still written.</summary>
+        public bool ShowModConsole { get; set; }
+
         /// <summary>The host's Twitch channel: shown on the tournament stream with their lobby (sent with their game).</summary>
         public string? Twitch { get; set; }
 
@@ -364,6 +367,13 @@ namespace TournamentTracker.App
                     TrySave();
                     _nextAutoModUpdate = DateTime.MinValue;
                     return Ok(new { ok = true, message = _settings.AutoUpdateMod ? "The mod updates itself while Among Us is closed." : "Automatic mod updates are off: Settings shows when a new version is out." });
+                case ("POST", "/app/modconsole"):
+                {
+                    _settings.ShowModConsole = Arg("on") == "true";
+                    _settings.Save(_env.SettingsFile);
+                    if (GamePath != null) try { ModInstaller.SetConsole(GamePath, _settings.ShowModConsole); } catch (Exception) { }
+                    return Ok(new { ok = true, message = _settings.ShowModConsole ? "The mod's console window shows from the next start of Among Us." : "No console window from the next start of Among Us (the log is still in Settings → Mod and updates → Open log)." });
+                }
                 case ("POST", "/app/twitch"):
                 {
                     string typed = Arg("name").Trim();
@@ -398,11 +408,13 @@ namespace TournamentTracker.App
             var mod = ModInstaller.State(GamePath);
             AutoRepair(mod);
             AutoUpdateMod(mod);
+            KeepConsoleSetting(mod);
             string? status = mod.Installed && GamePath != null ? await _mod.StatusAsync(GamePath).ConfigureAwait(false) : null;
             return new
             {
                 App = _env.Version,
                 Twitch = _settings.Twitch,
+                ModConsole = _settings.ShowModConsole,
                 Game = new { Path = GamePath, Found = mod.GameFound, Candidates = Candidates() },
                 Mod = new
                 {
@@ -512,6 +524,14 @@ namespace TournamentTracker.App
         private bool ModUpdateAvailable(ModState mod) => _latest != null && mod.Installed && Newer(_latest.Tag, mod.InstalledVersion);
 
         /// <summary>A new version of the mod is out: install it by itself once Among Us is closed (unless switched off).</summary>
+        /// <summary>BepInEx's console window as set here (hidden by default): put back after installs, repairs and BepInEx's first run.</summary>
+        private void KeepConsoleSetting(ModState mod)
+        {
+            if (!mod.Installed || GamePath == null || _installing.Length > 0) return;
+            try { if (ModInstaller.ConsoleShown(GamePath) != _settings.ShowModConsole) ModInstaller.SetConsole(GamePath, _settings.ShowModConsole); }
+            catch (Exception) { /* tried again on the next refresh */ }
+        }
+
         private void AutoUpdateMod(ModState mod)
         {
             if (!_settings.AutoUpdateMod || !ModUpdateAvailable(mod) || !mod.LoaderMatchesGame || GamePath == null || _installing.Length > 0) return;

@@ -209,9 +209,11 @@ namespace TournamentTracker.App.Broadcast
             var obs = _obs ?? throw new InvalidOperationException("Not connected to OBS.");
             if (Scene != Settings.Replay.Scene) await SwooshAsync(true).ConfigureAwait(false);
             _airKey = null;
-            _ignoreSceneUntil = DateTime.UtcNow.AddSeconds(1.5);
-            _lastAppliedScene = Settings.Replay.Scene;
+            bool already = Scene == Settings.Replay.Scene;
+            var ex = ExpectReplay();
             await obs.RequestAsync("SetCurrentProgramScene", new { sceneName = Settings.Replay.Scene }).ConfigureAwait(false);
+            if (already && _expect == ex) _expect = null;
+            else _ = Task.Delay(SwitchTimeout).ContinueWith(_ => { if (_expect == ex) _expect = null; });
             Scene = Settings.Replay.Scene;
             // Live voice doesn't belong over a replay.
             await SetVoicesAsync(new OnAir { Layout = "replay" }).ConfigureAwait(false);

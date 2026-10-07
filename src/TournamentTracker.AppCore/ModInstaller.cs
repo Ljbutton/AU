@@ -194,6 +194,55 @@ namespace TournamentTracker.App
             }
         }
 
+        /// <summary>BepInEx's own settings file, where its console window is switched on or off.</summary>
+        public static string BepInExConfig(string gameDir) => Path.Combine(gameDir, "BepInEx", "config", "BepInEx.cfg");
+
+        /// <summary>
+        /// Whether BepInEx's console window (the black window with the mod's log) shows when Among Us
+        /// starts. BepInEx shows it unless its config says otherwise; the log file is written either way.
+        /// </summary>
+        public static bool ConsoleShown(string gameDir)
+        {
+            string file = BepInExConfig(gameDir);
+            if (!File.Exists(file)) return true;
+            bool inSection = false;
+            foreach (var raw in File.ReadAllLines(file))
+            {
+                string line = raw.Trim();
+                if (line.StartsWith("[")) { inSection = line.Equals("[Logging.Console]", StringComparison.OrdinalIgnoreCase); continue; }
+                if (inSection && line.StartsWith("Enabled", StringComparison.OrdinalIgnoreCase) && line.Contains('='))
+                    return !line.Substring(line.IndexOf('=') + 1).Trim().Equals("false", StringComparison.OrdinalIgnoreCase);
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Shows or hides BepInEx's console window from the next start of Among Us, keeping the rest of
+        /// BepInEx.cfg as it is (the file is made, with just this, before BepInEx's first run).
+        /// </summary>
+        public static void SetConsole(string gameDir, bool show)
+        {
+            string file = BepInExConfig(gameDir);
+            string value = show ? "true" : "false";
+            var lines = File.Exists(file) ? File.ReadAllLines(file).ToList() : new List<string>();
+            int section = lines.FindIndex(l => l.Trim().Equals("[Logging.Console]", StringComparison.OrdinalIgnoreCase));
+            if (section < 0)
+            {
+                if (lines.Count > 0 && lines[^1].Trim().Length > 0) lines.Add("");
+                lines.AddRange(new[] { "[Logging.Console]", "", "## Enables showing a console for log output.", "# Setting type: Boolean", "# Default value: true", "Enabled = " + value });
+            }
+            else
+            {
+                int i = section + 1, at = -1;
+                for (; i < lines.Count && !lines[i].TrimStart().StartsWith("["); i++)
+                    if (lines[i].TrimStart().StartsWith("Enabled", StringComparison.OrdinalIgnoreCase) && lines[i].Contains('=')) { at = i; break; }
+                if (at >= 0) lines[at] = "Enabled = " + value;
+                else lines.Insert(section + 1, "Enabled = " + value);
+            }
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            File.WriteAllLines(file, lines);
+        }
+
         /// <summary>What a file in use is renamed to so the new one can go in its place.</summary>
         public const string SetAsideSuffix = ".tt-old";
 

@@ -288,6 +288,7 @@ namespace TournamentTracker.App.Broadcast
             if (Prediction is { Status: "open" } p && now >= p.EndsAt) p.Status = "locked";
             if (Poll is { Status: "open" } pl && now >= pl.EndsAt.AddSeconds(3)) await PollEndedAsync(pl).ConfigureAwait(false);
 
+            if (SimHold) return;
             var ranking = _desk.Board.Ranking();
             if (ranking.Any(r => r.Online && r.Tier is "must" or "veryHigh")) _lastHot = now;
             var air = _desk.OnAir;
@@ -326,9 +327,12 @@ namespace TournamentTracker.App.Broadcast
             return Str(player, "key") ?? (id >= 0 ? "id:" + id : null);
         }
 
+        /// <summary>Simulated games never start anything on a real channel by themselves (Twitch's own test mode is fine).</summary>
+        private bool SimHold => _desk.Simulating && !Settings.TestMode;
+
         private void OnFed(string lobby, JsonElement m)
         {
-            if (Settings.Off) return;
+            if (Settings.Off || SimHold && CasterDesk.IsSimLobby(lobby)) return;
             string kind = Str(m, "kind") ?? "";
             string game = Str(m, "game") ?? "";
             int round = m.TryGetProperty("round", out var r) && r.ValueKind == JsonValueKind.Number ? r.GetInt32() : 0;
@@ -485,6 +489,27 @@ namespace TournamentTracker.App.Broadcast
                 text = $"{winner.Title}!",
             });
             Log($"Prediction resolved: {winner.Title}.");
+        }
+
+        /// <summary>Simulation stopped: anything running about its fake lobbies is cancelled (points refunded) or ended.</summary>
+        public async Task ForgetAsync(Func<string, bool> which)
+        {
+            bool About(TwitchItem? x) => x != null && (x.Lobby != null && which(x.Lobby) || x.Lobbies.Any(which) || x.Options.Any(o => o.Value != null && which(o.Value)));
+            try
+            {
+                if (Prediction is { Status: "open" or "locked" } p && About(p) && Api != null) await CancelPredictionAsync(p, "simulation stopped").ConfigureAwait(false);
+                if (About(Prediction)) Prediction = null;
+                if (Poll is { } pl && About(pl)) { if (Api != null) await Api.EndPollAsync(pl.Id).ConfigureAwait(false); Poll = null; }
+                if (About(Vote)) Vote = null;
+            }
+            catch (Exception e) { Log("Stopping simulation: " + e.Message); }
+            lock (_lock)
+            {
+                _meetings.RemoveAll(x => About(x));
+                _toReveal.RemoveAll(x => About(x.Item));
+                _due.RemoveAll(d => d.What.Split(' ').Any(which));
+            }
+            if (Result != null) Result = null;
         }
 
         private async Task CancelPredictionAsync(TwitchItem p, string why)

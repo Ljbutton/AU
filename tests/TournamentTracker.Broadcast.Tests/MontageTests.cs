@@ -179,7 +179,7 @@ public class MontageTests : IDisposable
             Assert.Equal("Acme", game.Sponsor);
             Assert.True(File.Exists(game.File));
 
-            // A custom montage from the Moments library: once it has played to the end it's deleted and the clip is USED.
+            // A custom montage from the Moments library: once it has played to the end it's archived and the clip is USED.
             var custom = await montages.CustomAsync(new[] { clip.Id }, "Best of ZZ");
             Assert.Equal("ready", custom.State);
             await director.ConnectAsync("127.0.0.1", obs.Port, "secret");
@@ -192,11 +192,24 @@ public class MontageTests : IDisposable
             _clock.Advance(1);
             await replays.TickAsync();
             Assert.Null(montages.Find(custom.Id));
-            Assert.False(File.Exists(custom.File));
             Assert.Equal(before + 1, montages.CustomPlayed);
+            // Played: it's in the archive with its clips, and its video stays until deleted.
+            var archived = montages.Archive.Single(a => a.Title == "Best of ZZ");
+            Assert.True(File.Exists(archived.File));
+            Assert.Equal(clip.Id, archived.Clips.Single().Id);
+            Assert.StartsWith("Montage: Best of ZZ", await montages.ReplayArchivedAsync(archived.Id));
+            await replays.LiveAsync();
+            var rebuilt = await montages.RebuildAsync(archived.Id);
+            Assert.Equal("ready", rebuilt.State);
+            Assert.True(File.Exists(rebuilt.File));
+            Assert.Equal(new[] { clip.Id }, rebuilt.ClipIds);
+            Assert.Contains("for good", montages.DeleteArchived(archived.Id));
+            Assert.False(File.Exists(archived.File));
+            Assert.Empty(montages.Archive.Where(a => a.Id == archived.Id));
             // The game montage stays after playing.
             await montages.PlayAsync(game.Id);
-            Assert.Contains(desk.Sponsors.Appearances(), a => a.Placement == "montage" && a.Sponsor == "Acme");
+            // Simulated games are never proof of delivery: nothing goes in the sponsor log.
+            Assert.Empty(desk.Sponsors.Appearances());
             var moments = JsonSerializer.SerializeToElement(replays.Moments(), Camel);
             Assert.True(moments.EnumerateArray().Single(m => m.GetProperty("id").GetString() == clip.Id).GetProperty("used").GetBoolean());
         }
@@ -213,6 +226,26 @@ public class MontageTests : IDisposable
     {
         File.WriteAllText(Path.Combine(_dir.Path, SponsorBook.FileName), json);
         return new SponsorBook(_dir.Path, () => _clock.Now);
+    }
+
+    [Fact]
+    public void Sponsor_reads_come_due_by_time_or_games_snooze_and_are_logged_when_done()
+    {
+        var book = Book("{\"sponsors\":[{\"name\":\"Acme\",\"readScript\":\"Acme snacks!\",\"readEveryMinutes\":20},{\"name\":\"Bolt\",\"readScript\":\"Bolt.\",\"readEveryGames\":2},{\"name\":\"Quiet\"}]}");
+        Assert.Empty(book.ReadsDue(0, 0));                 // nothing the moment it starts
+        _clock.Advance(60 * 21);
+        Assert.Equal(new[] { "Acme" }, book.ReadsDue(1, 0).Select(r => r.Sponsor));
+        Assert.Equal("Acme snacks!", book.ReadsDue(1, 0)[0].Script);
+        Assert.Contains(book.ReadsDue(2, 0), r => r.Sponsor == "Bolt");
+        book.ReadSnooze("Bolt");
+        Assert.DoesNotContain(book.ReadsDue(2, 0), r => r.Sponsor == "Bolt");
+        _clock.Advance(6 * 60);
+        Assert.Contains(book.ReadsDue(2, 0), r => r.Sponsor == "Bolt");
+        book.ReadDone("Acme", 2, 0);
+        Assert.DoesNotContain(book.ReadsDue(2, 0), r => r.Sponsor == "Acme");
+        var log = book.Appearances().Single();
+        Assert.Equal(("Acme", "read"), (log.Sponsor, log.Placement));
+        Assert.Contains("Verbal read (said by the caster): 1 times", book.Export().Summary);
     }
 
     [Fact]

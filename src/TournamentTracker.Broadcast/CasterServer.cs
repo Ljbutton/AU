@@ -43,21 +43,38 @@ namespace TournamentTracker.App
         /// <summary>What the REPLAY tag on stream says (set by the replays).</summary>
         public string ReplayNow { get; set; } = "{\"on\":false}";
 
-        /// <summary>Picks the lobby the caster overlay follows.</summary>
-        public void Cast(string lobby)
+        /// <summary>
+        /// What's on stream (the full-screen lobby, or slot 1 of a multi-view): the overlay, video and
+        /// multiview pages follow it unless they're pinned.
+        /// </summary>
+        public Func<string?>? Follow { get; set; }
+        /// <summary>A lobby the pages stay on whatever is on stream, or null (they follow the stream).</summary>
+        public string? Pinned { get { lock (_lock) return _pin; } }
+        private string? _pin;
+
+        /// <summary>Pins the pages to a lobby (null: follow the stream again).</summary>
+        public void Pin(string? lobby)
         {
-            lock (_lock) _cast = lobby;
+            lock (_lock) _pin = string.IsNullOrWhiteSpace(lobby) ? null : lobby;
             Update();
         }
+
+        /// <summary>What's on stream changed: follow it now.</summary>
+        public void Refresh() => Update();
+
+        /// <summary>Picks the lobby the caster overlay shows (tests, and older callers): the same as pinning it.</summary>
+        public void Cast(string lobby) => Pin(lobby);
 
         private void Update()
         {
             if (_server == null) return;
             var lobbies = _org.LiveLobbies();
             JsonElement? data;
+            string? want = Pinned ?? Follow?.Invoke();
             lock (_lock)
             {
-                if (_cast == null || !lobbies.Any(l => string.Equals(l.Label, _cast, StringComparison.OrdinalIgnoreCase)))
+                if (want != null && lobbies.Any(l => string.Equals(l.Label, want, StringComparison.OrdinalIgnoreCase))) _cast = want;
+                else if (_cast == null || !lobbies.Any(l => string.Equals(l.Label, _cast, StringComparison.OrdinalIgnoreCase)))
                     _cast = lobbies.Where(l => l.Data.GetProperty("phase").GetString() != "Menu").OrderByDescending(l => l.Sent).Select(l => l.Label).FirstOrDefault() ?? _cast;
                 var hit = lobbies.FirstOrDefault(l => string.Equals(l.Label, _cast, StringComparison.OrdinalIgnoreCase));
                 data = hit.Label != null ? hit.Data : (JsonElement?)null;

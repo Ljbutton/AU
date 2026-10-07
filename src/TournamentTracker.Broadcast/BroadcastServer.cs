@@ -22,8 +22,8 @@ namespace TournamentTracker.App.Broadcast
     {
         /// <summary>The administration code that unlocks everything (null: locked).</summary>
         public string? AdminCode { get; set; }
-        /// <summary>Download and install new versions by itself.</summary>
-        public bool AutoUpdate { get; set; } = true;
+        /// <summary>Mute every lobby voice from any window (Red Alert doesn't need to be in front).</summary>
+        public string MuteHotkey { get; set; } = Hotkey.DefaultMuteAll;
 
         public static BroadcastAppSettings Load(string file)
         {
@@ -47,10 +47,6 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Opens a folder, file or web link with Windows.</summary>
         public Action<string> Open { get; set; } = _ => { };
         public string Version { get; set; } = "";
-        /// <summary>The running RedAlert.exe, so it can update itself. Null: no self-update (tests, other platforms).</summary>
-        public string? ExePath { get; set; }
-        /// <summary>Starts the new version and closes this one.</summary>
-        public Action Restart { get; set; } = () => { };
         /// <summary>The caster pages' port (OBS points at it); 0 picks any free one (tests).</summary>
         public int CasterPort { get; set; } = CasterServer.DefaultPort;
         /// <summary>This app's own screen; 0 picks any free one. Fixed, so a producer's browser can find it later.</summary>
@@ -66,9 +62,6 @@ namespace TournamentTracker.App.Broadcast
     public sealed class BroadcastServer : IDisposable
     {
         public const int DefaultPort = 8768;
-        public const string ExeName = "RedAlert.exe";
-        /// <summary>Its releases on GitHub are tagged broadcast-v0.1.0 and so on (The Button's are v0.1.23…).</summary>
-        public const string TagPrefix = "broadcast-v";
         private static readonly JsonSerializerOptions Json = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
         private readonly TcpListener _listener;
@@ -88,6 +81,21 @@ namespace TournamentTracker.App.Broadcast
 
         public int Port { get; }
         public string Token { get; }
+
+        /// <summary>The Mute all key, as the window should register it; raised when it changes.</summary>
+        public string MuteHotkey => Hotkey.TryParse(_settings.MuteHotkey, out _, out _, out var n) ? n : Hotkey.DefaultMuteAll;
+        public event Action<string>? MuteHotkeyChanged;
+        /// <summary>Set by the window when Windows wouldn't give it the key (another app has it).</summary>
+        public string? HotkeyProblem { get; set; }
+
+        /// <summary>The Mute all key was pressed (anywhere in Windows): every lobby voice off, or back on.</summary>
+        public void MuteHotkeyPressed()
+        {
+            var obs = _obs;
+            if (obs == null) return;
+            obs.Settings.Voice.MuteAll = !obs.Settings.Voice.MuteAll;
+            _ = obs.VoiceChangedAsync();
+        }
         public string Url => $"http://127.0.0.1:{Port}/";
         public CasterDesk? Desk => _desk;
         public string? CasterUrl => _caster?.Url;
@@ -146,12 +154,15 @@ namespace TournamentTracker.App.Broadcast
                     Advance = () => organizer.Advance,
                     GamesPerRound = () => organizer.GamesPerRound,
                 };
-                var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(caster, desk)) { VoiceFeeds = () => VoiceFeeds(caster, desk) };
+                // The overlay, video and multiview pages follow what's on stream (unless pinned).
+                caster.Follow = () => desk.OnAir.Slots.FirstOrDefault(x => x != null);
+                desk.AirChangedInObs += _ => caster.Refresh();
+                var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(caster, desk)) { VoiceFeeds = () => VoiceFeeds(caster, desk), MuteHotkey = MuteHotkey };
+                obs.ImpostorTagsOn = () => _broadcast?.Settings.Current.Elements.GetValueOrDefault("impostorTags") == true;
                 // The overlay and video page follow the lobby in the first slot; OBS (when connected) shows the whole layout.
                 desk.Switch = air =>
                 {
-                    var first = air.Slots.FirstOrDefault(x => x != null);
-                    if (first != null) caster.Cast(first);
+                    caster.Refresh();
                     if (obs.Connected) _ = obs.ApplyAsync(air);
                 };
                 if (caster.Url != null) obs.TagUrl = caster.Url + "replaytag";
@@ -169,7 +180,7 @@ namespace TournamentTracker.App.Broadcast
                 };
                 obs.MakeSwoosh = builder.SwooshAsync;
                 var replays = _replays = new ReplayManager(desk, obs) { TagChanged = json => caster.ReplayNow = json, Builder = builder, Sponsors = desk.Sponsors };
-                _montages = new MontageManager(desk, replays, builder, desk.Sponsors, () => obs.Settings.Replay);
+                _montages = new MontageManager(desk, replays, builder, desk.Sponsors, () => obs.Settings.Replay, archivePath: SideFile(MontageManager.ArchiveFile));
                 // Part 23: Twitch (predictions, polls, !sus, channel points), shown on stream by the graphics app.
                 var twitch = _twitch = new TwitchDirector(desk, SideFolder(), _http) { Clips = replays.ReadyClips, PlayReplay = replays.PlayAsync };
                 broadcast.Extras["twitch"] = twitch.Overlay;
@@ -180,6 +191,19 @@ namespace TournamentTracker.App.Broadcast
                     twitch.TickAsync().ContinueWith(_ => Interlocked.Exchange(ref ticking, 0));
                 }, null, 1000, 1000);
                 if (!twitch.Settings.Off && (twitch.Settings.TestMode || twitch.Auth.Token != null)) _ = twitch.ConnectAsync();
+                // Simulation stopped: the rest of its fake lobbies' things go (the desk has cleared its own).
+                var montages = _montages;
+                desk.SimStopped += which => _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await twitch.ForgetAsync(which).ConfigureAwait(false);
+                        var clips = await replays.ForgetAsync(which).ConfigureAwait(false);
+                        await replays.StopIfAsync(montages.Forget(which, clips)).ConfigureAwait(false);
+                        await obs.ForgetSimAsync(which).ConfigureAwait(false);
+                    }
+                    catch (Exception) { }
+                });
                 obs.Start();
             }
         }
@@ -212,6 +236,9 @@ namespace TournamentTracker.App.Broadcast
 
         private string? _ffmpegNote;
 
+        /// <summary>Games finished so far (for sponsor reads "every N games").</summary>
+        private int PlayedGames() => _desk?.Archive.Games.Count ?? 0;
+
         private object? SponsorState()
         {
             if (_desk == null) return null;
@@ -222,10 +249,13 @@ namespace TournamentTracker.App.Broadcast
                 Path = _desk.Sponsors.Path,
                 Problem = _desk.Sponsors.Problem,
                 FfmpegNote = _ffmpegNote,
+                Reads = _desk.Sponsors.ReadsDue(PlayedGames(), _desk.Tables.CurrentRound),
                 List = list.Select(x => new
                 {
                     x.Name, x.Tagline, x.Placements, x.BreakSeconds, Logo = x.Logo.Length > 0,
-                    Shown = log.Count(a => a.Sponsor == x.Name),
+                    Read = x.HasRead ? (x.ReadEveryMinutes > 0 ? $"read every {x.ReadEveryMinutes} min" : x.ReadEveryGames > 0 ? $"read every {x.ReadEveryGames} games" : $"read every {x.ReadEveryRounds} rounds") : null,
+                    Reads = log.Count(a => a.Sponsor == x.Name && a.Placement == "read"),
+                    Shown = log.Count(a => a.Sponsor == x.Name && a.Placement != "read"),
                     Seconds = Math.Round(log.Where(a => a.Sponsor == x.Name).Sum(a => a.Seconds)),
                 }).ToList(),
             };
@@ -235,7 +265,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>What each lobby's OBS source shows: its VDO.Ninja video, or a stand-in page in simulation mode.</summary>
         /// <summary>A small live picture of each lobby sending its game, for the Multiview card (VDO.Ninja asked for a low resolution).</summary>
         private object Previews() => _caster == null || _desk == null ? new List<object>()
-            : ObsFeeds(_caster, _desk).Select(f => new { lobby = f.Lobby, url = f.Url.Contains("vdo.ninja", StringComparison.OrdinalIgnoreCase) ? f.Url + "&scale=25&noaudio" : f.Url }).ToList<object>();
+            : ObsFeeds(_caster, _desk).OrderBy(f => _desk.NumberOf(f.Lobby)).Select(f => new { lobby = f.Lobby, no = _desk.NumberOf(f.Lobby), url = f.Url.Contains("vdo.ninja", StringComparison.OrdinalIgnoreCase) ? f.Url + "&scale=25&noaudio" : f.Url }).ToList<object>();
 
         private static IReadOnlyList<(string Lobby, string Url)> ObsFeeds(CasterServer caster, CasterDesk desk)
         {
@@ -276,91 +306,13 @@ namespace TournamentTracker.App.Broadcast
             return new { ok = true, message = $"Unlocked for {code.TournamentName}." };
         }
 
-        // ---- Updating itself (its own releases: broadcast-v…) -----------------------------------
-
-        private (string Tag, string Url)? _latest;
-        private DateTime _latestChecked = DateTime.MinValue;
-        private volatile string? _ready;
-        private volatile bool _updating;
-        private volatile string? _updateError;
-
-        private bool UpdateAvailable => _env.ExePath != null && _latest is { } l && _ready == null && Newer(l.Tag, _env.Version);
-
-        /// <summary>"broadcast-v0.2.0" is newer than "0.1.0" (or than nothing recorded).</summary>
-        public static bool Newer(string tag, string? installed)
-        {
-            static Version? V(string? t) => Version.TryParse((t ?? "").Replace(TagPrefix, "").TrimStart('v', 'V'), out var v) ? v : null;
-            var l = V(tag);
-            var i = V(installed);
-            return l != null && (i == null || l > i);
-        }
-
-        /// <summary>The newest broadcast release with a RedAlert.exe, from the repository's release list.</summary>
-        public static (string Tag, string Url)? PickRelease(JsonElement releases)
-        {
-            foreach (var r in releases.EnumerateArray())
-            {
-                string tag = r.TryGetProperty("tag_name", out var t) ? t.GetString() ?? "" : "";
-                if (!tag.StartsWith(TagPrefix, StringComparison.Ordinal) || (r.TryGetProperty("draft", out var d) && d.GetBoolean())) continue;
-                if (!r.TryGetProperty("assets", out var assets)) continue;
-                foreach (var a in assets.EnumerateArray())
-                    if (a.TryGetProperty("name", out var n) && n.GetString() == ExeName && a.TryGetProperty("browser_download_url", out var u))
-                        return (tag, u.GetString()!);
-            }
-            return null;
-        }
-
-        private async Task CheckForUpdateAsync()
-        {
-            try
-            {
-                using var req = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{GitHubRepo.Name}/releases?per_page=30");
-                req.Headers.TryAddWithoutValidation("User-Agent", "RedAlert");
-                req.Headers.TryAddWithoutValidation("Accept", "application/vnd.github+json");
-                using var r = await _http.SendAsync(req).ConfigureAwait(false);
-                if (!r.IsSuccessStatusCode) return;
-                _latest = PickRelease(JsonDocument.Parse(await r.Content.ReadAsStringAsync().ConfigureAwait(false)).RootElement) ?? _latest;
-                if (_settings.AutoUpdate && UpdateAvailable) await UpdateAsync().ConfigureAwait(false);
-            }
-            catch (Exception) { }
-        }
-
-        private async Task UpdateAsync()
-        {
-            var release = _latest;
-            string? exe = _env.ExePath;
-            if (_updating || release == null || exe == null) return;
-            _updating = true;
-            _updateError = null;
-            try
-            {
-                string error = await AppUpdater.InstallAsync(_http, release.Value.Url, exe, "Red Alert").ConfigureAwait(false);
-                if (error.Length > 0) _updateError = error;
-                else _ready = release.Value.Tag;
-            }
-            finally { _updating = false; }
-        }
-
         private object StateNow()
         {
-            if (DateTime.UtcNow - _latestChecked > TimeSpan.FromMinutes(20))
-            {
-                _latestChecked = DateTime.UtcNow;
-                _ = Task.Run(CheckForUpdateAsync);
-            }
             return new
             {
                 App = _env.Version,
                 Admin = _organizer == null ? null : new { _organizer.Tournament },
-                Update = new
-                {
-                    Supported = _env.ExePath != null,
-                    Auto = _settings.AutoUpdate,
-                    Available = UpdateAvailable ? _latest!.Value.Tag : null,
-                    Ready = _ready,
-                    Busy = _updating,
-                    Error = _updateError,
-                },
+                HotkeyProblem,
             };
         }
 
@@ -438,19 +390,21 @@ namespace TournamentTracker.App.Broadcast
                     view["casterUrl"] = _caster?.Url;
                     view["casterProblem"] = _caster?.Problem;
                     view["cast"] = _caster?.Casting;
+                    view["pinned"] = _caster?.Pinned;
+                    view["following"] = _desk?.OnAir.Slots.FirstOrDefault(x => x != null);
                     return Ok(view);
                 }
                 case ("POST", "/app/admin/cast"):
                     if (_caster == null) return Ok(new { ok = false, message = "Administration is locked." });
-                    _caster.Cast(Arg("lobby"));
-                    return Ok(new { ok = true, message = $"Casting {Arg("lobby")}." });
+                    _caster.Pin(Arg("pin") == "false" ? null : Arg("lobby"));
+                    return Ok(new { ok = true, message = _caster.Pinned is { } p ? $"Overlay pinned to {p}." : "Overlay follows what's on stream." });
                 case ("GET", "/app/admin/desk"):
                     if (_desk == null || _organizer == null) return Text(404, "application/json", "{\"error\":\"locked\"}");
                     return Ok(new { desk = _desk.State(), obs = _obs?.Status(), replay = _replays?.State(), roster = _desk.RosterState(), story = _desk.StoryState(),
                         montages = _montages?.State(), moments = _replays?.Moments(), sponsors = SponsorState(),
                         voice = new { status = _desk.VoiceState(), obs = _obs?.VoiceStatus() },
                         twitch = _twitch?.State(),
-                        broadcast = _broadcast == null ? null : new { url = _caster?.Url == null ? null : _caster.Url + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem, alerts = _desk.Alerts.Settings, alertsWaiting = _desk.Alerts.Waiting },
+                        broadcast = _broadcast == null ? null : new { url = _caster?.Url == null ? null : _caster.Url + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem, alerts = _desk.Alerts.Settings, alertsWaiting = _desk.Alerts.Waiting, queue = _desk.Graphics.State(), afterGame = _desk.PromptState(), afterGameAuto = _broadcast.Settings.Current.AfterGameAuto, hold = _broadcast.Settings.Current.GraphicSeconds },
                         names = _caster!.DataLinks().ToDictionary(d => d.Lobby, d => _desk.NamesFor(d.Lobby)), receivers = _caster.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList(),
                         previews = Previews(), twitchHandles = _desk.Board.Ranking().ToDictionary(r => r.Lobby, r => _desk.TwitchOf(r.Lobby)) });
                 case ("POST", "/app/admin/feedin"):
@@ -476,6 +430,9 @@ namespace TournamentTracker.App.Broadcast
                         case "autoSwitch": _desk.HealthConfig.AutoSwitch = Arg("on") == "true"; _desk.HealthConfig.Save(_desk.HealthPath); return Ok(new { ok = true, message = _desk.HealthConfig.AutoSwitch ? "Auto switch away from a lobby that drops: on." : "Auto switch away from a lobby that drops: off." });
                         case "slate": _desk.HealthConfig.Slate = Arg("on") == "true"; _desk.HealthConfig.Save(_desk.HealthPath); return Ok(new { ok = true, message = _desk.HealthConfig.Slate ? "Be-right-back screen when every lobby is down: on." : "Every lobby down: intermission instead of the be-right-back screen." });
                         case "open": if (_desk.HealthPath != null) { _desk.HealthConfig.Save(_desk.HealthPath); try { _env.Open(_desk.HealthPath); } catch (Exception) { } } return Ok(new { ok = true, message = "Opened health.json." });
+                        case "reconnect" when !(_desk.Simulating && CasterDesk.IsSimLobby(lobby)):
+                            // A real lobby: the page reloads its data link now (see the Live desk's receivers).
+                            return Ok(new { ok = true, message = $"{lobby}: reconnecting its data link." });
                         default:
                             if (!_desk.Simulating) return Ok(new { ok = false, message = "Those buttons are for simulation mode." });
                             return Ok(new { ok = _desk.SimFail(lobby, what), message = what == "reconnect" ? $"{lobby}: reconnecting." : $"{lobby}: simulated {what} problem." });
@@ -575,6 +532,14 @@ namespace TournamentTracker.App.Broadcast
                             _obs.SaveSettings();
                             if (_obs.Settings.Swoosh.On && _obs.Connected) await _obs.EnsureSwooshAsync().ConfigureAwait(false);
                             return Ok(new { ok = true, message = _obs.Settings.Swoosh.On ? "Swoosh on every switch." : "Swoosh off: straight cuts." });
+                        case "check":
+                            if (!_obs.Connected) return Ok(new { ok = false, message = "Connect to OBS first." });
+                            var found = await _obs.CheckSetupAsync().ConfigureAwait(false);
+                            return Ok(new { ok = true, message = found.All(c => c.Ok) ? "OBS setup: all good." : $"OBS setup: {found.Count(c => !c.Ok)} to look at." });
+                        case "fix":
+                            if (!_obs.Connected) return Ok(new { ok = false, message = "Connect to OBS first." });
+                            try { return Ok(new { ok = true, message = await _obs.FixAsync(Arg("id")).ConfigureAwait(false) }); }
+                            catch (Exception e) { return Ok(new { ok = false, message = "OBS: " + e.Message }); }
                         case "disconnect":
                             await _obs.DisconnectAsync().ConfigureAwait(false);
                             return Ok(new { ok = true, message = "Disconnected from OBS." });
@@ -642,6 +607,28 @@ namespace TournamentTracker.App.Broadcast
                     {
                         case "play": return Ok(new { ok = true, message = await _montages.PlayAsync(id).ConfigureAwait(false) });
                         case "discard": return Ok(new { ok = true, message = _montages.Discard(id) });
+                        // The archive: played montages.
+                        case "archivePlay": return Ok(new { ok = true, message = await _montages.ReplayArchivedAsync(id).ConfigureAwait(false) });
+                        case "archiveRebuild":
+                        {
+                            if (_montages.Builder.Ffmpeg == null) return Ok(new { ok = false, message = "Get ffmpeg first." });
+                            var a = _montages.FindArchived(id);
+                            if (a == null) return Ok(new { ok = false, message = "That montage isn't in the archive." });
+                            _ = Task.Run(() => _montages.RebuildAsync(id));
+                            return Ok(new { ok = true, message = $"Rebuilding {NameTag.Plain(a.Title)}: it shows under Montages when it's ready." });
+                        }
+                        case "archiveOpen":
+                        case "archiveFolder":
+                        {
+                            var a = _montages.FindArchived(id);
+                            if (a?.File == null || !File.Exists(a.File)) return Ok(new { ok = false, message = "Its video file is gone." });
+                            try { _env.Open(Arg("action") == "archiveOpen" ? a.File : Path.GetDirectoryName(a.File)!); } catch (Exception) { }
+                            return Ok(new { ok = true, message = Arg("action") == "archiveOpen" ? "Opening the video." : "Opening its folder." });
+                        }
+                        case "archiveDelete":
+                            // Only with the page's second click ("Sure? Delete for good").
+                            if (Arg("sure") != "true") return Ok(new { ok = false, message = "Click Delete again to delete it for good." });
+                            return Ok(new { ok = true, message = _montages.DeleteArchived(id) });
                         case "ffmpeg":
                             if (_montages.Builder.Ffmpeg != null) return Ok(new { ok = true, message = "ffmpeg is already here." });
                             if (!OperatingSystem.IsWindows()) return Ok(new { ok = false, message = "Install ffmpeg with your package manager." });
@@ -678,7 +665,7 @@ namespace TournamentTracker.App.Broadcast
                 {
                     // A montage, a clip or a clip's still, for the preview and the Moments library.
                     string id = HttpRequest.Query(query, "id"), kind = HttpRequest.Query(query, "kind");
-                    string? file = kind == "montage" ? _montages?.Find(id)?.File : kind == "thumb" ? _replays?.Find(id)?.Thumbnail : _replays?.Find(id)?.File;
+                    string? file = kind == "montage" ? _montages?.Find(id)?.File ?? _montages?.FindArchived(id)?.File : kind == "thumb" ? _replays?.Find(id)?.Thumbnail : _replays?.Find(id)?.File;
                     if (file == null || !File.Exists(file)) return Text(404, "text/plain", "Not found");
                     return (200, SponsorBook.MediaType(file), File.ReadAllBytes(file));
                 }
@@ -713,6 +700,10 @@ namespace TournamentTracker.App.Broadcast
                             try { _env.Open(dir); } catch (Exception) { }
                             return Ok(new { ok = true, message = "Saved the appearance log (CSV) and summary in \"Sponsor reports\".", summary });
                         }
+                        case "readDone":
+                            return Ok(new { ok = true, message = _desk.Sponsors.ReadDone(Arg("name"), PlayedGames(), _desk.Tables.CurrentRound) });
+                        case "readSnooze":
+                            return Ok(new { ok = true, message = _desk.Sponsors.ReadSnooze(Arg("name")) });
                         default: return Ok(new { ok = false, message = "Unknown sponsor action." });
                     }
                 }
@@ -762,7 +753,30 @@ namespace TournamentTracker.App.Broadcast
                     string element = Arg("element");
                     if (!BroadcastSettings.DefaultElements().ContainsKey(element)) return Ok(new { ok = false, message = "Unknown element." });
                     _broadcast.Settings.Set(element, Arg("on") == "true");
+                    // Impostor tags without a stream delay is a setup warning: check again.
+                    if (element == "impostorTags" && _obs?.Connected == true) _ = Task.Run(_obs.CheckSetupAsync);
                     return Ok(new { ok = true, message = $"{BroadcastSettings.ElementNames[element]} {(Arg("on") == "true" ? "on" : "off")}." });
+                }
+                case ("POST", "/app/admin/graphics"):
+                {
+                    // The big-graphics queue: skip, clear, hold time, and the after-game prompts.
+                    if (_desk == null || _broadcast == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    switch (Arg("action"))
+                    {
+                        case "skip": _desk.Graphics.Skip(); return Ok(new { ok = true, message = "Skipped: the next graphic comes up." });
+                        case "clear":
+                            _desk.Graphics.Clear();
+                            if (_broadcast.Settings.Current.Elements.GetValueOrDefault("standings")) _broadcast.Settings.Set("standings", false);
+                            return Ok(new { ok = true, message = "Graphics queue cleared." });
+                        case "hold":
+                            _broadcast.Settings.SetQueue(double.TryParse(Arg("value"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sec) ? sec : 8, null);
+                            return Ok(new { ok = true, message = $"Each graphic stays {_broadcast.Settings.Current.GraphicSeconds} s." });
+                        case "afterGameAuto":
+                            _broadcast.Settings.SetQueue(null, Arg("on") == "true");
+                            return Ok(new { ok = true, message = _broadcast.Settings.Current.AfterGameAuto ? "After a game, its table goes up by itself." : "After a game, the Live desk asks first." });
+                        case "prompt": return Ok(new { ok = true, message = _desk.AnswerPrompt(Arg("id"), Arg("answer")) });
+                        default: return Ok(new { ok = false, message = "Unknown graphics action." });
+                    }
                 }
                 case ("POST", "/app/admin/dismiss"):
                     _desk?.Dismiss(Arg("id"));
@@ -778,7 +792,8 @@ namespace TournamentTracker.App.Broadcast
                         _desk.ShownNote = (note.Text, DateTime.UtcNow);
                         _broadcast?.Settings.Set("storyline", true);
                         _desk.Storylines.Mark(id, "used");
-                        return Ok(new { ok = true, message = "On stream: " + NameTag.Plain(note.Text) });
+                        var g = _desk.Graphics.Add("storyline", null, NameTag.Plain(note.Text), note.Text);
+                        return Ok(new { ok = true, message = (_desk.Graphics.Current()?.Id == g.Id ? "On stream: " : "Queued (after what's showing): ") + NameTag.Plain(note.Text) });
                     }
                     _desk.Storylines.Mark(id, action);
                     return Ok(new { ok = true, message = action switch { "pin" => "Pinned.", "unpin" => "Unpinned.", "used" => "Marked used.", "dismiss" => "Dismissed.", _ => "Done." } });
@@ -827,9 +842,21 @@ namespace TournamentTracker.App.Broadcast
                             break;
                         case "duck":
                             v.DuckUnder = Arg("name").Trim();
+                            v.DuckPicked = true;
                             duck = true;
                             said = v.DuckUnder.Length > 0 ? $"Lobby voice ducks under {v.DuckUnder}." : "No ducking.";
                             break;
+                        case "hotkey":
+                        {
+                            if (!Hotkey.TryParse(Arg("value"), out _, out _, out var key))
+                                return Ok(new { ok = false, message = "That key can't be used: hold Ctrl, Shift or Alt with a letter, number or F key (or use an F key or Pause alone)." });
+                            _settings.MuteHotkey = key;
+                            TrySave();
+                            _obs.MuteHotkey = key;
+                            HotkeyProblem = null;
+                            MuteHotkeyChanged?.Invoke(key);
+                            return Ok(new { ok = true, message = $"Mute all key: {key}." });
+                        }
                         case "on":
                             v.On = Arg("on") == "true";
                             said = v.On ? "Lobby voice on stream." : "Lobby voice off stream.";
@@ -900,20 +927,7 @@ namespace TournamentTracker.App.Broadcast
                 case ("POST", "/app/admin/sim"):
                     if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
                     _desk.Simulate(Arg("on") == "true");
-                    return Ok(new { ok = true, message = _desk.Simulating ? "Simulation on: four fake lobbies are playing." : "Simulation off." });
-                case ("POST", "/app/update"):
-                    if (!UpdateAvailable) return Ok(new { ok = false, message = "Red Alert is up to date." });
-                    _ = Task.Run(UpdateAsync);
-                    return Ok(new { ok = true, message = "Downloading the new version of Red Alert…" });
-                case ("POST", "/app/restart"):
-                    if (_ready == null) return Ok(new { ok = false, message = "No update is waiting." });
-                    _ = Task.Run(async () => { await Task.Delay(300).ConfigureAwait(false); _env.Restart(); });
-                    return Ok(new { ok = true, message = "Restarting…" });
-                case ("POST", "/app/autoupdate"):
-                    _settings.AutoUpdate = Arg("on") == "true";
-                    TrySave();
-                    if (_settings.AutoUpdate && UpdateAvailable) _ = Task.Run(UpdateAsync);
-                    return Ok(new { ok = true, message = _settings.AutoUpdate ? "Red Alert updates itself." : "Automatic updates are off." });
+                    return Ok(new { ok = true, message = _desk.Simulating ? "Simulation on: four fake lobbies (SIM-1 to SIM-4) are playing." : "Simulation off: every fake lobby, game, clip and OBS source is gone." });
                 default: return Text(404, "application/json", "{\"error\":\"not found\"}");
             }
         }

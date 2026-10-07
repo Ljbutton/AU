@@ -1,7 +1,7 @@
 # Red Alert installer. Installs Red Alert (the broadcaster's app: caster desk, OBS, replays,
 # graphics, Twitch) for this Windows user (no admin needed), adds Start menu and desktop shortcuts,
 # and opens it. Only whoever runs the stream needs it; hosts don't. Safe to run again: it replaces
-# the app with this release's. The app updates itself after that.
+# the app with this release's. The app never updates itself: run a newer installer for a new version.
 #
 # Works in Windows PowerShell 5.1 (what the .bat starts), so no PowerShell 7 syntax.
 

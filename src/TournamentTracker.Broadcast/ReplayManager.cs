@@ -75,7 +75,7 @@ namespace TournamentTracker.App.Broadcast
         public List<Clip> Clips { get { lock (_lock) return _clips.ToList(); } }
 
         /// <summary>Clips can be saved: OBS is connected, or (simulation) ffmpeg makes stand-ins.</summary>
-        public bool CanSave => _obs.Connected || _desk.Simulating && Builder?.Ffmpeg != null;
+        public bool CanSave => _obs.Connected || _desk.Simulating;
 
         /// <summary>Where stand-in clips and thumbnails go.</summary>
         public string Folder => _obs.ClipFolder;
@@ -85,6 +85,38 @@ namespace TournamentTracker.App.Broadcast
         {
             lock (_lock) _clips.RemoveAll(c => c.Id == id);
         }
+        /// <summary>
+        /// Simulation stopped: its clips go, files too (stand-ins and anything OBS saved of a fake
+        /// lobby), and a replay or montage of them that's up is stopped (OBS stays on its scene).
+        /// The ids of the clips that went.
+        /// </summary>
+        public async Task<HashSet<string>> ForgetAsync(Func<string, bool> which, ISet<string>? alsoPlaying = null)
+        {
+            List<Clip> gone;
+            bool stop;
+            lock (_lock)
+            {
+                gone = _clips.Where(c => which(c.Lobby)).ToList();
+                _clips.RemoveAll(gone.Contains);
+                stop = _now != null && (which(_now.Lobby) || gone.Any(c => c.Id == _now.Id) || alsoPlaying?.Contains(_now.Id) == true);
+                if (stop) { _now = null; _playing = false; _returnTo = null; }
+            }
+            if (stop)
+            {
+                try { await _obs.MediaAsync("pause").ConfigureAwait(false); } catch (Exception) { }
+                EndSponsor();
+                TagChanged?.Invoke(JsonSerializer.Serialize(new { on = false }));
+                OnChanged?.Invoke(false);
+            }
+            foreach (var c in gone)
+                foreach (var f in new[] { c.File, c.Thumbnail })
+                    try { if (f != null && File.Exists(f)) File.Delete(f); } catch (Exception) { }
+            return gone.Select(c => c.Id).ToHashSet();
+        }
+
+        /// <summary>Stops the replay or montage up now if it's one of these (no scene change).</summary>
+        public Task StopIfAsync(ISet<string> ids) => ForgetAsync(_ => false, ids);
+
         public Clip? ForCard(string cardId) { lock (_lock) return _clips.LastOrDefault(c => c.CardId == cardId); }
 
         // ---- Saving -------------------------------------------------------------------------------
@@ -135,7 +167,13 @@ namespace TournamentTracker.App.Broadcast
             _desk.SetClip(card.Id, clip.Id, "saving");
             try
             {
-                if (!_obs.Connected && _desk.Simulating && Builder?.Ffmpeg != null) { await StandInAsync(clip).ConfigureAwait(false); return Done(); }
+                // A simulated lobby's picture is a stand-in page: its clip is a stand-in too (OBS or not).
+                if (_desk.Simulating && (CasterDesk.IsSimLobby(clip.Lobby) || !_obs.Connected))
+                {
+                    if (Builder?.Ffmpeg == null) throw new InvalidOperationException("ffmpeg isn't installed: simulation makes its clips with it (Montages → Get ffmpeg).");
+                    await StandInAsync(clip).ConfigureAwait(false);
+                    return Done();
+                }
                 if (!_obs.Connected) throw new InvalidOperationException("Connect OBS first: replays come from its replay buffer.");
                 var now = _clock();
                 if ((now - clip.EventAt).TotalSeconds > S.BufferSeconds - clip.Pre)

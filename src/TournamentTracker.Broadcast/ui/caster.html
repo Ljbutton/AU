@@ -196,6 +196,7 @@ img.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 .05em;vert
 .ppl button:hover{border-color:var(--accent)}
 .ppl img.sw{height:1.5em;vertical-align:-.4em}
 .ppl button::after{content:" · card";color:var(--muted)}
+.dlob [data-pcard]{cursor:pointer}
 .vo-list{display:grid;gap:6px;margin-top:8px}
 .hdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:#ffc15a;vertical-align:1px}.hdot.red{background:var(--danger)}
 .tw-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px;margin-top:8px}
@@ -439,8 +440,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .mv .nm small{margin-left:auto;font:600 11px/1 "Segoe UI",sans-serif;letter-spacing:.02em;text-transform:none;color:var(--muted)}
 .mv .no{position:absolute;right:6px;top:6px;min-width:22px;height:22px;display:grid;place-items:center;background:var(--red);color:#fff;font:700 15px/1 var(--hand);padding:2px 5px 0}
 .mv .air{position:absolute;left:6px;top:6px;background:#000c;color:#fff;font:700 10px/1 "Segoe UI",sans-serif;letter-spacing:.14em;padding:4px 6px;border-left:3px solid var(--red)}
-.autoup{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);margin-right:10px;-webkit-app-region:no-drag;white-space:nowrap}
-.autoup input{accent-color:var(--red);margin:0}
+.ver{font-size:11.5px;color:var(--muted);margin-left:auto;margin-right:10px;white-space:nowrap}
+.ver+.winctl{margin-left:0}
 /* Side menu: one page per job. Cards outside the page are hidden with a class, never the hidden attribute,
    so keys (1-9, N, replay keys) and the replay controls work from every page. */
 body{grid-template-columns:196px minmax(0,1fr)}
@@ -470,13 +471,137 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
   nav button.on{border-bottom-color:var(--red);background:rgba(225,6,0,.16)}
 }
 
+/* Simulation: a bar across every page while it runs. */
+.testbar{position:sticky;top:-14px;z-index:4;margin:-14px -20px 12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px 20px;background:repeating-linear-gradient(135deg,#3a2a00 0 14px,#2a1f00 14px 28px);border-bottom:2px solid var(--warn);color:var(--warn)}
+.testbar b{font:700 24px/1 var(--hand);letter-spacing:.12em;color:#16120a;background:var(--warn);padding:4px 10px 1px}
+.testbar span{color:#ffe2a8;font-size:13px;flex:1;min-width:200px}
+.testbar .b{border-color:var(--warn);color:#16120a;background:var(--warn)}
+.testbar .b:hover{background:#ffd27f}
+/* A real on/off switch: the knob slides right and fills red when on. */
+label.sw{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font:600 16px/1 var(--hand);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);user-select:none}
+label.sw input{position:absolute;opacity:0;width:0;height:0}
+label.sw i{position:relative;width:38px;height:21px;border-radius:11px;background:#0f0f12;border:1px solid var(--edge);transition:.15s;flex:none}
+label.sw i::after{content:"";position:absolute;left:2px;top:2px;width:15px;height:15px;border-radius:50%;background:#6a6a75;transition:.15s}
+label.sw input:checked+i{background:var(--red);border-color:var(--red)}
+label.sw input:checked+i::after{left:19px;background:#fff}
+label.sw input:checked~span,label.sw:has(input:checked) span{color:#fff}
+label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
+/* ---- Live desk: what's on stream, big; talking points beside it ---- */
+.desk-top{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,1fr);gap:14px;align-items:stretch}
+@media (max-width:1000px){.desk-top{grid-template-columns:minmax(0,1fr)}}
+.onair{--oa:#3a3a42;display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:18px;align-items:center;padding:12px 18px;background:#101013;border:2px solid var(--oa);box-shadow:inset 6px 0 0 var(--oa)}
+.onair.live{--oa:var(--red);background:linear-gradient(90deg,rgba(225,6,0,.22),#101013 60%)}
+.onair.brk{--oa:var(--warn);background:linear-gradient(90deg,rgba(255,193,90,.16),#101013 60%)}
+.onair .oa-tag{font:700 26px/1 var(--hand);letter-spacing:.12em;padding:6px 12px 2px;background:var(--oa);color:#fff;white-space:nowrap}
+.onair.brk .oa-tag{color:#16120a}
+.onair.live .oa-tag::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;background:#fff;margin-right:8px;vertical-align:4px;animation:hlb 1.2s infinite}
+.oa-what{font:700 38px/1 var(--hand);letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oa-sub{color:var(--muted);font-size:13px;margin-top:3px;min-height:1em}
+.oa-sub.bad{color:#ff5a50;font-weight:600}
+.oa-audio,.oa-time{display:grid;justify-items:end;gap:2px}
+.oa-audio span,.oa-time span{font:600 10.5px/1 "Segoe UI",sans-serif;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.oa-audio b{font:700 24px/1 var(--hand);letter-spacing:.05em;text-transform:uppercase}
+.oa-audio b.muted{color:#ff5a50}
+.oa-time b{font:700 30px/1 var(--mono);font-variant-numeric:tabular-nums}
+@media (max-width:700px){.onair{grid-template-columns:auto minmax(0,1fr)}.oa-audio,.oa-time{justify-items:start}}
+.talk-card{display:grid;gap:8px;align-content:start}
+.talk-list{display:grid;gap:6px}
+.talk{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 10px;background:var(--sunk);border-left:3px solid var(--red);font-size:15px;line-height:1.35}
+.talk button{all:unset;cursor:pointer;font:600 11px/1 var(--round);padding:5px 7px;border:1px solid var(--line);color:var(--muted)}
+.talk button:hover{color:#fff;border-color:var(--red)}
+.lay-grp{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.lay-h{font:600 10.5px/1 "Segoe UI",sans-serif;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);width:56px}
+.lay-grp.brk .b{border-color:rgba(255,193,90,.6);color:var(--warn);background:transparent}
+.lay-grp.brk .b:hover{background:var(--warn-soft)}
+.lay-grp.brk .b.on{background:var(--warn);border-color:var(--warn);color:#16120a}
+.muted-all{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 16px;background:repeating-linear-gradient(135deg,#3a0603 0 14px,#2a0402 14px 28px);border:2px solid var(--red)}
+.muted-all b{font:700 28px/1 var(--hand);letter-spacing:.1em;color:#fff}
+.muted-all span{color:#ffb3ad;font-size:13px;flex:1}
+.muted-all .b{background:var(--red);border-color:var(--red);color:#fff}
+.reads{display:grid;gap:8px}.reads:empty{display:none}
+.read{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center;padding:10px 14px;background:#141417;border:2px solid var(--warn);border-left-width:6px}
+.read .tg{font:700 18px/1 var(--hand);letter-spacing:.1em;color:#16120a;background:var(--warn);padding:5px 9px 2px;white-space:nowrap}
+.read .sc{font-size:16px;line-height:1.4}.read .sc small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.read .acts{display:flex;gap:6px}
+.vo .obsm{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;font-size:12px;color:var(--muted);grid-column:1/-1}
+.mtr.big{height:10px}
+.mtr i.hot{background:var(--warn)}.mtr i.clip{background:var(--red)}
+.mtr.off i{background:#55555f}
+.dlob .lvl{grid-column:1/-1;display:grid;grid-template-columns:auto 1fr;gap:6px;align-items:center;font-size:11px;color:var(--muted)}
+.dlob .lvl .mtr{height:5px;border-radius:3px;background:#0f0f12;overflow:hidden}.dlob .lvl .mtr i{display:block;height:100%;background:var(--good);transition:width .2s}
+#vo-key.wait{border-color:var(--red);color:var(--red)}
+.hq{all:unset;cursor:pointer;width:20px;height:20px;border-radius:50%;border:1px solid var(--edge);color:var(--muted);font:700 12px/20px "Segoe UI",sans-serif;text-align:center;flex:none;margin-left:6px;vertical-align:1px}
+.hq:hover,.hq.on{color:#fff;border-color:var(--red);background:var(--hi-soft)}
+.help:not(.open){display:none!important}
+.urls{display:grid;gap:4px;font-size:12.5px}
+.url{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:8px;align-items:center}
+.url span:nth-child(2){font-family:var(--mono);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.url button{all:unset;cursor:pointer;font:600 11px/1 var(--round);padding:4px 8px;border:1px solid var(--line);color:var(--muted)}
+.url button:hover{color:#fff;border-color:var(--red)}
+/* Graphics: grouped switches */
+.gfx-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:10px}
+.gfx-grp{display:grid;gap:7px;align-content:start;padding:10px 12px;background:#101013;border:1px solid var(--line)}
+.gfx-grp h4,.gfx-row .gh{margin:0;font:600 10.5px/1 "Segoe UI",sans-serif;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.gfx-grp h4 small{letter-spacing:.02em;text-transform:none;font-size:11px;color:#6c6c76;margin-left:6px}
+.gfx-grp label.sw{justify-content:space-between;font-size:15px}
+.gfx-row{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin-top:10px}
+.gfx-row .gh{width:150px}
+.sws{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--edge)}
+.seg button{all:unset;cursor:pointer;font:600 15px/1 var(--hand);letter-spacing:.07em;text-transform:uppercase;padding:6px 12px 3px;color:var(--muted)}
+.seg button+button{border-left:1px solid var(--edge)}
+.seg button.on{background:var(--red);color:#fff}
+.seg button.on::before{content:"✓ "}
+.tw-feat label.sw{font-size:14px}
+.ar-list{display:grid;gap:6px;margin-top:8px}
+.ar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:center;padding:8px 10px;background:var(--sunk);font-size:13.5px}
+.ar .meta{color:var(--muted);font-size:12px}
+.ar .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.ar details{grid-column:1/-1;font-size:12.5px}.ar summary{cursor:pointer;color:var(--muted)}
+.ar ol{margin:4px 0 0;padding-left:20px;display:grid;gap:2px}.ar li.gone{color:var(--muted);text-decoration:line-through}
+.ar .b.sure{background:var(--red);border-color:var(--red);color:#fff}
+.warns{display:grid;gap:6px}.warns:empty{display:none}
+.warn{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 14px;background:#1a1408;border:1px solid var(--warn);border-left:5px solid var(--warn);color:#ffe2a8;font-size:14px}
+.warn.bad{background:#1c0806;border-color:var(--red);color:#ffb3ad}
+.warn b{font:700 18px/1 var(--hand);letter-spacing:.08em;text-transform:uppercase;color:#fff}
+.warn span{flex:1;min-width:200px}
+.checks-list{display:grid;gap:6px;margin-top:8px}
+.ck{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:10px;align-items:start;padding:8px 10px;background:var(--sunk);font-size:13.5px}
+.ck .ic{font:700 16px/1.2 "Segoe UI",sans-serif;color:var(--good)}.ck.no .ic{color:var(--warn)}
+.ck .dt{color:var(--muted);font-size:12.5px;margin-top:2px}
+.onair.wait{--oa:#6a6a75}
+.onair.wait .oa-tag{animation:hlb 1s infinite}
+/* Fixed order: the lobby's number; excitement is a badge and a glow, never a new place in the list. */
+.dlob .sc{display:grid;gap:3px;justify-items:center}
+.dlob .sc .no,.mv .lno{font:700 13px/1 var(--hand);letter-spacing:.04em;color:#fff;background:#2a2a31;padding:3px 6px 1px;min-width:18px;text-align:center}
+.tierb{font:700 10.5px/1 "Segoe UI",sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:3px 6px;background:var(--tier);color:#06080c}
+.dlob.glow{box-shadow:0 0 0 1px var(--tier),0 0 16px -2px var(--tier)}
+.mv .lno{position:absolute;left:6px;bottom:30px}
+.mv .exc{position:absolute;right:6px;bottom:30px;font:700 12px/1 "Segoe UI",sans-serif;padding:3px 6px;background:var(--tier,#2a2a31);color:#06080c}
+.mv.glow{box-shadow:0 0 0 2px var(--tier),0 0 18px -2px var(--tier)}
+.mv.glow.on{box-shadow:0 0 0 3px var(--red),0 0 18px -2px var(--tier)}
+.cast-state{font-size:13px;color:var(--muted)}
+.cast-state b.pin{font:700 13px/1 "Segoe UI",sans-serif;letter-spacing:.1em;color:#16120a;background:var(--warn);padding:3px 7px;margin-right:6px}
+.spec .sh{font:600 10.5px/1 "Segoe UI",sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);cursor:help;margin-right:2px}
+.pltg-row{grid-column:1/-1}
+.pltg{all:unset;cursor:pointer;font:600 12px/1 var(--round);color:var(--muted);padding:3px 0}
+.pltg:hover{color:#fff}
+.gq-card{display:grid;gap:6px}
+.gq{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px}
+.gq .it{padding:4px 9px;background:var(--sunk);border:1px solid var(--line)}
+.gq .it.now{background:var(--red);border-color:var(--red);color:#fff;font-weight:600}
+.gq .it.wait{color:var(--muted);border-style:dashed}
+.prompts{display:grid;gap:6px}.prompts:empty{display:none}
+.prompt{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 14px;background:#141417;border:2px solid var(--edge);border-left:6px solid var(--red)}
+.prompt b{font:700 22px/1 var(--hand);letter-spacing:.06em;text-transform:uppercase}
+.prompt .t{color:var(--muted);font-size:12px;margin-left:auto;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
 <header>
   <div class="brand"><svg class="logo-mark" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="ra-dome" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff5a4f"/><stop offset=".55" stop-color="#e10600"/><stop offset="1" stop-color="#9e0400"/></linearGradient><radialGradient id="ra-glow" cx=".5" cy=".62" r=".55"><stop offset="0" stop-color="#ff2a1f" stop-opacity=".55"/><stop offset="1" stop-color="#ff2a1f" stop-opacity="0"/></radialGradient></defs><circle cx="32" cy="38" r="30" fill="url(#ra-glow)"/><g stroke="#ff3b30" stroke-width="4.2" stroke-linecap="round"><path d="M32 4.5v7.5"/><path d="M10.5 13.5l5.3 5.3"/><path d="M53.5 13.5l-5.3 5.3"/><path d="M3.5 33h7.5"/><path d="M60.5 33h-7.5"/></g><path d="M16.5 47V36a15.5 15.5 0 0 1 31 0v11z" fill="url(#ra-dome)"/><path d="M22.2 36.5a9.8 9.8 0 0 1 7.3-9.4" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="3.2" stroke-linecap="round"/><rect x="11" y="47" width="42" height="9" rx="2" fill="#f2f2f4"/><rect x="11" y="53" width="42" height="3" rx="1" fill="#b9b9c2"/></svg><span class="word"><b>Red <span>Alert</span></b></span></div>
   <div class="alerts" id="alerts"></div>
-  <label class="autoup" id="autoup" hidden title="Download new versions of Red Alert by themselves (they're used from the next start)"><input type="checkbox" id="autoup-on"> <span id="autoup-ver"></span> · update automatically</label>
+  <span class="ver" id="app-ver"></span>
   <div class="winctl" id="winctl" hidden>
     <button data-win="min" title="Minimise" aria-label="Minimise"><svg viewBox="0 0 12 12"><path d="M2 6.5h8"/></svg></button>
     <button data-win="max" title="Maximise" aria-label="Maximise"><svg viewBox="0 0 12 12" class="i-max"><rect x="2" y="2" width="8" height="8" rx="1"/></svg><svg viewBox="0 0 12 12" class="i-restore"><rect x="2" y="4" width="6" height="6" rx="1"/><path d="M4 4V2.5a.5.5 0 0 1 .5-.5H9.5a.5.5 0 0 1 .5.5V7.5a.5.5 0 0 1-.5.5H8"/></svg></button>
@@ -485,7 +610,7 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
 </header>
 <nav id="side" aria-label="Red Alert sections">
   <div class="grp">On air</div>
-  <button data-go="live" class="on">Live desk <span class="st count" id="st-live" title="Plays happening now"></span></button>
+  <button data-go="live" class="on">Live desk <span class="st count" id="st-live"></span></button>
   <button data-go="health">Lobby health <span class="st dot" id="st-health"></span></button>
   <button data-go="replays">Montages <span class="st count" id="st-replays" title="Montages ready"></span></button>
   <div class="grp">On stream</div>
@@ -500,6 +625,7 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
   <button data-go="players">Players</button>
 </nav>
 <main>
+  <div class="testbar" id="testbar" hidden role="alert"><b>TEST MODE</b><span>Simulation is running: SIM-1 to SIM-4 are fake lobbies. Stop it before going live.</span><button class="b" id="testbar-stop">Stop simulation</button></div>
   <div class="card lock-card" id="lock-card" hidden>
     <h2>Administration code</h2>
     <p class="muted" style="margin:0 0 8px">Red Alert opens with the tournament's administration code (the organiser's, as in The Button's Organiser tab). It shows who the impostors are: keep this PC's screen off stream.</p>
@@ -508,27 +634,49 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
   <p id="org-problem" class="note bad" hidden></p>
 <section id="caster" class="on">
   <div class="page-head pg-off" id="page-head"><h1 id="page-title"></h1><p id="page-sub"></p></div>
+  <div class="desk-top" data-page="live">
+    <div class="onair none" id="onair" aria-live="polite">
+      <div class="oa-tag" id="oa-tag">OFF AIR</div>
+      <div class="oa-main"><div class="oa-what" id="oa-what">Nothing on stream</div><div class="oa-sub" id="oa-sub"></div></div>
+      <div class="oa-audio" id="oa-audio" title="Whose lobby voice the stream hears"><span>Audio</span><b id="oa-heard">—</b></div>
+      <div class="oa-time" title="How long this shot has been on (resets on every switch)"><span>Shot</span><b id="oa-timer">0:00</b></div>
+    </div>
+    <div class="card talk-card" id="talk-card">
+      <div class="row" style="justify-content:space-between"><b>Talking points</b><span class="row" style="gap:6px"><button class="b" id="talk-next" title="The next note">Next</button></span></div>
+      <div class="talk-list" id="talk-list"></div>
+    </div>
+  </div>
+  <div class="warns" id="desk-warn" data-page="live"></div>
+  <div class="prompts" id="ag-prompts" data-page="live"></div>
+  <div class="reads" id="reads" data-page="live"></div>
+  <div class="card gq-card" id="gq-card" data-page="live">
+    <div class="row" style="justify-content:space-between"><div><b>Graphics queue</b> <span class="muted" id="gq-line"></span></div>
+      <div class="row"><label class="muted" style="font-size:12.5px" title="How long each table, card or note stays on stream">Each <input id="gq-hold" type="number" min="3" max="60" step="1" style="width:56px"> s</label><button class="b" id="gq-skip">Skip</button><button class="b danger" id="gq-clear">Clear</button></div></div>
+    <div class="gq" id="gq-list"></div>
+  </div>
+  <div class="muted-all" id="muted-all" data-page="live" hidden><b>ALL LOBBY AUDIO MUTED</b><span id="muted-key"></span><button class="b" id="muted-un">Unmute</button></div>
   <div class="desk-head" data-page="live">
     <div><h1>Live desk</h1><p class="sub" id="desk-sub">Only on this PC. It shows who the impostors are, so keep it off stream.</p></div>
     <div class="card air-card">
       <div class="row" style="justify-content:space-between"><b>On stream</b><span class="muted" id="air-by"></span></div>
       <div class="air-slots" id="air-slots"></div>
       <div class="air-pick" id="air-pick" hidden></div>
-      <div class="row"><span class="muted" style="font-size:12.5px">Layout</span><button class="b" data-layout="full">Full</button><button class="b" data-layout="2up">2-up</button><button class="b" data-layout="4up">Quad</button><button class="b" data-layout="grid" title="Every lobby at once (key G)">Grid</button><button class="b" data-layout="slate" title="Technical difficulties: be right back (standings and storylines take turns)">Be right back</button><button class="b" id="desk-autogrid" title="Grid by itself whenever no lobby is mid-game">Auto grid</button><button class="b" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" id="desk-autointer" title="Intermission by itself when every lobby is between games, and back when one starts">Auto intermission</button>
-        <span style="flex:1"></span><button class="b" id="desk-sim" title="Four fake lobbies, for trying it out">Simulation</button></div>
+      <div class="lay-grp"><span class="lay-h">Views</span><button class="b" data-layout="full">Full</button><button class="b" data-layout="2up">2-Up</button><button class="b" data-layout="4up">Quad</button><button class="b" data-layout="grid" title="Every lobby at once (key G)">Grid</button><button class="b" id="desk-autogrid" title="Grid by itself whenever no lobby is mid-game">Auto grid</button></div>
+      <div class="lay-grp brk"><span class="lay-h">Breaks</span><button class="b" data-layout="slate" title="Technical difficulties: be right back (standings and storylines take turns)">Be right back</button><button class="b" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" id="desk-autointer" title="Intermission by itself when every lobby is between games, and back when one starts">Auto intermission</button></div>
     </div>
   </div>
   <div class="card mv-card" id="mv-card" data-page="live">
     <div class="row" style="justify-content:space-between"><div><b>Multiview</b> <span class="muted" id="mv-line">Click the lobbies you want on stream, then Send.</span></div>
       <div class="row"><button class="b" id="mv-clear">Clear</button><button class="b primary" id="mv-send" disabled>Send</button></div></div>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Click the lobbies you want on stream (they're numbered in the order you pick), then Send. 1 lobby goes full screen, 2 side by side, 4 in the quad, 3 or 5 and more in the grid.</p>
     <div class="mv-grid" id="mv-grid"></div>
   </div>
   <div class="card cast-card" id="cast-card" hidden data-page="live">
-    <div class="row" style="justify-content:space-between"><div><b>Caster overlay</b> <span class="muted" id="org-casting"></span></div>
-      <div class="row"><label class="muted" style="font-size:13px"><input type="checkbox" id="org-roles"> Count kills (staff view)</label><button class="b primary" id="org-jump" title="Key N">Jump to action</button></div></div>
-    <div class="cast-urls" id="org-cast-url"></div>
+    <div class="row" style="justify-content:space-between"><div><b>Caster overlay</b> <span class="cast-state" id="org-casting"></span></div>
+      <div class="row"><label class="muted" style="font-size:13px"><input type="checkbox" id="org-roles"> Count kills (staff view)</label><button class="b primary" id="org-jump" title="Puts the lobby worth watching on stream (key N)">Jump to action</button></div></div>
+    <div class="urls" id="org-cast-url"></div>
     <div class="row" id="org-cast-list"></div>
-    <div class="muted" style="font-size:12px">OBS Browser sources. Video and overlay follow the lobby you pick (keys 1–9 switch while this card is open, N jumps to the action). Overlay 380×720, add <span class="mono">?full=1</span> on a delayed stream for roles and kills. Video (with the game sound of the lobby on air) and multiview (silent) 1920×1080: hosts turn on "Send my game to the caster" in their Button.</div>
+    <div class="muted help" style="font-size:12px">OBS Browser sources. The overlay, video and multiview follow what's on stream (the full-screen lobby, or slot 1 of a multi-view); Pin keeps them on one lobby. On the Live desk, keys 1–9 put that lobby number full screen and N jumps to the action. Overlay 380×720, add <span class="mono">?full=1</span> on a delayed stream for roles and kills. Video (with the game sound of the lobby on air) and multiview (silent) 1920×1080: hosts turn on "Send my game to the caster" in their Button.</div>
   </div>
   <div class="card hl-card" id="hl-card" hidden data-page="health">
     <div class="row" style="justify-content:space-between"><div><b>Lobby health</b> <span class="muted" id="hl-line"></span></div>
@@ -544,15 +692,25 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
       <input id="obs-pass" type="password" placeholder="Password (Tools → WebSocket Server Settings)" style="flex:1;min-width:200px" autocomplete="off">
       <button class="b primary">Connect</button>
     </form>
-    <p class="muted" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. Red Alert then builds the scenes TT Full, TT 2-up and TT Quad, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
+    <p class="muted help" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. Red Alert then builds the scenes TT Full, TT 2-up and TT Quad, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
+  </div>
+  <div class="card setup-card" id="setup-card" data-page="obs" hidden>
+    <div class="row" style="justify-content:space-between"><div><b>Setup check</b> <span class="muted" id="setup-line"></span></div><button class="b" id="setup-again">Check again</button></div>
+    <div class="checks-list" id="setup-list"></div>
+  </div>
+  <div class="card test-card" id="test-card" data-page="obs">
+    <div class="row" style="justify-content:space-between"><div><b>Test</b> <span class="muted" id="test-line">Simulation: four fake lobbies (SIM-1 to SIM-4) for trying Red Alert without games.</span></div>
+      <label class="sw" title="Fake lobbies on the desk and in OBS. Turning it off removes every trace of them."><input type="checkbox" id="desk-sim"><i></i><span>Simulation</span></label></div>
   </div>
   <details class="card roster-card" id="gfx-card" data-page="graphics">
     <summary><div><b>On-stream graphics</b> <span class="muted" id="gfx-line"></span></div><button class="b" id="gfx-theme" title="Colours, fonts and logo (broadcast.json)">Edit theme</button></summary>
     <p class="note bad" id="gfx-problem" hidden></p>
-    <p class="muted" style="font-size:12.5px;margin:6px 0 0">One transparent page with every graphic, placed on each lobby's picture in every layout. Red Alert puts it on top of the TT scenes in OBS (source "Red Alert"); to add it by hand, use the link at 1920×1080.</p>
-    <div class="row" id="gfx-els" style="margin-top:8px"></div>
-    <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Off-screen alerts</span><span id="gfx-alerts" class="row"></span></div>
-    <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Win counter counts</span><span class="row" id="gfx-wins"><button class="b" data-wins="today">Today</button><button class="b" data-wins="round">This round</button></span><span class="muted" id="gfx-wins-now" style="font-size:12.5px"></span></div>
+    <div class="urls" id="gfx-url" style="margin-top:6px"></div>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">One transparent page with every graphic, placed on each lobby's picture in every layout. Red Alert puts it on top of the TT scenes in OBS (source "Red Alert"); to add it by hand, use the link at 1920×1080.</p>
+    <div class="gfx-groups" id="gfx-els"></div>
+    <div class="gfx-row"><span class="gh">Off-screen alerts</span><span id="gfx-alerts" class="sws"></span></div>
+    <div class="gfx-row"><span class="gh">After a game</span><span class="sws" id="gfx-ag"></span></div>
+    <div class="gfx-row"><span class="gh">Win counter counts</span><span class="seg" id="gfx-wins"><button data-wins="today">Today</button><button data-wins="round">This round</button></span><span class="muted" id="gfx-wins-now" style="font-size:12.5px"></span></div>
   </details>
   <details class="card roster-card" id="story-card" open data-page="stories">
     <summary><div><b>Standings &amp; storylines</b> <span class="muted" id="story-line"></span></div>
@@ -565,8 +723,10 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
   <details class="card roster-card" id="vo-card" open data-page="voice">
     <summary><div><b>Lobby voice</b> <span class="muted" id="vo-line"></span></div>
       <div class="row"><button class="b" id="vo-mute" title="Mute every lobby voice (key U)">Mute all</button><button class="b" id="vo-on" title="Lobby voice on stream at all">On stream</button></div></summary>
-    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Each referee's Button sends the lobby's Discord voice and game sound (and their own mic only if they tick it). The voice follows the picture: the full-screen lobby, or slot 1, is heard; replays, montages and intermission are silent. <b>Listen</b> keeps one lobby's voice up whatever is on screen. It only goes to the stream; nothing is played back to the players.</p>
-    <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Duck under</span><select id="vo-duck" title="Your mic in OBS: lobby voice gets quieter while you talk"></select></div>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Each referee's Button sends the lobby's Discord voice and game sound (and their own mic only if they tick it). The voice follows the picture: the full-screen lobby, or slot 1, is heard; replays, montages and intermission are silent. <b>Listen</b> keeps one lobby's voice up whatever is on screen. It only goes to the stream; nothing is played back to the players.</p>
+    <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Duck under</span><select id="vo-duck" title="Your mic in OBS: lobby voice gets quieter while you talk"></select>
+      <span style="flex:1"></span><span class="muted" style="font-size:12.5px">Mute all key (works from any window)</span><button class="b" id="vo-key" title="Click, then press the new key combination">Ctrl+Shift+M</button></div>
+    <p class="note bad" id="vo-keyprob" hidden></p>
     <div class="vo-list" id="vo-list"></div>
   </details>
   <details class="card roster-card" id="tw-card" open data-page="twitch">
@@ -593,7 +753,7 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
         <div id="tw-det" class="muted" style="font-size:13px"></div>
       </div>
       <div>
-        <h3>Features <span class="muted" style="font-weight:400;font-size:12px">· on · by itself</span></h3>
+        <h3>Features <span class="muted" style="font-weight:400;font-size:12px">· on · auto (starts by itself)</span></h3>
         <div id="tw-features"></div>
         <h3>Settings</h3>
         <div class="tw-set">
@@ -613,27 +773,32 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
   <details class="card roster-card" id="mt-card" open data-page="replays">
     <summary><div><b>Montages</b> <span class="muted" id="mt-line"></span></div>
       <div class="row"><button class="b" id="mt-ffmpeg" hidden>Get ffmpeg</button><button class="b" data-mtbuild="game" title="A montage of the last game that ended">Last game</button><button class="b" data-mtbuild="round" title="Every kill and the top plays of the round">This round</button></div></summary>
-    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Built by themselves when each game and each round ends: the moments cut to a few seconds, cropped like replays, with names in the lower third. Play puts it in the replay scene.</p>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Built by themselves when each game and each round ends: the moments cut to a few seconds, cropped like replays, with names in the lower third. Play puts it in the replay scene.</p>
     <div class="mt-list" id="mt-list"></div>
   </details>
   <details class="card roster-card" id="mom-card" data-page="replays">
     <summary><div><b>Moments</b> <span class="muted" id="mom-line"></span></div></summary>
-    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Every saved clip. Click to pick (double-click to preview), drag the picked ones to change the order, then Build montage. A montage from here is deleted once it has played; its clips stay, marked USED.</p>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Every saved clip. Click to pick (double-click to preview), drag the picked ones to change the order, then Build montage. Once a montage has played it moves to the Archive below; its clips stay here, marked USED, and can go in new montages.</p>
     <div class="row" style="margin-top:6px"><input id="mom-title" placeholder="Montage title (optional)" style="width:220px" autocomplete="off"><button class="b" id="mom-clear">Clear</button><button class="b primary" id="mom-build">Build montage</button></div>
     <div class="mom-sel" id="mom-sel"></div>
     <div class="mom-grid" id="mom-grid"></div>
+  </details>
+  <details class="card roster-card" id="ar-card" data-page="replays">
+    <summary><div><b>Archive</b> <span class="muted" id="ar-line"></span></div></summary>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Every montage that has played. Replay puts it on stream again, Rebuild makes it again from its clips (as a new montage above), Open plays the video file on this PC and Folder shows where it is. Delete removes it and its video for good (its clips stay).</p>
+    <div class="ar-list" id="ar-list"></div>
   </details>
   <details class="card roster-card" id="sp-card" data-page="sponsors">
     <summary><div><b>Sponsors</b> <span class="muted" id="sp-line"></span></div>
       <div class="row"><button class="b" id="sp-break" title="Split screen: the lobby on the left, the sponsor on the right">Sponsor break</button><button class="b" id="sp-export" title="Every appearance (CSV) and a summary">Export report</button><button class="b" id="sp-open" title="Open sponsors.json">Edit sponsors</button></div></summary>
     <p class="note bad" id="sp-problem" hidden></p>
-    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Placements: killcam ("Kill Cam presented by" on kill replays), replay ("presented by" on every other replay), multiview (a "presented by" badge while 4 or more lobbies are on screen), montage (an opening card), standings ("Presented by" under the table), grid (empty grid tiles), break (split-screen breaks; they end by themselves, and a MUST SHOW play cuts straight back). Every appearance is logged.</p>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Placements: killcam ("Kill Cam presented by" on kill replays), replay ("presented by" on every other replay), multiview (a "presented by" badge while 4 or more lobbies are on screen), montage (an opening card), standings ("Presented by" under the table), grid (empty grid tiles), break (split-screen breaks; they end by themselves, and a MUST SHOW play cuts straight back). Every appearance is logged. Verbal reads: give a sponsor "readScript" and "readEveryMinutes", "readEveryGames" or "readEveryRounds"; a reminder shows on the Live desk (only you see it), and Done logs it.</p>
     <div class="sp-list" id="sp-list"></div>
   </details>
   <details class="card roster-card" id="roster-card" data-page="players">
     <summary><div><b>Players</b> <span class="muted" id="roster-line"></span></div><button class="b" id="roster-open" title="Open roster.csv">Edit roster</button></summary>
     <p class="note bad" id="roster-problem" hidden></p>
-    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Matched by the Discord account automute links them to, then friend code, then in-game name. Pick someone by hand to override; "Automatic" goes back.</p>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Matched by the Discord account automute links them to, then friend code, then in-game name. Pick someone by hand to override; "Automatic" goes back.</p>
     <div class="rl" id="roster-list"></div>
   </details>
   <p id="desk-problem" class="note bad" hidden></p>
@@ -757,22 +922,130 @@ function replayButton(c) {
   if (st === 'ready') return `<button class="rpb ready" data-rplay="${c.id}" title="Play the replay">▶ REPLAY</button>`;
   if (st === 'saving') return '<span class="rpb saving">Saving replay…</span>';
   const fail = st === 'failed' && RP && (RP.clips.find(x => x.id === c.clip.id) || {}).problem;
-  return `<button class="rpb${st === 'failed' ? ' failed' : ''}" data-rsave="${c.id}" title="${esc(plain(fail) || 'Save a replay of this play')}">${st === 'failed' ? 'Replay failed · retry' : 'Save replay'}</button>`;
+  return `<button class="rpb${st === 'failed' ? ' failed' : ''}" data-rsave="${c.id}" title="${esc(plain(fail) || 'Save a replay of this play')}">${st === 'failed' ? `Replay failed: ${esc(failWhy(fail))} · retry` : 'Save replay'}</button>`;
+}
+// ---- On stream: big, readable at a glance -----------------------------------------------------
+const LAYOUT_NAME = { full: 'Full', '2up': '2-Up', '4up': 'Quad', grid: 'Grid', break: 'Sponsor break', intermission: 'Intermission', slate: 'Be right back', replay: 'Replay', none: 'Nothing on stream' };
+const fmtShot = s => s >= 3600 ? `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+function renderOnAir() {
+  const d = DESK; if (!d) return;
+  const air = d.onAir, lobbies = air.slots.filter(Boolean);
+  const kind = air.layout === 'none' ? 'none' : ['intermission', 'slate', 'break'].includes(air.layout) ? 'brk' : 'live';
+  const waiting = OBS && OBS.connected && OBS.switchingTo;
+  $('onair').className = 'onair ' + (waiting ? 'wait' : kind);
+  $('oa-tag').textContent = waiting ? 'SWITCHING' : kind === 'live' ? (air.layout === 'replay' ? 'REPLAY' : 'LIVE') : kind === 'brk' ? 'BREAK' : 'OFF AIR';
+  $('oa-what').textContent = air.layout === 'none' ? (air.scene ? 'OBS: ' + air.scene : 'Nothing on stream') : `${LAYOUT_NAME[air.layout] || air.layout}${lobbies.length ? ' · ' + lobbies.join(' · ') : ''}`;
+  const sub = air.since ? `${air.by === 'obs' ? 'switched in OBS' : air.by === 'health' ? 'switched by itself (a lobby dropped)' : air.by === 'auto' ? 'switched by itself' : 'from here'}${air.scene ? ' · OBS scene ' + air.scene : ''}` : '';
+  const prob = OBS && OBS.connected && OBS.switchProblem;
+  const subNow = prob ? prob : waiting ? `Waiting for OBS to show ${OBS.switchingTo}…` : OBS && OBS.connected && air.layout !== 'none' && air.layout !== 'replay' && !air.scene ? 'Not confirmed by OBS yet' : sub;
+  $('oa-sub').textContent = subNow; $('oa-sub').classList.toggle('bad', !!prob);
+  const o = LVOICE && LVOICE.obs;
+  const heard = !o ? '—' : o.muteAll ? 'Muted' : o.on === false ? 'Voice off' : o.heard || 'None';
+  $('oa-heard').textContent = heard; $('oa-heard').className = o && o.muteAll ? 'muted' : '';
+  $('muted-all').hidden = !(o && o.muteAll);
+  if (o && o.hotkey) $('muted-key').textContent = `Nothing from any lobby reaches the stream. Mute all key: ${o.hotkey} (works from any window).`;
+  shotTick();
+}
+// Things that could hurt the stream, on the Live desk until they're put right.
+function renderWarnings() {
+  const w = [], o = OBS;
+  if (o && o.connected && o.switchProblem) w.push(['bad', 'OBS didn\'t switch', o.switchProblem, '']);
+  if (o && o.connected && o.desktopAudioOn && o.desktopAudioOn.length) w.push(['bad', 'Desktop Audio is on', `${o.desktopAudioOn.join(', ')} goes to the stream: Discord pings and Windows sounds can be heard.`, '<button class="b" data-fix="desktopAudio">Mute it</button>']);
+  const ck = o && o.connected && o.checks ? Object.fromEntries(o.checks.map(c => [c.id, c])) : {};
+  if (ck.replays && !ck.replays.ok) w.push(['', 'Replays won\'t save', ck.replays.title + '. See OBS → Setup check.', '<button class="b" data-gopage="obs">Setup check</button>']);
+  if (ck.delay && !ck.delay.ok) w.push(['bad', 'No stream delay', 'Impostor tags are on: players watching the stream could find the impostors.', '<button class="b" data-gopage="obs">Setup check</button>']);
+  if (DESK && DESK.simulating && MONT && !MONT.ffmpeg) w.push(['', 'No ffmpeg', 'Simulation makes its replay clips and montages with ffmpeg, which isn\'t installed: Montages → Get ffmpeg.', '<button class="b" data-gopage="replays">Montages</button>']);
+  const html = w.map(([c, t, d, b]) => `<div class="warn ${c}"><b>${t}</b><span>${esc(d)}</span>${b}</div>`).join('');
+  if ($('desk-warn').innerHTML !== html) $('desk-warn').innerHTML = html;
+}
+document.addEventListener('click', async e => {
+  const g = e.target.closest('[data-gopage]'); if (g) { go(g.dataset.gopage); return; }
+  const f = e.target.closest('[data-fix]'); if (!f) return;
+  const r = await api('POST', '/app/admin/obs', { action: 'fix', id: f.dataset.fix }); toast(r.message); loadDesk();
+});
+// The big-graphics queue (one at a time on stream) and the after-game "show table?" prompts.
+const GQ_KIND = { afterGame: 'Table', playerCard: 'Card', storyline: 'Note', standings: 'Standings' };
+function renderQueue() {
+  const b = r_broadcast; if (!b || !b.queue) return;
+  const q = b.queue;
+  if (document.activeElement !== $('gq-hold')) $('gq-hold').value = b.hold;
+  $('gq-line').textContent = q.now ? `showing ${q.now.title}${q.now.left != null ? ' · ' + q.now.left + 's left' : ' · until switched off'}` : q.next.length ? 'waiting' : 'nothing on';
+  const html = (q.now ? `<span class="it now">${GQ_KIND[q.now.kind] || q.now.kind}: ${esc(q.now.title)}</span>` : '<span class="muted">Nothing on stream.</span>')
+    + (q.next.length ? ' <span class="muted">Next:</span> ' + q.next.map(x => `<span class="it${x.ready ? '' : ' wait'}" title="${x.ready ? 'Next in line' : 'Waits until ' + esc(x.lobby || '') + ' is on screen with room for it'}">${GQ_KIND[x.kind] || x.kind}: ${esc(x.title)}${x.ready ? '' : ' (waiting for ' + esc(x.lobby || '') + ')'}</span>`).join('') : '');
+  if ($('gq-list').innerHTML !== html) $('gq-list').innerHTML = html;
+  const ag = b.afterGame || { prompts: [], saved: [] };
+  const ph = ag.prompts.map(p => `<div class="prompt"><b>${esc(p.lobby)} finished</b><span>Show the table?</span><button class="b primary" data-ag="show" data-id="${p.id}">Show</button><button class="b" data-ag="skip" data-id="${p.id}">Skip</button><button class="b" data-ag="save" data-id="${p.id}" title="It plays during the next intermission">Save for intermission</button><span class="t">${p.left}s</span></div>`).join('')
+    + (ag.saved.length ? `<div class="prompt" style="border-left-color:var(--warn)"><span>Saved for intermission: <b style="font-size:16px">${ag.saved.map(esc).join(', ')}</b></span></div>` : '');
+  if ($('ag-prompts').innerHTML !== ph) $('ag-prompts').innerHTML = ph;
+  const agk = String(!!b.afterGameAuto);
+  if ($('gfx-ag').dataset.k !== agk) { $('gfx-ag').dataset.k = agk; $('gfx-ag').innerHTML = swHtml('data-agauto=""', b.afterGameAuto, 'Put the table up by itself', 'Off: the Live desk asks first (Show / Skip / Save for intermission)'); }
+}
+const gqDo = async body => { const r = await api('POST', '/app/admin/graphics', body); toast(r.message); loadDesk(); };
+$('gq-skip').addEventListener('click', () => gqDo({ action: 'skip' }));
+$('gq-clear').addEventListener('click', () => gqDo({ action: 'clear' }));
+$('gq-hold').addEventListener('change', e => { gqDo({ action: 'hold', value: e.target.value }); e.target.blur(); });
+$('ag-prompts').addEventListener('click', e => { const b = e.target.closest('[data-ag]'); if (b) gqDo({ action: 'prompt', id: b.dataset.id, answer: b.dataset.ag }); });
+$('gfx-ag').addEventListener('change', e => { $('gfx-ag').dataset.k = ''; gqDo({ action: 'afterGameAuto', on: String(e.target.checked) }); });
+function renderSetup() {
+  const o = OBS; $('setup-card').hidden = !(o && o.connected);
+  if (!o || !o.connected) return;
+  const list = o.checks || [];
+  $('setup-line').textContent = !list.length ? 'checking…' : list.every(c => c.ok) ? 'all good' : `${list.filter(c => !c.ok).length} to look at`;
+  const html = list.map(c => `<div class="ck${c.ok ? '' : ' no'}"><span class="ic">${c.ok ? '✓' : '⚠'}</span><div><b>${esc(c.title)}</b>${c.detail ? `<div class="dt">${esc(c.detail)}</div>` : ''}</div>${c.fix ? `<button class="b" data-fix="${esc(c.id)}">${esc(c.fix)}</button>` : '<span></span>'}</div>`).join('');
+  if ($('setup-list').innerHTML !== html) $('setup-list').innerHTML = html;
+}
+$('setup-again').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'check' }); toast(r.message); loadDesk(); });
+function shotTick() {
+  const air = DESK && DESK.onAir;
+  const s = air && air.since ? Math.max(0, Math.floor((Date.now() - new Date(air.since).getTime()) / 1000)) : 0;
+  $('oa-timer').textContent = fmtShot(s);
+}
+setInterval(shotTick, 1000);
+// ---- Talking points: the notes about what's on stream, two at a time -------------------------------
+let talkAt = 0, talkAir = '';
+function renderTalk() {
+  const st = r_story; if (!st || !DESK) return;
+  const airKey = JSON.stringify(DESK.onAir.slots);
+  if (airKey !== talkAir) { talkAir = airKey; talkAt = 0; }
+  const focus = st.notes.filter(n => n.focus);
+  const list = focus.length ? focus : st.notes;
+  if (talkAt >= list.length) talkAt = 0;
+  const show = list.length <= 2 ? list : [list[talkAt % list.length], list[(talkAt + 1) % list.length]];
+  $('talk-next').disabled = list.length <= 2;
+  const html = show.length ? show.map(n => `<div class="talk"><span>${rich(n.text)}</span><button data-talkused="${esc(n.id)}" title="Said it: hide this note">Used</button></div>`).join('')
+    : '<p class="muted" style="margin:0;font-size:13px">Notes about the lobbies on stream show here as games are played.</p>';
+  if ($('talk-list').innerHTML !== html) $('talk-list').innerHTML = html;
+}
+$('talk-next').addEventListener('click', () => { talkAt++; renderTalk(); });
+$('talk-list').addEventListener('click', async e => {
+  const b = e.target.closest('[data-talkused]'); if (!b) return;
+  const r = await api('POST', '/app/admin/note', { id: b.dataset.talkused, action: 'used' });
+  toast(plain(r.message)); storyKey = ''; loadDesk();
+});
+$('muted-un').addEventListener('click', () => voiceDo({ action: 'mute' }));
+// Why a replay didn't save, in a few words (the whole reason is in the tooltip).
+function failWhy(p) {
+  p = plain(p || '');
+  return /Source Record/i.test(p) ? 'no Source Record plugin' : /ffmpeg/i.test(p) ? 'no ffmpeg' : /Connect OBS|Not connected/i.test(p) ? 'OBS not connected'
+    : /too long ago/i.test(p) ? 'too long ago' : /didn't save|buffer/i.test(p) ? 'buffer not running' : /no source/i.test(p) ? 'no OBS source for this lobby'
+    : /not found|could not find|no such file/i.test(p) ? 'file not found' : p ? p.slice(0, 40) : 'unknown';
 }
 function renderDesk() {
   if (!DESK) return;
+  renderOnAir(); renderTalk(); renderWarnings(); renderSetup(); renderQueue();
   renderPicker();
   renderReplay();
   renderRoster();
   renderGfx(r_broadcast);
   renderStory(r_story);
-  renderMontages(); renderMoments(); renderSponsors(); renderVoice(); renderTwitch();
+  renderMontages(); renderArchive(); renderMoments(); renderSponsors(); renderVoice(); renderTwitch();
   const key = JSON.stringify([DESK, OBS, RP && RP.clips]);
   if (key === deskKey) return;
   deskKey = key;
   const d = DESK, air = d.onAir;
   $('desk-sub').textContent = `${d.lobbies.filter(l => l.online).length} lobbies sending${d.simulating ? ' · simulation (fake lobbies)' : ''} · only on this PC: it shows who the impostors are.`;
-  $('desk-sim').classList.toggle('on', d.simulating);
+  if (document.activeElement !== $('desk-sim')) $('desk-sim').checked = !!d.simulating;
+  $('testbar').hidden = !d.simulating;
   $('desk-problem').hidden = !d.problem; $('desk-problem').textContent = d.problem || '';
   document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === air.layout));
   $('desk-autogrid').classList.toggle('on', !!d.autoGrid);
@@ -780,7 +1053,7 @@ function renderDesk() {
   renderHealth(d);
   $('air-slots').innerHTML = air.layout === 'intermission' ? '<span>INTERMISSION</span>' : air.layout === 'slate' ? '<span>BE RIGHT BACK</span>' : air.layout === 'break' ? `<span>SPONSOR BREAK · ${esc(air.slots[0] || '')}</span>` : air.layout === 'replay' ? `<span>REPLAY · ${esc(air.slots[0] || '')}</span>` : air.layout === 'none' ? '<span class="empty">Nothing yet: click a card or lobby</span>'
     : air.slots.map((l, i) => `<span class="${l ? '' : 'empty'}"${l ? ` data-tile="${esc(l)}" title="Full screen" style="cursor:pointer"` : ''}>${air.slots.length > 1 ? (i + 1) + ' · ' : ''}${esc(l || 'empty')}</span>`).join('');
-  $('air-by').textContent = air.since ? `${air.by === 'obs' ? 'switched in OBS' : air.by === 'health' ? 'switched by itself (a lobby dropped)' : 'from here'}${air.scene ? ' · ' + air.scene : ''} · ${clock(air.since)}` : '';
+  $('air-by').textContent = air.since ? `since ${clock(air.since)}` : '';
   if (air.layout === 'none' && air.scene) $('air-slots').innerHTML = `<span class="empty">OBS is on ${esc(air.scene)}: no lobby on stream</span>`;
   // Which lobby goes in which slot (2-up and quad).
   const multi = air.layout === '2up' || air.layout === '4up';
@@ -797,13 +1070,14 @@ function renderDesk() {
       <div class="play">${rich(c.text)}${c.repeats > 1 ? ` <span class="muted" style="font-size:14px">×${c.repeats}</span>` : ''}</div>
       <div class="t3">${counts(c)}<span>${ago(c.ago)}</span>${c.updatedAgo < c.ago - 1 ? `<span>updated ${ago(c.updatedAgo)}</span>` : ''}${replayButton(c)}</div>
       ${c.people && c.people.length ? `<div class="ppl">${c.people.map(p => `<button data-pcard="${esc(p.key)}" data-plobby="${esc(c.lobby)}" title="${esc(p.name)}'s player card on stream">${sw(p.color)}${esc(p.name)}</button>`).join('')}</div>` : ''}
-    </div>`).join('') : `<div class="card"><p class="empty">${d.lobbies.length ? 'Quiet right now.' : 'No lobbies yet. Hosts appear here when they turn on "Send my game to the caster", or try Simulation.'}</p></div>`;
-  $('desk-lobbies').innerHTML = d.lobbies.length ? d.lobbies.map((l, i) => `<div class="dlob tier-${l.tier}${l.online ? '' : ' offline'}" data-lobby="${esc(l.lobby)}" title="Put ${esc(l.lobby)} on stream (full)">
-      <div class="sc">${l.online ? Math.round(l.score) : '–'}</div>
-      <div style="min-width:0"><div class="nm">${l.health && l.health !== 'green' ? `<span class="hdot ${l.health}" title="${l.health === 'red' ? 'Down' : 'Degraded'}: see Lobby health"></span>` : ''}${esc(l.lobby)}${l.onAir ? `<span class="live">${esc(l.onAir)}</span>` : ''}${l.online ? '' : '<span class="off">OFFLINE</span>'}</div><div class="ln">${rich(l.line)}</div></div>
+    </div>`).join('') : `<div class="card"><p class="empty">${d.lobbies.length ? 'Quiet right now.' : 'No lobbies yet. Hosts appear here when they turn on "Send my game to the caster" (or turn on Simulation under OBS → Test).'}</p></div>`;
+  $('desk-lobbies').innerHTML = d.lobbies.length ? d.lobbies.map((l, i) => `<div class="dlob tier-${l.tier}${l.online ? '' : ' offline'}${l.online && (l.tier === 'must' || l.tier === 'veryHigh') ? ' glow' : ''}" data-lobby="${esc(l.lobby)}" title="Put ${esc(l.lobby)} on stream (full)${l.no <= 9 ? ' · key ' + l.no : ''}">
+      <div class="sc"><span class="no">${l.no}</span>${l.online ? Math.round(l.score) : '–'}</div>
+      <div style="min-width:0"><div class="nm">${l.online && l.tier !== 'low' ? `<span class="tierb">${TIER_NAME[l.tier] || l.tier}</span>` : ''}${l.health && l.health !== 'green' ? `<span class="hdot ${l.health}" title="${l.health === 'red' ? 'Down' : 'Degraded'}: see Lobby health"></span>` : ''}${esc(l.lobby)}${l.onAir ? `<span class="live">${esc(l.onAir)}</span>` : ''}${l.online ? '' : '<span class="off">OFFLINE</span>'}</div><div class="ln">${rich(l.line)}</div></div>
       <div class="lay"><button data-put="full" title="Full screen">Full</button><button data-put="2up" title="2-up, slot 1">2-up</button><button data-put="4up" title="Quad, slot 1">Quad</button></div>
+      ${LVOICE && LVOICE.obs && obsDb(LVOICE.obs, l.lobby) !== undefined ? `<div class="lvl" title="This lobby's voice in OBS${isHeard(LVOICE.obs, l.lobby) ? ': on stream now' : ' (muted on stream)'}"><span>Voice</span>${obsMeter(LVOICE.obs, l.lobby)}</div>` : ''}
       ${specRow(l)}
-      ${l.people && l.people.length && l.online ? `<div class="ppl" data-pplrow>${l.people.map(p => `<button data-pcard="${esc(p.key)}" data-plobby="${esc(l.lobby)}" title="${esc(p.name)}'s player card on stream">${sw(p.color)}${esc(p.name)}</button>`).join('')}</div>` : ''}
+      ${playersRow(l)}
     </div>`).join('') : '<p class="empty">No lobbies.</p>';
   $('desk-history').innerHTML = d.history.length ? d.history.map(c => `<div class="hrow tier-${c.tier}">
       <span class="tm">${clock(c.at)}</span>
@@ -830,7 +1104,8 @@ document.addEventListener('click', e => {
   e.stopPropagation(); decide(b.dataset.iid, b.dataset.decide);
 }, true);
 // The health panel: one row per lobby, its colour and what's wrong in plain words; test buttons in simulation.
-const SIMFAIL = [['video', 'Video'], ['audio', 'Audio'], ['data', 'Data'], ['all', 'All'], ['lag', 'Lag'], ['crash', 'Crash'], ['reconnect', 'Reconnect']];
+// Fault buttons only while simulating; Reconnect on every row, always.
+const SIMFAIL = [['video', 'Video'], ['audio', 'Audio'], ['data', 'Data'], ['all', 'All'], ['lag', 'Lag'], ['crash', 'Crash']];
 let hlKey = '';
 function renderHealth(d) {
   const h = d.health; if (!h) return;
@@ -842,12 +1117,14 @@ function renderHealth(d) {
   const key = JSON.stringify([h, d.simulating]); if (key === hlKey) return; hlKey = key;
   $('hl-list').innerHTML = h.lobbies.map(x => `<div class="hl ${x.level}"><span class="dot" title="${x.level}"></span><span class="nm">${esc(x.lobby)}</span>
       <span class="pr">${x.problems.length ? esc(x.problems.join(' · ')) : 'All good'}${x.lagMs != null && !x.problems.length ? ` <span class="muted" style="font-size:11.5px">· ${x.lagMs} ms lag</span>` : ''}${x.update ? ` <span class="upd" title="Their Button updates the mod by itself while Among Us is closed">${esc(x.update)}</span>` : ''}</span>
-      <span class="sim">${d.simulating && x.sim ? SIMFAIL.map(([k, n]) => `<button class="b${x.sim[k] ? ' on' : ''}" data-hlsim="${k}" data-hllobby="${esc(x.lobby)}" title="Simulate: ${n === 'Reconnect' ? 'everything comes back' : n.toLowerCase() + ' problem'}">${n}</button>`).join('') : x.level === 'red' ? `<button class="b" data-hlsim="forget" data-hllobby="${esc(x.lobby)}" title="Take it off the list (its referee has gone)">Forget</button>` : ''}</span></div>`).join('');
+      <span class="sim">${d.simulating && x.sim ? SIMFAIL.map(([k, n]) => `<button class="b${x.sim[k] ? ' on' : ''}" data-hlsim="${k}" data-hllobby="${esc(x.lobby)}" title="Simulate a ${n.toLowerCase()} problem">${n}</button>`).join('') : ''}<button class="b" data-hlsim="reconnect" data-hllobby="${esc(x.lobby)}" title="${x.sim ? 'Everything comes back' : 'Reload this lobby\'s data link now'}">Reconnect</button>${x.level === 'red' && !x.sim ? `<button class="b" data-hlsim="forget" data-hllobby="${esc(x.lobby)}" title="Take it off the list (its referee has gone)">Forget</button>` : ''}</span></div>`).join('');
   $('hl-int').innerHTML = h.interrupted.filter(i => !i.decision).map(i => `<div class="it"><span class="tag">INTERRUPTED</span><b>${esc(i.game)}</b><span class="muted">round ${i.round} · ${esc(i.why)} · not in the standings</span><span style="flex:1"></span>
       <button class="b" data-decide="count" data-iid="${i.id}">Count</button><button class="b" data-decide="void" data-iid="${i.id}">Void</button><button class="b primary" data-decide="replay" data-iid="${i.id}">Replay</button></div>`).join('');
 }
 $('hl-list').addEventListener('click', async e => {
   const b = e.target.closest('[data-hlsim]'); if (!b) return;
+  // A real lobby's Reconnect: its hidden data link is loaded again now.
+  if (b.dataset.hlsim === 'reconnect' && RECV[b.dataset.hllobby]) { const f = RECV[b.dataset.hllobby]; f.src = f.dataset.src; if (RECV_AT[b.dataset.hllobby]) Object.assign(RECV_AT[b.dataset.hllobby], { last: Date.now(), wait: 5000 }); }
   const r = await api('POST', '/app/admin/health', { lobby: b.dataset.hllobby, what: b.dataset.hlsim }); toast(r.message); hlKey = ''; loadDesk();
 });
 $('hl-auto').addEventListener('click', async () => { const r = await api('POST', '/app/admin/health', { what: 'autoSwitch', on: String(!(DESK && DESK.health.settings.autoSwitch)) }); toast(r.message); hlKey = ''; loadDesk(); });
@@ -880,17 +1157,27 @@ function specSend(lobby, command) {
   api('POST', '/app/admin/spec', { lobby, command }).then(() => setTimeout(loadDesk, 1200));
   toast(`${lobby}: ${command.replace(/^spec /, '')}`);
 }
+// The host's ghost view (the picture sent to you): what's drawn on it. Only on that one game, never sent to players.
+const VISION = { off: 'Vision: off', focus: 'Vision: one crewmate', rings: 'Vision: everyone' };
 function specRow(l) {
   const sp = l.spec; if (!sp || !l.online) return '';
   const crew = (l.players || []).filter(p => !p.imp);
-  const vis = { off: 'Vision off', focus: 'Vision: focus', rings: 'Vision: rings' }[sp.vision] || sp.vision;
-  return `<div class="spec" data-specrow="${esc(l.lobby)}">View${sp.on ? '' : ' (host isn\'t the referee ghost)'}
-    <button data-spec="lit" class="${sp.lit ? 'on' : ''}" title="Whole map lit (key ${keyName('specLit')})">Lit</button>
-    <button data-spec="vision" class="${sp.vision !== 'off' ? 'on' : ''}" title="Off → focus → rings (key ${keyName('specVision')})">${vis}</button>
-    <button data-spec="report" class="${sp.report ? 'on' : ''}" title="&quot;!&quot; when someone can report (key ${keyName('specReport')})">!</button>
-    <button data-spec="eye" class="${sp.eye ? 'on' : ''}" title="Eye when a crewmate sees an impostor (key ${keyName('specEye')})">Eye</button>
-    ${sp.vision === 'focus' ? `<select data-specfocus title="Whose vision"><option value="auto">Focus: auto${sp.focusing != null && sp.focus == null ? ' (' + esc(realName(l.lobby, sp.focusing, (crew.find(p => p.id === sp.focusing) || {}).colour || '')) + ')' : ''}</option>${crew.map(p => `<option value="${p.id}"${sp.focus === p.id ? ' selected' : ''}>${esc(p.colour)} · ${esc(realName(l.lobby, p.id, p.name))}</option>`).join('')}</select>` : ''}
+  const auto = sp.focusing != null && sp.focus == null ? ' (' + esc(realName(l.lobby, sp.focusing, (crew.find(p => p.id === sp.focusing) || {}).colour || '')) + ')' : '';
+  return `<div class="spec" data-specrow="${esc(l.lobby)}"><span class="sh" title="What the referee ghost's screen (the picture sent to you) shows. Only drawn on that one game, never sent to the players.">Host view${sp.on ? '' : ' (host isn\'t the referee ghost)'}</span>
+    <button data-spec="lit" class="${sp.lit ? 'on' : ''}" title="Lights the whole map and shows every player (impostors in vents stay hidden). Key ${keyName('specLit')}">💡 Lit map</button>
+    <button data-spec="vision" class="${sp.vision !== 'off' ? 'on' : ''}" title="Click to cycle: off → one crewmate's real vision (the rest dimmed) → every crewmate's vision outline. Key ${keyName('specVision')}">◐ ${VISION[sp.vision] || sp.vision}</button>
+    <button data-spec="report" class="${sp.report ? 'on' : ''}" title="A ! over anyone close enough to report a body. Key ${keyName('specReport')}">❗ Can report</button>
+    <button data-spec="eye" class="${sp.eye ? 'on' : ''}" title="A small eye by a crewmate's name while an impostor is in their sight. Key ${keyName('specEye')}">👁 Sees impostor</button>
+    ${sp.vision === 'focus' ? `<select data-specfocus title="Whose vision is shown. Auto picks whoever is in danger, else whoever did something last."><option value="auto">Whose vision: auto${auto}</option>${crew.map(p => `<option value="${p.id}"${sp.focus === p.id ? ' selected' : ''}>${esc(p.colour)} · ${esc(realName(l.lobby, p.id, p.name))}</option>`).join('')}</select>` : ''}
   </div>`;
+}
+// Players on a lobby card: behind a toggle, remembered per lobby (closed by default).
+let PL_OPEN = new Set();
+try { PL_OPEN = new Set(JSON.parse(localStorage.getItem('ra.players.open') || '[]')); } catch (e) { }
+function playersRow(l) {
+  if (!l.people || !l.people.length || !l.online) return '';
+  const open = PL_OPEN.has(l.lobby);
+  return `<div class="pltg-row"><button class="pltg" data-pltg="${esc(l.lobby)}" aria-expanded="${open}">${open ? '▾' : '▸'} Players (${l.people.length})</button></div>${open ? `<div class="ppl" data-pplrow>${l.people.map(p => `<button data-pcard="${esc(p.key)}" data-plobby="${esc(l.lobby)}" title="${esc(p.name)}'s player card on stream">${sw(p.color)}${esc(p.name)}</button>`).join('')}</div>` : ''}`;
 }
 const keyName = k => ((RP && RP.hotkeys && RP.hotkeys[k]) || '').replace(/^Key|^Digit/, '');
 $('desk-lobbies').addEventListener('change', e => {
@@ -898,6 +1185,13 @@ $('desk-lobbies').addEventListener('change', e => {
   specSend(sel.closest('[data-specrow]').dataset.specrow, 'spec focus ' + sel.value);
 });
 $('desk-lobbies').addEventListener('click', e => {
+  const tg = e.target.closest('[data-pltg]');
+  if (tg) {
+    e.stopPropagation();
+    const l = tg.dataset.pltg; if (PL_OPEN.has(l)) PL_OPEN.delete(l); else PL_OPEN.add(l);
+    try { localStorage.setItem('ra.players.open', JSON.stringify([...PL_OPEN])); } catch (err) { }
+    deskKey = ''; renderDesk(); return;
+  }
   if (e.target.closest('[data-specfocus]')) return;
   const sb = e.target.closest('[data-spec]');
   if (sb) { specSend(sb.closest('[data-specrow]').dataset.specrow, 'spec ' + sb.dataset.spec); return; }
@@ -947,7 +1241,7 @@ $('obs-off').addEventListener('click', async () => { const r = await api('POST',
 $('obs-swoosh').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'swoosh', on: String(!(OBS && OBS.swoosh && OBS.swoosh.on)) }); toast(r.message); loadDesk(); });
 $('obs-build').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'build' }); toast(r.message); loadDesk(); });
 // ---- Standings & storylines ---------------------------------------------------------------------
-let r_story = null, storyKey = '';
+let r_story = null, storyKey = '', notesAll = false;
 function renderStory(st) {
   if (!st) return;
   $('story-line').textContent = `${st.games} games today · ${st.notes.length} notes`;
@@ -957,11 +1251,14 @@ function renderStory(st) {
   $('st-table').innerHTML = st.standings.length ? `<thead><tr><th></th><th class="l">${esc(st.title || (st.scope === 'overall' || !st.round ? 'Tournament' : 'Round ' + st.round))}</th><th>Points</th><th>W-L</th></tr></thead><tbody>` +
     st.standings.map(r => `<tr class="${r.advancing ? 'up' : ''}"><td class="rk">${r.rank}</td><td class="l">${sw(r.color)}${esc(r.name)}</td><td class="big">${r.points}</td><td>${r.wins}-${r.games - r.wins}</td></tr>`).join('') + '</tbody>'
     : '<tr><td class="muted" style="font-size:13px">No scored games yet.</td></tr>';
-  $('notes').innerHTML = st.notes.length ? st.notes.map(n => `<div class="nt${n.pinned ? ' pinned' : ''}"><span>${rich(n.text)}</span>
+  const all = st.notes, list = notesAll ? all : all.slice(0, 8);
+  $('notes').innerHTML = (list.length ? list.map(n => `<div class="nt${n.pinned ? ' pinned' : ''}"><span>${rich(n.text)}</span>
       <span class="acts"><button class="go" data-note="${esc(n.id)}" data-act="show" title="Put it on stream (lower third)">On stream</button><button data-note="${esc(n.id)}" data-act="${n.pinned ? 'unpin' : 'pin'}">${n.pinned ? 'Unpin' : 'Pin'}</button><button data-note="${esc(n.id)}" data-act="used">Used</button><button data-note="${esc(n.id)}" data-act="dismiss" title="Dismiss">×</button></span></div>`).join('')
-    : '<p class="empty" style="font-size:13px">Notes appear as games are played: records, streaks, first blood, rivalries…</p>';
+    : '<p class="empty" style="font-size:13px">Notes appear as games are played: records, streaks, first blood, rivalries…</p>')
+    + (all.length > 8 ? `<button class="b" id="notes-all" style="justify-self:start">${notesAll ? 'Show the top 8' : `Show all ${all.length}`}</button>` : '');
 }
 $('notes').addEventListener('click', async e => {
+  if (e.target.closest('#notes-all')) { notesAll = !notesAll; storyKey = ''; renderStory(r_story); return; }
   const b = e.target.closest('[data-note]'); if (!b) return;
   const r = await api('POST', '/app/admin/note', { id: b.dataset.note, action: b.dataset.act });
   toast(plain(r.message)); storyKey = ''; loadDesk();
@@ -1004,7 +1301,7 @@ function renderTwitch() {
   $('tw-det').innerHTML = t.detectives.length ? t.detectives.map((d, i) => `${i + 1}. <b style="color:var(--fg,#fff)">${esc(d.name)}</b> ${d.correct}/${d.guesses}`).join(' · ') : 'Nobody yet: viewers score by voting !sus for an impostor.';
   $('tw-features').innerHTML = `<div class="tw-feat">${Object.entries(t.names).map(([k, n]) => {
     const autoKey = { predictions: 'predictions', meetingPolls: 'meetings', chatVote: 'meetings', lobbyPoll: 'lobbyPoll', mvpPoll: 'mvpPoll' }[k];
-    return `<span>${esc(n)}</span><button class="b${t.features[k] ? ' on' : ''}" data-twf="${k}">${t.features[k] ? 'On' : 'Off'}</button>${autoKey ? `<button class="b${t.auto[autoKey] ? ' on' : ''}" data-twa="${autoKey}" title="Starts by itself">${t.auto[autoKey] ? 'Auto' : 'By hand'}</button>` : '<span></span>'}`;
+    return `<span>${esc(n)}</span>${swHtml(`data-twf="${k}"`, t.features[k], 'On')}${autoKey ? swHtml(`data-twa="${autoKey}"`, t.auto[autoKey], 'Auto', 'On: starts by itself. Off: only when you click it.') : '<span></span>'}`;
   }).join('')}</div>`;
   if (!busy) {
     $('tw-client').value = t.clientId || ''; $('tw-delay').value = t.delaySeconds; $('tw-psec').value = t.predictionSeconds; $('tw-msec').value = t.meetingSeconds;
@@ -1023,12 +1320,13 @@ $('tw-card').addEventListener('click', e => {
   if (b.dataset.tws) return twDo({ action: 'start', kind: b.dataset.tws });
   if (b.dataset.twp) return twDo({ action: 'prediction', do: b.dataset.twp, outcome: b.dataset.out || '' });
   if (b.hasAttribute('data-twendpoll')) return twDo({ action: 'endpoll' });
-  if (b.dataset.twf) return twDo({ action: 'feature', name: b.dataset.twf, on: String(!(TW && TW.features[b.dataset.twf])) });
-  if (b.dataset.twa) return twDo({ action: 'auto', name: b.dataset.twa, on: String(!(TW && TW.auto[b.dataset.twa])) });
+
   if (b.dataset.twred) { const sel = $('tw-card').querySelector(`[data-twclip="${CSS.escape(b.dataset.twred)}"]`); return twDo({ action: 'redemption', id: b.dataset.twred, on: b.dataset.ok, clip: sel ? sel.value : '' }); }
 });
 $('tw-card').addEventListener('change', e => {
   const id = e.target.id;
+  if (e.target.dataset.twf) return twDo({ action: 'feature', name: e.target.dataset.twf, on: String(e.target.checked) });
+  if (e.target.dataset.twa) return twDo({ action: 'auto', name: e.target.dataset.twa, on: String(e.target.checked) });
   if (id === 'tw-client') twDo({ action: 'clientId', value: e.target.value });
   else if (id === 'tw-delay') twDo({ action: 'delay', value: e.target.value });
   else if (id === 'tw-psec') twDo({ action: 'predictionSeconds', value: e.target.value });
@@ -1041,8 +1339,43 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-cardshow]'); if (!b) return;
   e.stopPropagation(); show(b.dataset.cardshow, 'full');
 }, true);
-function renderVoice() {
+// OBS's own level for a lobby's voice source: what the stream would get (grey when it's muted).
+const obsDb = (o, lobby) => o && o.levels ? o.levels[Object.keys(o.levels).find(k => k.toLowerCase() === lobby.toLowerCase())] : null;
+const isHeard = (o, lobby) => !!(o && o.heard && o.heard.toLowerCase() === lobby.toLowerCase());
+function obsMeter(o, lobby, big) {
+  const db = obsDb(o, lobby), pct = db == null ? 0 : meterPct(db);
+  return `<span class="mtr${big ? ' big' : ''}${isHeard(o, lobby) ? '' : ' off'}" data-meter="${esc(lobby)}"><i class="${db > -6 ? 'clip' : db > -15 ? 'hot' : ''}" style="width:${pct}%"></i></span>`;
+}
+const dbText = (o, lobby) => { const db = obsDb(o, lobby); return db == null ? '—' : db <= -99 ? 'silent' : Math.round(db) + ' dB'; };
+// Meters move without redrawing the rows.
+function updateMeters() {
+  const o = LVOICE && LVOICE.obs; if (!o) return;
+  document.querySelectorAll('[data-meter]').forEach(m => {
+    const db = obsDb(o, m.dataset.meter), i = m.querySelector('i');
+    i.style.width = (db == null ? 0 : meterPct(db)) + '%';
+    i.className = db > -6 ? 'clip' : db > -15 ? 'hot' : '';
+    m.classList.toggle('off', !isHeard(o, m.dataset.meter));
+  });
+  document.querySelectorAll('[data-dbt]').forEach(t => t.textContent = dbText(o, t.dataset.dbt));
+}
+let keyWaitVo = false;
+$('vo-key').addEventListener('click', e => { e.preventDefault(); keyWaitVo = true; $('vo-key').classList.add('wait'); $('vo-key').textContent = 'Press keys…'; });
+document.addEventListener('keydown', e => {
+  if (!keyWaitVo) return;
+  if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  keyWaitVo = false; $('vo-key').classList.remove('wait');
+  if (e.key === 'Escape') { renderVoice(true); return; }
+  const k = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3) : /^Digit\d$/.test(e.code) ? e.code.slice(5) : /^F\d{1,2}$/.test(e.code) ? e.code : { Pause: 'Pause', Space: 'Space', Home: 'Home', End: 'End', Insert: 'Insert', Delete: 'Delete', PageUp: 'PageUp', PageDown: 'PageDown' }[e.code] || e.code;
+  const combo = [e.ctrlKey && 'Ctrl', e.shiftKey && 'Shift', e.altKey && 'Alt', e.metaKey && 'Win', k].filter(Boolean).join('+');
+  voiceDo({ action: 'hotkey', value: combo });
+}, true);
+function renderVoice(force) {
   const v = LVOICE; if (!v) return;
+  updateMeters();
+  if (!keyWaitVo) $('vo-key').textContent = (v.obs && v.obs.hotkey) || 'Ctrl+Shift+M';
+  const kp = S && S.hotkeyProblem; $('vo-keyprob').hidden = !kp; $('vo-keyprob').textContent = kp || '';
+  if (force) voKey = '';
   const o = v.obs || { volume: {}, offset: {}, inputs: [], sources: [] };
   $('vo-mute').classList.toggle('on', !!o.muteAll); $('vo-mute').textContent = o.muteAll ? 'Muted' : 'Mute all';
   $('vo-on').classList.toggle('on', o.on !== false);
@@ -1053,12 +1386,13 @@ function renderVoice() {
     $('vo-duck').innerHTML = `<option value="">No ducking</option>` + names.map(n => `<option${n === o.duckUnder ? ' selected' : ''}>${esc(n)}</option>`).join('');
   }
   if ($('vo-list').contains(document.activeElement)) return;
-  const key = JSON.stringify(v); if (key === voKey) return; voKey = key;
+  const key = JSON.stringify([v.status.map(x => [x.lobby, x.reported, x.online, x.problem, x.sending, x.mic, x.discord, x.game]), Object.assign({}, v.obs, { levels: Object.keys((v.obs || {}).levels || {}) })]); if (key === voKey) return; voKey = key;
   $('vo-list').innerHTML = v.status.length ? v.status.map(x => {
     const chip = !x.reported ? '<span class="chip">NO VOICE YET</span>' : !x.online ? '<span class="chip bad">OFFLINE</span>' : x.problem ? `<span class="chip bad" title="${esc(x.problem)}">PROBLEM</span>` : x.sending ? '<span class="chip ok">SENDING</span>' : '<span class="chip">NOT SENDING</span>';
     const heard = o.heard && o.heard.toLowerCase() === x.lobby.toLowerCase();
     return `<div class="vo${heard ? ' heard' : ''}">
       <div class="nm">${esc(x.lobby)} ${chip}${heard ? '<span class="chip on">HEARD</span>' : ''}${x.mic ? '<span class="chip" title="The referee\'s own mic is in">MIC</span>' : ''}</div>
+      <div class="obsm"><span>On stream (OBS)</span>${obsMeter(o, x.lobby, true)}<span class="mono" data-dbt="${esc(x.lobby)}">${dbText(o, x.lobby)}</span></div>
       <div class="lv">${x.reported ? `<span>Discord ${esc(VO_STATE[x.discord] || x.discord || '')}</span><span class="mtr"><i style="width:${meterPct(x.voiceDb)}%"></i></span><span>Among Us ${esc(VO_STATE[x.game] || x.game || '')}</span><span class="mtr"><i style="width:${meterPct(x.gameDb)}%"></i></span>` : '<span style="grid-column:1/-1">Their Button reports here once they send their game.</span>'}</div>
       <div class="ctl"><label title="Volume (dB)">Vol <input type="range" min="-30" max="12" step="1" value="${o.volume[x.lobby] ?? 0}" data-vovol="${esc(x.lobby)}"></label>
         <label title="Delay to line the voice up with the picture">Delay <input type="number" min="0" max="5000" step="50" value="${o.offset[x.lobby] ?? 0}" data-vooff="${esc(x.lobby)}"> ms</label>
@@ -1133,6 +1467,29 @@ function renderMontages() {
       <span class="acts">${x.state === 'ready' || x.state === 'played' ? `<button class="b primary" data-mt="play" data-id="${x.id}">Play</button><button class="b" data-mt="preview" data-id="${x.id}">Preview</button>` : ''}${x.state !== 'building' ? `<button class="b" data-mt="discard" data-id="${x.id}">Discard</button>` : ''}</span>
     </div>`).join('') : '<p class="empty" style="font-size:13px">No montages yet: they appear here when games end.</p>';
 }
+// The archive: played montages, with their clips.
+let arKey = '', arSure = null;
+const KIND_NAME = { game: 'end of game', round: 'end of round', custom: 'from Moments' };
+function renderArchive() {
+  const list = MONT && MONT.archive || [];
+  $('ar-line').textContent = `${list.length} played`;
+  if ($('ar-list').contains(document.activeElement) && document.activeElement.tagName === 'SUMMARY') return;
+  const key = JSON.stringify([list, arSure]); if (key === arKey) return; arKey = key;
+  const date = iso => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  $('ar-list').innerHTML = list.length ? list.map(a => `<div class="ar">
+      <div style="min-width:0"><b>${rich(a.title)}</b> ${a.playing ? '<span class="live">ON STREAM</span>' : ''}
+        <div class="meta">${KIND_NAME[a.kind] || a.kind}${a.game ? ' · ' + esc(a.game) : ''}${a.round ? ' · round ' + a.round : ''} · made ${date(a.created)} · played ${date(a.played)}${a.duration ? ' · ' + Math.round(a.duration) + 's' : ''}${a.sponsor ? ' · presented by ' + esc(a.sponsor) : ''}${a.hasFile ? '' : ' · <span class="bad-text">video file gone</span>'}</div></div>
+      <span class="acts"><button class="b primary" data-ar="archivePlay" data-id="${esc(a.id)}"${a.hasFile ? '' : ' disabled'}>Replay</button><button class="b" data-ar="archiveRebuild" data-id="${esc(a.id)}">Rebuild</button><button class="b" data-ar="archiveOpen" data-id="${esc(a.id)}"${a.hasFile ? '' : ' disabled'} title="Play the video file on this PC">Open</button><button class="b" data-ar="archiveFolder" data-id="${esc(a.id)}"${a.hasFile ? '' : ' disabled'}>Folder</button><button class="b danger${arSure === a.id ? ' sure' : ''}" data-ar="archiveDelete" data-id="${esc(a.id)}">${arSure === a.id ? 'Sure? Delete for good' : 'Delete'}</button></span>
+      <details><summary>${a.clips.length} clip${a.clips.length === 1 ? '' : 's'}</summary><ol>${a.clips.map(c => `<li class="${c.have ? '' : 'gone'}">${esc(c.lobby)} · ${rich(c.title)}</li>`).join('')}</ol></details>
+    </div>`).join('') : '<p class="empty" style="font-size:13px">Montages move here once they have played.</p>';
+}
+$('ar-list').addEventListener('click', async e => {
+  const b = e.target.closest('[data-ar]'); if (!b) return;
+  const id = b.dataset.id, act = b.dataset.ar;
+  if (act === 'archiveDelete' && arSure !== id) { arSure = id; renderArchive(); setTimeout(() => { if (arSure === id) { arSure = null; renderArchive(); } }, 5000); return; }
+  const r = await api('POST', '/app/admin/montage', { action: act, id, sure: act === 'archiveDelete' ? 'true' : '' });
+  arSure = null; toast(plain(r.message)); arKey = ''; mtKey = ''; loadDesk();
+});
 $('mt-list').addEventListener('click', async e => {
   const b = e.target.closest('[data-mt]'); if (!b) return;
   const x = MONT.list.find(m => m.id === b.dataset.id);
@@ -1178,7 +1535,19 @@ $('mom-build').addEventListener('click', async e => {
   const r = await api('POST', '/app/admin/montage', { action: 'custom', clips: momPick, title: $('mom-title').value });
   toast(r.message); loadDesk();
 });
+// Sponsor reads due: said out loud by the caster (never on stream). Done logs it; Snooze asks again in 5 minutes.
+function renderReads() {
+  const reads = SPON && SPON.reads || [];
+  const html = reads.map(r => `<div class="read"><span class="tg">SPONSOR READ</span><div class="sc"><b>${esc(r.sponsor)}:</b> ${esc(r.script)}<small>Due (${esc(r.why)}). Only you see this.</small></div>
+    <span class="acts"><button class="b primary" data-read="readDone" data-name="${esc(r.sponsor)}">Done</button><button class="b" data-read="readSnooze" data-name="${esc(r.sponsor)}">Snooze 5 min</button></span></div>`).join('');
+  if ($('reads').innerHTML !== html) $('reads').innerHTML = html;
+}
+$('reads').addEventListener('click', async e => {
+  const b = e.target.closest('[data-read]'); if (!b) return;
+  const r = await api('POST', '/app/admin/sponsor', { action: b.dataset.read, name: b.dataset.name }); toast(r.message); loadDesk();
+});
 function renderSponsors() {
+  renderReads();
   const s = SPON; if (!s) return;
   const br = DESK && DESK.break;
   $('sp-break').textContent = br ? `End break (${br.left}s)` : 'Sponsor break';
@@ -1188,7 +1557,7 @@ function renderSponsors() {
   const key = JSON.stringify(s.list); if (key === spKey) return; spKey = key;
   $('sp-list').innerHTML = s.list.length ? s.list.map(x => `<div class="sp"><div><b>${esc(x.name)}</b>${x.tagline ? ` <span class="muted">${esc(x.tagline)}</span>` : ''}</div>
       <span class="pl">${x.placements.length ? x.placements.map(p => `<span>${esc(p)}</span>`).join('') : '<span>no placements yet</span>'}</span>
-      <span class="muted" style="font-size:12px">${x.shown} shown · ${Math.round(x.seconds / 60 * 10) / 10} min</span></div>`).join('') : '<p class="empty" style="font-size:13px">No sponsors: Edit sponsors.</p>';
+      <span class="muted" style="font-size:12px">${x.shown} shown · ${Math.round(x.seconds / 60 * 10) / 10} min${x.read ? ` · ${esc(x.read)} (${x.reads} done)` : ''}</span></div>`).join('') : '<p class="empty" style="font-size:13px">No sponsors: Edit sponsors.</p>';
 }
 $('sp-break').addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/sponsor', { action: DESK && DESK.break ? 'end' : 'break' }); toast(r.message); loadDesk(); });
 $('sp-open').addEventListener('click', e => { e.preventDefault(); api('POST', '/app/admin/sponsor', { action: 'open' }).then(r => toast(r.message)); });
@@ -1198,7 +1567,7 @@ $('sp-export').addEventListener('click', async e => { e.preventDefault(); const 
 let r_broadcast = null, gfxKey = '';
 function renderGfx(g) {
   if (!g) return;
-  $('gfx-line').innerHTML = g.url ? `<span class="mono">${esc(g.url)}</span>` : '';
+  if ($('gfx-url').dataset.u !== (g.url || '')) { $('gfx-url').dataset.u = g.url || ''; $('gfx-url').innerHTML = g.url ? urlRow('Graphics', g.url) : ''; }
   $('gfx-problem').hidden = !g.problem; $('gfx-problem').textContent = g.problem || '';
   if (DESK) {
     document.querySelectorAll('#gfx-wins [data-wins]').forEach(b => b.classList.toggle('on', b.dataset.wins === DESK.winScope));
@@ -1206,25 +1575,37 @@ function renderGfx(g) {
   }
   const al = g.alerts || { types: {} };
   const akey = JSON.stringify([al, g.alertsWaiting]);
-  if ($('gfx-alerts').dataset.key !== akey) {
+  if ($('gfx-alerts').dataset.key !== akey && !$('gfx-alerts').contains(document.activeElement)) {
     $('gfx-alerts').dataset.key = akey;
-    $('gfx-alerts').innerHTML = [['kill', 'Kills'], ['win', 'Wins'], ['report', 'Reports'], ['button', 'Buttons']].map(([k, n]) => `<button class="b${al.types[k] ? ' on' : ''}" data-alert="${k}">${n}</button>`).join('') +
-      `<button class="b${al.paused ? ' on' : ''}" data-alert="" title="Pause every alert (key ${keyName('alertsPause')})">${al.paused ? 'Paused' : 'Pause'}</button>${g.alertsWaiting ? `<span class="muted" style="font-size:12px">${g.alertsWaiting} waiting</span>` : ''}`;
+    $('gfx-alerts').innerHTML = [['kill', 'Kills'], ['win', 'Wins'], ['report', 'Reports'], ['button', 'Buttons']].map(([k, n]) => swHtml(`data-alert="${k}"`, al.types[k], n)).join('') +
+      swHtml('data-alert=""', al.paused, 'Pause all', `Pause every alert (key ${keyName('alertsPause')})`) + (g.alertsWaiting ? `<span class="muted" style="font-size:12px">${g.alertsWaiting} waiting</span>` : '');
   }
   const key = JSON.stringify(g.elements); if (key === gfxKey) return; gfxKey = key;
-  $('gfx-els').innerHTML = Object.keys(g.names).map(k => `<button class="b${g.elements[k] ? ' on' : ''}" data-gfx="${k}">${esc(g.names[k])}</button>`).join('');
+  const known = new Set(GFX_GROUPS.flatMap(x => x[2]));
+  const groups = GFX_GROUPS.map(([t, sub, keys]) => [t, sub, keys.filter(k => g.names[k])]);
+  const other = Object.keys(g.names).filter(k => !known.has(k));
+  if (other.length) groups.push(['Other', '', other]);
+  $('gfx-els').innerHTML = groups.filter(x => x[2].length).map(([t, sub, keys]) => `<div class="gfx-grp"><h4>${t}<small>${sub}</small></h4>${keys.map(k => swHtml(`data-gfx="${k}"`, g.elements[k], g.names[k])).join('')}</div>`).join('');
 }
-$('gfx-els').addEventListener('click', async e => {
+// Graphics in three groups: what's always up, what comes up when something happens, and what you put up.
+const GFX_GROUPS = [
+  ['Always on', 'on the pictures all the time', ['lobbyLabels', 'impostorTags', 'sabotage', 'gridTiles', 'winCounter', 'top3', 'ticker', 'statusBar']],
+  ['Moments', 'come up by themselves', ['alerts', 'standingsChange', 'playerCards']],
+  ['Info', 'up while on', ['standings', 'pointsOnTheLine', 'storyline']],
+];
+// A real switch (checkbox): filled red with the knob right when on, dim when off.
+const swHtml = (attrs, on, label, title) => `<label class="sw"${title ? ` title="${esc(title)}"` : ''}><span>${esc(label)}</span><input type="checkbox" ${attrs}${on ? ' checked' : ''}><i></i></label>`;
+$('gfx-els').addEventListener('change', async e => {
   const b = e.target.closest('[data-gfx]'); if (!b) return;
-  const r = await api('POST', '/app/admin/broadcast', { element: b.dataset.gfx, on: String(!b.classList.contains('on')) });
+  const r = await api('POST', '/app/admin/broadcast', { element: b.dataset.gfx, on: String(b.checked) });
   toast(r.message); gfxKey = ''; loadDesk();
 });
 $('gfx-wins').addEventListener('click', async e => { const b = e.target.closest('[data-wins]'); if (!b) return; const r = await api('POST', '/app/admin/wins', { scope: b.dataset.wins }); toast(r.message); loadDesk(); });
-$('gfx-alerts').addEventListener('click', async e => {
+$('gfx-alerts').addEventListener('change', async e => {
   const b = e.target.closest('[data-alert]'); if (!b) return;
   const k = b.dataset.alert;
-  const r = await api('POST', '/app/admin/broadcast', k ? { action: 'alerts', kind: k, on: String(!b.classList.contains('on')) } : { action: 'alerts' });
-  toast(r.message); loadDesk();
+  const r = await api('POST', '/app/admin/broadcast', k ? { action: 'alerts', kind: k, on: String(b.checked) } : { action: 'alerts' });
+  toast(r.message); $('gfx-alerts').dataset.key = ''; b.blur(); loadDesk();
 });
 $('gfx-theme').addEventListener('click', e => { e.preventDefault(); api('POST', '/app/admin/broadcast', { action: 'theme' }).then(r => toast(r.message)); });
 
@@ -1354,7 +1735,9 @@ function renderKeys() {
 }
 $('rp-keys').addEventListener('click', () => { $('rp-keymap').hidden = !$('rp-keymap').hidden; renderKeys(); });
 $('rp-keymap').addEventListener('click', e => { const b = e.target.closest('[data-key]'); if (!b) return; keyWait = b.dataset.key; renderKeys(); });
-$('desk-sim').addEventListener('click', async () => { const r = await api('POST', '/app/admin/sim', { on: String(!(DESK && DESK.simulating)) }); toast(r.message); loadDesk(); });
+async function simSet(on) { const r = await api('POST', '/app/admin/sim', { on: String(on) }); toast(r.message); deskKey = ''; hlKey = ''; await loadDesk(); }
+$('desk-sim').addEventListener('change', e => simSet(e.target.checked));
+$('testbar-stop').addEventListener('click', () => simSet(false));
 setInterval(() => { if (S && S.admin && ($('caster').classList.contains('on') || Object.keys(RECV).length || !DESK)) loadDesk(); }, 800);
 setInterval(() => { if (RP && RP.now && $('caster').classList.contains('on')) loadDesk(); }, 250);
 
@@ -1374,7 +1757,7 @@ function renderPicker() {
       let el = have[p.lobby + '|' + p.url];
       if (!el) {
         el = document.createElement('button'); el.className = 'mv'; el.dataset.lobby = p.lobby; el.dataset.url = p.url; el.type = 'button';
-        el.innerHTML = `<div class="pv"><iframe src="${esc(p.url)}" allow="autoplay" tabindex="-1" title="${esc(p.lobby)}"></iframe></div><div class="nm"><span>${esc(p.lobby)}</span><small></small></div><span class="no" hidden></span><span class="air" hidden>ON AIR</span>`;
+        el.innerHTML = `<div class="pv"><iframe src="${esc(p.url)}" allow="autoplay" tabindex="-1" title="${esc(p.lobby)}"></iframe></div><div class="nm"><span>${esc(p.lobby)}</span><small></small></div><span class="no" hidden></span><span class="air" hidden>ON AIR</span><span class="lno">${p.no || ''}</span><span class="exc" hidden></span>`;
         el.onclick = () => { const i = PICK.indexOf(p.lobby); if (i >= 0) PICK.splice(i, 1); else PICK.push(p.lobby); renderPicker(); };
       }
       grid.appendChild(el);
@@ -1383,20 +1766,42 @@ function renderPicker() {
   const onAir = DESK && DESK.onAir ? DESK.onAir.slots : [];
   grid.querySelectorAll('.mv').forEach(el => {
     const i = PICK.indexOf(el.dataset.lobby), f = el.querySelector('iframe');
-    el.classList.toggle('on', i >= 0);
     el.querySelector('.no').hidden = i < 0; el.querySelector('.no').textContent = i + 1;
     el.querySelector('.air').hidden = !onAir.includes(el.dataset.lobby);
     el.querySelector('small').textContent = TWH[el.dataset.lobby] ? 'twitch.tv/' + TWH[el.dataset.lobby] : '';
+    // Excitement: a badge and a glow on the tile, which stays where it is.
+    const lb = DESK && DESK.lobbies.find(x => x.lobby === el.dataset.lobby), ex = el.querySelector('.exc');
+    const hot = lb && lb.online && (lb.tier === 'must' || lb.tier === 'veryHigh');
+    el.className = 'mv' + (i >= 0 ? ' on' : '') + (lb ? ' tier-' + lb.tier : '') + (hot ? ' glow' : '');
+    ex.hidden = !(lb && lb.online && lb.tier !== 'low'); if (lb) ex.textContent = `${Math.round(lb.score)} · ${TIER_NAME[lb.tier] || lb.tier}`;
     const w = el.querySelector('.pv').clientWidth; if (w) f.style.transform = `scale(${w / 1920})`;
   });
   $('mv-send').disabled = !PICK.length;
   $('mv-send').textContent = PICK.length ? `Send · ${LAYOUT_FOR(PICK.length)}` : 'Send';
-  $('mv-line').textContent = PICK.length ? `${PICK.join(', ')} → ${LAYOUT_FOR(PICK.length)}` : 'Click the lobbies you want on stream, then Send. 1 full screen · 2 side by side · 4 quad · 3 or 5+ grid.';
+  $('mv-line').textContent = PICK.length ? `${PICK.join(', ')} → ${LAYOUT_FOR(PICK.length)}` : 'Pick lobbies, then Send.';
 }
 $('mv-send').addEventListener('click', async () => { const r = await api('POST', '/app/admin/multiview', { lobbies: PICK }); toast(r.message); if (r.ok) PICK = []; loadDesk(); });
 $('mv-clear').addEventListener('click', () => { PICK = []; renderPicker(); });
 addEventListener('resize', () => renderPicker());
 
+// ---- Help behind "?": each card's explanation opens on demand ---------------------------------
+document.querySelectorAll('.help').forEach((h, i) => {
+  const card = h.closest('.card'); if (!card) return;
+  const at = card.querySelector('summary > div, .row > div') || card.querySelector('b');
+  const q = document.createElement('button');
+  q.className = 'hq'; q.type = 'button'; q.textContent = '?'; q.title = 'What is this?'; q.setAttribute('aria-expanded', 'false');
+  q.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); const on = !h.classList.contains('open'); card.querySelectorAll('.help').forEach(x => x.classList.toggle('open', on)); q.classList.toggle('on', on); q.setAttribute('aria-expanded', String(on)); });
+  if (at && !card.querySelector('.hq')) at.appendChild(q);
+});
+// A link with a Copy button.
+const urlRow = (name, url) => `<div class="url"><span class="muted">${esc(name)}</span><span title="${esc(url)}">${esc(url)}</span><button data-copy="${esc(url)}">Copy</button></div>`;
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-copy]'); if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  try { await navigator.clipboard.writeText(b.dataset.copy); }
+  catch (err) { const t = document.createElement('textarea'); t.value = b.dataset.copy; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+  toast('Copied: ' + b.dataset.copy);
+}, true);
 // ---- Side menu: one page per job ------------------------------------------------------------
 const PAGES = {
   live: ['Live desk', ''],
@@ -1429,14 +1834,19 @@ function go(page) {
 $('side').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
 go(PAGE);
 // What needs a look, on the menu: a dot per state, a count where there's a number.
+const SEEN_CARDS = new Set();
 function renderSide() {
   const set = (id, cls, text, title) => { const el = $(id); el.className = 'st ' + cls; el.textContent = text || ''; if (title != null) el.title = title; };
   const d = DESK;
   const h = d && d.health, lob = h ? h.lobbies : [];
   const red = lob.filter(x => x.level === 'red').length, yellow = lob.filter(x => x.level === 'yellow').length;
   set('st-health', 'dot ' + (!lob.length ? '' : red ? 'bad' : yellow ? 'warn' : 'good'), lob.length ? '•' : '', $('hl-line').textContent);
-  const now = d && d.cards ? d.cards.filter(c => !c.system).length : 0;
-  set('st-live', 'count' + (d && d.cards && d.cards.some(c => !c.system && (c.tier === 'must' || c.tier === 'veryHigh')) ? ' hot' : ''), now ? String(now) : '');
+  // New plays (Happening now) since you last looked at the Live desk; opening it clears the count.
+  const plays = d && d.cards ? d.cards.filter(c => !c.system) : [];
+  if (PAGE === 'live') plays.forEach(c => SEEN_CARDS.add(c.id));
+  const fresh = plays.filter(c => !SEEN_CARDS.has(c.id));
+  set('st-live', 'count' + (fresh.some(c => c.tier === 'must' || c.tier === 'veryHigh') ? ' hot' : ''), fresh.length ? String(fresh.length) : '',
+    fresh.length ? `${fresh.length} new play${fresh.length === 1 ? '' : 's'} on the Live desk since you last looked${fresh.some(c => c.tier === 'must') ? ' (one is MUST SHOW)' : ''}` : 'Live desk');
   const ready = MONT && MONT.list ? MONT.list.filter(x => x.state === 'ready').length : 0;
   set('st-replays', 'count', ready ? String(ready) : '');
   set('st-obs', 'dot ' + (OBS && OBS.connected ? 'good' : ''), OBS && OBS.connected ? '•' : '', $('obs-line').textContent);
@@ -1446,7 +1856,7 @@ function renderSide() {
 }
 setInterval(() => { if (S && S.admin) renderSide(); }, 1000);
 
-// ---- Red Alert: unlocking, the caster overlay's lobby, updates -------------------------------
+// ---- Red Alert: unlocking and the caster overlay's lobby -------------------------------
 let ORG = null, showRoles = false;
 async function refresh() {
   try { S = await api('GET', '/app/state'); } catch (e) { return; }
@@ -1454,41 +1864,28 @@ async function refresh() {
   document.body.classList.toggle('locked', !S.admin);
   $('caster').hidden = !S.admin;
   $('cast-card').hidden = !S.admin;
-  renderUpdate();
+  $('app-ver').textContent = S.app ? 'v' + S.app : '';
 }
 $('lock-form').addEventListener('submit', async e => {
   e.preventDefault();
   const r = await api('POST', '/app/admin/code', { code: $('lock-code').value.trim() });
   toast(r.message); if (r.ok) $('lock-code').value = ''; refresh();
 });
-function renderUpdate() {
-  const u = S.update || {}, el = $('alerts'), ver = s => esc(String(s).replace(/^broadcast-/, ''));   // tags are broadcast-v0.1.1
-  el.innerHTML = u.ready ? `<button class="alert good" data-app="restart">${ver(u.ready)} is ready: restart</button>`
-    : u.available && !u.busy ? `<button class="alert" data-app="update">Update to ${ver(u.available)}</button>`
-    : u.busy ? '<button class="alert" disabled>Updating…</button>' : u.error ? `<button class="alert bad" disabled title="${esc(u.error)}">Update failed</button>` : '';
-  $('autoup').hidden = !u.supported;
-  $('autoup-ver').textContent = 'v' + (S.app || '');
-  $('autoup-on').checked = !!u.auto;
-}
-$('autoup-on').addEventListener('change', e => api('POST', '/app/autoupdate', { on: e.target.checked ? 'true' : 'false' }).then(r => { toast(r.message); refresh(); }));
-document.addEventListener('click', e => {
-  const a = e.target.closest('[data-app]');
-  if (a && a.dataset.app === 'restart') api('POST', '/app/restart').then(r => toast(r.message));
-  if (a && a.dataset.app === 'update') api('POST', '/app/update').then(r => { toast(r.message); refresh(); });
-});
 async function loadOrganiser() {
   if (!S || !S.admin) { ORG = null; return; }
   try { ORG = await api('GET', '/app/admin'); } catch (e) { ORG = null; }
   renderCast();
 }
-function castLobby(label) { api('POST', '/app/admin/cast', { lobby: label }).then(r => { toast(r.message); loadOrganiser(); }); }
+function castLobby(label, pin) { api('POST', '/app/admin/cast', { lobby: label || '', pin: pin === false ? 'false' : 'true' }).then(r => { toast(r.message); castKey = ''; loadOrganiser(); }); }
 $('org-roles').addEventListener('change', e => { showRoles = e.target.checked; });
 document.addEventListener('keydown', e => {
   const f = document.activeElement;
-  if (!ORG || $('cast-card').hidden || (/INPUT|TEXTAREA|SELECT/.test(f.tagName) && f.type !== 'checkbox')) return;
+  if (!ORG || $('cast-card').hidden || PAGE !== 'live' || keyWaitVo || (/INPUT|TEXTAREA|SELECT/.test(f.tagName) && f.type !== 'checkbox')) return;
   if (RP && RP.hotkeys && Object.values(RP.hotkeys).includes(e.code)) return;     // a desk key
-  const n = parseInt(e.key, 10);
-  if (n >= 1 && n <= 9 && ORG.lobbies[n - 1]) castLobby(ORG.lobbies[n - 1].label);
+  // 1–9: lobby number n full screen (the numbers on the lobby cards and the Multiview tiles).
+  const n = /^Digit[1-9]$/.test(e.code) && !e.ctrlKey && !e.altKey && !e.metaKey ? +e.code.slice(5) : 0;
+  const byNo = n && DESK && DESK.lobbies.find(l => l.no === n);
+  if (byNo) { e.preventDefault(); show(byNo.lobby, 'full'); }
   if (e.key === 'n' || e.key === 'N') jumpToAction();
 });
 // The lobby worth watching now: a meeting first, then anything that just happened, else the next live lobby in turn.
@@ -1500,20 +1897,24 @@ function jumpToAction() {
   const hot = live.filter(l => hotOf(l) && l.label !== ORG.cast);
   const next = live[(live.findIndex(l => l.label === ORG.cast) + 1) % live.length];
   const pick = hot.find(l => l.data.phase === 'Meeting') || hot[0] || next;
-  castLobby(pick.label);
+  show(pick.label, 'full');
 }
 $('org-jump').addEventListener('click', jumpToAction);
 let castKey = '';
 function renderCast() {
   if (!ORG) return;
-  const key = JSON.stringify([ORG.casterUrl, ORG.cast, ORG.problem, ORG.casterProblem, ORG.lobbies.map(l => [l.label, l.hot, l.quiet])]);
+  const nos = DESK ? DESK.lobbies.map(l => [l.lobby, l.no]) : [];
+  const key = JSON.stringify([ORG.casterUrl, ORG.cast, ORG.pinned, ORG.following, ORG.problem, ORG.casterProblem, ORG.lobbies.map(l => [l.label, l.hot, l.quiet]), nos]);
   if (key === castKey) return; castKey = key;
   $('org-problem').hidden = !ORG.problem && !ORG.casterProblem; $('org-problem').textContent = ORG.problem || ORG.casterProblem || '';
   const cu = ORG.casterUrl;
-  $('org-cast-url').innerHTML = cu ? [['Overlay', cu], ['Video', cu + 'video'], ['Multiview', cu + 'multiview']].map(([k, u]) => `<span class="muted">${k}</span><span class="mono">${esc(u)}</span>`).join('') : '';
-  $('org-casting').textContent = ORG.cast ? `· now showing ${ORG.cast}` : '· waiting for a lobby';
-  $('org-cast-list').innerHTML = ORG.lobbies.map((l, i) => `<button class="b${l.label === ORG.cast ? ' on' : ''}" data-cast="${esc(l.label)}" title="${l.hot ? esc(l.hot) : ''}">${i < 9 ? (i + 1) + ' · ' : ''}${esc(l.label)}${l.hot ? ' •' : ''}</button>`).join('') || '<span class="muted" style="font-size:12.5px">No lobbies yet.</span>';
-  $('org-cast-list').querySelectorAll('[data-cast]').forEach(b => b.onclick = () => castLobby(b.dataset.cast));
+  $('org-cast-url').innerHTML = cu ? urlRow('Overlay', cu) + urlRow('Video', cu + 'video') + urlRow('Multiview', cu + 'multiview') : '';
+  $('org-casting').innerHTML = ORG.pinned ? `<b class="pin">PINNED</b>to ${esc(ORG.pinned)} <button class="b" id="org-unpin" style="margin-left:6px">Follow the stream</button>`
+    : ORG.cast ? `· follows the stream: now ${esc(ORG.cast)}${ORG.following && ORG.following !== ORG.cast ? ` (${esc(ORG.following)} isn't sending its game)` : ''}` : '· follows the stream: waiting for a lobby';
+  const no = l => (DESK && (DESK.lobbies.find(x => x.lobby === l.label) || {}).no) || 99;
+  $('org-cast-list').innerHTML = ORG.lobbies.slice().sort((a, b) => no(a) - no(b)).map(l => `<button class="b${l.label === ORG.pinned ? ' on' : ''}" data-cast="${esc(l.label)}" title="Pin the overlay to ${esc(l.label)}${l.hot ? ' · ' + esc(l.hot) : ''}">Pin ${no(l) < 99 ? no(l) + ' · ' : ''}${esc(l.label)}${l.hot ? ' •' : ''}</button>`).join('') || '<span class="muted" style="font-size:12.5px">No lobbies yet.</span>';
+  $('org-cast-list').querySelectorAll('[data-cast]').forEach(b => b.onclick = () => castLobby(b.dataset.cast, b.dataset.cast !== ORG.pinned));
+  if ($('org-unpin')) $('org-unpin').onclick = () => castLobby('', false);
 }
 refresh();
 setInterval(refresh, 1500);

@@ -98,6 +98,15 @@ namespace TournamentTracker.App.Broadcast
         public TimeSpan Keep { get; set; } = TimeSpan.FromSeconds(90);
 
         /// <summary>Notes when a message from a lobby, stamped <paramref name="hostMs"/>, arrived.</summary>
+        public void Forget(Func<string, bool> which)
+        {
+            lock (_lock)
+            {
+                foreach (var k in _byLobby.Keys.Where(which).ToList()) _byLobby.Remove(k);
+                foreach (var k in _offsets.Keys.Where(which).ToList()) _offsets.Remove(k);
+            }
+        }
+
         public void Arrived(string lobby, long hostMs, DateTime now)
         {
             if (hostMs <= 0) return;
