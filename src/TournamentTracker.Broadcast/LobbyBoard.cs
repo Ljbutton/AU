@@ -122,6 +122,12 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Raised for every new or updated play, for the notification cards.</summary>
         public event Action<string, Play>? PlayChanged;
 
+        /// <summary>Removes lobbies altogether (the simulator's, when it stops).</summary>
+        public void Forget(Func<string, bool> which)
+        {
+            lock (_lock) foreach (var k in _lobbies.Keys.Where(which).ToList()) _lobbies.Remove(k);
+        }
+
         public LobbyLive? Lobby(string name)
         {
             lock (_lock) return _lobbies.TryGetValue(name, out var l) ? l : null;

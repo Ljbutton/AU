@@ -175,7 +175,7 @@ namespace TournamentTracker.App.Broadcast
             HealthPath = dataFolder == null ? null : System.IO.Path.Combine(dataFolder, HealthSettings.FileName);
             HealthConfig = HealthSettings.Load(HealthPath);
             Health = new LobbyHealth(_clock, () => HealthConfig);
-            Sponsors = new SponsorBook(dataFolder, _clock);
+            Sponsors = new SponsorBook(dataFolder, _clock) { Hold = () => Simulating };
             Alerts = new AlertQueue(_clock, dataFolder == null ? null : System.IO.Path.Combine(dataFolder, "alerts.json"));
             if (config != null) _config = () => config;
             else
@@ -342,11 +342,27 @@ namespace TournamentTracker.App.Broadcast
 
         // ---- Simulation -----------------------------------------------------------------------
 
-        /// <summary>Simulation mode: four fake lobbies feed the desk, so the tab and switching can be tried without games.</summary>
+        /// <summary>A lobby made up by the simulator (SIM-1, SIM-2…).</summary>
+        public static bool IsSimLobby(string? lobby) => FeedSimulator.IsSim(lobby);
+
+        /// <summary>
+        /// Simulation stopped and the desk is clean: everything else made for its fake lobbies (OBS
+        /// sources, clips, montages, Twitch) goes now. Gets which lobbies were fake.
+        /// </summary>
+        public event Action<Func<string, bool>>? SimStopped;
+
+        /// <summary>
+        /// Simulation mode: four fake lobbies (SIM-1…SIM-4) feed the desk, so the tab and switching can
+        /// be tried without games. Turning it off removes every trace of them: lobbies, cards, history,
+        /// alerts, health, voice, games and standings (on disk too), and whatever on stream was theirs.
+        /// Nothing in OBS is switched: a scene only changes when you click.
+        /// </summary>
         public void Simulate(bool on)
         {
+            bool was;
             lock (_lock)
             {
+                was = _sim != null;
                 _simTimer?.Dispose();
                 _simTimer = null;
                 _sim = on ? new FeedSimulator(_clock(), 4, Environment.TickCount) : null;
@@ -354,6 +370,51 @@ namespace TournamentTracker.App.Broadcast
                 if (on) Roster.Extra.AddRange(FeedSimulator.SimRoster());
                 if (_sim != null) _simTimer = new Timer(_ => SimTick(), null, 0, 500);
             }
+            if (!on && was) ForgetSim();
+        }
+
+        /// <summary>Removes everything the simulator left (public for tests).</summary>
+        public void ForgetSim()
+        {
+            Func<string, bool> sim = IsSimLobby;
+            Board.Forget(sim);
+            Tracks.Forget(sim);
+            Health.Forget(sim);
+            Alerts.Forget(sim);
+            Archive.Forget(sim);
+            Tables.Forget(sim);
+            lock (_lock)
+            {
+                foreach (var c in _cards.Where(c => sim(c.Lobby)).ToList()) { _cards.Remove(c); _byPlay.Remove(c.PlayKey); }
+                _history.RemoveAll(c => sim(c.Lobby));
+                _alerted.RemoveWhere(k => sim(k.Split('|')[0]));
+                foreach (var d in new System.Collections.IDictionary[] { _voice, _twitch, _versions, _levels, _downCards, _playing })
+                    foreach (var k in d.Keys.Cast<string>().Where(sim).ToList()) d.Remove(k);
+                foreach (var k in _received.Keys.Where(k => sim(k.Split('|')[0])).ToList()) _received.Remove(k);
+                _interruptions.RemoveAll(i => sim(i.Lobby));
+                _offerDismissed.RemoveWhere(x => sim(x));
+                // Whatever on stream was theirs: the desk forgets it, OBS stays where it is.
+                if (_onAir.Slots.Any(x => sim(x ?? "")))
+                {
+                    var left = _onAir.Slots.Where(x => x != null && !sim(x)).ToList();
+                    _onAir = left.Count == 0 && _onAir.Layout is not ("intermission" or "slate")
+                        ? new OnAir { Layout = "none", Scene = _onAir.Scene, By = "button", Since = _clock() }
+                        : new OnAir { Layout = _onAir.Layout, Slots = _onAir.Slots.Select(x => x != null && sim(x) ? null : x).ToList(), Scene = _onAir.Scene, By = _onAir.By, Boxes = _onAir.Boxes, Since = _onAir.Since };
+                }
+                if (_beforeIntermission != null && _beforeIntermission.Slots.Any(x => sim(x ?? ""))) _beforeIntermission = null;
+                if (_beforeGrid != null && _beforeGrid.Slots.Any(x => sim(x ?? ""))) _beforeGrid = null;
+                _gridSponsors.Clear();
+            }
+            if (LiveDuringIntermission != null && sim(LiveDuringIntermission)) LiveDuringIntermission = null;
+            if (Break is { } b && sim(b.Lobby ?? "")) { Break = null; Sponsors.End("break"); }
+            if (PlayerCard is { } pc && sim(pc.Lobby ?? "")) PlayerCard = null;
+            if (_featured != null && sim(_featured)) _featured = null;
+            // A storyline or note from the fake games may be up: it goes too.
+            ShownNote = null;
+            IntermissionOffer = false;
+            _quietSince = null;
+            _nextSlowTick = default;
+            SimStopped?.Invoke(sim);
         }
 
         /// <summary>Runs the simulator up to now. Public for tests.</summary>

@@ -45,6 +45,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>The latest change after a game (shown for a while on stream).</summary>
         public object? Change { get; private set; }
         public DateTime ChangeAt { get; private set; }
+        private string? _changeLobby;
 
         public Tables(Func<IReadOnlyList<GameRecord>> games, Roster roster, Func<int> advance, Func<int> perRound)
         {
@@ -158,6 +159,16 @@ namespace TournamentTracker.App.Broadcast
             return lines;
         }
 
+        /// <summary>Drops what was noted about these lobbies (the simulator's, when it stops).</summary>
+        public void Forget(Func<string, bool> which)
+        {
+            lock (_lock)
+            {
+                foreach (var k in _seen.Keys.Where(k => which(k.Split('|')[0])).ToList()) _seen.Remove(k);
+                if (_changeLobby != null && which(_changeLobby)) { Change = null; _changeLobby = null; }
+            }
+        }
+
         /// <summary>Checks each lobby's table for a new game; when there is one, notes who went up and down.</summary>
         public void Update(IEnumerable<string> lobbies, DateTime now)
         {
@@ -178,6 +189,7 @@ namespace TournamentTracker.App.Broadcast
                             rows = table.Select(r => new { r.Rank, r.Name, r.Color, r.Points, r.Advancing, Was = was.Ranks.TryGetValue(r.Key, out var w) ? w : (int?)null }).ToList(),
                         };
                         ChangeAt = now;
+                        _changeLobby = lobby;
                     }
                     _seen[key] = (count, ranks);
                 }

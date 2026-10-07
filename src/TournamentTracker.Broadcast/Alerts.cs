@@ -119,6 +119,8 @@ namespace TournamentTracker.App.Broadcast
             lock (_lock) _list.RemoveAll(a => string.Equals(a.Lobby, lobby, StringComparison.OrdinalIgnoreCase));
         }
 
+        public void Forget(Func<string, bool> which) { lock (_lock) _list.RemoveAll(a => which(a.Lobby)); }
+
         /// <summary>The banners showing now (oldest first); the next in line come up as others finish.</summary>
         public List<Alert> Active()
         {

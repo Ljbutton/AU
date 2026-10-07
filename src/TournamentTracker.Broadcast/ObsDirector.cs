@@ -149,6 +149,8 @@ namespace TournamentTracker.App.Broadcast
                 var video = await obs.RequestAsync("GetVideoSettings").ConfigureAwait(false);
                 Width = video.GetProperty("baseWidth").GetDouble();
                 Height = video.GetProperty("baseHeight").GetDouble();
+                // Fake lobbies left from a simulation (or an older version's stand-ins) go first.
+                if (!_desk.Simulating) await ForgetSimAsync(CasterDesk.IsSimLobby).ConfigureAwait(false);
                 await BuildAsync().ConfigureAwait(false);
                 await EnsureReplaySceneAsync().ConfigureAwait(false);
                 await EnsureBroadcastAsync().ConfigureAwait(false);

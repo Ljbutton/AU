@@ -470,6 +470,21 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
   nav button.on{border-bottom-color:var(--red);background:rgba(225,6,0,.16)}
 }
 
+/* Simulation: a bar across every page while it runs. */
+.testbar{position:sticky;top:-14px;z-index:4;margin:-14px -20px 12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px 20px;background:repeating-linear-gradient(135deg,#3a2a00 0 14px,#2a1f00 14px 28px);border-bottom:2px solid var(--warn);color:var(--warn)}
+.testbar b{font:700 24px/1 var(--hand);letter-spacing:.12em;color:#16120a;background:var(--warn);padding:4px 10px 1px}
+.testbar span{color:#ffe2a8;font-size:13px;flex:1;min-width:200px}
+.testbar .b{border-color:var(--warn);color:#16120a;background:var(--warn)}
+.testbar .b:hover{background:#ffd27f}
+/* A real on/off switch: the knob slides right and fills red when on. */
+label.sw{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font:600 16px/1 var(--hand);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);user-select:none}
+label.sw input{position:absolute;opacity:0;width:0;height:0}
+label.sw i{position:relative;width:38px;height:21px;border-radius:11px;background:#0f0f12;border:1px solid var(--edge);transition:.15s;flex:none}
+label.sw i::after{content:"";position:absolute;left:2px;top:2px;width:15px;height:15px;border-radius:50%;background:#6a6a75;transition:.15s}
+label.sw input:checked+i{background:var(--red);border-color:var(--red)}
+label.sw input:checked+i::after{left:19px;background:#fff}
+label.sw input:checked~span{color:#fff}
+label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
 </style>
 </head>
 <body>
@@ -500,6 +515,7 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
   <button data-go="players">Players</button>
 </nav>
 <main>
+  <div class="testbar" id="testbar" hidden role="alert"><b>TEST MODE</b><span>Simulation is running: SIM-1 to SIM-4 are fake lobbies. Stop it before going live.</span><button class="b" id="testbar-stop">Stop simulation</button></div>
   <div class="card lock-card" id="lock-card" hidden>
     <h2>Administration code</h2>
     <p class="muted" style="margin:0 0 8px">Red Alert opens with the tournament's administration code (the organiser's, as in The Button's Organiser tab). It shows who the impostors are: keep this PC's screen off stream.</p>
@@ -514,8 +530,7 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
       <div class="row" style="justify-content:space-between"><b>On stream</b><span class="muted" id="air-by"></span></div>
       <div class="air-slots" id="air-slots"></div>
       <div class="air-pick" id="air-pick" hidden></div>
-      <div class="row"><span class="muted" style="font-size:12.5px">Layout</span><button class="b" data-layout="full">Full</button><button class="b" data-layout="2up">2-up</button><button class="b" data-layout="4up">Quad</button><button class="b" data-layout="grid" title="Every lobby at once (key G)">Grid</button><button class="b" data-layout="slate" title="Technical difficulties: be right back (standings and storylines take turns)">Be right back</button><button class="b" id="desk-autogrid" title="Grid by itself whenever no lobby is mid-game">Auto grid</button><button class="b" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" id="desk-autointer" title="Intermission by itself when every lobby is between games, and back when one starts">Auto intermission</button>
-        <span style="flex:1"></span><button class="b" id="desk-sim" title="Four fake lobbies, for trying it out">Simulation</button></div>
+      <div class="row"><span class="muted" style="font-size:12.5px">Layout</span><button class="b" data-layout="full">Full</button><button class="b" data-layout="2up">2-up</button><button class="b" data-layout="4up">Quad</button><button class="b" data-layout="grid" title="Every lobby at once (key G)">Grid</button><button class="b" data-layout="slate" title="Technical difficulties: be right back (standings and storylines take turns)">Be right back</button><button class="b" id="desk-autogrid" title="Grid by itself whenever no lobby is mid-game">Auto grid</button><button class="b" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" id="desk-autointer" title="Intermission by itself when every lobby is between games, and back when one starts">Auto intermission</button></div>
     </div>
   </div>
   <div class="card mv-card" id="mv-card" data-page="live">
@@ -545,6 +560,10 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
       <button class="b primary">Connect</button>
     </form>
     <p class="muted" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. Red Alert then builds the scenes TT Full, TT 2-up and TT Quad, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
+  </div>
+  <div class="card test-card" id="test-card" data-page="obs">
+    <div class="row" style="justify-content:space-between"><div><b>Test</b> <span class="muted" id="test-line">Simulation: four fake lobbies (SIM-1 to SIM-4) for trying Red Alert without games.</span></div>
+      <label class="sw" title="Fake lobbies on the desk and in OBS. Turning it off removes every trace of them."><input type="checkbox" id="desk-sim"><i></i><span>Simulation</span></label></div>
   </div>
   <details class="card roster-card" id="gfx-card" data-page="graphics">
     <summary><div><b>On-stream graphics</b> <span class="muted" id="gfx-line"></span></div><button class="b" id="gfx-theme" title="Colours, fonts and logo (broadcast.json)">Edit theme</button></summary>
@@ -772,7 +791,8 @@ function renderDesk() {
   deskKey = key;
   const d = DESK, air = d.onAir;
   $('desk-sub').textContent = `${d.lobbies.filter(l => l.online).length} lobbies sending${d.simulating ? ' · simulation (fake lobbies)' : ''} · only on this PC: it shows who the impostors are.`;
-  $('desk-sim').classList.toggle('on', d.simulating);
+  if (document.activeElement !== $('desk-sim')) $('desk-sim').checked = !!d.simulating;
+  $('testbar').hidden = !d.simulating;
   $('desk-problem').hidden = !d.problem; $('desk-problem').textContent = d.problem || '';
   document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === air.layout));
   $('desk-autogrid').classList.toggle('on', !!d.autoGrid);
@@ -797,7 +817,7 @@ function renderDesk() {
       <div class="play">${rich(c.text)}${c.repeats > 1 ? ` <span class="muted" style="font-size:14px">×${c.repeats}</span>` : ''}</div>
       <div class="t3">${counts(c)}<span>${ago(c.ago)}</span>${c.updatedAgo < c.ago - 1 ? `<span>updated ${ago(c.updatedAgo)}</span>` : ''}${replayButton(c)}</div>
       ${c.people && c.people.length ? `<div class="ppl">${c.people.map(p => `<button data-pcard="${esc(p.key)}" data-plobby="${esc(c.lobby)}" title="${esc(p.name)}'s player card on stream">${sw(p.color)}${esc(p.name)}</button>`).join('')}</div>` : ''}
-    </div>`).join('') : `<div class="card"><p class="empty">${d.lobbies.length ? 'Quiet right now.' : 'No lobbies yet. Hosts appear here when they turn on "Send my game to the caster", or try Simulation.'}</p></div>`;
+    </div>`).join('') : `<div class="card"><p class="empty">${d.lobbies.length ? 'Quiet right now.' : 'No lobbies yet. Hosts appear here when they turn on "Send my game to the caster" (or turn on Simulation under OBS → Test).'}</p></div>`;
   $('desk-lobbies').innerHTML = d.lobbies.length ? d.lobbies.map((l, i) => `<div class="dlob tier-${l.tier}${l.online ? '' : ' offline'}" data-lobby="${esc(l.lobby)}" title="Put ${esc(l.lobby)} on stream (full)">
       <div class="sc">${l.online ? Math.round(l.score) : '–'}</div>
       <div style="min-width:0"><div class="nm">${l.health && l.health !== 'green' ? `<span class="hdot ${l.health}" title="${l.health === 'red' ? 'Down' : 'Degraded'}: see Lobby health"></span>` : ''}${esc(l.lobby)}${l.onAir ? `<span class="live">${esc(l.onAir)}</span>` : ''}${l.online ? '' : '<span class="off">OFFLINE</span>'}</div><div class="ln">${rich(l.line)}</div></div>
@@ -1354,7 +1374,9 @@ function renderKeys() {
 }
 $('rp-keys').addEventListener('click', () => { $('rp-keymap').hidden = !$('rp-keymap').hidden; renderKeys(); });
 $('rp-keymap').addEventListener('click', e => { const b = e.target.closest('[data-key]'); if (!b) return; keyWait = b.dataset.key; renderKeys(); });
-$('desk-sim').addEventListener('click', async () => { const r = await api('POST', '/app/admin/sim', { on: String(!(DESK && DESK.simulating)) }); toast(r.message); loadDesk(); });
+async function simSet(on) { const r = await api('POST', '/app/admin/sim', { on: String(on) }); toast(r.message); deskKey = ''; hlKey = ''; await loadDesk(); }
+$('desk-sim').addEventListener('change', e => simSet(e.target.checked));
+$('testbar-stop').addEventListener('click', () => simSet(false));
 setInterval(() => { if (S && S.admin && ($('caster').classList.contains('on') || Object.keys(RECV).length || !DESK)) loadDesk(); }, 800);
 setInterval(() => { if (RP && RP.now && $('caster').classList.contains('on')) loadDesk(); }, 250);
 

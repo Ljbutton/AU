@@ -157,6 +157,7 @@ namespace TournamentTracker.App.Broadcast
         }
 
         public void Forget(string lobby) { lock (_lock) _lobbies.Remove(lobby); }
+        public void Forget(Func<string, bool> which) { lock (_lock) foreach (var k in _lobbies.Keys.Where(which).ToList()) _lobbies.Remove(k); }
 
         /// <summary>The lobby's last data arrived this long ago (null: never).</summary>
         public double? DataAge(string lobby) { lock (_lock) return _lobbies.TryGetValue(lobby, out var t) ? (_clock() - t.LastData).TotalSeconds : null; }

@@ -171,6 +171,19 @@ namespace TournamentTracker.App.Broadcast
                     twitch.TickAsync().ContinueWith(_ => Interlocked.Exchange(ref ticking, 0));
                 }, null, 1000, 1000);
                 if (!twitch.Settings.Off && (twitch.Settings.TestMode || twitch.Auth.Token != null)) _ = twitch.ConnectAsync();
+                // Simulation stopped: the rest of its fake lobbies' things go (the desk has cleared its own).
+                var montages = _montages;
+                desk.SimStopped += which => _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await twitch.ForgetAsync(which).ConfigureAwait(false);
+                        var clips = await replays.ForgetAsync(which).ConfigureAwait(false);
+                        await replays.StopIfAsync(montages.Forget(which, clips)).ConfigureAwait(false);
+                        await obs.ForgetSimAsync(which).ConfigureAwait(false);
+                    }
+                    catch (Exception) { }
+                });
                 obs.Start();
             }
         }
@@ -812,7 +825,7 @@ namespace TournamentTracker.App.Broadcast
                 case ("POST", "/app/admin/sim"):
                     if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
                     _desk.Simulate(Arg("on") == "true");
-                    return Ok(new { ok = true, message = _desk.Simulating ? "Simulation on: four fake lobbies are playing." : "Simulation off." });
+                    return Ok(new { ok = true, message = _desk.Simulating ? "Simulation on: four fake lobbies (SIM-1 to SIM-4) are playing." : "Simulation off: every fake lobby, game, clip and OBS source is gone." });
                 default: return Text(404, "application/json", "{\"error\":\"not found\"}");
             }
         }

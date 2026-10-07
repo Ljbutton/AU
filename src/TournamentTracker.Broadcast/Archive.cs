@@ -243,6 +243,22 @@ namespace TournamentTracker.App.Broadcast
             foreach (var g in changed) Save(g);
         }
 
+        /// <summary>Removes these lobbies' games, live and saved (the simulator's, when it stops): how many went.</summary>
+        public int Forget(Func<string, bool> which)
+        {
+            List<ArchivedGame> gone;
+            lock (_lock)
+            {
+                gone = _games.Where(g => which(g.Lobby) || which(g.Referee)).ToList();
+                _games.RemoveAll(gone.Contains);
+                foreach (var k in _live.Keys.Where(which).ToList()) _live.Remove(k);
+            }
+            if (_folder != null)
+                foreach (var g in gone)
+                    try { File.Delete(Path.Combine(_folder, g.Id + ".json")); } catch (Exception) { }
+            return gone.Count;
+        }
+
         private void Save(ArchivedGame g)
         {
             if (_folder == null) return;

@@ -25,6 +25,9 @@ namespace TournamentTracker.App.Broadcast
         private readonly object _lock = new object();
         private readonly List<Montage> _list = new List<Montage>();
         private readonly HashSet<int> _roundsDone = new HashSet<int>();
+        // Made while simulating: removed when it stops (with the rounds it marked done).
+        private readonly HashSet<string> _simMade = new HashSet<string>();
+        private readonly HashSet<int> _simRounds = new HashSet<int>();
         private readonly SemaphoreSlim _one = new SemaphoreSlim(1, 1);
         private long _seq;
 
@@ -57,7 +60,7 @@ namespace TournamentTracker.App.Broadcast
         private Montage New(string kind, string title, string? lobby, int round)
         {
             var m = new Montage { Id = "m" + Interlocked.Increment(ref _seq), Kind = kind, Title = title, Lobby = lobby, Round = round, Created = _clock() };
-            lock (_lock) _list.Add(m);
+            lock (_lock) { _list.Add(m); if (_desk.Simulating) _simMade.Add(m.Id); }
             return m;
         }
 
@@ -163,6 +166,7 @@ namespace TournamentTracker.App.Broadcast
             {
                 if (_roundsDone.Contains(round) && !again) return null;
                 _roundsDone.Add(round);
+                if (_desk.Simulating) _simRounds.Add(round);
             }
             var s = _settings();
             var m = New("round", $"Round {round}", null, round);
@@ -268,6 +272,26 @@ namespace TournamentTracker.App.Broadcast
             if (_desk.QueuedMontage?.Id == id) _desk.QueuedMontage = null;
             try { if (m.File != null && File.Exists(m.File)) File.Delete(m.File); } catch (Exception) { }
             return "Montage discarded.";
+        }
+
+        /// <summary>Simulation stopped: montages of its lobbies or clips go, files too. Their ids.</summary>
+        public HashSet<string> Forget(Func<string, bool> which, ISet<string> clips)
+        {
+            List<Montage> gone;
+            lock (_lock)
+            {
+                gone = _list.Where(m => _simMade.Contains(m.Id) || which(m.Lobby ?? "") || m.ClipIds.Any(clips.Contains) || m.Moments.Any(x => which(x.Lobby))).ToList();
+                _list.RemoveAll(gone.Contains);
+                _roundsDone.ExceptWith(_simRounds);
+                _simRounds.Clear();
+                _simMade.Clear();
+            }
+            foreach (var m in gone)
+            {
+                if (_desk.QueuedMontage?.Id == m.Id) _desk.QueuedMontage = null;
+                try { if (m.File != null && File.Exists(m.File)) File.Delete(m.File); } catch (Exception) { }
+            }
+            return gone.Select(m => m.Id).ToHashSet();
         }
 
         public object State()

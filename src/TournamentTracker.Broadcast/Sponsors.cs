@@ -42,6 +42,11 @@ namespace TournamentTracker.App.Broadcast
         private List<Sponsor> _sponsors = new List<Sponsor>();
         private readonly Dictionary<string, int> _turn = new Dictionary<string, int>();
         private readonly Dictionary<string, (Sponsor Sponsor, string Placement, DateTime Start, string? Lobby, string? Moment)> _open = new Dictionary<string, (Sponsor, string, DateTime, string?, string?)>();
+        private readonly HashSet<string> _held = new HashSet<string>();
+
+        /// <summary>True while nothing may be logged (simulation: fake games are never proof of delivery).</summary>
+        public Func<bool>? Hold { get; set; }
+        private bool Held => Hold?.Invoke() == true;
 
         public string? Path => _path;
         public string? Problem { get; private set; }
@@ -116,6 +121,7 @@ namespace TournamentTracker.App.Broadcast
             {
                 if (_open.ContainsKey(key)) return;
                 _open[key] = (sponsor, placement, _clock(), lobby, moment);
+                if (Held) _held.Add(key); else _held.Remove(key);
             }
         }
 
@@ -126,6 +132,7 @@ namespace TournamentTracker.App.Broadcast
             lock (_lock)
             {
                 if (!_open.Remove(key, out o)) return;
+                if (_held.Remove(key)) return;      // began during simulation
             }
             Log(o.Sponsor.Name, o.Placement, o.Start, _clock(), o.Lobby, o.Moment);
         }
@@ -143,7 +150,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>A whole appearance at once (e.g. a montage's intro card, whose length is known).</summary>
         public void Log(string sponsor, string placement, DateTime start, DateTime end, string? lobby, string? moment)
         {
-            if (_logPath == null) return;
+            if (_logPath == null || Held) return;
             var line = JsonSerializer.Serialize(new { sponsor, placement, start = start.ToString("o"), end = end.ToString("o"), seconds = Math.Round((end - start).TotalSeconds, 1), lobby, moment });
             lock (_lock)
             {

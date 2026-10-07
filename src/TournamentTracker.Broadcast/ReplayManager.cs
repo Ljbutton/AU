@@ -85,6 +85,38 @@ namespace TournamentTracker.App.Broadcast
         {
             lock (_lock) _clips.RemoveAll(c => c.Id == id);
         }
+        /// <summary>
+        /// Simulation stopped: its clips go, files too (stand-ins and anything OBS saved of a fake
+        /// lobby), and a replay or montage of them that's up is stopped (OBS stays on its scene).
+        /// The ids of the clips that went.
+        /// </summary>
+        public async Task<HashSet<string>> ForgetAsync(Func<string, bool> which, ISet<string>? alsoPlaying = null)
+        {
+            List<Clip> gone;
+            bool stop;
+            lock (_lock)
+            {
+                gone = _clips.Where(c => which(c.Lobby)).ToList();
+                _clips.RemoveAll(gone.Contains);
+                stop = _now != null && (which(_now.Lobby) || gone.Any(c => c.Id == _now.Id) || alsoPlaying?.Contains(_now.Id) == true);
+                if (stop) { _now = null; _playing = false; _returnTo = null; }
+            }
+            if (stop)
+            {
+                try { await _obs.MediaAsync("pause").ConfigureAwait(false); } catch (Exception) { }
+                EndSponsor();
+                TagChanged?.Invoke(JsonSerializer.Serialize(new { on = false }));
+                OnChanged?.Invoke(false);
+            }
+            foreach (var c in gone)
+                foreach (var f in new[] { c.File, c.Thumbnail })
+                    try { if (f != null && File.Exists(f)) File.Delete(f); } catch (Exception) { }
+            return gone.Select(c => c.Id).ToHashSet();
+        }
+
+        /// <summary>Stops the replay or montage up now if it's one of these (no scene change).</summary>
+        public Task StopIfAsync(ISet<string> ids) => ForgetAsync(_ => false, ids);
+
         public Clip? ForCard(string cardId) { lock (_lock) return _clips.LastOrDefault(c => c.CardId == cardId); }
 
         // ---- Saving -------------------------------------------------------------------------------

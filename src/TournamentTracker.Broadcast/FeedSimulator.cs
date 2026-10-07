@@ -50,10 +50,14 @@ namespace TournamentTracker.App.Broadcast
 
         public FeedSimulator(DateTime start, int lobbies = 4, int seed = 7)
         {
-            var labels = new[] { "LJ", "MAL", "Soggy", "Kai", "Ana", "Bo" };
+            var labels = Enumerable.Range(1, 6).Select(i => Prefix + i).ToArray();
             _lobbies = Enumerable.Range(0, Math.Min(lobbies, labels.Length))
                 .Select(i => new SimLobby(labels[i], new Random(seed * 31 + i), start, i, g => { lock (_games) _games.Add(g); })).ToList();
         }
+
+        /// <summary>Fake lobbies are called SIM-1, SIM-2…: never mistaken for a real one, and all removed when simulation stops.</summary>
+        public const string Prefix = "SIM-";
+        public static bool IsSim(string? lobby) => lobby != null && lobby.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase);
 
         /// <summary>Takes a lobby offline (or back), like a host's video dropping.</summary>
         public void SetOffline(string lobby, bool offline)
@@ -298,7 +302,7 @@ namespace TournamentTracker.App.Broadcast
                 double voice = AudioLost ? -60 : _phase == "meeting" ? Rand(-18, -6) : _r.NextDouble() < 0.3 ? Rand(-35, -15) : -60;
                 double game = AudioLost ? -60 : _phase == "ingame" ? Rand(-30, -16) : -60;
                 // Who's hosting, from the host's page: a made-up Twitch channel for each fake lobby.
-                Emit("host", null, new Dictionary<string, object?> { ["twitch"] = Label.ToLowerInvariant() + "_plays_au" });
+                Emit("host", null, new Dictionary<string, object?> { ["twitch"] = Label.Replace("-", "").ToLowerInvariant() + "_plays_au" });
                 Emit("voice", null, new Dictionary<string, object?>
                 {
                     ["on"] = true, ["sending"] = !AudioLost, ["problem"] = AudioLost ? "voice stream dropped" : null, ["discord"] = "capturing", ["game"] = "capturing",

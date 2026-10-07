@@ -196,7 +196,8 @@ public class MontageTests : IDisposable
             Assert.Equal(before + 1, montages.CustomPlayed);
             // The game montage stays after playing.
             await montages.PlayAsync(game.Id);
-            Assert.Contains(desk.Sponsors.Appearances(), a => a.Placement == "montage" && a.Sponsor == "Acme");
+            // Simulated games are never proof of delivery: nothing goes in the sponsor log.
+            Assert.Empty(desk.Sponsors.Appearances());
             var moments = JsonSerializer.SerializeToElement(replays.Moments(), Camel);
             Assert.True(moments.EnumerateArray().Single(m => m.GetProperty("id").GetString() == clip.Id).GetProperty("used").GetBoolean());
         }
