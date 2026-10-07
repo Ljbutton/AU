@@ -430,6 +430,9 @@ namespace TournamentTracker.App.Broadcast
                         case "autoSwitch": _desk.HealthConfig.AutoSwitch = Arg("on") == "true"; _desk.HealthConfig.Save(_desk.HealthPath); return Ok(new { ok = true, message = _desk.HealthConfig.AutoSwitch ? "Auto switch away from a lobby that drops: on." : "Auto switch away from a lobby that drops: off." });
                         case "slate": _desk.HealthConfig.Slate = Arg("on") == "true"; _desk.HealthConfig.Save(_desk.HealthPath); return Ok(new { ok = true, message = _desk.HealthConfig.Slate ? "Be-right-back screen when every lobby is down: on." : "Every lobby down: intermission instead of the be-right-back screen." });
                         case "open": if (_desk.HealthPath != null) { _desk.HealthConfig.Save(_desk.HealthPath); try { _env.Open(_desk.HealthPath); } catch (Exception) { } } return Ok(new { ok = true, message = "Opened health.json." });
+                        case "reconnect" when !(_desk.Simulating && CasterDesk.IsSimLobby(lobby)):
+                            // A real lobby: the page reloads its data link now (see the Live desk's receivers).
+                            return Ok(new { ok = true, message = $"{lobby}: reconnecting its data link." });
                         default:
                             if (!_desk.Simulating) return Ok(new { ok = false, message = "Those buttons are for simulation mode." });
                             return Ok(new { ok = _desk.SimFail(lobby, what), message = what == "reconnect" ? $"{lobby}: reconnecting." : $"{lobby}: simulated {what} problem." });

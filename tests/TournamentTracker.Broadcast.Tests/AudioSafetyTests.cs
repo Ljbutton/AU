@@ -34,3 +34,33 @@ public class AudioSafetyTests
         Assert.Null(ObsDirector.PickMic(new[] { ("Desktop Audio", "wasapi_output_capture") }));
     }
 }
+
+/// <summary>Storyline notes: the same note about several players becomes one.</summary>
+public class StoryMergeTests
+{
+    private static Note N(string kind, string text, string key, double w) => new() { Id = kind + key, Kind = kind, Text = text, Players = new() { key }, Weight = w };
+
+    [Fact]
+    public void Same_notes_about_different_players_merge_into_one()
+    {
+        var notes = new List<Note>
+        {
+            N("record", "[[1|Ann]] is 3–0 as crewmate today", "a", 1.5),
+            N("record", "[[2|Bo]] is 3–0 as crewmate today", "b", 1.5),
+            N("record", "[[3|Cy]] is 3–0 as crewmate today", "c", 1.5),
+            N("record", "[[4|Di]] is 2–1 as crewmate today", "d", 1.5),
+            N("streak", "[[1|Ann]] has won 3 in a row", "a", 5),
+            N("streak", "[[2|Bo]] has won 3 in a row", "b", 5),
+            new() { Id = "r", Kind = "rivalry", Text = "[[1|Ann]] has killed [[2|Bo]] 2 times today", Players = new() { "a", "b" }, Weight = 7 },
+        };
+        var merged = Storylines.Merge(notes, "2026-10-07");
+        Assert.Equal(4, merged.Count);
+        var rec = merged.Single(n => n.Kind == "record" && n.Players.Count == 3);
+        Assert.Equal("3 players are 3–0 as crewmate today: [[1|Ann]], [[2|Bo]] and [[3|Cy]]", rec.Text);
+        Assert.Equal("2 players have won 3 in a row: [[1|Ann]] and [[2|Bo]]", merged.Single(n => n.Kind == "streak").Text);
+        Assert.Contains(merged, n => n.Id == "r");
+        // The id stays the same when another player joins the group.
+        notes.Add(N("record", "[[5|Ed]] is 3–0 as crewmate today", "e", 1.5));
+        Assert.Equal(rec.Id, Storylines.Merge(notes, "2026-10-07").Single(n => n.Kind == "record" && n.Players.Count == 4).Id);
+    }
+}

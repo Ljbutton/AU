@@ -196,6 +196,7 @@ img.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 .05em;vert
 .ppl button:hover{border-color:var(--accent)}
 .ppl img.sw{height:1.5em;vertical-align:-.4em}
 .ppl button::after{content:" · card";color:var(--muted)}
+.dlob [data-pcard]{cursor:pointer}
 .vo-list{display:grid;gap:6px;margin-top:8px}
 .hdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:#ffc15a;vertical-align:1px}.hdot.red{background:var(--danger)}
 .tw-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px;margin-top:8px}
@@ -581,6 +582,10 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
 .mv.glow.on{box-shadow:0 0 0 3px var(--red),0 0 18px -2px var(--tier)}
 .cast-state{font-size:13px;color:var(--muted)}
 .cast-state b.pin{font:700 13px/1 "Segoe UI",sans-serif;letter-spacing:.1em;color:#16120a;background:var(--warn);padding:3px 7px;margin-right:6px}
+.spec .sh{font:600 10.5px/1 "Segoe UI",sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);cursor:help;margin-right:2px}
+.pltg-row{grid-column:1/-1}
+.pltg{all:unset;cursor:pointer;font:600 12px/1 var(--round);color:var(--muted);padding:3px 0}
+.pltg:hover{color:#fff}
 </style>
 </head>
 <body>
@@ -596,7 +601,7 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
 </header>
 <nav id="side" aria-label="Red Alert sections">
   <div class="grp">On air</div>
-  <button data-go="live" class="on">Live desk <span class="st count" id="st-live" title="Plays happening now"></span></button>
+  <button data-go="live" class="on">Live desk <span class="st count" id="st-live"></span></button>
   <button data-go="health">Lobby health <span class="st dot" id="st-health"></span></button>
   <button data-go="replays">Montages <span class="st count" id="st-replays" title="Montages ready"></span></button>
   <div class="grp">On stream</div>
@@ -1033,7 +1038,7 @@ function renderDesk() {
       <div class="lay"><button data-put="full" title="Full screen">Full</button><button data-put="2up" title="2-up, slot 1">2-up</button><button data-put="4up" title="Quad, slot 1">Quad</button></div>
       ${LVOICE && LVOICE.obs && obsDb(LVOICE.obs, l.lobby) !== undefined ? `<div class="lvl" title="This lobby's voice in OBS${isHeard(LVOICE.obs, l.lobby) ? ': on stream now' : ' (muted on stream)'}"><span>Voice</span>${obsMeter(LVOICE.obs, l.lobby)}</div>` : ''}
       ${specRow(l)}
-      ${l.people && l.people.length && l.online ? `<div class="ppl" data-pplrow>${l.people.map(p => `<button data-pcard="${esc(p.key)}" data-plobby="${esc(l.lobby)}" title="${esc(p.name)}'s player card on stream">${sw(p.color)}${esc(p.name)}</button>`).join('')}</div>` : ''}
+      ${playersRow(l)}
     </div>`).join('') : '<p class="empty">No lobbies.</p>';
   $('desk-history').innerHTML = d.history.length ? d.history.map(c => `<div class="hrow tier-${c.tier}">
       <span class="tm">${clock(c.at)}</span>
@@ -1060,7 +1065,8 @@ document.addEventListener('click', e => {
   e.stopPropagation(); decide(b.dataset.iid, b.dataset.decide);
 }, true);
 // The health panel: one row per lobby, its colour and what's wrong in plain words; test buttons in simulation.
-const SIMFAIL = [['video', 'Video'], ['audio', 'Audio'], ['data', 'Data'], ['all', 'All'], ['lag', 'Lag'], ['crash', 'Crash'], ['reconnect', 'Reconnect']];
+// Fault buttons only while simulating; Reconnect on every row, always.
+const SIMFAIL = [['video', 'Video'], ['audio', 'Audio'], ['data', 'Data'], ['all', 'All'], ['lag', 'Lag'], ['crash', 'Crash']];
 let hlKey = '';
 function renderHealth(d) {
   const h = d.health; if (!h) return;
@@ -1072,12 +1078,14 @@ function renderHealth(d) {
   const key = JSON.stringify([h, d.simulating]); if (key === hlKey) return; hlKey = key;
   $('hl-list').innerHTML = h.lobbies.map(x => `<div class="hl ${x.level}"><span class="dot" title="${x.level}"></span><span class="nm">${esc(x.lobby)}</span>
       <span class="pr">${x.problems.length ? esc(x.problems.join(' · ')) : 'All good'}${x.lagMs != null && !x.problems.length ? ` <span class="muted" style="font-size:11.5px">· ${x.lagMs} ms lag</span>` : ''}${x.update ? ` <span class="upd" title="Their Button updates the mod by itself while Among Us is closed">${esc(x.update)}</span>` : ''}</span>
-      <span class="sim">${d.simulating && x.sim ? SIMFAIL.map(([k, n]) => `<button class="b${x.sim[k] ? ' on' : ''}" data-hlsim="${k}" data-hllobby="${esc(x.lobby)}" title="Simulate: ${n === 'Reconnect' ? 'everything comes back' : n.toLowerCase() + ' problem'}">${n}</button>`).join('') : x.level === 'red' ? `<button class="b" data-hlsim="forget" data-hllobby="${esc(x.lobby)}" title="Take it off the list (its referee has gone)">Forget</button>` : ''}</span></div>`).join('');
+      <span class="sim">${d.simulating && x.sim ? SIMFAIL.map(([k, n]) => `<button class="b${x.sim[k] ? ' on' : ''}" data-hlsim="${k}" data-hllobby="${esc(x.lobby)}" title="Simulate a ${n.toLowerCase()} problem">${n}</button>`).join('') : ''}<button class="b" data-hlsim="reconnect" data-hllobby="${esc(x.lobby)}" title="${x.sim ? 'Everything comes back' : 'Reload this lobby\'s data link now'}">Reconnect</button>${x.level === 'red' && !x.sim ? `<button class="b" data-hlsim="forget" data-hllobby="${esc(x.lobby)}" title="Take it off the list (its referee has gone)">Forget</button>` : ''}</span></div>`).join('');
   $('hl-int').innerHTML = h.interrupted.filter(i => !i.decision).map(i => `<div class="it"><span class="tag">INTERRUPTED</span><b>${esc(i.game)}</b><span class="muted">round ${i.round} · ${esc(i.why)} · not in the standings</span><span style="flex:1"></span>
       <button class="b" data-decide="count" data-iid="${i.id}">Count</button><button class="b" data-decide="void" data-iid="${i.id}">Void</button><button class="b primary" data-decide="replay" data-iid="${i.id}">Replay</button></div>`).join('');
 }
 $('hl-list').addEventListener('click', async e => {
   const b = e.target.closest('[data-hlsim]'); if (!b) return;
+  // A real lobby's Reconnect: its hidden data link is loaded again now.
+  if (b.dataset.hlsim === 'reconnect' && RECV[b.dataset.hllobby]) { const f = RECV[b.dataset.hllobby]; f.src = f.dataset.src; if (RECV_AT[b.dataset.hllobby]) Object.assign(RECV_AT[b.dataset.hllobby], { last: Date.now(), wait: 5000 }); }
   const r = await api('POST', '/app/admin/health', { lobby: b.dataset.hllobby, what: b.dataset.hlsim }); toast(r.message); hlKey = ''; loadDesk();
 });
 $('hl-auto').addEventListener('click', async () => { const r = await api('POST', '/app/admin/health', { what: 'autoSwitch', on: String(!(DESK && DESK.health.settings.autoSwitch)) }); toast(r.message); hlKey = ''; loadDesk(); });
@@ -1110,17 +1118,27 @@ function specSend(lobby, command) {
   api('POST', '/app/admin/spec', { lobby, command }).then(() => setTimeout(loadDesk, 1200));
   toast(`${lobby}: ${command.replace(/^spec /, '')}`);
 }
+// The host's ghost view (the picture sent to you): what's drawn on it. Only on that one game, never sent to players.
+const VISION = { off: 'Vision: off', focus: 'Vision: one crewmate', rings: 'Vision: everyone' };
 function specRow(l) {
   const sp = l.spec; if (!sp || !l.online) return '';
   const crew = (l.players || []).filter(p => !p.imp);
-  const vis = { off: 'Vision off', focus: 'Vision: focus', rings: 'Vision: rings' }[sp.vision] || sp.vision;
-  return `<div class="spec" data-specrow="${esc(l.lobby)}">View${sp.on ? '' : ' (host isn\'t the referee ghost)'}
-    <button data-spec="lit" class="${sp.lit ? 'on' : ''}" title="Whole map lit (key ${keyName('specLit')})">Lit</button>
-    <button data-spec="vision" class="${sp.vision !== 'off' ? 'on' : ''}" title="Off → focus → rings (key ${keyName('specVision')})">${vis}</button>
-    <button data-spec="report" class="${sp.report ? 'on' : ''}" title="&quot;!&quot; when someone can report (key ${keyName('specReport')})">!</button>
-    <button data-spec="eye" class="${sp.eye ? 'on' : ''}" title="Eye when a crewmate sees an impostor (key ${keyName('specEye')})">Eye</button>
-    ${sp.vision === 'focus' ? `<select data-specfocus title="Whose vision"><option value="auto">Focus: auto${sp.focusing != null && sp.focus == null ? ' (' + esc(realName(l.lobby, sp.focusing, (crew.find(p => p.id === sp.focusing) || {}).colour || '')) + ')' : ''}</option>${crew.map(p => `<option value="${p.id}"${sp.focus === p.id ? ' selected' : ''}>${esc(p.colour)} · ${esc(realName(l.lobby, p.id, p.name))}</option>`).join('')}</select>` : ''}
+  const auto = sp.focusing != null && sp.focus == null ? ' (' + esc(realName(l.lobby, sp.focusing, (crew.find(p => p.id === sp.focusing) || {}).colour || '')) + ')' : '';
+  return `<div class="spec" data-specrow="${esc(l.lobby)}"><span class="sh" title="What the referee ghost's screen (the picture sent to you) shows. Only drawn on that one game, never sent to the players.">Host view${sp.on ? '' : ' (host isn\'t the referee ghost)'}</span>
+    <button data-spec="lit" class="${sp.lit ? 'on' : ''}" title="Lights the whole map and shows every player (impostors in vents stay hidden). Key ${keyName('specLit')}">💡 Lit map</button>
+    <button data-spec="vision" class="${sp.vision !== 'off' ? 'on' : ''}" title="Click to cycle: off → one crewmate's real vision (the rest dimmed) → every crewmate's vision outline. Key ${keyName('specVision')}">◐ ${VISION[sp.vision] || sp.vision}</button>
+    <button data-spec="report" class="${sp.report ? 'on' : ''}" title="A ! over anyone close enough to report a body. Key ${keyName('specReport')}">❗ Can report</button>
+    <button data-spec="eye" class="${sp.eye ? 'on' : ''}" title="A small eye by a crewmate's name while an impostor is in their sight. Key ${keyName('specEye')}">👁 Sees impostor</button>
+    ${sp.vision === 'focus' ? `<select data-specfocus title="Whose vision is shown. Auto picks whoever is in danger, else whoever did something last."><option value="auto">Whose vision: auto${auto}</option>${crew.map(p => `<option value="${p.id}"${sp.focus === p.id ? ' selected' : ''}>${esc(p.colour)} · ${esc(realName(l.lobby, p.id, p.name))}</option>`).join('')}</select>` : ''}
   </div>`;
+}
+// Players on a lobby card: behind a toggle, remembered per lobby (closed by default).
+let PL_OPEN = new Set();
+try { PL_OPEN = new Set(JSON.parse(localStorage.getItem('ra.players.open') || '[]')); } catch (e) { }
+function playersRow(l) {
+  if (!l.people || !l.people.length || !l.online) return '';
+  const open = PL_OPEN.has(l.lobby);
+  return `<div class="pltg-row"><button class="pltg" data-pltg="${esc(l.lobby)}" aria-expanded="${open}">${open ? '▾' : '▸'} Players (${l.people.length})</button></div>${open ? `<div class="ppl" data-pplrow>${l.people.map(p => `<button data-pcard="${esc(p.key)}" data-plobby="${esc(l.lobby)}" title="${esc(p.name)}'s player card on stream">${sw(p.color)}${esc(p.name)}</button>`).join('')}</div>` : ''}`;
 }
 const keyName = k => ((RP && RP.hotkeys && RP.hotkeys[k]) || '').replace(/^Key|^Digit/, '');
 $('desk-lobbies').addEventListener('change', e => {
@@ -1128,6 +1146,13 @@ $('desk-lobbies').addEventListener('change', e => {
   specSend(sel.closest('[data-specrow]').dataset.specrow, 'spec focus ' + sel.value);
 });
 $('desk-lobbies').addEventListener('click', e => {
+  const tg = e.target.closest('[data-pltg]');
+  if (tg) {
+    e.stopPropagation();
+    const l = tg.dataset.pltg; if (PL_OPEN.has(l)) PL_OPEN.delete(l); else PL_OPEN.add(l);
+    try { localStorage.setItem('ra.players.open', JSON.stringify([...PL_OPEN])); } catch (err) { }
+    deskKey = ''; renderDesk(); return;
+  }
   if (e.target.closest('[data-specfocus]')) return;
   const sb = e.target.closest('[data-spec]');
   if (sb) { specSend(sb.closest('[data-specrow]').dataset.specrow, 'spec ' + sb.dataset.spec); return; }
@@ -1177,7 +1202,7 @@ $('obs-off').addEventListener('click', async () => { const r = await api('POST',
 $('obs-swoosh').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'swoosh', on: String(!(OBS && OBS.swoosh && OBS.swoosh.on)) }); toast(r.message); loadDesk(); });
 $('obs-build').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'build' }); toast(r.message); loadDesk(); });
 // ---- Standings & storylines ---------------------------------------------------------------------
-let r_story = null, storyKey = '';
+let r_story = null, storyKey = '', notesAll = false;
 function renderStory(st) {
   if (!st) return;
   $('story-line').textContent = `${st.games} games today · ${st.notes.length} notes`;
@@ -1187,11 +1212,14 @@ function renderStory(st) {
   $('st-table').innerHTML = st.standings.length ? `<thead><tr><th></th><th class="l">${esc(st.title || (st.scope === 'overall' || !st.round ? 'Tournament' : 'Round ' + st.round))}</th><th>Points</th><th>W-L</th></tr></thead><tbody>` +
     st.standings.map(r => `<tr class="${r.advancing ? 'up' : ''}"><td class="rk">${r.rank}</td><td class="l">${sw(r.color)}${esc(r.name)}</td><td class="big">${r.points}</td><td>${r.wins}-${r.games - r.wins}</td></tr>`).join('') + '</tbody>'
     : '<tr><td class="muted" style="font-size:13px">No scored games yet.</td></tr>';
-  $('notes').innerHTML = st.notes.length ? st.notes.map(n => `<div class="nt${n.pinned ? ' pinned' : ''}"><span>${rich(n.text)}</span>
+  const all = st.notes, list = notesAll ? all : all.slice(0, 8);
+  $('notes').innerHTML = (list.length ? list.map(n => `<div class="nt${n.pinned ? ' pinned' : ''}"><span>${rich(n.text)}</span>
       <span class="acts"><button class="go" data-note="${esc(n.id)}" data-act="show" title="Put it on stream (lower third)">On stream</button><button data-note="${esc(n.id)}" data-act="${n.pinned ? 'unpin' : 'pin'}">${n.pinned ? 'Unpin' : 'Pin'}</button><button data-note="${esc(n.id)}" data-act="used">Used</button><button data-note="${esc(n.id)}" data-act="dismiss" title="Dismiss">×</button></span></div>`).join('')
-    : '<p class="empty" style="font-size:13px">Notes appear as games are played: records, streaks, first blood, rivalries…</p>';
+    : '<p class="empty" style="font-size:13px">Notes appear as games are played: records, streaks, first blood, rivalries…</p>')
+    + (all.length > 8 ? `<button class="b" id="notes-all" style="justify-self:start">${notesAll ? 'Show the top 8' : `Show all ${all.length}`}</button>` : '');
 }
 $('notes').addEventListener('click', async e => {
+  if (e.target.closest('#notes-all')) { notesAll = !notesAll; storyKey = ''; renderStory(r_story); return; }
   const b = e.target.closest('[data-note]'); if (!b) return;
   const r = await api('POST', '/app/admin/note', { id: b.dataset.note, action: b.dataset.act });
   toast(plain(r.message)); storyKey = ''; loadDesk();
@@ -1767,14 +1795,19 @@ function go(page) {
 $('side').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
 go(PAGE);
 // What needs a look, on the menu: a dot per state, a count where there's a number.
+const SEEN_CARDS = new Set();
 function renderSide() {
   const set = (id, cls, text, title) => { const el = $(id); el.className = 'st ' + cls; el.textContent = text || ''; if (title != null) el.title = title; };
   const d = DESK;
   const h = d && d.health, lob = h ? h.lobbies : [];
   const red = lob.filter(x => x.level === 'red').length, yellow = lob.filter(x => x.level === 'yellow').length;
   set('st-health', 'dot ' + (!lob.length ? '' : red ? 'bad' : yellow ? 'warn' : 'good'), lob.length ? '•' : '', $('hl-line').textContent);
-  const now = d && d.cards ? d.cards.filter(c => !c.system).length : 0;
-  set('st-live', 'count' + (d && d.cards && d.cards.some(c => !c.system && (c.tier === 'must' || c.tier === 'veryHigh')) ? ' hot' : ''), now ? String(now) : '');
+  // New plays (Happening now) since you last looked at the Live desk; opening it clears the count.
+  const plays = d && d.cards ? d.cards.filter(c => !c.system) : [];
+  if (PAGE === 'live') plays.forEach(c => SEEN_CARDS.add(c.id));
+  const fresh = plays.filter(c => !SEEN_CARDS.has(c.id));
+  set('st-live', 'count' + (fresh.some(c => c.tier === 'must' || c.tier === 'veryHigh') ? ' hot' : ''), fresh.length ? String(fresh.length) : '',
+    fresh.length ? `${fresh.length} new play${fresh.length === 1 ? '' : 's'} on the Live desk since you last looked${fresh.some(c => c.tier === 'must') ? ' (one is MUST SHOW)' : ''}` : 'Live desk');
   const ready = MONT && MONT.list ? MONT.list.filter(x => x.state === 'ready').length : 0;
   set('st-replays', 'count', ready ? String(ready) : '');
   set('st-obs', 'dot ' + (OBS && OBS.connected ? 'good' : ''), OBS && OBS.connected ? '•' : '', $('obs-line').textContent);
