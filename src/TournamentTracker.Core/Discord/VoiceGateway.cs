@@ -156,11 +156,19 @@ namespace TournamentTracker.Discord
             e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
     }
 
+    /// <summary>The bot's live connection to Discord, as The Button holds it (a pretend one in tests).</summary>
+    public interface IBotGateway : IDisposable
+    {
+        VoicePresenceState State { get; }
+        event Action<string, JsonElement>? Dispatched;
+        void Start();
+    }
+
     /// <summary>
     /// A minimal Discord gateway connection: identify with the GUILDS and GUILD_VOICE_STATES
     /// intents (neither is privileged), heartbeat, and reconnect when dropped. It only listens.
     /// </summary>
-    public sealed class VoiceGateway : IVoicePresence, IDisposable
+    public sealed class VoiceGateway : IVoicePresence, IBotGateway
     {
         public const string DefaultUrl = "wss://gateway.discord.gg/?v=10&encoding=json";
         private const int BaseIntents = (1 << 0) | (1 << 7);
@@ -186,6 +194,9 @@ namespace TournamentTracker.Discord
 
         public VoicePresenceState State { get; }
         public bool Connected => State.Connected;
+
+        /// <summary>Every event Discord sends (after <see cref="State"/> has taken it in), for The Button to pass on to the mod.</summary>
+        public event Action<string, JsonElement>? Dispatched;
         public IReadOnlyList<VoiceMember> Members => State.Members;
 
         public void Start() => _run ??= Task.Run(() => RunAsync(_cts.Token));
@@ -297,6 +308,7 @@ namespace TournamentTracker.Discord
                             string type = root.GetProperty("t").GetString() ?? "";
                             State.Dispatch(type, root.GetProperty("d"));
                             if (type == "READY") State.Connected = true;
+                            Dispatched?.Invoke(type, root.GetProperty("d").Clone());
                             break;
                     }
                 }

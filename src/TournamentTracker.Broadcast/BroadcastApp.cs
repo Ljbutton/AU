@@ -169,6 +169,8 @@ namespace TournamentTracker.App.Broadcast
             Settings = new BroadcastSettingsFile(settingsPath);
             // The big graphics take turns, each where it belongs (or waiting for its lobby).
             desk.Graphics.CanShow = CanShow;
+            // Simulation stopped: the ticker's boards (kept for 10 s) go at once, fake names and all.
+            desk.SimStopped += _ => _ticker = null;
             desk.AfterGameAuto = () => Settings.Current.AfterGameAuto;
             desk.AfterGameOn = () => Settings.Current.Elements.GetValueOrDefault("standingsChange");
             // Part 16: sponsors on the standings, the grid's empty tiles and the split-screen break.

@@ -412,6 +412,7 @@ details.advanced[open] summary h2::before{content:'▾ '}
     <h1 id="wait-title">Waiting for Among Us</h1>
     <div class="loader" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
     <p class="say" id="wait-say">Start Among Us and host a lobby: The Button connects on its own.</p>
+    <div class="checks" id="wait-bot" hidden style="justify-content:center;margin-top:12px"></div>
     <button class="b primary" id="wait-fix" data-go="settings" hidden style="margin-top:16px">Open Settings</button>
   </div>
   <div id="home-live" hidden>
@@ -654,10 +655,12 @@ function renderAlerts() {
   else if (!g.found) list.push(['bad', 'Among Us not found']);
   else if (!m.installed) list.push(['bad', 'Mod not installed']);
   else if (needsRepair(m)) list.push(['bad', 'Mod needs repair']);
-  if (m.installing) list.push(['', m.installing]);
-  else if (m.updateAvailable) list.push(['', m.auto ? `Mod ${m.latest} installs when Among Us closes` : `Mod update in Among Us: ${m.latest}`]);
-  // The Button's own update: one pill that does the next step itself (update, retry, restart).
+  // One update pill at most: The Button's own update (which brings the mod's with it) wins over the mod's.
   const u = S.appUpdate || {};
+  const appPill = u.ready || u.busy || u.available;
+  if (m.installing) list.push(['', m.installing]);
+  else if (m.updateAvailable && !appPill) list.push(['', m.auto ? `Mod ${m.latest} installs when Among Us closes` : `Mod update in Among Us: ${m.latest}`]);
+  // The Button's own update: one pill that does the next step itself (update, retry, restart).
   if (u.ready) list.push(['good', `The Button ${u.ready} is ready · Restart`, null, 'restart']);
   else if (u.busy) list.push(['', `Updating The Button to ${u.available || 'the new version'}…`, null, 'busy']);
   else if (u.available && u.error) list.push(['bad', `The Button ${u.available} didn't install · Try again`, null, 'update']);
@@ -665,7 +668,7 @@ function renderAlerts() {
   if (!S.setup) { if (!orgOnly) list.push(['', 'No setup code installed']); }
   else if (S.setup.error) list.push(['bad', 'Setup code damaged']);
   const a = S.status && S.status.autoMute;
-  if (a && a.voiceProblem) list.push(['bad', 'Discord bot refused', 'home']);
+  if (a && a.voiceProblem || !S.status && S.bot && S.bot.problem) list.push(['bad', 'Discord bot refused', 'home']);
   else if (a && a.voiceWarning) list.push(['', 'Referee commands not heard', 'home']);
   if (a && a.liveProblem) list.push(['', 'Live message can\'t post', 'home']);
   $('alerts').innerHTML = list.map(([k, t, page, act]) => act ? `<button class="alert ${k}" data-app="${act}"${act === 'busy' ? ' disabled' : ''} title="${act === 'restart' ? 'Restart The Button now to use the new version' : act === 'update' ? (u.error ? esc(u.error) : 'Download and install it now') : ''}">${esc(t)}</button>`
@@ -721,6 +724,13 @@ function renderHome() {
     $('wait-say').textContent = fix ? fix[1] : 'Start Among Us and host a lobby: The Button connects on its own.';
     $('wait-fix').hidden = !fix || desk;
     document.querySelector('#home-wait .loader').hidden = !!fix;
+    // The bot is The Button's: online while it's open, before Among Us starts.
+    const b = S.bot || {};
+    $('wait-bot').hidden = !b.configured;
+    if (b.configured) {
+      const [cls, text] = b.problem ? ['bad', b.problem] : b.connected ? ['ok', `Discord bot online${b.name ? ': ' + b.name : ''}`] : ['warn', 'Connecting the Discord bot…'];
+      $('wait-bot').innerHTML = `<span class="chk ${cls}"><i></i>${esc(text)}</span>`;
+    }
     return;
   }
   $('phase-title').textContent = TITLES[st.phase] || st.phase;

@@ -12,6 +12,13 @@ namespace TournamentTracker.Control
     {
         public static async Task<(string Method, string Path, Dictionary<string, string> Headers, string Body)> ReadAsync(NetworkStream stream)
         {
+            var (method, path, headers, body) = await ReadRawAsync(stream, 1_000_000).ConfigureAwait(false);
+            return (method, path, headers, Encoding.UTF8.GetString(body));
+        }
+
+        /// <summary>The same, with the body as bytes (files, up to <paramref name="limit"/>).</summary>
+        public static async Task<(string Method, string Path, Dictionary<string, string> Headers, byte[] Body)> ReadRawAsync(Stream stream, int limit)
+        {
             var head = new StringBuilder();
             var buffer = new byte[1];
             // Read the header byte by byte up to the blank line, then exactly Content-Length bytes.
@@ -30,8 +37,8 @@ namespace TournamentTracker.Control
                 int colon = lines[i].IndexOf(':');
                 if (colon > 0) headers[lines[i].Substring(0, colon).Trim().ToLowerInvariant()] = lines[i].Substring(colon + 1).Trim();
             }
-            string body = "";
-            if (headers.TryGetValue("content-length", out var len) && int.TryParse(len, out int length) && length > 0 && length < 1_000_000)
+            byte[] body = Array.Empty<byte>();
+            if (headers.TryGetValue("content-length", out var len) && int.TryParse(len, out int length) && length > 0 && length < limit)
             {
                 var data = new byte[length];
                 int read = 0;
@@ -41,7 +48,7 @@ namespace TournamentTracker.Control
                     if (n == 0) break;
                     read += n;
                 }
-                body = Encoding.UTF8.GetString(data, 0, read);
+                body = read == length ? data : data.AsSpan(0, read).ToArray();
             }
             return (first.Length > 0 ? first[0] : "", first.Length > 1 ? first[1] : "/", headers, body);
         }

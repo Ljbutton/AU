@@ -75,6 +75,24 @@ namespace TournamentTracker.Voice
             _signal.Release();
         }
 
+        /// <summary>
+        /// Sends everyone's state again, now: Discord is reachable again after The Button was
+        /// closed (which unmutes everyone it had muted), so what was applied before can't be trusted.
+        /// </summary>
+        public void ResendAll()
+        {
+            int n;
+            lock (_lock)
+            {
+                _applied.Clear();
+                _blocked.Clear();
+                foreach (var id in _desired.Keys)
+                    if (!_queue.Contains(id)) _queue.Add(id);
+                n = _queue.Count;
+            }
+            if (n > 0) _signal.Release(n);
+        }
+
         public VoiceState? Applied(string userId)
         {
             lock (_lock) return _applied.TryGetValue(userId, out var s) ? s : (VoiceState?)null;
