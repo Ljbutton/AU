@@ -552,6 +552,13 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
 .seg button.on{background:var(--red);color:#fff}
 .seg button.on::before{content:"✓ "}
 .tw-feat label.sw{font-size:14px}
+.ar-list{display:grid;gap:6px;margin-top:8px}
+.ar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:center;padding:8px 10px;background:var(--sunk);font-size:13.5px}
+.ar .meta{color:var(--muted);font-size:12px}
+.ar .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.ar details{grid-column:1/-1;font-size:12.5px}.ar summary{cursor:pointer;color:var(--muted)}
+.ar ol{margin:4px 0 0;padding-left:20px;display:grid;gap:2px}.ar li.gone{color:var(--muted);text-decoration:line-through}
+.ar .b.sure{background:var(--red);border-color:var(--red);color:#fff}
 </style>
 </head>
 <body>
@@ -723,10 +730,15 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
   </details>
   <details class="card roster-card" id="mom-card" data-page="replays">
     <summary><div><b>Moments</b> <span class="muted" id="mom-line"></span></div></summary>
-    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Every saved clip. Click to pick (double-click to preview), drag the picked ones to change the order, then Build montage. A montage from here is deleted once it has played; its clips stay, marked USED.</p>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Every saved clip. Click to pick (double-click to preview), drag the picked ones to change the order, then Build montage. Once a montage has played it moves to the Archive below; its clips stay here, marked USED, and can go in new montages.</p>
     <div class="row" style="margin-top:6px"><input id="mom-title" placeholder="Montage title (optional)" style="width:220px" autocomplete="off"><button class="b" id="mom-clear">Clear</button><button class="b primary" id="mom-build">Build montage</button></div>
     <div class="mom-sel" id="mom-sel"></div>
     <div class="mom-grid" id="mom-grid"></div>
+  </details>
+  <details class="card roster-card" id="ar-card" data-page="replays">
+    <summary><div><b>Archive</b> <span class="muted" id="ar-line"></span></div></summary>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Every montage that has played. Replay puts it on stream again, Rebuild makes it again from its clips (as a new montage above), Open plays the video file on this PC and Folder shows where it is. Delete removes it and its video for good (its clips stay).</p>
+    <div class="ar-list" id="ar-list"></div>
   </details>
   <details class="card roster-card" id="sp-card" data-page="sponsors">
     <summary><div><b>Sponsors</b> <span class="muted" id="sp-line"></span></div>
@@ -919,7 +931,7 @@ function renderDesk() {
   renderRoster();
   renderGfx(r_broadcast);
   renderStory(r_story);
-  renderMontages(); renderMoments(); renderSponsors(); renderVoice(); renderTwitch();
+  renderMontages(); renderArchive(); renderMoments(); renderSponsors(); renderVoice(); renderTwitch();
   const key = JSON.stringify([DESK, OBS, RP && RP.clips]);
   if (key === deskKey) return;
   deskKey = key;
@@ -1325,6 +1337,29 @@ function renderMontages() {
       <span class="acts">${x.state === 'ready' || x.state === 'played' ? `<button class="b primary" data-mt="play" data-id="${x.id}">Play</button><button class="b" data-mt="preview" data-id="${x.id}">Preview</button>` : ''}${x.state !== 'building' ? `<button class="b" data-mt="discard" data-id="${x.id}">Discard</button>` : ''}</span>
     </div>`).join('') : '<p class="empty" style="font-size:13px">No montages yet: they appear here when games end.</p>';
 }
+// The archive: played montages, with their clips.
+let arKey = '', arSure = null;
+const KIND_NAME = { game: 'end of game', round: 'end of round', custom: 'from Moments' };
+function renderArchive() {
+  const list = MONT && MONT.archive || [];
+  $('ar-line').textContent = `${list.length} played`;
+  if ($('ar-list').contains(document.activeElement) && document.activeElement.tagName === 'SUMMARY') return;
+  const key = JSON.stringify([list, arSure]); if (key === arKey) return; arKey = key;
+  const date = iso => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  $('ar-list').innerHTML = list.length ? list.map(a => `<div class="ar">
+      <div style="min-width:0"><b>${rich(a.title)}</b> ${a.playing ? '<span class="live">ON STREAM</span>' : ''}
+        <div class="meta">${KIND_NAME[a.kind] || a.kind}${a.game ? ' · ' + esc(a.game) : ''}${a.round ? ' · round ' + a.round : ''} · made ${date(a.created)} · played ${date(a.played)}${a.duration ? ' · ' + Math.round(a.duration) + 's' : ''}${a.sponsor ? ' · presented by ' + esc(a.sponsor) : ''}${a.hasFile ? '' : ' · <span class="bad-text">video file gone</span>'}</div></div>
+      <span class="acts"><button class="b primary" data-ar="archivePlay" data-id="${esc(a.id)}"${a.hasFile ? '' : ' disabled'}>Replay</button><button class="b" data-ar="archiveRebuild" data-id="${esc(a.id)}">Rebuild</button><button class="b" data-ar="archiveOpen" data-id="${esc(a.id)}"${a.hasFile ? '' : ' disabled'} title="Play the video file on this PC">Open</button><button class="b" data-ar="archiveFolder" data-id="${esc(a.id)}"${a.hasFile ? '' : ' disabled'}>Folder</button><button class="b danger${arSure === a.id ? ' sure' : ''}" data-ar="archiveDelete" data-id="${esc(a.id)}">${arSure === a.id ? 'Sure? Delete for good' : 'Delete'}</button></span>
+      <details><summary>${a.clips.length} clip${a.clips.length === 1 ? '' : 's'}</summary><ol>${a.clips.map(c => `<li class="${c.have ? '' : 'gone'}">${esc(c.lobby)} · ${rich(c.title)}</li>`).join('')}</ol></details>
+    </div>`).join('') : '<p class="empty" style="font-size:13px">Montages move here once they have played.</p>';
+}
+$('ar-list').addEventListener('click', async e => {
+  const b = e.target.closest('[data-ar]'); if (!b) return;
+  const id = b.dataset.id, act = b.dataset.ar;
+  if (act === 'archiveDelete' && arSure !== id) { arSure = id; renderArchive(); setTimeout(() => { if (arSure === id) { arSure = null; renderArchive(); } }, 5000); return; }
+  const r = await api('POST', '/app/admin/montage', { action: act, id, sure: act === 'archiveDelete' ? 'true' : '' });
+  arSure = null; toast(plain(r.message)); arKey = ''; mtKey = ''; loadDesk();
+});
 $('mt-list').addEventListener('click', async e => {
   const b = e.target.closest('[data-mt]'); if (!b) return;
   const x = MONT.list.find(m => m.id === b.dataset.id);

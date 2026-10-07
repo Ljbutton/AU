@@ -179,7 +179,7 @@ public class MontageTests : IDisposable
             Assert.Equal("Acme", game.Sponsor);
             Assert.True(File.Exists(game.File));
 
-            // A custom montage from the Moments library: once it has played to the end it's deleted and the clip is USED.
+            // A custom montage from the Moments library: once it has played to the end it's archived and the clip is USED.
             var custom = await montages.CustomAsync(new[] { clip.Id }, "Best of ZZ");
             Assert.Equal("ready", custom.State);
             await director.ConnectAsync("127.0.0.1", obs.Port, "secret");
@@ -192,8 +192,20 @@ public class MontageTests : IDisposable
             _clock.Advance(1);
             await replays.TickAsync();
             Assert.Null(montages.Find(custom.Id));
-            Assert.False(File.Exists(custom.File));
             Assert.Equal(before + 1, montages.CustomPlayed);
+            // Played: it's in the archive with its clips, and its video stays until deleted.
+            var archived = montages.Archive.Single(a => a.Title == "Best of ZZ");
+            Assert.True(File.Exists(archived.File));
+            Assert.Equal(clip.Id, archived.Clips.Single().Id);
+            Assert.StartsWith("Montage: Best of ZZ", await montages.ReplayArchivedAsync(archived.Id));
+            await replays.LiveAsync();
+            var rebuilt = await montages.RebuildAsync(archived.Id);
+            Assert.Equal("ready", rebuilt.State);
+            Assert.True(File.Exists(rebuilt.File));
+            Assert.Equal(new[] { clip.Id }, rebuilt.ClipIds);
+            Assert.Contains("for good", montages.DeleteArchived(archived.Id));
+            Assert.False(File.Exists(archived.File));
+            Assert.Empty(montages.Archive.Where(a => a.Id == archived.Id));
             // The game montage stays after playing.
             await montages.PlayAsync(game.Id);
             // Simulated games are never proof of delivery: nothing goes in the sponsor log.

@@ -177,7 +177,7 @@ namespace TournamentTracker.App.Broadcast
                 };
                 obs.MakeSwoosh = builder.SwooshAsync;
                 var replays = _replays = new ReplayManager(desk, obs) { TagChanged = json => caster.ReplayNow = json, Builder = builder, Sponsors = desk.Sponsors };
-                _montages = new MontageManager(desk, replays, builder, desk.Sponsors, () => obs.Settings.Replay);
+                _montages = new MontageManager(desk, replays, builder, desk.Sponsors, () => obs.Settings.Replay, archivePath: SideFile(MontageManager.ArchiveFile));
                 // Part 23: Twitch (predictions, polls, !sus, channel points), shown on stream by the graphics app.
                 var twitch = _twitch = new TwitchDirector(desk, SideFolder(), _http) { Clips = replays.ReadyClips, PlayReplay = replays.PlayAsync };
                 broadcast.Extras["twitch"] = twitch.Overlay;
@@ -591,6 +591,28 @@ namespace TournamentTracker.App.Broadcast
                     {
                         case "play": return Ok(new { ok = true, message = await _montages.PlayAsync(id).ConfigureAwait(false) });
                         case "discard": return Ok(new { ok = true, message = _montages.Discard(id) });
+                        // The archive: played montages.
+                        case "archivePlay": return Ok(new { ok = true, message = await _montages.ReplayArchivedAsync(id).ConfigureAwait(false) });
+                        case "archiveRebuild":
+                        {
+                            if (_montages.Builder.Ffmpeg == null) return Ok(new { ok = false, message = "Get ffmpeg first." });
+                            var a = _montages.FindArchived(id);
+                            if (a == null) return Ok(new { ok = false, message = "That montage isn't in the archive." });
+                            _ = Task.Run(() => _montages.RebuildAsync(id));
+                            return Ok(new { ok = true, message = $"Rebuilding {NameTag.Plain(a.Title)}: it shows under Montages when it's ready." });
+                        }
+                        case "archiveOpen":
+                        case "archiveFolder":
+                        {
+                            var a = _montages.FindArchived(id);
+                            if (a?.File == null || !File.Exists(a.File)) return Ok(new { ok = false, message = "Its video file is gone." });
+                            try { _env.Open(Arg("action") == "archiveOpen" ? a.File : Path.GetDirectoryName(a.File)!); } catch (Exception) { }
+                            return Ok(new { ok = true, message = Arg("action") == "archiveOpen" ? "Opening the video." : "Opening its folder." });
+                        }
+                        case "archiveDelete":
+                            // Only with the page's second click ("Sure? Delete for good").
+                            if (Arg("sure") != "true") return Ok(new { ok = false, message = "Click Delete again to delete it for good." });
+                            return Ok(new { ok = true, message = _montages.DeleteArchived(id) });
                         case "ffmpeg":
                             if (_montages.Builder.Ffmpeg != null) return Ok(new { ok = true, message = "ffmpeg is already here." });
                             if (!OperatingSystem.IsWindows()) return Ok(new { ok = false, message = "Install ffmpeg with your package manager." });
@@ -627,7 +649,7 @@ namespace TournamentTracker.App.Broadcast
                 {
                     // A montage, a clip or a clip's still, for the preview and the Moments library.
                     string id = HttpRequest.Query(query, "id"), kind = HttpRequest.Query(query, "kind");
-                    string? file = kind == "montage" ? _montages?.Find(id)?.File : kind == "thumb" ? _replays?.Find(id)?.Thumbnail : _replays?.Find(id)?.File;
+                    string? file = kind == "montage" ? _montages?.Find(id)?.File ?? _montages?.FindArchived(id)?.File : kind == "thumb" ? _replays?.Find(id)?.Thumbnail : _replays?.Find(id)?.File;
                     if (file == null || !File.Exists(file)) return Text(404, "text/plain", "Not found");
                     return (200, SponsorBook.MediaType(file), File.ReadAllBytes(file));
                 }

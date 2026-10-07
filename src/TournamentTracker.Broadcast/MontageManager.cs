@@ -7,11 +7,53 @@ using System.Threading.Tasks;
 
 namespace TournamentTracker.App.Broadcast
 {
+    /// <summary>A montage that has played, kept with its clips (montage-archive.json).</summary>
+    public sealed class ArchivedMontage
+    {
+        public string Id { get; set; } = "";
+        public string Kind { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string? File { get; set; }
+        public DateTime Created { get; set; }
+        public DateTime PlayedAt { get; set; }
+        public string? Lobby { get; set; }
+        public int Round { get; set; }
+        public string? Sponsor { get; set; }
+        public double Duration { get; set; }
+        public List<MontageMoment> Moments { get; set; } = new List<MontageMoment>();
+        public List<ArchivedClip> Clips { get; set; } = new List<ArchivedClip>();
+        /// <summary>Made in simulation: never saved, and gone when it stops.</summary>
+        [System.Text.Json.Serialization.JsonIgnore] public bool Simulated { get; set; }
+    }
+
+    /// <summary>What a montage's clip was, enough to build it again.</summary>
+    public sealed class ArchivedClip
+    {
+        public string Id { get; set; } = "";
+        public string Lobby { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string Rule { get; set; } = "";
+        public string? Game { get; set; }
+        public int Round { get; set; }
+        public DateTime EventAt { get; set; }
+        public DateTime? SavedAt { get; set; }
+        public string? File { get; set; }
+        public double? Duration { get; set; }
+        public double Pre { get; set; }
+        public double Post { get; set; }
+        public string? KeyPlayer { get; set; }
+        public int? KeyPlayerId { get; set; }
+
+        public static ArchivedClip Of(Clip c) => new ArchivedClip { Id = c.Id, Lobby = c.Lobby, Title = c.Title, Rule = c.Rule, Game = c.Game, Round = c.Round, EventAt = c.EventAt, SavedAt = c.SavedAt, File = c.File, Duration = c.Duration, Pre = c.Pre, Post = c.Post, KeyPlayer = c.KeyPlayer, KeyPlayerId = c.KeyPlayerId };
+        public Clip ToClip() => new Clip { Id = Id, Lobby = Lobby, Title = Title, Rule = Rule, Game = Game, Round = Round, EventAt = EventAt, SavedAt = SavedAt, File = File, Duration = Duration, Pre = Pre, Post = Post, KeyPlayer = KeyPlayer, KeyPlayerId = KeyPlayerId, State = "ready" };
+    }
+
     /// <summary>
     /// Montages: at the end of each game (its kills, ejections and ending), at the end of each round
     /// ("every kill", then the top plays), and custom ones from the Moments library. Built with
     /// ffmpeg in the background; the caster tab shows "Montage ready" with Play, Preview and Discard.
-    /// A custom montage is deleted once it has played (its clips stay, marked used).
+    /// Once played, a montage moves to the archive (title, date, game or round, its clips) where it
+    /// can be played again, rebuilt, opened or deleted for good. Its clips stay usable.
     /// </summary>
     public sealed class MontageManager
     {
@@ -38,8 +80,20 @@ namespace TournamentTracker.App.Broadcast
 
         public MontageBuilder Builder => _builder;
 
-        public MontageManager(CasterDesk desk, ReplayManager replays, MontageBuilder builder, SponsorBook? sponsors, Func<ReplaySettings> settings, Func<DateTime>? clock = null)
+        private readonly string? _archivePath;
+        private readonly List<ArchivedMontage> _archive = new List<ArchivedMontage>();
+        private static readonly System.Text.Json.JsonSerializerOptions ArchiveJson = new System.Text.Json.JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+        public const string ArchiveFile = "montage-archive.json";
+
+        public MontageManager(CasterDesk desk, ReplayManager replays, MontageBuilder builder, SponsorBook? sponsors, Func<ReplaySettings> settings, Func<DateTime>? clock = null, string? archivePath = null)
         {
+            _archivePath = archivePath;
+            try
+            {
+                if (archivePath != null && File.Exists(archivePath))
+                    _archive = System.Text.Json.JsonSerializer.Deserialize<List<ArchivedMontage>>(File.ReadAllText(archivePath), ArchiveJson) ?? new List<ArchivedMontage>();
+            }
+            catch (Exception) { }
             _desk = desk;
             _replays = replays;
             _builder = builder;
@@ -253,10 +307,85 @@ namespace TournamentTracker.App.Broadcast
             var m = Find(clip.Id);
             if (m == null) return;
             m.State = "played";
-            if (m.Kind != "custom") return;
-            // A custom montage is a one-off: gone once it has played, and the selection starts again.
-            Discard(m.Id);
-            CustomPlayed++;
+            // Played: into the archive (the selection in Moments starts again after a custom one).
+            ToArchive(m);
+            if (m.Kind == "custom") CustomPlayed++;
+        }
+
+        private void ToArchive(Montage m)
+        {
+            var a = new ArchivedMontage
+            {
+                Id = $"{m.Id}-{m.Created:yyyyMMddHHmmss}", Kind = m.Kind, Title = m.Title, File = m.File, Created = m.Created, PlayedAt = _clock(),
+                Lobby = m.Lobby, Round = m.Round, Sponsor = m.Sponsor, Duration = m.Duration, Moments = m.Moments,
+                Clips = m.ClipIds.Select(id => _replays.Find(id)).Where(c => c != null).Select(c => ArchivedClip.Of(c!)).ToList(),
+            };
+            lock (_lock)
+            {
+                a.Simulated = _simMade.Contains(m.Id);
+                _list.Remove(m);
+                _archive.RemoveAll(x => x.Id == a.Id);
+                _archive.Add(a);
+            }
+            if (_desk.QueuedMontage?.Id == m.Id) _desk.QueuedMontage = null;
+            SaveArchive();
+        }
+
+        private void SaveArchive()
+        {
+            if (_archivePath == null) return;
+            try
+            {
+                List<ArchivedMontage> keep;
+                lock (_lock) keep = _archive.Where(x => !x.Simulated).ToList();
+                File.WriteAllText(_archivePath, System.Text.Json.JsonSerializer.Serialize(keep, ArchiveJson));
+            }
+            catch (Exception) { }
+        }
+
+        public List<ArchivedMontage> Archive { get { lock (_lock) return _archive.ToList(); } }
+        public ArchivedMontage? FindArchived(string id) { lock (_lock) return _archive.FirstOrDefault(a => a.Id == id); }
+
+        /// <summary>An archived montage on stream again.</summary>
+        public async Task<string> ReplayArchivedAsync(string id)
+        {
+            var a = FindArchived(id);
+            if (a == null) return "That montage isn't in the archive.";
+            if (a.File == null || !File.Exists(a.File)) return "Its video file is gone: Rebuild makes it again from its clips.";
+            string said = await _replays.PlayVideoAsync(a.Id, a.File, a.Title, a.Sponsor, a.Moments).ConfigureAwait(false);
+            if (a.Sponsor != null && _replays.Now?.Id == a.Id)
+                _sponsors?.Log(a.Sponsor, "montage", _clock(), _clock().AddSeconds(SponsorSeconds), a.Lobby, a.Title);
+            return said;
+        }
+
+        /// <summary>Builds an archived montage again from its clips (the ones still on disk), as a new montage ready to play.</summary>
+        public async Task<Montage> RebuildAsync(string id)
+        {
+            var a = FindArchived(id) ?? throw new InvalidOperationException("That montage isn't in the archive.");
+            var m = New(a.Kind == "custom" ? "custom" : a.Kind, a.Title, a.Lobby, a.Round);
+            var clips = a.Clips.Select(c => _replays.Find(c.Id) ?? c.ToClip()).Where(c => c.File != null && File.Exists(c.File)).ToList();
+            m.ClipIds = clips.Select(c => c.Id).ToList();
+            var segs = new List<Segment>();
+            if (SponsorCard(m) is { } sc) segs.Add(sc);
+            if (a.Kind != "custom") segs.Add(Card(a.Title.ToUpperInvariant(), a.Kind == "round" ? "Round " + a.Round : null));
+            segs.AddRange(await CutAsync(clips).ConfigureAwait(false));
+            return await BuildAsync(m, segs, minClips: 1).ConfigureAwait(false);
+        }
+
+        /// <summary>Deletes an archived montage and its video for good (its clips stay).</summary>
+        public string DeleteArchived(string id)
+        {
+            ArchivedMontage? a;
+            lock (_lock)
+            {
+                a = _archive.FirstOrDefault(x => x.Id == id);
+                if (a == null) return "That montage isn't in the archive.";
+                if (_replays.Now?.Id == id) return "It's playing: go back to live first.";
+                _archive.Remove(a);
+            }
+            try { if (a.File != null && File.Exists(a.File)) File.Delete(a.File); } catch (Exception) { }
+            SaveArchive();
+            return $"Deleted {NameTag.Plain(a.Title)} for good.";
         }
 
         public string Discard(string id)
@@ -282,6 +411,12 @@ namespace TournamentTracker.App.Broadcast
             {
                 gone = _list.Where(m => _simMade.Contains(m.Id) || which(m.Lobby ?? "") || m.ClipIds.Any(clips.Contains) || m.Moments.Any(x => which(x.Lobby))).ToList();
                 _list.RemoveAll(gone.Contains);
+                foreach (var a in _archive.Where(a => a.Simulated || which(a.Lobby ?? "") || a.Clips.Any(c => which(c.Lobby))).ToList())
+                {
+                    _archive.Remove(a);
+                    try { if (a.File != null && File.Exists(a.File)) File.Delete(a.File); } catch (Exception) { }
+                    gone.Add(new Montage { Id = a.Id });
+                }
                 _roundsDone.ExceptWith(_simRounds);
                 _simRounds.Clear();
                 _simMade.Clear();
@@ -291,6 +426,7 @@ namespace TournamentTracker.App.Broadcast
                 if (_desk.QueuedMontage?.Id == m.Id) _desk.QueuedMontage = null;
                 try { if (m.File != null && File.Exists(m.File)) File.Delete(m.File); } catch (Exception) { }
             }
+            SaveArchive();
             return gone.Select(m => m.Id).ToHashSet();
         }
 
@@ -308,6 +444,15 @@ namespace TournamentTracker.App.Broadcast
                         Clips = m.ClipIds.Count,
                         Ago = Math.Max(0, (int)(now - m.Created).TotalSeconds),
                         Playing = _replays.Now?.Id == m.Id,
+                    }).ToList(),
+                    Archive = _archive.AsEnumerable().Reverse().Select(a => new
+                    {
+                        a.Id, a.Kind, a.Title, a.Lobby, a.Round, a.Sponsor, a.Duration,
+                        Created = a.Created.ToString("o"), Played = a.PlayedAt.ToString("o"),
+                        Game = a.Clips.Select(c => c.Game).FirstOrDefault(g => g != null),
+                        HasFile = a.File != null && File.Exists(a.File),
+                        Playing = _replays.Now?.Id == a.Id,
+                        Clips = a.Clips.Select(c => new { c.Id, c.Lobby, c.Title, c.Rule, Have = c.File != null && File.Exists(c.File) }).ToList(),
                     }).ToList(),
                 };
         }
