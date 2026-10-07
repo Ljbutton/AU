@@ -483,7 +483,7 @@ label.sw i{position:relative;width:38px;height:21px;border-radius:11px;backgroun
 label.sw i::after{content:"";position:absolute;left:2px;top:2px;width:15px;height:15px;border-radius:50%;background:#6a6a75;transition:.15s}
 label.sw input:checked+i{background:var(--red);border-color:var(--red)}
 label.sw input:checked+i::after{left:19px;background:#fff}
-label.sw input:checked~span{color:#fff}
+label.sw input:checked~span,label.sw:has(input:checked) span{color:#fff}
 label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
 /* ---- Live desk: what's on stream, big; talking points beside it ---- */
 .desk-top{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,1fr);gap:14px;align-items:stretch}
@@ -529,6 +529,29 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
 .dlob .lvl{grid-column:1/-1;display:grid;grid-template-columns:auto 1fr;gap:6px;align-items:center;font-size:11px;color:var(--muted)}
 .dlob .lvl .mtr{height:5px;border-radius:3px;background:#0f0f12;overflow:hidden}.dlob .lvl .mtr i{display:block;height:100%;background:var(--good);transition:width .2s}
 #vo-key.wait{border-color:var(--red);color:var(--red)}
+.hq{all:unset;cursor:pointer;width:20px;height:20px;border-radius:50%;border:1px solid var(--edge);color:var(--muted);font:700 12px/20px "Segoe UI",sans-serif;text-align:center;flex:none;margin-left:6px;vertical-align:1px}
+.hq:hover,.hq.on{color:#fff;border-color:var(--red);background:var(--hi-soft)}
+.help:not(.open){display:none!important}
+.urls{display:grid;gap:4px;font-size:12.5px}
+.url{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:8px;align-items:center}
+.url span:nth-child(2){font-family:var(--mono);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.url button{all:unset;cursor:pointer;font:600 11px/1 var(--round);padding:4px 8px;border:1px solid var(--line);color:var(--muted)}
+.url button:hover{color:#fff;border-color:var(--red)}
+/* Graphics: grouped switches */
+.gfx-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:10px}
+.gfx-grp{display:grid;gap:7px;align-content:start;padding:10px 12px;background:#101013;border:1px solid var(--line)}
+.gfx-grp h4,.gfx-row .gh{margin:0;font:600 10.5px/1 "Segoe UI",sans-serif;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.gfx-grp h4 small{letter-spacing:.02em;text-transform:none;font-size:11px;color:#6c6c76;margin-left:6px}
+.gfx-grp label.sw{justify-content:space-between;font-size:15px}
+.gfx-row{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin-top:10px}
+.gfx-row .gh{width:150px}
+.sws{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--edge)}
+.seg button{all:unset;cursor:pointer;font:600 15px/1 var(--hand);letter-spacing:.07em;text-transform:uppercase;padding:6px 12px 3px;color:var(--muted)}
+.seg button+button{border-left:1px solid var(--edge)}
+.seg button.on{background:var(--red);color:#fff}
+.seg button.on::before{content:"✓ "}
+.tw-feat label.sw{font-size:14px}
 </style>
 </head>
 <body>
@@ -595,14 +618,15 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
   <div class="card mv-card" id="mv-card" data-page="live">
     <div class="row" style="justify-content:space-between"><div><b>Multiview</b> <span class="muted" id="mv-line">Click the lobbies you want on stream, then Send.</span></div>
       <div class="row"><button class="b" id="mv-clear">Clear</button><button class="b primary" id="mv-send" disabled>Send</button></div></div>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Click the lobbies you want on stream (they're numbered in the order you pick), then Send. 1 lobby goes full screen, 2 side by side, 4 in the quad, 3 or 5 and more in the grid.</p>
     <div class="mv-grid" id="mv-grid"></div>
   </div>
   <div class="card cast-card" id="cast-card" hidden data-page="live">
     <div class="row" style="justify-content:space-between"><div><b>Caster overlay</b> <span class="muted" id="org-casting"></span></div>
       <div class="row"><label class="muted" style="font-size:13px"><input type="checkbox" id="org-roles"> Count kills (staff view)</label><button class="b primary" id="org-jump" title="Key N">Jump to action</button></div></div>
-    <div class="cast-urls" id="org-cast-url"></div>
+    <div class="urls" id="org-cast-url"></div>
     <div class="row" id="org-cast-list"></div>
-    <div class="muted" style="font-size:12px">OBS Browser sources. Video and overlay follow the lobby you pick (keys 1–9 switch while this card is open, N jumps to the action). Overlay 380×720, add <span class="mono">?full=1</span> on a delayed stream for roles and kills. Video (with the game sound of the lobby on air) and multiview (silent) 1920×1080: hosts turn on "Send my game to the caster" in their Button.</div>
+    <div class="muted help" style="font-size:12px">OBS Browser sources. Video and overlay follow the lobby you pick (keys 1–9 switch while this card is open, N jumps to the action). Overlay 380×720, add <span class="mono">?full=1</span> on a delayed stream for roles and kills. Video (with the game sound of the lobby on air) and multiview (silent) 1920×1080: hosts turn on "Send my game to the caster" in their Button.</div>
   </div>
   <div class="card hl-card" id="hl-card" hidden data-page="health">
     <div class="row" style="justify-content:space-between"><div><b>Lobby health</b> <span class="muted" id="hl-line"></span></div>
@@ -618,7 +642,7 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
       <input id="obs-pass" type="password" placeholder="Password (Tools → WebSocket Server Settings)" style="flex:1;min-width:200px" autocomplete="off">
       <button class="b primary">Connect</button>
     </form>
-    <p class="muted" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. Red Alert then builds the scenes TT Full, TT 2-up and TT Quad, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
+    <p class="muted help" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. Red Alert then builds the scenes TT Full, TT 2-up and TT Quad, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
   </div>
   <div class="card test-card" id="test-card" data-page="obs">
     <div class="row" style="justify-content:space-between"><div><b>Test</b> <span class="muted" id="test-line">Simulation: four fake lobbies (SIM-1 to SIM-4) for trying Red Alert without games.</span></div>
@@ -627,10 +651,11 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
   <details class="card roster-card" id="gfx-card" data-page="graphics">
     <summary><div><b>On-stream graphics</b> <span class="muted" id="gfx-line"></span></div><button class="b" id="gfx-theme" title="Colours, fonts and logo (broadcast.json)">Edit theme</button></summary>
     <p class="note bad" id="gfx-problem" hidden></p>
-    <p class="muted" style="font-size:12.5px;margin:6px 0 0">One transparent page with every graphic, placed on each lobby's picture in every layout. Red Alert puts it on top of the TT scenes in OBS (source "Red Alert"); to add it by hand, use the link at 1920×1080.</p>
-    <div class="row" id="gfx-els" style="margin-top:8px"></div>
-    <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Off-screen alerts</span><span id="gfx-alerts" class="row"></span></div>
-    <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Win counter counts</span><span class="row" id="gfx-wins"><button class="b" data-wins="today">Today</button><button class="b" data-wins="round">This round</button></span><span class="muted" id="gfx-wins-now" style="font-size:12.5px"></span></div>
+    <div class="urls" id="gfx-url" style="margin-top:6px"></div>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">One transparent page with every graphic, placed on each lobby's picture in every layout. Red Alert puts it on top of the TT scenes in OBS (source "Red Alert"); to add it by hand, use the link at 1920×1080.</p>
+    <div class="gfx-groups" id="gfx-els"></div>
+    <div class="gfx-row"><span class="gh">Off-screen alerts</span><span id="gfx-alerts" class="sws"></span></div>
+    <div class="gfx-row"><span class="gh">Win counter counts</span><span class="seg" id="gfx-wins"><button data-wins="today">Today</button><button data-wins="round">This round</button></span><span class="muted" id="gfx-wins-now" style="font-size:12.5px"></span></div>
   </details>
   <details class="card roster-card" id="story-card" open data-page="stories">
     <summary><div><b>Standings &amp; storylines</b> <span class="muted" id="story-line"></span></div>
@@ -643,7 +668,7 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
   <details class="card roster-card" id="vo-card" open data-page="voice">
     <summary><div><b>Lobby voice</b> <span class="muted" id="vo-line"></span></div>
       <div class="row"><button class="b" id="vo-mute" title="Mute every lobby voice (key U)">Mute all</button><button class="b" id="vo-on" title="Lobby voice on stream at all">On stream</button></div></summary>
-    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Each referee's Button sends the lobby's Discord voice and game sound (and their own mic only if they tick it). The voice follows the picture: the full-screen lobby, or slot 1, is heard; replays, montages and intermission are silent. <b>Listen</b> keeps one lobby's voice up whatever is on screen. It only goes to the stream; nothing is played back to the players.</p>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Each referee's Button sends the lobby's Discord voice and game sound (and their own mic only if they tick it). The voice follows the picture: the full-screen lobby, or slot 1, is heard; replays, montages and intermission are silent. <b>Listen</b> keeps one lobby's voice up whatever is on screen. It only goes to the stream; nothing is played back to the players.</p>
     <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Duck under</span><select id="vo-duck" title="Your mic in OBS: lobby voice gets quieter while you talk"></select>
       <span style="flex:1"></span><span class="muted" style="font-size:12.5px">Mute all key (works from any window)</span><button class="b" id="vo-key" title="Click, then press the new key combination">Ctrl+Shift+M</button></div>
     <p class="note bad" id="vo-keyprob" hidden></p>
@@ -673,7 +698,7 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
         <div id="tw-det" class="muted" style="font-size:13px"></div>
       </div>
       <div>
-        <h3>Features <span class="muted" style="font-weight:400;font-size:12px">· on · by itself</span></h3>
+        <h3>Features <span class="muted" style="font-weight:400;font-size:12px">· on · auto (starts by itself)</span></h3>
         <div id="tw-features"></div>
         <h3>Settings</h3>
         <div class="tw-set">
@@ -693,12 +718,12 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
   <details class="card roster-card" id="mt-card" open data-page="replays">
     <summary><div><b>Montages</b> <span class="muted" id="mt-line"></span></div>
       <div class="row"><button class="b" id="mt-ffmpeg" hidden>Get ffmpeg</button><button class="b" data-mtbuild="game" title="A montage of the last game that ended">Last game</button><button class="b" data-mtbuild="round" title="Every kill and the top plays of the round">This round</button></div></summary>
-    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Built by themselves when each game and each round ends: the moments cut to a few seconds, cropped like replays, with names in the lower third. Play puts it in the replay scene.</p>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Built by themselves when each game and each round ends: the moments cut to a few seconds, cropped like replays, with names in the lower third. Play puts it in the replay scene.</p>
     <div class="mt-list" id="mt-list"></div>
   </details>
   <details class="card roster-card" id="mom-card" data-page="replays">
     <summary><div><b>Moments</b> <span class="muted" id="mom-line"></span></div></summary>
-    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Every saved clip. Click to pick (double-click to preview), drag the picked ones to change the order, then Build montage. A montage from here is deleted once it has played; its clips stay, marked USED.</p>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Every saved clip. Click to pick (double-click to preview), drag the picked ones to change the order, then Build montage. A montage from here is deleted once it has played; its clips stay, marked USED.</p>
     <div class="row" style="margin-top:6px"><input id="mom-title" placeholder="Montage title (optional)" style="width:220px" autocomplete="off"><button class="b" id="mom-clear">Clear</button><button class="b primary" id="mom-build">Build montage</button></div>
     <div class="mom-sel" id="mom-sel"></div>
     <div class="mom-grid" id="mom-grid"></div>
@@ -707,13 +732,13 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
     <summary><div><b>Sponsors</b> <span class="muted" id="sp-line"></span></div>
       <div class="row"><button class="b" id="sp-break" title="Split screen: the lobby on the left, the sponsor on the right">Sponsor break</button><button class="b" id="sp-export" title="Every appearance (CSV) and a summary">Export report</button><button class="b" id="sp-open" title="Open sponsors.json">Edit sponsors</button></div></summary>
     <p class="note bad" id="sp-problem" hidden></p>
-    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Placements: killcam ("Kill Cam presented by" on kill replays), replay ("presented by" on every other replay), multiview (a "presented by" badge while 4 or more lobbies are on screen), montage (an opening card), standings ("Presented by" under the table), grid (empty grid tiles), break (split-screen breaks; they end by themselves, and a MUST SHOW play cuts straight back). Every appearance is logged.</p>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Placements: killcam ("Kill Cam presented by" on kill replays), replay ("presented by" on every other replay), multiview (a "presented by" badge while 4 or more lobbies are on screen), montage (an opening card), standings ("Presented by" under the table), grid (empty grid tiles), break (split-screen breaks; they end by themselves, and a MUST SHOW play cuts straight back). Every appearance is logged. Verbal reads: give a sponsor "readScript" and "readEveryMinutes", "readEveryGames" or "readEveryRounds"; a reminder shows on the Live desk (only you see it), and Done logs it.</p>
     <div class="sp-list" id="sp-list"></div>
   </details>
   <details class="card roster-card" id="roster-card" data-page="players">
     <summary><div><b>Players</b> <span class="muted" id="roster-line"></span></div><button class="b" id="roster-open" title="Open roster.csv">Edit roster</button></summary>
     <p class="note bad" id="roster-problem" hidden></p>
-    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Matched by the Discord account automute links them to, then friend code, then in-game name. Pick someone by hand to override; "Automatic" goes back.</p>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Matched by the Discord account automute links them to, then friend code, then in-game name. Pick someone by hand to override; "Automatic" goes back.</p>
     <div class="rl" id="roster-list"></div>
   </details>
   <p id="desk-problem" class="note bad" hidden></p>
@@ -1134,7 +1159,7 @@ function renderTwitch() {
   $('tw-det').innerHTML = t.detectives.length ? t.detectives.map((d, i) => `${i + 1}. <b style="color:var(--fg,#fff)">${esc(d.name)}</b> ${d.correct}/${d.guesses}`).join(' · ') : 'Nobody yet: viewers score by voting !sus for an impostor.';
   $('tw-features').innerHTML = `<div class="tw-feat">${Object.entries(t.names).map(([k, n]) => {
     const autoKey = { predictions: 'predictions', meetingPolls: 'meetings', chatVote: 'meetings', lobbyPoll: 'lobbyPoll', mvpPoll: 'mvpPoll' }[k];
-    return `<span>${esc(n)}</span><button class="b${t.features[k] ? ' on' : ''}" data-twf="${k}">${t.features[k] ? 'On' : 'Off'}</button>${autoKey ? `<button class="b${t.auto[autoKey] ? ' on' : ''}" data-twa="${autoKey}" title="Starts by itself">${t.auto[autoKey] ? 'Auto' : 'By hand'}</button>` : '<span></span>'}`;
+    return `<span>${esc(n)}</span>${swHtml(`data-twf="${k}"`, t.features[k], 'On')}${autoKey ? swHtml(`data-twa="${autoKey}"`, t.auto[autoKey], 'Auto', 'On: starts by itself. Off: only when you click it.') : '<span></span>'}`;
   }).join('')}</div>`;
   if (!busy) {
     $('tw-client').value = t.clientId || ''; $('tw-delay').value = t.delaySeconds; $('tw-psec').value = t.predictionSeconds; $('tw-msec').value = t.meetingSeconds;
@@ -1153,12 +1178,13 @@ $('tw-card').addEventListener('click', e => {
   if (b.dataset.tws) return twDo({ action: 'start', kind: b.dataset.tws });
   if (b.dataset.twp) return twDo({ action: 'prediction', do: b.dataset.twp, outcome: b.dataset.out || '' });
   if (b.hasAttribute('data-twendpoll')) return twDo({ action: 'endpoll' });
-  if (b.dataset.twf) return twDo({ action: 'feature', name: b.dataset.twf, on: String(!(TW && TW.features[b.dataset.twf])) });
-  if (b.dataset.twa) return twDo({ action: 'auto', name: b.dataset.twa, on: String(!(TW && TW.auto[b.dataset.twa])) });
+
   if (b.dataset.twred) { const sel = $('tw-card').querySelector(`[data-twclip="${CSS.escape(b.dataset.twred)}"]`); return twDo({ action: 'redemption', id: b.dataset.twred, on: b.dataset.ok, clip: sel ? sel.value : '' }); }
 });
 $('tw-card').addEventListener('change', e => {
   const id = e.target.id;
+  if (e.target.dataset.twf) return twDo({ action: 'feature', name: e.target.dataset.twf, on: String(e.target.checked) });
+  if (e.target.dataset.twa) return twDo({ action: 'auto', name: e.target.dataset.twa, on: String(e.target.checked) });
   if (id === 'tw-client') twDo({ action: 'clientId', value: e.target.value });
   else if (id === 'tw-delay') twDo({ action: 'delay', value: e.target.value });
   else if (id === 'tw-psec') twDo({ action: 'predictionSeconds', value: e.target.value });
@@ -1376,7 +1402,7 @@ $('sp-export').addEventListener('click', async e => { e.preventDefault(); const 
 let r_broadcast = null, gfxKey = '';
 function renderGfx(g) {
   if (!g) return;
-  $('gfx-line').innerHTML = g.url ? `<span class="mono">${esc(g.url)}</span>` : '';
+  if ($('gfx-url').dataset.u !== (g.url || '')) { $('gfx-url').dataset.u = g.url || ''; $('gfx-url').innerHTML = g.url ? urlRow('Graphics', g.url) : ''; }
   $('gfx-problem').hidden = !g.problem; $('gfx-problem').textContent = g.problem || '';
   if (DESK) {
     document.querySelectorAll('#gfx-wins [data-wins]').forEach(b => b.classList.toggle('on', b.dataset.wins === DESK.winScope));
@@ -1384,25 +1410,37 @@ function renderGfx(g) {
   }
   const al = g.alerts || { types: {} };
   const akey = JSON.stringify([al, g.alertsWaiting]);
-  if ($('gfx-alerts').dataset.key !== akey) {
+  if ($('gfx-alerts').dataset.key !== akey && !$('gfx-alerts').contains(document.activeElement)) {
     $('gfx-alerts').dataset.key = akey;
-    $('gfx-alerts').innerHTML = [['kill', 'Kills'], ['win', 'Wins'], ['report', 'Reports'], ['button', 'Buttons']].map(([k, n]) => `<button class="b${al.types[k] ? ' on' : ''}" data-alert="${k}">${n}</button>`).join('') +
-      `<button class="b${al.paused ? ' on' : ''}" data-alert="" title="Pause every alert (key ${keyName('alertsPause')})">${al.paused ? 'Paused' : 'Pause'}</button>${g.alertsWaiting ? `<span class="muted" style="font-size:12px">${g.alertsWaiting} waiting</span>` : ''}`;
+    $('gfx-alerts').innerHTML = [['kill', 'Kills'], ['win', 'Wins'], ['report', 'Reports'], ['button', 'Buttons']].map(([k, n]) => swHtml(`data-alert="${k}"`, al.types[k], n)).join('') +
+      swHtml('data-alert=""', al.paused, 'Pause all', `Pause every alert (key ${keyName('alertsPause')})`) + (g.alertsWaiting ? `<span class="muted" style="font-size:12px">${g.alertsWaiting} waiting</span>` : '');
   }
   const key = JSON.stringify(g.elements); if (key === gfxKey) return; gfxKey = key;
-  $('gfx-els').innerHTML = Object.keys(g.names).map(k => `<button class="b${g.elements[k] ? ' on' : ''}" data-gfx="${k}">${esc(g.names[k])}</button>`).join('');
+  const known = new Set(GFX_GROUPS.flatMap(x => x[2]));
+  const groups = GFX_GROUPS.map(([t, sub, keys]) => [t, sub, keys.filter(k => g.names[k])]);
+  const other = Object.keys(g.names).filter(k => !known.has(k));
+  if (other.length) groups.push(['Other', '', other]);
+  $('gfx-els').innerHTML = groups.filter(x => x[2].length).map(([t, sub, keys]) => `<div class="gfx-grp"><h4>${t}<small>${sub}</small></h4>${keys.map(k => swHtml(`data-gfx="${k}"`, g.elements[k], g.names[k])).join('')}</div>`).join('');
 }
-$('gfx-els').addEventListener('click', async e => {
+// Graphics in three groups: what's always up, what comes up when something happens, and what you put up.
+const GFX_GROUPS = [
+  ['Always on', 'on the pictures all the time', ['lobbyLabels', 'impostorTags', 'sabotage', 'gridTiles', 'winCounter', 'top3', 'ticker', 'statusBar']],
+  ['Moments', 'come up by themselves', ['alerts', 'standingsChange', 'playerCards']],
+  ['Info', 'up while on', ['standings', 'pointsOnTheLine', 'storyline']],
+];
+// A real switch (checkbox): filled red with the knob right when on, dim when off.
+const swHtml = (attrs, on, label, title) => `<label class="sw"${title ? ` title="${esc(title)}"` : ''}><span>${esc(label)}</span><input type="checkbox" ${attrs}${on ? ' checked' : ''}><i></i></label>`;
+$('gfx-els').addEventListener('change', async e => {
   const b = e.target.closest('[data-gfx]'); if (!b) return;
-  const r = await api('POST', '/app/admin/broadcast', { element: b.dataset.gfx, on: String(!b.classList.contains('on')) });
+  const r = await api('POST', '/app/admin/broadcast', { element: b.dataset.gfx, on: String(b.checked) });
   toast(r.message); gfxKey = ''; loadDesk();
 });
 $('gfx-wins').addEventListener('click', async e => { const b = e.target.closest('[data-wins]'); if (!b) return; const r = await api('POST', '/app/admin/wins', { scope: b.dataset.wins }); toast(r.message); loadDesk(); });
-$('gfx-alerts').addEventListener('click', async e => {
+$('gfx-alerts').addEventListener('change', async e => {
   const b = e.target.closest('[data-alert]'); if (!b) return;
   const k = b.dataset.alert;
-  const r = await api('POST', '/app/admin/broadcast', k ? { action: 'alerts', kind: k, on: String(!b.classList.contains('on')) } : { action: 'alerts' });
-  toast(r.message); loadDesk();
+  const r = await api('POST', '/app/admin/broadcast', k ? { action: 'alerts', kind: k, on: String(b.checked) } : { action: 'alerts' });
+  toast(r.message); $('gfx-alerts').dataset.key = ''; b.blur(); loadDesk();
 });
 $('gfx-theme').addEventListener('click', e => { e.preventDefault(); api('POST', '/app/admin/broadcast', { action: 'theme' }).then(r => toast(r.message)); });
 
@@ -1571,12 +1609,30 @@ function renderPicker() {
   });
   $('mv-send').disabled = !PICK.length;
   $('mv-send').textContent = PICK.length ? `Send · ${LAYOUT_FOR(PICK.length)}` : 'Send';
-  $('mv-line').textContent = PICK.length ? `${PICK.join(', ')} → ${LAYOUT_FOR(PICK.length)}` : 'Click the lobbies you want on stream, then Send. 1 full screen · 2 side by side · 4 quad · 3 or 5+ grid.';
+  $('mv-line').textContent = PICK.length ? `${PICK.join(', ')} → ${LAYOUT_FOR(PICK.length)}` : 'Pick lobbies, then Send.';
 }
 $('mv-send').addEventListener('click', async () => { const r = await api('POST', '/app/admin/multiview', { lobbies: PICK }); toast(r.message); if (r.ok) PICK = []; loadDesk(); });
 $('mv-clear').addEventListener('click', () => { PICK = []; renderPicker(); });
 addEventListener('resize', () => renderPicker());
 
+// ---- Help behind "?": each card's explanation opens on demand ---------------------------------
+document.querySelectorAll('.help').forEach((h, i) => {
+  const card = h.closest('.card'); if (!card) return;
+  const at = card.querySelector('summary > div, .row > div') || card.querySelector('b');
+  const q = document.createElement('button');
+  q.className = 'hq'; q.type = 'button'; q.textContent = '?'; q.title = 'What is this?'; q.setAttribute('aria-expanded', 'false');
+  q.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); const on = !h.classList.contains('open'); card.querySelectorAll('.help').forEach(x => x.classList.toggle('open', on)); q.classList.toggle('on', on); q.setAttribute('aria-expanded', String(on)); });
+  if (at && !card.querySelector('.hq')) at.appendChild(q);
+});
+// A link with a Copy button.
+const urlRow = (name, url) => `<div class="url"><span class="muted">${esc(name)}</span><span title="${esc(url)}">${esc(url)}</span><button data-copy="${esc(url)}">Copy</button></div>`;
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-copy]'); if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  try { await navigator.clipboard.writeText(b.dataset.copy); }
+  catch (err) { const t = document.createElement('textarea'); t.value = b.dataset.copy; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+  toast('Copied: ' + b.dataset.copy);
+}, true);
 // ---- Side menu: one page per job ------------------------------------------------------------
 const PAGES = {
   live: ['Live desk', ''],
@@ -1675,7 +1731,7 @@ function renderCast() {
   if (key === castKey) return; castKey = key;
   $('org-problem').hidden = !ORG.problem && !ORG.casterProblem; $('org-problem').textContent = ORG.problem || ORG.casterProblem || '';
   const cu = ORG.casterUrl;
-  $('org-cast-url').innerHTML = cu ? [['Overlay', cu], ['Video', cu + 'video'], ['Multiview', cu + 'multiview']].map(([k, u]) => `<span class="muted">${k}</span><span class="mono">${esc(u)}</span>`).join('') : '';
+  $('org-cast-url').innerHTML = cu ? urlRow('Overlay', cu) + urlRow('Video', cu + 'video') + urlRow('Multiview', cu + 'multiview') : '';
   $('org-casting').textContent = ORG.cast ? `· now showing ${ORG.cast}` : '· waiting for a lobby';
   $('org-cast-list').innerHTML = ORG.lobbies.map((l, i) => `<button class="b${l.label === ORG.cast ? ' on' : ''}" data-cast="${esc(l.label)}" title="${l.hot ? esc(l.hot) : ''}">${i < 9 ? (i + 1) + ' · ' : ''}${esc(l.label)}${l.hot ? ' •' : ''}</button>`).join('') || '<span class="muted" style="font-size:12.5px">No lobbies yet.</span>';
   $('org-cast-list').querySelectorAll('[data-cast]').forEach(b => b.onclick = () => castLobby(b.dataset.cast));
