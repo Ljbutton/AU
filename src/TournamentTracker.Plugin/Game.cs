@@ -125,7 +125,8 @@ namespace TournamentTracker.Plugin
         /// <summary>Shows a line in the host's chat only.</summary>
         public static void LocalChat(string text)
         {
-            var hud = HudManager.Instance;
+            // InstanceExists, not Instance: Instance makes an empty HudManager when there's none.
+            var hud = HudManager.InstanceExists ? HudManager.Instance : null;
             var local = PlayerControl.LocalPlayer;
             if (hud == null || hud.Chat == null || local == null)
             {
