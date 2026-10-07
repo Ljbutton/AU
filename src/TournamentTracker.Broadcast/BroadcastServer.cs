@@ -216,6 +216,9 @@ namespace TournamentTracker.App.Broadcast
 
         private string? _ffmpegNote;
 
+        /// <summary>Games finished so far (for sponsor reads "every N games").</summary>
+        private int PlayedGames() => _desk?.Archive.Games.Count ?? 0;
+
         private object? SponsorState()
         {
             if (_desk == null) return null;
@@ -226,10 +229,13 @@ namespace TournamentTracker.App.Broadcast
                 Path = _desk.Sponsors.Path,
                 Problem = _desk.Sponsors.Problem,
                 FfmpegNote = _ffmpegNote,
+                Reads = _desk.Sponsors.ReadsDue(PlayedGames(), _desk.Tables.CurrentRound),
                 List = list.Select(x => new
                 {
                     x.Name, x.Tagline, x.Placements, x.BreakSeconds, Logo = x.Logo.Length > 0,
-                    Shown = log.Count(a => a.Sponsor == x.Name),
+                    Read = x.HasRead ? (x.ReadEveryMinutes > 0 ? $"read every {x.ReadEveryMinutes} min" : x.ReadEveryGames > 0 ? $"read every {x.ReadEveryGames} games" : $"read every {x.ReadEveryRounds} rounds") : null,
+                    Reads = log.Count(a => a.Sponsor == x.Name && a.Placement == "read"),
+                    Shown = log.Count(a => a.Sponsor == x.Name && a.Placement != "read"),
                     Seconds = Math.Round(log.Where(a => a.Sponsor == x.Name).Sum(a => a.Seconds)),
                 }).ToList(),
             };
@@ -638,6 +644,10 @@ namespace TournamentTracker.App.Broadcast
                             try { _env.Open(dir); } catch (Exception) { }
                             return Ok(new { ok = true, message = "Saved the appearance log (CSV) and summary in \"Sponsor reports\".", summary });
                         }
+                        case "readDone":
+                            return Ok(new { ok = true, message = _desk.Sponsors.ReadDone(Arg("name"), PlayedGames(), _desk.Tables.CurrentRound) });
+                        case "readSnooze":
+                            return Ok(new { ok = true, message = _desk.Sponsors.ReadSnooze(Arg("name")) });
                         default: return Ok(new { ok = false, message = "Unknown sponsor action." });
                     }
                 }

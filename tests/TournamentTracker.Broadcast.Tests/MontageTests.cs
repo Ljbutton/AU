@@ -217,6 +217,26 @@ public class MontageTests : IDisposable
     }
 
     [Fact]
+    public void Sponsor_reads_come_due_by_time_or_games_snooze_and_are_logged_when_done()
+    {
+        var book = Book("{\"sponsors\":[{\"name\":\"Acme\",\"readScript\":\"Acme snacks!\",\"readEveryMinutes\":20},{\"name\":\"Bolt\",\"readScript\":\"Bolt.\",\"readEveryGames\":2},{\"name\":\"Quiet\"}]}");
+        Assert.Empty(book.ReadsDue(0, 0));                 // nothing the moment it starts
+        _clock.Advance(60 * 21);
+        Assert.Equal(new[] { "Acme" }, book.ReadsDue(1, 0).Select(r => r.Sponsor));
+        Assert.Equal("Acme snacks!", book.ReadsDue(1, 0)[0].Script);
+        Assert.Contains(book.ReadsDue(2, 0), r => r.Sponsor == "Bolt");
+        book.ReadSnooze("Bolt");
+        Assert.DoesNotContain(book.ReadsDue(2, 0), r => r.Sponsor == "Bolt");
+        _clock.Advance(6 * 60);
+        Assert.Contains(book.ReadsDue(2, 0), r => r.Sponsor == "Bolt");
+        book.ReadDone("Acme", 2, 0);
+        Assert.DoesNotContain(book.ReadsDue(2, 0), r => r.Sponsor == "Acme");
+        var log = book.Appearances().Single();
+        Assert.Equal(("Acme", "read"), (log.Sponsor, log.Placement));
+        Assert.Contains("Verbal read (said by the caster): 1 times", book.Export().Summary);
+    }
+
+    [Fact]
     public void Sponsors_take_turns_in_a_placement_and_every_appearance_is_logged()
     {
         var book = Book("{\"sponsors\":[{\"name\":\"Acme\",\"placements\":[\"killcam\",\"grid\"]},{\"name\":\"Bolt, Inc\",\"placements\":[\"KillCam\"]},{\"name\":\"Quiet\",\"placements\":[]}]}");

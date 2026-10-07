@@ -21,6 +21,21 @@ namespace TournamentTracker.App.Broadcast
         public List<string> Placements { get; set; } = new List<string>();
         /// <summary>How long a split-screen break lasts, in seconds.</summary>
         public int BreakSeconds { get; set; } = 30;
+        /// <summary>Optional: what the caster says out loud for them (a reminder on the Live desk, never on stream).</summary>
+        public string ReadScript { get; set; } = "";
+        /// <summary>How often the read is due: every so many minutes, games or rounds (0: not by that).</summary>
+        public int ReadEveryMinutes { get; set; }
+        public int ReadEveryGames { get; set; }
+        public int ReadEveryRounds { get; set; }
+        public bool HasRead => ReadScript.Trim().Length > 0 && (ReadEveryMinutes > 0 || ReadEveryGames > 0 || ReadEveryRounds > 0);
+    }
+
+    /// <summary>A sponsor read that's due: who, what to say and why now.</summary>
+    public sealed class ReadDue
+    {
+        public string Sponsor { get; set; } = "";
+        public string Script { get; set; } = "";
+        public string Why { get; set; } = "";
     }
 
     /// <summary>
@@ -73,7 +88,7 @@ namespace TournamentTracker.App.Broadcast
                 {
                     Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_path)!);
                     // An example with no placements, so nothing shows until it's filled in.
-                    File.WriteAllText(_path, JsonSerializer.Serialize(new { sponsors = new[] { new Sponsor { Name = "Example Sponsor", Tagline = "Fill this in, then list its placements: killcam, replay, montage, standings, grid, multiview, break", Logo = "C:\\\\Sponsors\\\\example-logo.png" } } }, Json));
+                    File.WriteAllText(_path, JsonSerializer.Serialize(new { sponsors = new[] { new Sponsor { Name = "Example Sponsor", Tagline = "Fill this in, then list its placements: killcam, replay, montage, standings, grid, multiview, break", Logo = "C:\\\\Sponsors\\\\example-logo.png", ReadScript = "(Optional) What you say out loud for them; set readEveryMinutes, readEveryGames or readEveryRounds" } } }, Json));
                 }
                 var stamp = File.GetLastWriteTimeUtc(_path);
                 if (stamp == _stamp) return;
@@ -85,6 +100,61 @@ namespace TournamentTracker.App.Broadcast
                 Problem = null;
             }
             catch (Exception e) { Problem = $"{FileName} couldn't be read ({e.Message})."; }
+        }
+
+        // ---- Verbal reads: reminders for the caster ----------------------------------------------
+
+        private sealed class ReadTrack { public DateTime Last; public int Games, Rounds; public DateTime Snoozed; }
+        private readonly Dictionary<string, ReadTrack> _reads = new Dictionary<string, ReadTrack>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// The reads due now, given how many games and rounds have been played. The first time a
+        /// sponsor is seen counts as its last read, so nothing is due the moment the app starts.
+        /// </summary>
+        public List<ReadDue> ReadsDue(int games, int rounds)
+        {
+            var now = _clock();
+            var due = new List<ReadDue>();
+            foreach (var sp in Sponsors.Where(x => x.HasRead))
+            {
+                ReadTrack t;
+                lock (_lock)
+                {
+                    if (!_reads.TryGetValue(sp.Name, out t!)) _reads[sp.Name] = t = new ReadTrack { Last = now, Games = games, Rounds = rounds };
+                    // Fewer than before (simulation's games removed): count from here.
+                    if (games < t.Games) t.Games = games;
+                    if (rounds < t.Rounds) t.Rounds = rounds;
+                }
+                if (now < t.Snoozed) continue;
+                string? why = sp.ReadEveryMinutes > 0 && (now - t.Last).TotalMinutes >= sp.ReadEveryMinutes ? $"every {sp.ReadEveryMinutes} min"
+                    : sp.ReadEveryGames > 0 && games - t.Games >= sp.ReadEveryGames ? $"every {sp.ReadEveryGames} game{(sp.ReadEveryGames == 1 ? "" : "s")}"
+                    : sp.ReadEveryRounds > 0 && rounds - t.Rounds >= sp.ReadEveryRounds ? $"every {sp.ReadEveryRounds} round{(sp.ReadEveryRounds == 1 ? "" : "s")}"
+                    : null;
+                if (why != null) due.Add(new ReadDue { Sponsor = sp.Name, Script = sp.ReadScript.Trim(), Why = why });
+            }
+            return due;
+        }
+
+        /// <summary>The caster read it: logged as an appearance ("read"), and the next one counts from now.</summary>
+        public string ReadDone(string name, int games, int rounds)
+        {
+            var sp = Sponsors.FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (sp == null) return "No such sponsor.";
+            var now = _clock();
+            lock (_lock) _reads[sp.Name] = new ReadTrack { Last = now, Games = games, Rounds = rounds };
+            Log(sp.Name, "read", now, now, null, sp.ReadScript.Trim());
+            return Held ? $"{sp.Name}: read (simulation, so not logged)." : $"{sp.Name}: read logged.";
+        }
+
+        /// <summary>Remind again in a few minutes.</summary>
+        public string ReadSnooze(string name, int minutes = 5)
+        {
+            lock (_lock)
+            {
+                if (!_reads.TryGetValue(name, out var t)) return "No such read.";
+                t.Snoozed = _clock().AddMinutes(minutes);
+            }
+            return $"{name}: reminding you again in {minutes} minutes.";
         }
 
         /// <summary>The next sponsor for a placement (they take turns), or null when nobody has it.</summary>
@@ -192,12 +262,12 @@ namespace TournamentTracker.App.Broadcast
             {
                 sum.AppendLine($"{s.Key}: {s.Count()} appearances, {Math.Round(s.Sum(a => a.Seconds) / 60, 1)} minutes on screen");
                 foreach (var p in s.GroupBy(a => a.Placement).OrderBy(g => g.Key))
-                    sum.AppendLine($"  {Placement(p.Key)}: {p.Count()} × , {Math.Round(p.Sum(a => a.Seconds))} s");
+                    sum.AppendLine(p.Key == "read" ? $"  {Placement(p.Key)}: {p.Count()} × " : $"  {Placement(p.Key)}: {p.Count()} × , {Math.Round(p.Sum(a => a.Seconds))} s");
                 var first = s.Min(a => a.Start); var last = s.Max(a => a.End);
                 sum.AppendLine($"  From {first.ToLocalTime():yyyy-MM-dd HH:mm} to {last.ToLocalTime():yyyy-MM-dd HH:mm}");
             }
             if (sum.Length == 0) sum.AppendLine("No sponsor appearances logged yet.");
-            return (csv.ToString(), sum.ToString().Replace(" × ,", " times,"));
+            return (csv.ToString(), sum.ToString().Replace(" × ,", " times,").Replace(" × ", " times"));
         }
 
         /// <summary>Where a page on the caster port gets the sponsor's logo (a web link as it is, a file through The Button).</summary>
@@ -229,6 +299,7 @@ namespace TournamentTracker.App.Broadcast
             "standings" => "Standings graphic",
             "grid" => "Grid tile",
             "break" => "Split-screen break",
+            "read" => "Verbal read (said by the caster)",
             _ => p,
         };
     }

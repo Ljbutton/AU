@@ -478,13 +478,14 @@ namespace TournamentTracker.App.Broadcast
         {
             int round = Tables.CurrentRound;
             var table = StandingsTable();
+            var focus = FocusKeys();
             return new
             {
                 Scope = StandingsScope,
                 Round = round,
                 Title = table.Title,
                 Standings = table.Rows.Take(20).ToList(),
-                Notes = Storylines.Notes(FocusKeys()).Select(n => new { n.Id, n.Kind, n.Text, n.Pinned }).ToList(),
+                Notes = Storylines.Notes(focus).Select(n => new { n.Id, n.Kind, n.Text, n.Pinned, Focus = n.Players.Any(focus.Contains) }).ToList(),
                 Shown = ShownNote?.Text,
                 Games = Archive.Today().Count,
             };
