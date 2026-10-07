@@ -67,7 +67,7 @@ namespace TournamentTracker.App.Broadcast
             ["sabotage"] = "Sabotage countdown",
             ["standings"] = "Standings",
             ["pointsOnTheLine"] = "Points on the line",
-            ["standingsChange"] = "Standings change",
+            ["standingsChange"] = "After-game table",
             ["storyline"] = "Storyline note",
             ["alerts"] = "Off-screen alerts",
             ["winCounter"] = "Win counter",

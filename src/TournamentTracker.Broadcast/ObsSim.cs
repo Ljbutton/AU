@@ -20,6 +20,7 @@ namespace TournamentTracker.App.Broadcast
             foreach (var k in Settings.Voice.Volume.Keys.Where(which).ToList()) Settings.Voice.Volume.Remove(k);
             foreach (var k in Settings.Voice.Offset.Keys.Where(which).ToList()) Settings.Voice.Offset.Remove(k);
             if (which(Settings.Voice.Pin)) Settings.Voice.Pin = "";
+            if (_voiceAir?.Slots.Any(x => x != null && which(x)) == true) _voiceAir = null;
             Save();
             var obs = _obs;
             if (obs == null) return 0;

@@ -243,6 +243,13 @@ public sealed class FakeObs : IAsyncDisposable
                 return null;
             case "GetInputMute": return new { inputMuted = Muted.GetValueOrDefault(S(d, "inputName")) };
             case "RemoveScene": Scenes.Remove(S(d, "sceneName")); return null;
+            case "RemoveInput":
+            {
+                string name = S(d, "inputName");
+                if (!Inputs.Remove(name)) throw new Exception("No such input.");
+                foreach (var sc in Scenes.Values) sc.RemoveAll(i => i.Source == name);
+                return null;
+            }
             case "SetSceneItemIndex":
             {
                 var list = Scenes[S(d, "sceneName")];
@@ -531,6 +538,24 @@ public class ObsTests : IAsyncLifetime
         // Unmuted by hand in OBS: the desk hears about it.
         await _obs.Event("InputMuteStateChanged", new { inputName = "Desktop Audio", inputMuted = false });
         await Until(() => _director.DesktopAudioOn.Count == 1);
+    }
+
+    [Fact]
+    public async Task Stopping_simulation_removes_its_sources_from_OBS_and_leaves_the_scene_alone()
+    {
+        _feeds.Add(("SIM-1", "http://127.0.0.1:8767/sim?lobby=SIM-1"));
+        await Connect();
+        _desk.Show("LJ");
+        await Until(() => _desk.OnAir.Scene == "TT Full");
+        lock (_obs) { _obs.Inputs["TT Lobby OLD"] = new() { ["url"] = "http://localhost:8767/sim?lobby=OLD" }; }   // an older version's stand-in
+        Assert.Contains("TT Lobby SIM-1", _obs.Inputs.Keys);
+        _feeds.RemoveAll(f => f.Lobby == "SIM-1");
+        int gone = await _director.ForgetSimAsync(CasterDesk.IsSimLobby);
+        Assert.Equal(2, gone);
+        Assert.DoesNotContain(_obs.Inputs.Keys, k => k.Contains("SIM-") || k.Contains("OLD"));
+        Assert.Contains("TT Lobby LJ", _obs.Inputs.Keys);
+        Assert.Equal("TT Full", _obs.Program);
+        Assert.False(_director.Settings.Sources.ContainsKey("SIM-1"));
     }
 
     [Fact]
