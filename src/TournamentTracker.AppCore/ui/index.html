@@ -655,10 +655,12 @@ function renderAlerts() {
   else if (!g.found) list.push(['bad', 'Among Us not found']);
   else if (!m.installed) list.push(['bad', 'Mod not installed']);
   else if (needsRepair(m)) list.push(['bad', 'Mod needs repair']);
-  if (m.installing) list.push(['', m.installing]);
-  else if (m.updateAvailable) list.push(['', m.auto ? `Mod ${m.latest} installs when Among Us closes` : `Mod update in Among Us: ${m.latest}`]);
-  // The Button's own update: one pill that does the next step itself (update, retry, restart).
+  // One update pill at most: The Button's own update (which brings the mod's with it) wins over the mod's.
   const u = S.appUpdate || {};
+  const appPill = u.ready || u.busy || u.available;
+  if (m.installing) list.push(['', m.installing]);
+  else if (m.updateAvailable && !appPill) list.push(['', m.auto ? `Mod ${m.latest} installs when Among Us closes` : `Mod update in Among Us: ${m.latest}`]);
+  // The Button's own update: one pill that does the next step itself (update, retry, restart).
   if (u.ready) list.push(['good', `The Button ${u.ready} is ready · Restart`, null, 'restart']);
   else if (u.busy) list.push(['', `Updating The Button to ${u.available || 'the new version'}…`, null, 'busy']);
   else if (u.available && u.error) list.push(['bad', `The Button ${u.available} didn't install · Try again`, null, 'update']);
