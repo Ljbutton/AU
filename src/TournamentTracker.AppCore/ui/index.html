@@ -40,6 +40,8 @@ header{user-select:none}
 body.maxed .winctl .i-restore{display:block}
 .alert{all:unset;cursor:pointer;font:13px var(--round);padding:4px 11px;border-radius:99px;border:1.5px solid var(--warn);color:var(--warn);background:var(--warn-soft)}
 .alert.bad{border-color:var(--danger);color:var(--danger);background:var(--danger-soft)}
+.alert.good{border-color:var(--good);color:var(--good);background:var(--good-soft)}
+.alert[disabled]{cursor:default;opacity:.8}
 .alert:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 nav{padding:14px 10px;display:flex;flex-direction:column;gap:4px;border-right:1px solid var(--line);background:rgba(0,0,0,.25)}
 nav button{all:unset;cursor:pointer;padding:6px 14px 6px 18px;border-radius:12px;font:700 27px/1.15 var(--hand);letter-spacing:.05em;color:var(--muted)}
@@ -161,11 +163,108 @@ tr:last-child td{border-bottom:0}
 .off{font:700 11px/1 var(--round);padding:3px 7px;border-radius:6px;background:var(--sunk);color:var(--muted)}
 .tier-must{--tier:#ff2d55}.tier-veryHigh{--tier:#ff8a3d}.tier-high{--tier:#ffc15a}.tier-medium{--tier:#5aa9ff}.tier-low{--tier:#56606e}.tier-offline{--tier:#3a404a}
 .desk-lobbies{display:grid;gap:6px}
+.who{white-space:nowrap}
+img.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 .05em;vertical-align:-.25em}
+.roster-card{margin-top:10px}
+.story-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:14px;margin-top:8px}
+@media (max-width:900px){.story-grid{grid-template-columns:minmax(0,1fr)}}
+.notes{display:grid;gap:5px;align-content:start}
+.nt{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;background:var(--sunk);font-size:13.5px}
+.nt.pinned{box-shadow:inset 3px 0 0 var(--accent)}
+.nt .acts{display:flex;gap:4px}
+.nt .acts button{all:unset;cursor:pointer;font:600 11px/1 var(--round);padding:4px 6px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
+.nt .acts button:hover{color:#fff;border-color:var(--accent)}
+.nt .acts button.go{color:#fff;border-color:var(--accent)}
+.roster-card summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.roster-card summary::-webkit-details-marker{display:none}
+.rl{display:grid;gap:4px;margin-top:8px}
+.rl h3{margin:6px 0 2px;font:600 14px/1.2 var(--round)}
+.rp{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) auto;gap:8px;align-items:center;padding:4px 8px;border-radius:8px;background:var(--sunk);font-size:13px}
+.rp .how{font-size:11.5px;color:var(--muted)}
+.rp .how.none{color:var(--warn)}
+.rp select{font-size:12.5px;max-width:190px}
 .dcard .t3 .rpb{all:unset;cursor:pointer;font:700 11px/1 var(--round);letter-spacing:.04em;padding:4px 8px;border-radius:6px;border:1.5px solid var(--line);color:var(--fg)}
 .dcard .t3 .rpb:hover{border-color:var(--hi)}
 .dcard .t3 .rpb.ready{background:var(--hi);border-color:var(--hi);color:#fff}
 .dcard .t3 .rpb.saving{color:var(--muted)}
 .dcard .t3 .rpb.failed{color:var(--danger);border-color:var(--danger)}
+.inter-card{margin-top:10px;border-color:var(--accent);display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.inter-card.live{border-color:var(--hi);box-shadow:inset 0 2px 0 rgba(255,45,85,.45)}
+.inter-card .tag{font:700 12px/1 var(--round);letter-spacing:.12em;padding:5px 8px;border-radius:6px;background:var(--accent);color:var(--accent-fg)}
+.inter-card.live .tag{background:var(--hi);color:#fff}
+.ppl{display:flex;flex-wrap:wrap;gap:4px}
+.dlob .ppl{grid-column:1/-1}
+.ppl button{all:unset;cursor:pointer;font:600 11.5px/1 var(--round);padding:3px 6px;border-radius:6px;border:1px solid var(--line);color:var(--fg);white-space:nowrap}
+.ppl button:hover{border-color:var(--accent)}
+.ppl img.sw{height:1.5em;vertical-align:-.4em}
+.ppl button::after{content:" · card";color:var(--muted)}
+.vo-list{display:grid;gap:6px;margin-top:8px}
+.hdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:#ffc15a;vertical-align:1px}.hdot.red{background:var(--danger)}
+.tw-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px;margin-top:8px}
+@media (max-width:900px){.tw-grid{grid-template-columns:1fr}}
+.tw-grid h3{margin:10px 0 6px;font:600 13px/1 var(--round);color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.tw-it{padding:8px 10px;border-radius:10px;background:var(--sunk);font-size:13px;display:grid;gap:5px;margin-bottom:6px}
+.tw-it .tt{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tw-it .tt b{font-size:14px}
+.tw-it .k{font:700 10.5px/1 var(--round);letter-spacing:.1em;padding:3px 6px;border-radius:5px;background:#9146ff;color:#fff}
+.tw-it .op{display:grid;grid-template-columns:minmax(0,1fr) 60px auto;gap:8px;align-items:center}
+.tw-it .bar{height:7px;border-radius:4px;background:var(--panel);overflow:hidden}.tw-it .bar i{display:block;height:100%;background:#9146ff}
+.tw-feat{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 8px;align-items:center;font-size:13px}
+.tw-set{display:grid;gap:6px;font-size:13px}.tw-set label{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tw-set input[type=number]{width:80px}.tw-set #tw-client{flex:1;min-width:180px}
+.tw-log{max-height:220px;overflow:auto;font-size:12.5px;display:grid;gap:3px}.tw-log span{color:var(--muted);margin-right:6px;font-variant-numeric:tabular-nums}
+.tw-red{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 10px;border-radius:10px;background:var(--sunk);font-size:13px;margin-bottom:5px}
+.tw-red .fl{color:var(--danger);font-size:12px}
+.hl-list{display:grid;gap:5px;margin-top:8px}
+.hl{display:grid;grid-template-columns:14px minmax(70px,.5fr) minmax(0,2fr) auto;gap:10px;align-items:center;padding:6px 10px;border-radius:10px;background:var(--sunk);font-size:13px}
+.hl .dot{width:12px;height:12px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px rgba(70,194,139,.18)}
+.hl.yellow .dot{background:#ffc15a;box-shadow:0 0 0 3px rgba(255,193,90,.2)}.hl.red .dot{background:var(--danger);box-shadow:0 0 0 3px rgba(255,107,107,.25);animation:hlb 1s infinite}
+@keyframes hlb{50%{opacity:.45}}
+.hl .nm{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hl .pr{color:var(--muted);min-width:0}.hl.red .pr{color:var(--danger)}.hl.yellow .pr{color:#ffc15a}
+.hl .sim{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}.hl .sim .b{padding:3px 8px;font-size:13px}
+.hl .upd{color:#ffc15a;font-size:12px;margin-left:6px}
+.hl-int{display:grid;gap:5px;margin-top:8px}.hl-int:empty{display:none}
+.hl-int .it{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 10px;border-radius:10px;border:1.5px solid var(--danger);font-size:13px}
+.hl-int .it .tag{font:700 10.5px/1 var(--round);letter-spacing:.1em;color:var(--danger)}
+.dcard .acts{display:flex;gap:6px;flex-wrap:wrap}
+.dcard.sys .play{font-size:16px}
+.vo{display:grid;grid-template-columns:minmax(90px,.7fr) minmax(0,1.6fr) auto;gap:10px;align-items:center;padding:7px 10px;border-radius:10px;background:var(--sunk);font-size:13px}
+.vo.heard{box-shadow:inset 3px 0 0 var(--good)}
+.vo .nm{font-weight:700;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.vo .chip{font:700 10.5px/1 var(--round);letter-spacing:.08em;padding:3px 6px;border-radius:5px;background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+.vo .chip.ok{color:var(--good);border-color:var(--good)}.vo .chip.bad{color:var(--danger);border-color:var(--danger)}.vo .chip.on{background:var(--good);border-color:var(--good);color:#05140b}
+.vo .lv{display:grid;grid-template-columns:auto 1fr;gap:3px 8px;align-items:center;color:var(--muted);font-size:12px}
+.vo .mtr{height:7px;border-radius:4px;background:var(--panel);overflow:hidden}
+.vo .mtr i{display:block;height:100%;background:var(--good);transition:width .3s}
+.vo .ctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.vo .ctl input[type=range]{width:90px}
+.vo .ctl input[type=number]{width:70px}
+.mt-list{display:grid;gap:6px;margin-top:8px}
+.mt{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:10px;background:var(--sunk);font-size:13.5px}
+.mt.ready{box-shadow:inset 3px 0 0 #ffc15a;background:rgba(255,193,90,.08)}
+.mt .st{font:700 11px/1 var(--round);letter-spacing:.08em;padding:4px 7px;border-radius:6px;background:var(--panel);border:1px solid var(--line)}
+.mt.ready .st{background:#ffc15a;color:#16120a;border-color:#ffc15a}
+.mt.failed .st{color:var(--danger);border-color:var(--danger)}
+.mt .acts{display:flex;gap:6px}
+.mom-sel{display:flex;gap:6px;flex-wrap:wrap;min-height:34px;padding:6px;border-radius:10px;border:1.5px dashed var(--line);margin-top:8px;align-items:center}
+.mom-sel .chip{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:8px;background:var(--panel);border:1px solid var(--line);font-size:12.5px;cursor:grab}
+.mom-sel .chip.drag{opacity:.4}
+.mom-sel .chip b{color:#ffc15a}
+.mom-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-top:8px;max-height:420px;overflow:auto}
+.mom{position:relative;border-radius:10px;background:var(--sunk);border:2px solid transparent;cursor:pointer;overflow:hidden;font-size:12.5px}
+.mom.sel{border-color:#ffc15a}
+.mom .th{aspect-ratio:16/9;background:#0b0e13 center/cover no-repeat;display:flex;align-items:center;justify-content:center;color:var(--muted);font:700 11px/1 var(--round);letter-spacing:.1em}
+.mom .tx{padding:5px 7px 7px;display:grid;gap:2px}
+.mom .tx .m{color:var(--muted);font-size:11.5px}
+.mom .num{position:absolute;left:6px;top:6px;min-width:22px;height:22px;border-radius:11px;background:#ffc15a;color:#16120a;font:700 12px/22px var(--round);text-align:center}
+.mom .used{position:absolute;right:6px;top:6px;font:700 10px/1 var(--round);letter-spacing:.08em;padding:3px 6px;border-radius:5px;background:rgba(0,0,0,.7);color:#cfd6e2}
+.mom .pv{position:absolute;right:6px;bottom:52px;all:unset;cursor:pointer}
+.sp-list{display:grid;gap:5px;margin-top:8px}
+.sp{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:6px 10px;border-radius:8px;background:var(--sunk);font-size:13px}
+.sp .pl{display:flex;gap:4px;flex-wrap:wrap}
+.sp .pl span{font:600 11px/1 var(--round);padding:3px 6px;border-radius:5px;border:1px solid var(--line);color:var(--muted)}
+.vmodal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:50}
+.vmodal video{max-width:90vw;max-height:80vh;border-radius:10px;background:#000}
+.vmodal .cl{position:absolute;top:18px;right:24px}
 .rp-card{margin-top:10px;border-color:var(--hi);box-shadow:inset 0 2px 0 rgba(255,45,85,.45);display:grid;gap:8px}
 .rp-title{font:600 16px/1.3 var(--round)}
 .rp-badge{display:inline-block;background:var(--hi);color:#fff;font:700 12px/1 var(--round);letter-spacing:.12em;padding:4px 8px;border-radius:6px}
@@ -303,7 +402,6 @@ details.advanced[open] summary h2::before{content:'▾ '}
   <button data-page="points">Points</button>
   <button data-page="replays">Games</button>
   <button data-page="organiser" id="nav-organiser" hidden>Organiser</button>
-  <button data-page="caster" id="nav-caster" hidden>Caster</button>
   <button data-page="settings">Settings</button>
 </nav>
 <main>
@@ -385,9 +483,9 @@ details.advanced[open] summary h2::before{content:'▾ '}
   <div class="org-head">
     <div><h1>Organiser</h1><p class="sub" id="org-sub"></p></div>
     <div class="card cast-card">
-      <div class="row" style="justify-content:space-between"><div><b>Caster</b> <span class="muted" id="org-casting"></span></div><button class="b primary" id="org-jump" title="Key N">Jump to action</button></div>
-      <div class="cast-urls" id="org-cast-url"></div>
-      <div class="muted" style="font-size:12px">OBS Browser sources. Video and overlay follow the lobby you pick below (keys 1–9 switch). Overlay 380×720, add <span class="mono">?full=1</span> on a delayed stream for roles and kills. Video (with the game sound of the lobby on air) and multiview (silent) 1920×1080: hosts turn on "Send my game to the caster" in their Button.</div>
+      <div><b>Caster tools moved to Red Alert</b></div>
+      <div class="muted" style="font-size:12.5px">The caster tab, OBS, replays, the caster overlay and the video pages are in their own app now, for whoever runs the stream. Hosts don't need it.</div>
+      <div class="row"><button class="b" data-open="broadcast">Get Red Alert</button></div>
     </div>
   </div>
   <p id="org-problem" class="note bad" hidden></p>
@@ -404,60 +502,6 @@ details.advanced[open] summary h2::before{content:'▾ '}
   </div>
 </section>
 
-<section id="caster">
-  <div class="desk-head">
-    <div><h1>Caster</h1><p class="sub" id="desk-sub">Only on this PC. It shows who the impostors are, so keep it off stream.</p></div>
-    <div class="card air-card">
-      <div class="row" style="justify-content:space-between"><b>On stream</b><span class="muted" id="air-by"></span></div>
-      <div class="air-slots" id="air-slots"></div>
-      <div class="air-pick" id="air-pick" hidden></div>
-      <div class="row"><span class="muted" style="font-size:12.5px">Layout</span><button class="b" data-layout="full">Full</button><button class="b" data-layout="2up">2-up</button><button class="b" data-layout="4up">Quad</button>
-        <span style="flex:1"></span><button class="b" id="desk-sim" title="Four fake lobbies, for trying it out">Simulation</button></div>
-    </div>
-  </div>
-  <div class="card obs-card" id="obs-card">
-    <div class="row" style="justify-content:space-between"><div><b>OBS</b> <span class="muted" id="obs-line">Not connected</span></div>
-      <div class="row" id="obs-on" hidden><button class="b" id="obs-build" title="Make any missing TT scenes and lobby sources">Rebuild TT scenes</button><button class="b" id="obs-off">Disconnect</button></div></div>
-    <form class="row" id="obs-form" style="margin-top:8px">
-      <input id="obs-host" placeholder="127.0.0.1" style="width:130px" autocomplete="off"><input id="obs-port" placeholder="4455" style="width:80px" inputmode="numeric" autocomplete="off">
-      <input id="obs-pass" type="password" placeholder="Password (Tools → WebSocket Server Settings)" style="flex:1;min-width:200px" autocomplete="off">
-      <button class="b primary">Connect</button>
-    </form>
-    <p class="muted" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. The Button then builds the scenes TT Full, TT 2-up and TT Quad, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
-  </div>
-  <p id="desk-problem" class="note bad" hidden></p>
-  <div class="card rp-card" id="rp-card" hidden>
-    <div class="row" style="justify-content:space-between;align-items:center"><div class="rp-title"><span class="rp-badge">REPLAY</span> <b id="rp-what"></b></div>
-      <div class="row"><button class="b" id="rp-keys" title="Change the replay keys">Keys</button><button class="b primary" data-rp="live" title="Back to live">Back to live</button></div></div>
-    <div class="rp-scrub"><span class="mono" id="rp-time">0:00.0</span><div class="rp-bar" id="rp-bar"><div class="rp-fill" id="rp-fill"></div><div class="rp-mark" id="rp-start" title="Replay start"></div><div class="rp-mark ev" id="rp-ev" title="The play"></div><div class="rp-head" id="rp-head"></div></div><span class="mono muted" id="rp-len">0:00</span></div>
-    <div class="row rp-ctl">
-      <button class="b" data-rp="restart" title="Restart">⟲ Restart</button>
-      <button class="b" data-rp="frameBack" title="Back one frame">◁|</button>
-      <button class="b" data-rp="back" title="Back 1 s">−1s</button>
-      <button class="b primary rp-play" data-rp="toggle" id="rp-play" title="Play / pause">Pause</button>
-      <button class="b" data-rp="forward" title="Forward 1 s">+1s</button>
-      <button class="b" data-rp="frameForward" title="Forward one frame">|▷</button>
-      <span style="flex:1"></span>
-      <button class="b" data-rp="zoomOut" title="Zoom out">−</button><span class="mono muted" id="rp-zoom">×1.0</span><button class="b" data-rp="zoomIn" title="Zoom in">+</button>
-      <button class="b" data-rp="pan" data-dx="-1" data-dy="0" title="Pan left">←</button><button class="b" data-rp="pan" data-dx="0" data-dy="-1" title="Pan up">↑</button><button class="b" data-rp="pan" data-dx="0" data-dy="1" title="Pan down">↓</button><button class="b" data-rp="pan" data-dx="1" data-dy="0" title="Pan right">→</button>
-      <button class="b" data-rp="follow" id="rp-follow" title="Follow the players again">Follow</button>
-    </div>
-    <div class="rp-keys" id="rp-keymap" hidden></div>
-  </div>
-  <div class="desk-grid">
-    <div class="desk-col">
-      <h2>Happening now</h2>
-      <div class="desk-cards" id="desk-cards"></div>
-    </div>
-    <div class="desk-col">
-      <h2>Lobbies</h2>
-      <div class="desk-lobbies" id="desk-lobbies"></div>
-      <h2 style="margin-top:14px">Earlier</h2>
-      <div class="desk-history" id="desk-history"></div>
-    </div>
-  </div>
-  <div id="desk-receivers" hidden></div>
-</section>
 
 <section id="replays">
   <div><h1>Games</h1><p class="sub">Every game this PC hosted, newest first. Watch a replay here, or in Among Us itself: open Freeplay on the game's map and press F8.</p></div>
@@ -508,6 +552,11 @@ details.advanced[open] summary h2::before{content:'▾ '}
       <div class="row" style="margin-top:8px"><button class="b primary" id="code-save">Use this code</button><button class="b" id="code-cancel" hidden>Cancel</button></div>
     </div>
     <p id="code-result" class="note" hidden style="margin-top:8px"></p>
+  </div>
+  <div class="card" id="twitch-card">
+    <h2>Your Twitch</h2>
+    <p class="muted" style="margin:0 0 8px">Shown on the tournament stream with your lobby, with the Twitch logo, so viewers can find your stream. Sent with your game when you turn on "Send my game to the caster".</p>
+    <form class="row" id="twitch-form"><input id="twitch-name" placeholder="your channel name (twitch.tv/…)" autocomplete="off" spellcheck="false" style="flex:1;min-width:220px"><button class="b primary">Save</button></form>
   </div>
   <div class="card" id="tour-card" hidden>
     <h2>Tournament</h2>
@@ -581,13 +630,15 @@ function go(page) {
   document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === page));
   if (page === 'replays') loadReplays();
   if (page === 'organiser') loadOrganiser();
-  if (page === 'caster') loadDesk();
 }
 $('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (b) go(b.dataset.page); });
 document.addEventListener('click', e => {
   const c = e.target.closest('[data-cmd]'); if (c) { cmd(c.dataset.cmd); if (c.dataset.cmd === 'resetleaderboard') $('reset-confirm').hidden = true; }
   const o = e.target.closest('[data-open]'); if (o) api('POST', '/app/open', { what: o.dataset.open });
   const g = e.target.closest('[data-go]'); if (g) go(g.dataset.go);
+  const a = e.target.closest('[data-app]');
+  if (a && a.dataset.app === 'restart') api('POST', '/app/restart').then(r => toast(r.message));
+  if (a && a.dataset.app === 'update') api('POST', '/app/update').then(r => { toast(r.message); refresh(); });
 });
 
 // ---- Top bar: only what needs attention ----------------------------------------------------
@@ -604,16 +655,20 @@ function renderAlerts() {
   else if (needsRepair(m)) list.push(['bad', 'Mod needs repair']);
   if (m.installing) list.push(['', m.installing]);
   else if (m.updateAvailable) list.push(['', m.auto ? `Mod ${m.latest} installs when Among Us closes` : `Mod update in Among Us: ${m.latest}`]);
+  // The Button's own update: one pill that does the next step itself (update, retry, restart).
   const u = S.appUpdate || {};
-  if (u.ready) list.push(['', `The Button ${u.ready} is ready: restart`]);
-  else if (u.available && !u.auto) list.push(['', `The Button ${u.available} is out`]);
+  if (u.ready) list.push(['good', `The Button ${u.ready} is ready · Restart`, null, 'restart']);
+  else if (u.busy) list.push(['', `Updating The Button to ${u.available || 'the new version'}…`, null, 'busy']);
+  else if (u.available && u.error) list.push(['bad', `The Button ${u.available} didn't install · Try again`, null, 'update']);
+  else if (u.available) list.push(['', `The Button ${u.available} is out · Update`, null, 'update']);
   if (!S.setup) { if (!orgOnly) list.push(['', 'No setup code installed']); }
   else if (S.setup.error) list.push(['bad', 'Setup code damaged']);
   const a = S.status && S.status.autoMute;
   if (a && a.voiceProblem) list.push(['bad', 'Discord bot refused', 'home']);
   else if (a && a.voiceWarning) list.push(['', 'Referee commands not heard', 'home']);
   if (a && a.liveProblem) list.push(['', 'Live message can\'t post', 'home']);
-  $('alerts').innerHTML = list.map(([k, t, page]) => `<button class="alert ${k}" data-go="${page || 'settings'}">${esc(t)}</button>`).join('');
+  $('alerts').innerHTML = list.map(([k, t, page, act]) => act ? `<button class="alert ${k}" data-app="${act}"${act === 'busy' ? ' disabled' : ''} title="${act === 'restart' ? 'Restart The Button now to use the new version' : act === 'update' ? (u.error ? esc(u.error) : 'Download and install it now') : ''}">${esc(t)}</button>`
+    : `<button class="alert ${k}" data-go="${page || 'settings'}">${esc(t)}</button>`).join('');
 }
 
 // ---- Home: the lobby ----------------------------------------------------------------------
@@ -820,26 +875,6 @@ function renderReferee() {
   const sel = $('adj-lobby'), cur = sel.value, labels = ORG.lobbies.map(l => l.label);
   if (sel.dataset.labels !== labels.join('|')) { sel.dataset.labels = labels.join('|'); sel.innerHTML = labels.map(l => `<option>${esc(l)}</option>`).join(''); if (cur) sel.value = cur; }
 }
-function castLobby(label) { api('POST', '/app/admin/cast', { lobby: label }).then(r => { toast(r.message); loadOrganiser(); }); }
-document.addEventListener('keydown', e => {
-  const f = document.activeElement;
-  if (!$('organiser').classList.contains('on') || !ORG || (/INPUT|TEXTAREA|SELECT/.test(f.tagName) && f.type !== 'checkbox')) return;
-  const n = parseInt(e.key, 10);
-  if (n >= 1 && n <= 9 && ORG.lobbies[n - 1]) castLobby(ORG.lobbies[n - 1].label);
-  if (e.key === 'n' || e.key === 'N') jumpToAction();
-});
-// The lobby worth watching now: a meeting first, then anything that just happened, else the next live lobby in turn.
-function jumpToAction() {
-  if (!ORG) return;
-  const live = ORG.lobbies.filter(l => !l.quiet && l.data.phase !== 'Menu');
-  if (!live.length) { toast('No live lobbies.'); return; }
-  const hotOf = l => showRoles ? l.hotFull : l.hot;
-  const hot = live.filter(l => hotOf(l) && l.label !== ORG.cast);
-  const next = live[(live.findIndex(l => l.label === ORG.cast) + 1) % live.length];
-  const pick = hot.find(l => l.data.phase === 'Meeting') || hot[0] || next;
-  castLobby(pick.label);
-}
-$('org-jump').addEventListener('click', jumpToAction);
 let awardsScope = 'round';
 document.querySelectorAll('[data-awards]').forEach(b => b.addEventListener('click', () => { awardsScope = b.dataset.awards; orgKey = ''; renderOrganiser(); }));
 function awardsList() { const a = ORG && ORG.awards; return a ? (awardsScope === 'round' && a.round ? a.round : a.all) : null; }
@@ -864,24 +899,19 @@ function renderOrganiser() {
   if (key === orgKey) return;
   orgKey = key;
   $('org-sub').textContent = `${ORG.tournament}${ORG.round ? ' · round ' + ORG.round : ''} · ${ORG.lobbies.filter(l => !l.quiet && l.data.phase !== 'Menu').length} lobbies live`;
-  $('org-problem').hidden = !ORG.problem && !ORG.casterProblem; $('org-problem').textContent = ORG.problem || ORG.casterProblem || '';
-  const cu = ORG.casterUrl;
-  $('org-cast-url').innerHTML = cu ? [['Overlay', cu], ['Video', cu + 'video'], ['Multiview', cu + 'multiview']].map(([k, u]) => `<span class="muted">${k}</span><span class="mono">${esc(u)}</span>`).join('') : '';
-  $('org-casting').textContent = ORG.cast ? `· now showing ${ORG.cast}` : '· waiting for a lobby';
+  $('org-problem').hidden = !ORG.problem; $('org-problem').textContent = ORG.problem || '';
   $('org-lobbies').innerHTML = ORG.lobbies.length ? ORG.lobbies.map((l, i) => {
     const d = l.data, ev = (d.f || []).filter(f => showRoles || ['meeting', 'eject', 'end'].includes(f[1])).slice(-2).reverse();
     const heads = (d.p || []).map(p => `<img src="${head(p[1])}" title="${esc(p[0])}" class="${(showRoles ? p[3] : p[2]) ? 'dead' : ''} ${showRoles && p[4] ? 'imp' : ''}" alt="">`).join('');
-    const hot = showRoles ? l.hotFull : l.hot, casting = l.label === ORG.cast;
-    return `<div class="lob${casting ? ' casting' : hot ? ' hot' : ''}${l.quiet ? ' quiet' : ''}">
-      <div class="top"><b>${i < 9 ? `<span class="muted" style="font-size:18px">${i + 1}</span> ` : ''}${esc(l.label)}</b><span class="phase-pill ${esc(d.phase)}">${esc(l.quiet ? 'No news' : PHASE_NAMES[d.phase] || d.phase)}</span></div>
+    const hot = showRoles ? l.hotFull : l.hot;
+    return `<div class="lob${hot ? ' hot' : ''}${l.quiet ? ' quiet' : ''}">
+      <div class="top"><b>${esc(l.label)}</b><span class="phase-pill ${esc(d.phase)}">${esc(l.quiet ? 'No news' : PHASE_NAMES[d.phase] || d.phase)}</span></div>
       <div class="meta">${d.round ? `Round ${d.round} · game ${Math.min(d.played + (d.phase === 'Tasks' || d.phase === 'Meeting' ? 1 : 0), d.per)} of ${d.per}` : 'No round'}${d.map ? ' · ' + esc(d.map) : ''}${d.code ? ' · ' + esc(d.code) : ''} · ${l.age < 60 ? l.age + 's ago' : Math.round(l.age / 60) + ' min ago'}</div>
       <div class="badges">${l.video ? '<span class="vid">Video</span>' : '<span>No video</span>'}${hot ? `<span class="hot">${esc(hot)}</span>` : ''}</div>
       <div class="heads">${heads || '<span class="muted" style="font-size:12.5px">Nobody in the lobby</span>'}</div>
       <div class="ev">${ev.map(f => `<div><span>${esc(f[0])}</span>${esc(f[2])}</div>`).join('') || '<span>No events yet</span>'}</div>
-      <div class="row"><button class="b${l.label === ORG.cast ? ' on' : ''}" data-cast="${esc(l.label)}">${l.label === ORG.cast ? 'Casting' : 'Cast'}</button></div>
     </div>`;
   }).join('') : '<div class="card"><p class="empty">No lobbies yet. Each tournament host\'s game shows up here once it opens a lobby (it needs the private results channel and a bot in its code).</p></div>';
-  $('org-lobbies').querySelectorAll('[data-cast]').forEach(b => b.onclick = () => castLobby(b.dataset.cast));
   const quiet = ORG.lobbies.filter(l => l.quiet && l.data.phase !== 'Menu');
   $('org-quiet').hidden = !quiet.length;
   $('org-quiet').textContent = quiet.length ? `No news from ${quiet.map(l => `${l.label} for ${Math.max(1, Math.round(l.age / 60))} min`).join(', ')}: check the host's game is still open and online.` : '';
@@ -902,6 +932,11 @@ function renderOrganiser() {
 $('game-change').addEventListener('click', () => { $('game-pick').hidden = false; $('game-input').value = S?.game?.path || ''; $('game-input').focus(); });
 $('game-save').addEventListener('click', async () => { const r = await api('POST', '/app/game', { path: $('game-input').value }); toast(r.message); if (r.ok) $('game-pick').hidden = true; refresh(); });
 $('mod-install').addEventListener('click', async () => { const r = await api('POST', '/app/install'); toast(r.message); refresh(); });
+$('twitch-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const r = await api('POST', '/app/twitch', { name: $('twitch-name').value });
+  toast(r.message); if (r.ok) $('twitch-name').blur(); refresh();
+});
 $('code-save').addEventListener('click', async () => {
   const r = await api('POST', '/app/setup', { code: $('code').value });
   const n = $('code-result'); n.hidden = false; n.textContent = r.message; n.className = 'note ' + (r.ok ? 'good' : 'bad');
@@ -913,6 +948,7 @@ $('code-clear').addEventListener('click', async () => { const r = await api('POS
 
 function renderSettings() {
   const g = S.game, m = S.mod;
+  if (document.activeElement !== $('twitch-name')) $('twitch-name').value = S.twitch || '';
   $('game-found').hidden = !g.found; $('game-missing').hidden = g.found;
   if (!g.found) $('game-pick').hidden = false;
   $('game-path').textContent = g.path || '';
@@ -950,8 +986,7 @@ function renderAdmin() {
   $('admin-card').hidden = !on;
   $('admin-line').textContent = on ? `Unlocked: ${S.admin.tournament}. The Organiser tab is open.` : '';
   $('nav-organiser').hidden = !on;
-  $('nav-caster').hidden = !on;
-  if (!on && ($('organiser').classList.contains('on') || $('caster').classList.contains('on'))) go('settings');
+  if (!on && $('organiser').classList.contains('on')) go('settings');
 }
 $('admin-lock').addEventListener('click', async () => { const r = await api('POST', '/app/admin/code', { code: '' }); toast(r.message); refresh(); });
 
@@ -1025,248 +1060,6 @@ async function loadReplays() {
 const REASONS = { HumansByTask: 'Tasks done', HumansByVote: 'Impostors voted out', ImpostorByKill: 'Kills', ImpostorByVote: 'Vote', ImpostorBySabotage: 'Sabotage', ImpostorDisconnect: 'Impostor left', HumansDisconnect: 'Crewmates left' };
 
 // ---- Refresh ------------------------------------------------------------------------------
-// ---- Caster desk (administration code) --------------------------------------------------------
-// Every lobby's live data arrives through VDO.Ninja (hidden links below, data only), is ranked by
-// The Button, and shows here as cards. Clicking puts a lobby on stream.
-let DESK = null, deskKey = '';
-const TIER_NAME = { must: 'Must show', veryHigh: 'Very high', high: 'High', medium: 'Medium', low: 'Low', offline: 'Offline' };
-const ago = s => s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s / 60)}m ${s % 60 < 10 ? '0' : ''}${s % 60}s ago` : `${Math.floor(s / 3600)}h ago`;
-const clock = iso => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
-async function loadDesk() {
-  if (!S || !S.admin) { DESK = null; return; }
-  let r; try { r = await api('GET', '/app/admin/desk'); } catch (e) { return; }
-  if (!r || !r.desk) return;
-  DESK = r.desk; OBS = r.obs || null; RP = r.replay || null; rpSync = performance.now();
-  receivers(r.receivers || []);
-  if ($('caster').classList.contains('on')) renderDesk();
-}
-// One hidden VDO.Ninja link per sending lobby, for its data. Only messages from these frames are taken.
-const RECV = {};
-function receivers(list) {
-  const want = new Map(list.map(x => [x.lobby, x.url]));
-  for (const [lobby, f] of Object.entries(RECV)) if (want.get(lobby) !== f.dataset.src) { f.remove(); delete RECV[lobby]; }
-  for (const [lobby, url] of want) if (!RECV[lobby]) {
-    const f = document.createElement('iframe');
-    f.dataset.src = url; f.src = url; f.allow = 'autoplay'; f.title = 'data ' + lobby;
-    $('desk-receivers').appendChild(f); RECV[lobby] = f;
-  }
-}
-addEventListener('message', e => {
-  const from = Object.values(RECV).some(f => f.contentWindow === e.source);
-  const got = e.data && e.data.dataReceived;
-  if (!from || !got) return;
-  const items = Array.isArray(got.tt) ? got.tt : got.overlayNinja && Array.isArray(got.overlayNinja.tt) ? got.overlayNinja.tt : null;
-  if (items && items.length) api('POST', '/app/admin/feedin', { items });
-});
-async function show(lobby, layout, slot) {
-  const r = await api('POST', '/app/admin/show', { lobby, layout: layout || 'full', slot: slot ? String(slot) : '' });
-  toast(r.message); loadDesk();
-}
-// Replay button on a card: save one now, or play it once saved.
-function replayButton(c) {
-  const st = c.clip && c.clip.state;
-  if (st === 'ready') return `<button class="rpb ready" data-rplay="${c.id}" title="Play the replay">▶ REPLAY</button>`;
-  if (st === 'saving') return '<span class="rpb saving">Saving replay…</span>';
-  const fail = st === 'failed' && RP && (RP.clips.find(x => x.id === c.clip.id) || {}).problem;
-  return `<button class="rpb${st === 'failed' ? ' failed' : ''}" data-rsave="${c.id}" title="${esc(fail || 'Save a replay of this play')}">${st === 'failed' ? 'Replay failed · retry' : 'Save replay'}</button>`;
-}
-function renderDesk() {
-  if (!DESK) return;
-  renderReplay();
-  const key = JSON.stringify([DESK, OBS, RP && RP.clips]);
-  if (key === deskKey) return;
-  deskKey = key;
-  const d = DESK, air = d.onAir;
-  $('desk-sub').textContent = `${d.lobbies.filter(l => l.online).length} lobbies sending${d.simulating ? ' · simulation (fake lobbies)' : ''} · only on this PC: it shows who the impostors are.`;
-  $('desk-sim').classList.toggle('on', d.simulating);
-  $('desk-problem').hidden = !d.problem; $('desk-problem').textContent = d.problem || '';
-  document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === air.layout));
-  $('air-slots').innerHTML = air.layout === 'replay' ? `<span>REPLAY · ${esc(air.slots[0] || '')}</span>` : air.layout === 'none' ? '<span class="empty">Nothing yet: click a card or lobby</span>'
-    : air.slots.map((l, i) => `<span class="${l ? '' : 'empty'}">${air.slots.length > 1 ? (i + 1) + ' · ' : ''}${esc(l || 'empty')}</span>`).join('');
-  $('air-by').textContent = air.since ? `${air.by === 'obs' ? 'switched in OBS' : 'from here'}${air.scene ? ' · ' + air.scene : ''} · ${clock(air.since)}` : '';
-  if (air.layout === 'none' && air.scene) $('air-slots').innerHTML = `<span class="empty">OBS is on ${esc(air.scene)}: no lobby on stream</span>`;
-  // Which lobby goes in which slot (2-up and quad).
-  const multi = air.layout === '2up' || air.layout === '4up';
-  $('air-pick').hidden = !multi;
-  if (multi && !$('air-pick').contains(document.activeElement)) {
-    const names = d.lobbies.map(l => l.lobby);
-    $('air-pick').innerHTML = air.slots.map((cur, i) => `<label>Slot ${i + 1}<select data-slot="${i}"><option value="">Empty</option>${names.map(n => `<option${n === cur ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>`).join('');
-  }
-  renderObs();
-  const counts = c => c.crew != null ? `<span>${c.crew} crew v ${c.imps} imp</span><span>tasks ${c.taskPct ?? 0}%</span>` : '';
-  $('desk-cards').innerHTML = d.cards.length ? d.cards.map(c => `<div class="dcard tier-${c.tier}" data-card="${c.id}" data-lobby="${esc(c.lobby)}" title="Put ${esc(c.lobby)} on stream">
-      <button class="x" data-dismiss="${c.id}" title="Dismiss">×</button>
-      <div class="t1"><span class="tier">${TIER_NAME[c.tier] || c.tier}</span><b>${esc(c.lobby)}</b>${c.onAir ? `<span class="live">${esc(c.onAir)}</span>` : ''}${c.shown ? `<span class="shown" title="${esc(c.shownHow || '')}">SHOWN ${clock(c.shown)}</span>` : ''}${c.offline ? '<span class="off">OFFLINE</span>' : ''}</div>
-      <div class="play">${esc(c.text)}${c.repeats > 1 ? ` <span class="muted" style="font-size:14px">×${c.repeats}</span>` : ''}</div>
-      <div class="t3">${counts(c)}<span>${ago(c.ago)}</span>${c.updatedAgo < c.ago - 1 ? `<span>updated ${ago(c.updatedAgo)}</span>` : ''}${replayButton(c)}</div>
-    </div>`).join('') : `<div class="card"><p class="empty">${d.lobbies.length ? 'Quiet right now.' : 'No lobbies yet. Hosts appear here when they turn on "Send my game to the caster", or try Simulation.'}</p></div>`;
-  $('desk-lobbies').innerHTML = d.lobbies.length ? d.lobbies.map((l, i) => `<div class="dlob tier-${l.tier}${l.online ? '' : ' offline'}" data-lobby="${esc(l.lobby)}" title="Put ${esc(l.lobby)} on stream (full)">
-      <div class="sc">${l.online ? Math.round(l.score) : '–'}</div>
-      <div style="min-width:0"><div class="nm">${esc(l.lobby)}${l.onAir ? `<span class="live">${esc(l.onAir)}</span>` : ''}${l.online ? '' : '<span class="off">OFFLINE</span>'}</div><div class="ln">${esc(l.line)}</div></div>
-      <div class="lay"><button data-put="full" title="Full screen">Full</button><button data-put="2up" title="2-up, slot 1">2-up</button><button data-put="4up" title="Quad, slot 1">Quad</button></div>
-      ${specRow(l)}
-    </div>`).join('') : '<p class="empty">No lobbies.</p>';
-  $('desk-history').innerHTML = d.history.length ? d.history.map(c => `<div class="hrow tier-${c.tier}">
-      <span class="tm">${clock(c.at)}</span>
-      <span class="tx"><b>${esc(c.lobby)}</b> · ${esc(c.text)}${c.shown ? ' <span class="shown">SHOWN</span>' : ''}</span>
-      <button data-watch="${c.id}" title="Bring this lobby back up (the replay comes later)">Watch again</button>
-    </div>`).join('') : '<p class="empty" style="font-size:13px">Plays that have calmed down move here.</p>';
-}
-$('desk-cards').addEventListener('click', e => {
-  const rp = e.target.closest('[data-rplay]');
-  if (rp) { api('POST', '/app/admin/replay', { action: 'play', id: rp.dataset.rplay }).then(r => { toast(r.message); loadDesk(); }); return; }
-  const rs = e.target.closest('[data-rsave]');
-  if (rs) { api('POST', '/app/admin/replay', { action: 'save', id: rs.dataset.rsave }).then(r => { toast(r.message); loadDesk(); }); return; }
-  const x = e.target.closest('[data-dismiss]');
-  if (x) { api('POST', '/app/admin/dismiss', { id: x.dataset.dismiss }).then(loadDesk); return; }
-  const c = e.target.closest('[data-card]'); if (c) show(c.dataset.lobby, 'full');
-});
-// The spectator view on a lobby's host screen: sent to that host over its VDO.Ninja link (the only way back to them).
-function specSend(lobby, command) {
-  const f = RECV[lobby];
-  if (f && f.contentWindow) f.contentWindow.postMessage({ sendData: { ttc: command }, type: 'rpcs' }, '*');
-  api('POST', '/app/admin/spec', { lobby, command }).then(() => setTimeout(loadDesk, 1200));
-  toast(`${lobby}: ${command.replace(/^spec /, '')}`);
-}
-function specRow(l) {
-  const sp = l.spec; if (!sp || !l.online) return '';
-  const crew = (l.players || []).filter(p => !p.imp);
-  const vis = { off: 'Vision off', focus: 'Vision: focus', rings: 'Vision: rings' }[sp.vision] || sp.vision;
-  return `<div class="spec" data-specrow="${esc(l.lobby)}">View${sp.on ? '' : ' (host isn\'t the referee ghost)'}
-    <button data-spec="lit" class="${sp.lit ? 'on' : ''}" title="Whole map lit (key ${keyName('specLit')})">Lit</button>
-    <button data-spec="vision" class="${sp.vision !== 'off' ? 'on' : ''}" title="Off → focus → rings (key ${keyName('specVision')})">${vis}</button>
-    <button data-spec="report" class="${sp.report ? 'on' : ''}" title="&quot;!&quot; when someone can report (key ${keyName('specReport')})">!</button>
-    <button data-spec="eye" class="${sp.eye ? 'on' : ''}" title="Eye when a crewmate sees an impostor (key ${keyName('specEye')})">Eye</button>
-    ${sp.vision === 'focus' ? `<select data-specfocus title="Whose vision"><option value="auto">Focus: auto${sp.focusing != null && sp.focus == null ? ' (' + esc((crew.find(p => p.id === sp.focusing) || {}).colour || '') + ')' : ''}</option>${crew.map(p => `<option value="${p.id}"${sp.focus === p.id ? ' selected' : ''}>${esc(p.colour)} (${esc(p.name)})</option>`).join('')}</select>` : ''}
-  </div>`;
-}
-const keyName = k => ((RP && RP.hotkeys && RP.hotkeys[k]) || '').replace(/^Key|^Digit/, '');
-$('desk-lobbies').addEventListener('change', e => {
-  const sel = e.target.closest('[data-specfocus]'); if (!sel) return;
-  specSend(sel.closest('[data-specrow]').dataset.specrow, 'spec focus ' + sel.value);
-});
-$('desk-lobbies').addEventListener('click', e => {
-  if (e.target.closest('[data-specfocus]')) return;
-  const sb = e.target.closest('[data-spec]');
-  if (sb) { specSend(sb.closest('[data-specrow]').dataset.specrow, 'spec ' + sb.dataset.spec); return; }
-  if (e.target.closest('[data-specrow]')) return;
-  const row = e.target.closest('[data-lobby]'); if (!row) return;
-  const put = e.target.closest('[data-put]');
-  show(row.dataset.lobby, put ? put.dataset.put : 'full', 1);
-});
-$('desk-history').addEventListener('click', e => {
-  const w = e.target.closest('[data-watch]'); if (!w) return;
-  api('POST', '/app/admin/watch', { id: w.dataset.watch }).then(r => { toast(r.message); loadDesk(); });
-});
-document.querySelectorAll('[data-layout]').forEach(b => b.addEventListener('click', () => {
-  const first = DESK && DESK.onAir.slots.find(x => x) || (DESK && DESK.lobbies[0] && DESK.lobbies[0].lobby) || '';
-  show(first, b.dataset.layout, 1);
-}));
-$('air-pick').addEventListener('change', async e => {
-  const sel = e.target.closest('[data-slot]'); if (!sel || !DESK) return;
-  const slots = [...$('air-pick').querySelectorAll('[data-slot]')].map(x => x.value);
-  const r = await api('POST', '/app/admin/show', { lobby: '', layout: DESK.onAir.layout, slots });
-  toast(r.message); loadDesk();
-});
-let OBS = null;
-function renderObs() {
-  const o = OBS; if (!o) return;
-  $('obs-card').classList.toggle('ok', o.connected);
-  $('obs-line').textContent = o.connected ? `Connected${o.version ? ' · OBS ' + o.version : ''} · ${o.canvas}${o.scene ? ' · live scene: ' + o.scene : ''} · ${Object.keys(o.sources || {}).length} lobby sources` : (o.problem || 'Not connected');
-  $('obs-line').classList.toggle('bad-text', !o.connected && !!o.problem);
-  $('obs-on').hidden = !o.connected; $('obs-form').hidden = o.connected; $('obs-help').hidden = o.connected;
-  if (!$('obs-form').contains(document.activeElement)) { $('obs-host').value = o.host || ''; $('obs-port').value = o.port || ''; $('obs-pass').placeholder = o.hasPassword ? 'Password saved (type to change)' : 'Password (Tools → WebSocket Server Settings)'; }
-}
-$('obs-form').addEventListener('submit', async e => {
-  e.preventDefault();
-  toast('Connecting to OBS…');
-  const body = { action: 'connect', host: $('obs-host').value.trim(), port: $('obs-port').value.trim() };
-  if ($('obs-pass').value) body.password = $('obs-pass').value;
-  const r = await api('POST', '/app/admin/obs', body);
-  toast(r.message); $('obs-pass').value = ''; loadDesk();
-});
-$('obs-off').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'disconnect' }); toast(r.message); loadDesk(); });
-$('obs-build').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'build' }); toast(r.message); loadDesk(); });
-// ---- Replay controls -------------------------------------------------------------------------
-let RP = null, rpSync = 0, keyWait = null;
-const RP_NAMES = { specLit: 'View: lit map', specVision: 'View: vision mode', specReport: 'View: "!"', specEye: 'View: eye', playPause: 'Play / pause', back: 'Back 1 s', forward: 'Forward 1 s', frameBack: 'Back a frame', frameForward: 'Forward a frame', restart: 'Restart', zoomIn: 'Zoom in', zoomOut: 'Zoom out', panLeft: 'Pan left', panRight: 'Pan right', panUp: 'Pan up', panDown: 'Pan down', follow: 'Follow players', live: 'Back to live' };
-const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
-function rpCursor() { const n = RP && RP.now; if (!n) return 0; return Math.min(n.duration || 0, n.cursor + (n.playing ? (performance.now() - rpSync) / 1000 : 0)); }
-function renderReplay() {
-  const n = RP && RP.now;
-  $('rp-card').hidden = !n;
-  if (!n) return;
-  $('rp-what').textContent = `${n.lobby} · ${n.title}`;
-  $('rp-play').textContent = n.playing ? 'Pause' : n.ended ? 'Replay again' : 'Play';
-  $('rp-zoom').textContent = '×' + (n.view ? n.view.zoom : 1).toFixed(1);
-  $('rp-follow').classList.toggle('on', n.follow);
-  const d = n.duration || 1;
-  $('rp-len').textContent = fmt(d);
-  $('rp-start').style.left = (100 * n.start / d) + '%';
-  $('rp-ev').hidden = n.event == null; if (n.event != null) $('rp-ev').style.left = (100 * n.event / d) + '%';
-  if (!$('rp-keymap').hidden) renderKeys();
-}
-(function rpLoop() {
-  const n = RP && RP.now;
-  if (n && !$('rp-card').hidden) {
-    const c = rpCursor(), d = n.duration || 1;
-    $('rp-head').style.left = (100 * c / d) + '%'; $('rp-fill').style.width = (100 * c / d) + '%';
-    $('rp-time').textContent = fmt(c);
-  }
-  requestAnimationFrame(rpLoop);
-})();
-async function rpDo(action, extra) {
-  const r = await api('POST', '/app/admin/replay', Object.assign({ action }, extra || {}));
-  if (r.message) toast(r.message);
-  loadDesk();
-}
-$('rp-card').addEventListener('click', e => {
-  const b = e.target.closest('[data-rp]'); if (!b) return;
-  rpDo(b.dataset.rp, b.dataset.rp === 'pan' ? { value: +b.dataset.dx, value2: +b.dataset.dy } : null);
-});
-$('rp-bar').addEventListener('click', e => {
-  const n = RP && RP.now; if (!n || !n.duration) return;
-  const r = $('rp-bar').getBoundingClientRect();
-  rpDo('seek', { value: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * n.duration });
-});
-// Keys: work on the Caster tab while a replay is up (not while typing). Change them under Keys.
-const KEY_ACTION = { playPause: ['toggle'], back: ['back'], forward: ['forward'], frameBack: ['frameBack'], frameForward: ['frameForward'], restart: ['restart'], zoomIn: ['zoomIn'], zoomOut: ['zoomOut'],
-  panLeft: ['pan', -1, 0], panRight: ['pan', 1, 0], panUp: ['pan', 0, -1], panDown: ['pan', 0, 1], follow: ['follow'], live: ['live'] };
-document.addEventListener('keydown', e => {
-  if (!$('caster').classList.contains('on') || !RP) return;
-  if (keyWait) {
-    e.preventDefault();
-    const map = {}; map[keyWait] = e.code; keyWait = null;
-    api('POST', '/app/admin/replay', { action: 'hotkeys', map }).then(r => { toast(r.message); loadDesk().then(renderKeys); });
-    return;
-  }
-  const f = document.activeElement;
-  if (/INPUT|TEXTAREA|SELECT/.test(f.tagName)) return;
-  const name = Object.keys(RP.hotkeys || {}).find(k => RP.hotkeys[k] === e.code);
-  if (!name) return;
-  // View keys: the lobby on stream (slot 1, or the one being replayed).
-  if (name.startsWith('spec')) {
-    const lobby = DESK && DESK.onAir.slots.find(x => x);
-    if (!lobby) return toast('Put a lobby on stream first.');
-    e.preventDefault();
-    specSend(lobby, 'spec ' + { specLit: 'lit', specVision: 'vision', specReport: 'report', specEye: 'eye' }[name]);
-    return;
-  }
-  if (!RP.now) return;
-  e.preventDefault();
-  if (!KEY_ACTION[name]) return;
-  const [act, dx, dy] = KEY_ACTION[name];
-  rpDo(act, act === 'pan' ? { value: dx, value2: dy } : null);
-});
-function renderKeys() {
-  const hk = RP && RP.hotkeys || {};
-  $('rp-keymap').innerHTML = Object.keys(RP_NAMES).map(k => `<label>${RP_NAMES[k]}<button data-key="${k}" class="${keyWait === k ? 'wait' : ''}">${keyWait === k ? 'Press a key' : esc((hk[k] || '').replace(/^Key|^Digit/, ''))}</button></label>`).join('');
-}
-$('rp-keys').addEventListener('click', () => { $('rp-keymap').hidden = !$('rp-keymap').hidden; renderKeys(); });
-$('rp-keymap').addEventListener('click', e => { const b = e.target.closest('[data-key]'); if (!b) return; keyWait = b.dataset.key; renderKeys(); });
-$('desk-sim').addEventListener('click', async () => { const r = await api('POST', '/app/admin/sim', { on: String(!(DESK && DESK.simulating)) }); toast(r.message); loadDesk(); });
-setInterval(() => { if (S && S.admin && ($('caster').classList.contains('on') || Object.keys(RECV).length || !DESK)) loadDesk(); }, 800);
-setInterval(() => { if (RP && RP.now && $('caster').classList.contains('on')) loadDesk(); }, 250);
 
 async function refresh() {
   try { S = await api('GET', '/app/state'); } catch (e) { return; }

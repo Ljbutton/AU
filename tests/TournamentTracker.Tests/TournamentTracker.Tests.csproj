@@ -11,6 +11,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\TournamentTracker.Core\TournamentTracker.Core.csproj" />
+    <ProjectReference Include="..\..\src\TournamentTracker.Common\TournamentTracker.Common.csproj" />
     <ProjectReference Include="..\..\src\TournamentTracker.AppCore\TournamentTracker.AppCore.csproj" />
   </ItemGroup>
 </Project>

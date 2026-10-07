@@ -1,0 +1,231 @@
+namespace TournamentTracker.App
+{
+    /// <summary>
+    /// The caster's OBS pages for the hosts' game video (sent through VDO.Ninja):
+    /// "/video" is the lobby being cast, full frame, switching the moment another lobby is
+    /// picked (every lobby stays connected in the background so there's no wait), and
+    /// "/multiview" is every lobby at once, RedZone style. Both read "/feeds".
+    /// </summary>
+    public static class CasterPages
+    {
+        private const string Head = @"<!doctype html>
+<html><head><meta charset=""utf-8""><title>Caster video</title>
+<style>
+:root{--bg:#0b0e13;--fg:#f3f5f7;--muted:#9aa6b2;--line:rgba(255,255,255,.14);--accent:#5eead4;--hot:#ff5a4e}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:600 16px/1.3 ""Segoe UI"",system-ui,-apple-system,sans-serif;overflow:hidden}
+iframe{border:0;width:100%;height:100%;display:block;background:#000}
+.wait{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--muted);font-size:22px}
+.wait b{display:block;color:var(--fg);font-size:30px;margin-bottom:6px}
+[hidden]{display:none!important}
+</style>";
+
+        /// <summary>
+        /// The lobby being cast, full frame, with its game sound. OBS Browser source 1920×1080
+        /// (tick "Control audio via OBS" to mix it). ?sound=0 for picture only.
+        /// </summary>
+        public const string Video = Head + @"
+<style>
+.frame{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .15s}
+.frame.on{opacity:1}
+.sound{position:absolute;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
+</style></head><body>
+<div class=""wait"" id=""wait""><div><b>Waiting for the game</b><span id=""wait-line""></span></div></div>
+<script>
+// Every lobby's video stays connected so switching is instant; only the cast one shows.
+const frames={};
+async function tick(){
+  let d;
+  try{d=await (await fetch('/feeds',{cache:'no-store'})).json();}catch(e){return;}
+  const seen=new Set();
+  for(const l of d.lobbies||[]){
+    if(!l.video)continue;
+    seen.add(l.label);
+    let f=frames[l.label];
+    if(!f||f.dataset.src!==l.video){
+      if(f)f.remove();
+      f=document.createElement('iframe');
+      f.className='frame';f.allow='autoplay;fullscreen';f.dataset.src=l.video;f.src=l.video;
+      document.body.appendChild(f);frames[l.label]=f;
+    }
+  }
+  for(const k of Object.keys(frames))if(!seen.has(k)){frames[k].remove();delete frames[k];}
+  for(const [k,f] of Object.entries(frames))f.classList.toggle('on',k===d.cast);
+  const on=d.cast&&frames[d.cast];
+  document.getElementById('wait').hidden=!!on;
+  playSound(d);
+  document.getElementById('wait-line').textContent=d.cast?d.cast+"" isn't sending their game yet."":""Pick a lobby in Red Alert."";
+}
+tick();setInterval(tick,700);
+</script>
+<script>
+// The game sound of the lobby on air, and only that one.
+const soundOn=new URLSearchParams(location.search).get('sound')!=='0';
+let soundFrame=null;
+function playSound(d){
+  const cast=(d.lobbies||[]).find(l=>l.label===d.cast);
+  const src=soundOn&&cast&&cast.sound||null;
+  if((soundFrame&&soundFrame.dataset.src)===src)return;
+  if(soundFrame){soundFrame.remove();soundFrame=null;}
+  if(!src)return;
+  soundFrame=document.createElement('iframe');
+  soundFrame.className='sound';soundFrame.allow='autoplay';soundFrame.dataset.src=src;soundFrame.src=src;
+  document.body.appendChild(soundFrame);
+}
+</script></body></html>";
+
+        /// <summary>Every lobby at once, silent (?sound=1 plays the lobby on air). OBS Browser source 1920×1080.</summary>
+        public const string Multiview = Head + @"
+<style>
+.grid{display:grid;gap:6px;padding:6px;height:100%}
+.tile{position:relative;border:3px solid var(--line);border-radius:10px;overflow:hidden;background:#000;min-height:0}
+.tile.cast{border-color:var(--accent)}
+.tile.hot{border-color:var(--hot)}
+.tile .bar{position:absolute;left:0;right:0;bottom:0;display:flex;gap:10px;align-items:center;padding:6px 10px;background:linear-gradient(transparent,rgba(0,0,0,.85));text-shadow:0 1px 2px #000;font-size:18px}
+.tile .bar .ph{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.tile .bar .tag{margin-left:auto;font-size:13px;padding:2px 8px;border-radius:99px;background:var(--hot);color:#fff}
+.tile .bar .tag.cast{background:var(--accent);color:#06201c}
+.tile .none{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted)}
+.sound{position:absolute;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
+</style></head><body>
+<div class=""wait"" id=""wait""><div><b>No lobbies yet</b>Hosts appear here once their game is running.</div></div>
+<div class=""grid"" id=""grid""></div>
+<script>
+const PH={Lobby:'Lobby',Tasks:'Playing',Meeting:'Meeting',GameOver:'Game over',Menu:'Offline'};
+const tiles={};
+const esc=s=>String(s).replace(/[&<>""]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','""':'&quot;'}[c]));
+async function tick(){
+  let d;
+  try{d=await (await fetch('/feeds',{cache:'no-store'})).json();}catch(e){return;}
+  const list=(d.lobbies||[]);
+  const grid=document.getElementById('grid');
+  document.getElementById('wait').hidden=list.length>0;
+  const n=Math.max(1,list.length),cols=n<=1?1:n<=4?2:n<=9?3:4,rows=Math.ceil(n/cols);
+  grid.style.gridTemplateColumns=`repeat(${cols},minmax(0,1fr))`;grid.style.gridTemplateRows=`repeat(${rows},minmax(0,1fr))`;
+  const seen=new Set();
+  list.forEach((l,i)=>{
+    seen.add(l.label);
+    let t=tiles[l.label];
+    if(!t){t=document.createElement('div');t.className='tile';t.innerHTML='<div class=""none"">No video</div><div class=""bar""></div>';grid.appendChild(t);tiles[l.label]=t;}
+    const f=t.querySelector('iframe');
+    if(l.video&&(!f||f.dataset.src!==l.video)){
+      if(f)f.remove();
+      const nf=document.createElement('iframe');nf.allow='autoplay';nf.dataset.src=l.video;nf.src=l.video;t.prepend(nf);
+    }else if(!l.video&&f)f.remove();
+    t.querySelector('.none').hidden=!!l.video;
+    t.style.order=i;
+    t.classList.toggle('cast',l.label===d.cast);
+    t.classList.toggle('hot',!!l.hot&&l.label!==d.cast);
+    t.querySelector('.bar').innerHTML=`<span>${esc(l.label)}</span><span class=""ph"">${esc(PH[l.phase]||l.phase||'')}${!l.total?'':l.phase==='Tasks'||l.phase==='Meeting'?` · ${l.alive}/${l.total} alive`:` · ${l.total} players`}</span>`+
+      (l.label===d.cast?'<span class=""tag cast"">On air</span>':l.hot?`<span class=""tag"">${esc(l.hot)}</span>`:'');
+  });
+  for(const k of Object.keys(tiles))if(!seen.has(k)){tiles[k].remove();delete tiles[k];}
+  if(soundOn)playSound(d);
+}
+tick();setInterval(tick,1000);
+</script>
+<script>
+// Silent unless ?sound=1: the video page normally carries the sound, and two would double it.
+const soundOn=new URLSearchParams(location.search).get('sound')==='1';
+let soundFrame=null;
+function playSound(d){
+  const cast=(d.lobbies||[]).find(l=>l.label===d.cast);
+  const src=cast&&cast.sound||null;
+  if((soundFrame&&soundFrame.dataset.src)===src)return;
+  if(soundFrame){soundFrame.remove();soundFrame=null;}
+  if(!src)return;
+  soundFrame=document.createElement('iframe');
+  soundFrame.className='sound';soundFrame.allow='autoplay';soundFrame.dataset.src=src;soundFrame.src=src;
+  document.body.appendChild(soundFrame);
+}
+</script></body></html>";
+    
+        /// <summary>
+        /// A stand-in for a lobby's voice in simulation mode (?lobby=LJ): soft blips at a pitch of
+        /// its own, so in OBS you can hear the voice follow the picture without real games.
+        /// </summary>
+        public const string SimVoice = @"<!doctype html>
+<html><head><meta charset=""utf-8""><title>Simulated lobby voice</title></head><body style=""margin:0;background:transparent"">
+<script>
+const lobby=new URLSearchParams(location.search).get('lobby')||'?';
+let h=0;for(const c of lobby)h=(h*31+c.charCodeAt(0))%1000;
+const base=220+h%5*55;
+const ctx=new AudioContext();
+function blip(){
+  const o=ctx.createOscillator(),g=ctx.createGain();
+  o.frequency.value=base*(1+Math.floor(Math.random()*4)/4);
+  g.gain.setValueAtTime(0,ctx.currentTime);g.gain.linearRampToValueAtTime(0.08,ctx.currentTime+0.03);g.gain.linearRampToValueAtTime(0,ctx.currentTime+0.25);
+  o.connect(g).connect(ctx.destination);o.start();o.stop(ctx.currentTime+0.3);
+}
+setInterval(()=>{ if(ctx.state!=='running')ctx.resume(); if(Math.random()<0.6)blip(); },400);
+</script></body></html>";
+
+        /// <summary>
+        /// A stand-in for a lobby's video in simulation mode (?lobby=LJ): big lobby name, a clock
+        /// and moving crewmates, so switching in OBS can be checked without real games.
+        /// </summary>
+        public const string SimFeed = @"<!doctype html>
+<html><head><meta charset=""utf-8""><title>Simulated lobby</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#05070b;color:#fff;font:700 16px ""Segoe UI"",system-ui,sans-serif}
+.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:120px 120px}
+.name{position:absolute;left:0;right:0;top:38%;text-align:center;font-size:180px;letter-spacing:.04em;text-shadow:0 6px 30px rgba(0,0,0,.6)}
+.sub{position:absolute;left:0;right:0;top:64%;text-align:center;font-size:40px;color:#9aa6b2}
+.dot{position:absolute;width:70px;height:90px;border-radius:40px 40px 18px 18px}
+</style></head><body><div class=""grid""></div><div class=""name"" id=""n""></div><div class=""sub"" id=""t""></div>
+<script>
+const lobby=new URLSearchParams(location.search).get('lobby')||'Lobby';
+document.getElementById('n').textContent=lobby;
+const cols=['#c51111','#132ed1','#117f2d','#ed54ba','#ef7d0d','#f5f557','#3f474e','#d6e0f0','#6b2fbb','#71491e'];
+let seed=[...lobby].reduce((a,c)=>a*31+c.charCodeAt(0),7);const r=()=>(seed=seed*16807%2147483647)/2147483647;
+const dots=cols.map(c=>{const d=document.createElement('div');d.className='dot';d.style.background=c;document.body.appendChild(d);return {d,x:r()*1800,y:r()*950,vx:(r()-.5)*4,vy:(r()-.5)*4};});
+function f(){for(const o of dots){o.x+=o.vx;o.y+=o.vy;if(o.x<0||o.x>1850)o.vx*=-1;if(o.y<0||o.y>990)o.vy*=-1;o.d.style.transform=`translate(${o.x}px,${o.y}px)`;}
+document.getElementById('t').textContent='SIMULATED · '+new Date().toLocaleTimeString();requestAnimationFrame(f);}
+f();
+</script></body></html>";
+    
+        /// <summary>
+        /// The REPLAY tag over replays in OBS (TT Replay scene, transparent): a pulsing REPLAY badge
+        /// and what happened. Reads /replaynow.
+        /// </summary>
+        public const string ReplayTag = @"<!doctype html>
+<html><head><meta charset=""utf-8""><title>Replay tag</title>
+<style>
+html,body{margin:0;height:100%;background:transparent;overflow:hidden;font:700 34px/1.2 ""Segoe UI"",system-ui,sans-serif;color:#fff}
+.tag{position:absolute;left:48px;top:40px;display:flex;align-items:center;gap:18px;opacity:0;transform:translateX(-30px);transition:opacity .35s,transform .35s}
+.tag.on{opacity:1;transform:none}
+.badge{background:#ff2d55;padding:10px 22px 10px 18px;border-radius:12px;letter-spacing:.12em;display:flex;align-items:center;gap:12px;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+.badge.montage{background:#ffc15a;color:#16120a}
+.badge.montage .dot{background:#16120a}
+.dot{width:16px;height:16px;border-radius:50%;background:#fff;animation:p 1.1s infinite}
+@keyframes p{50%{opacity:.25}}
+.what{background:rgba(5,7,11,.72);padding:10px 18px;border-radius:12px;font-weight:600;font-size:30px;text-shadow:0 2px 6px #000}
+.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 0;vertical-align:-.25em;filter:drop-shadow(0 .05em .08em rgba(0,0,0,.6))}
+.by{background:rgba(5,7,11,.72);padding:8px 16px;border-radius:12px;font-size:22px;font-weight:600;color:#cfd6e2;display:flex;align-items:center;gap:12px;letter-spacing:.06em}
+.by b{color:#fff;font-size:28px;letter-spacing:0}
+.by img{height:44px;max-width:180px;object-fit:contain}
+.by[hidden]{display:none}
+</style></head><body>
+<div class=""tag"" id=""tag""><div class=""badge"" id=""badge""><span class=""dot""></span><span id=""label"">REPLAY</span></div><div class=""what"" id=""what""></div><div class=""by"" id=""by"" hidden></div></div>
+<script>
+const CREW=['#c51111','#132ed1','#117f2d','#ed54ba','#ef7d0d','#f5f557','#3f474e','#d6e0f0','#6b2fbb','#71491e','#38fedc','#50ef39','#5f1d2e','#ecc0d3','#f0e7a8','#758593','#918877','#d76464'];
+const esc=s=>String(s??'').replace(/[&<>""]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','""':'&quot;'}[c]));
+const rich=s=>esc(s).replace(/\[\[(\d+)\|([^\]]*)\]\]/g,(m,c,n)=>`<img class=""sw"" src=""/crew/${+c>=0&&+c<18?+c:15}.png"" alt="""">${n}`);
+async function tick(){
+  try{
+    const d=await (await fetch('/replaynow',{cache:'no-store'})).json();
+    document.getElementById('tag').classList.toggle('on',!!d.on);
+    if(!d.on)return;
+    const kind=d.kind||'replay';
+    document.getElementById('label').textContent=kind==='montage'?'MONTAGE':kind==='killcam'?'KILL CAM':'REPLAY';
+    document.getElementById('badge').className='badge '+kind;
+    document.getElementById('what').innerHTML=kind==='montage'?rich(d.title):(d.lobby?esc(d.lobby)+' · ':'')+rich(d.title);
+    const by=document.getElementById('by');
+    by.hidden=!d.sponsor;
+    if(d.sponsor) by.innerHTML=`${kind==='montage'?'PRESENTED BY':'PRESENTED BY'} ${d.sponsorLogo?`<img src=""${esc(d.sponsorLogo)}"" alt="""">`:''}<b>${esc(d.sponsor)}</b>`;
+  }catch(e){}
+}
+tick();setInterval(tick,400);
+</script></body></html>";
+    }
+}

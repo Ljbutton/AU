@@ -28,6 +28,8 @@ namespace TournamentTracker
         private readonly object _feedLock = new object();
         private readonly List<(long Seq, string Json)> _feed = new List<(long, string)>();
         private long _feedSeq;
+        /// <summary>This run of the mod: with each message's number, lets the caster drop repeats when the referee's page sends again after a drop.</summary>
+        private static readonly string FeedSource = Guid.NewGuid().ToString("N").Substring(0, 10);
 
         public FeedTuning Tuning { get; set; } = new FeedTuning();
 
@@ -73,6 +75,7 @@ namespace TournamentTracker
             var now = _clock();
             var msg = new Dictionary<string, object?>
             {
+                [FeedProtocol.V] = FeedProtocol.Version,
                 ["type"] = type,
                 ["kind"] = kind,
                 ["lobby"] = FeedLobby(game),
@@ -83,9 +86,11 @@ namespace TournamentTracker
             };
             if (kind == null) msg.Remove("kind");
             if (data != null) foreach (var kv in data) msg[kv.Key] = kv.Value;
-            string json = JsonSerializer.Serialize(msg, FeedJson);
+            msg["src"] = FeedSource;
             lock (_feedLock)
             {
+                msg["seq"] = _feedSeq + 1;
+                string json = JsonSerializer.Serialize(msg, FeedJson);
                 _feed.Add((++_feedSeq, json));
                 if (_feed.Count > FeedKeep) _feed.RemoveRange(0, _feed.Count - FeedKeep);
             }
@@ -106,7 +111,55 @@ namespace TournamentTracker
         {
             var p = id.HasValue ? FeedGame?.ById(id.Value) : null;
             if (p == null) return null;
-            return new { id = p.PlayerId, name = p.Name, color = p.ColorId, colorName = Colors.Name(p.ColorId), imp = p.IsImpostor };
+            return new { id = p.PlayerId, name = p.Name, display = DisplayName(p.Key) ?? p.Name, color = p.ColorId, colorName = Colors.Name(p.ColorId), imp = p.IsImpostor };
+        }
+
+        // Real names from the caster's roster (friend-code key → name), for events and the referee's nameplates.
+        private readonly object _namesLock = new object();
+        private Dictionary<string, string> _displayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>The caster's roster names for this lobby's players, by player key. Replaces the last set.</summary>
+        public void SetDisplayNames(IDictionary<string, string> names)
+        {
+            lock (_namesLock) _displayNames = new Dictionary<string, string>(names.Where(kv => !string.IsNullOrWhiteSpace(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value.Trim()), StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>A player's roster name, or null when the caster hasn't matched them.</summary>
+        public string? DisplayName(string key)
+        {
+            lock (_namesLock) return _displayNames.TryGetValue(key, out var n) ? n : null;
+        }
+
+        // What each player would score if the game ended now (impostors win / crew by vote / crew by tasks), every few seconds.
+        private object? _ifEnded;
+        private DateTime _nextIfEnded;
+
+        private object? IfEnded(GameRecord? game)
+        {
+            if (game == null) { _ifEnded = null; return null; }
+            var now = _clock();
+            if (now < _nextIfEnded && _ifEnded != null) return _ifEnded;
+            _nextIfEnded = now.AddSeconds(5);
+            try { _ifEnded = WhatIf.Points(game, _settings.Scoring); }
+            catch (Exception e) { _log.Warn("Couldn't work out the points on the line: " + e.Message); _ifEnded = null; }
+            return _ifEnded;
+        }
+
+        /// <summary>Everyone in the lobby with what the caster needs to match them to the roster.</summary>
+        private List<object> PlayersForFeed()
+        {
+            var game = FeedGame;
+            return WithoutReferee(Players).Select(p =>
+            {
+                var rec = game?.ById(p.PlayerId);
+                string? discord = Links.Find(p.Key)?.DiscordUserId;
+                return (object)new
+                {
+                    id = p.PlayerId, name = p.Name, display = DisplayName(p.Key), color = p.ColorId, key = p.Key,
+                    discord = string.IsNullOrEmpty(discord) ? null : discord,
+                    imp = rec?.IsImpostor, dead = rec == null ? (bool?)null : rec.DeathCause != null,
+                };
+            }).ToList();
         }
 
         private (int Crew, int Imps) AliveCounts()
@@ -191,6 +244,7 @@ namespace TournamentTracker
             {
                 ["map"] = game.Map,
                 ["players"] = game.Players.Select(p => Who(p.PlayerId)).ToList(),
+                ["roster"] = PlayersForFeed(),
                 ["crewAlive"] = crew,
                 ["impAlive"] = imps,
             });
@@ -246,6 +300,13 @@ namespace TournamentTracker
             var (crew, imps) = AliveCounts();
             Event("eject", new Dictionary<string, object?>
             {
+                // Who voted for whom (null target: skipped or didn't vote).
+                ["votes"] = meeting.Votes.Select(v => new
+                {
+                    voter = game.ByKey(v.VoterKey)?.PlayerId,
+                    target = v.TargetKey == null ? (int?)null : game.ByKey(v.TargetKey)?.PlayerId,
+                    skipped = v.Skipped,
+                }).ToList(),
                 ["ejected"] = ejected == null ? null : Who(ejected.PlayerId),
                 ["wasImpostor"] = ejected?.IsImpostor,
                 ["skipped"] = ejected == null && !meeting.Tie,
@@ -386,6 +447,7 @@ namespace TournamentTracker
                     ["state"] = "start",
                     ["critical"] = s.TimeLeft.HasValue,
                     ["timeLeft"] = s.TimeLeft.HasValue ? Math.Round(s.TimeLeft.Value, 1) : (double?)null,
+                    ["fixing"] = s.Fixing,
                     ["by"] = Who(by),
                 });
             }
@@ -479,11 +541,14 @@ namespace TournamentTracker
                     system = SabotageName(sab.System),
                     critical = sab.TimeLeft.HasValue,
                     timeLeft = sab.TimeLeft.HasValue ? Math.Round(sab.TimeLeft.Value, 1) : (double?)null,
+                    fixing = sab.Fixing,
                 },
                 ["killReady"] = game == null ? null : _killReadyAt.Where(k => KillIsReady(k.Key, _clock()) && game.ById(k.Key) is { DeathCause: null }).Select(k => (int)k.Key).ToList(),
                 ["danger"] = _danger.Count > 0,
                 ["video"] = FeedForLive != null,
                 ["spec"] = SpectatorForFeed(),
+                ["players"] = PlayersForFeed(),
+                ["ifEnded"] = IfEnded(game),
             });
         }
     }

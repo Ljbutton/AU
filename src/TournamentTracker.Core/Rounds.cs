@@ -19,7 +19,8 @@ namespace TournamentTracker
             public int Round { get; set; }
             public string? RefSlotKey { get; set; }
             public Dictionary<int, int> RoundGames { get; set; } = new Dictionary<int, int>();
-            public Dictionary<int, Dictionary<string, int>> ImpostorGames { get; set; } = new Dictionary<int, Dictionary<string, int>>();
+            /// <summary>The last counted game's impostors, for the rotation.</summary>
+            public List<string> LastImpostors { get; set; } = new List<string>();
             public LobbyPlan? Plan { get; set; }
             public bool OverlayOn { get; set; }
             /// <summary>Where the host asked (with /new) for the live lobby message to go.</summary>
@@ -65,7 +66,7 @@ namespace TournamentTracker
                     Round = state?.Round ?? 0;
                     RefSlotKey = state?.RefSlotKey;
                     _roundGames = state?.RoundGames ?? new Dictionary<int, int>();
-                    _impostorGames = state?.ImpostorGames ?? new Dictionary<int, Dictionary<string, int>>();
+                    _lastImpostors = state?.LastImpostors ?? new List<string>();
                     Plan = state?.Plan;
                     _overlayOn = state?.OverlayOn ?? false;
                     Spectator = state?.Spectator ?? new TournamentTracker.Broadcast.SpectatorSettings();
@@ -91,7 +92,7 @@ namespace TournamentTracker
         private void SaveState() => TrySave(() =>
         {
             Directory.CreateDirectory(_dataDir);
-            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames, ImpostorGames = _impostorGames, Plan = Plan, OverlayOn = _overlayOn, StatusChannel = _statusChosen, AutoMuteOff = _autoMuteOff, FeedId = _feedId, FeedKey = _feedKey, FeedOn = _feedOn, Spectator = Spectator }));
+            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames, LastImpostors = _lastImpostors, Plan = Plan, OverlayOn = _overlayOn, StatusChannel = _statusChosen, AutoMuteOff = _autoMuteOff, FeedId = _feedId, FeedKey = _feedKey, FeedOn = _feedOn, Spectator = Spectator }));
         }, "state");
 
         /// <summary>!r3 or !round 3 sets the round; !round on its own says which it is.</summary>
@@ -117,7 +118,7 @@ namespace TournamentTracker
             SetRound(round.Value);
             Reply($"Round {Round} started: points start from zero for this round (the running total keeps counting).", false);
             if (Players.Count > 0) Reply($"Round {Round} starts now!", true);
-            if (RotationOn && Players.Count > 0) Reply("Impostor rotation is on: nobody is impostor twice this round until everyone has been once.", true);
+            if (RotationOn && Players.Count > 0) Reply("Impostor rotation is on: last game's impostors are very unlikely to be impostor again straight away.", true);
             if (previous > 0 && Round > previous) OnRoundAdvanced();
             return true;
         }

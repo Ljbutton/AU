@@ -89,6 +89,13 @@ namespace TournamentTracker.Plugin
             return null;
         }
 
+        /// <summary>Two hands / two codes fix a critical sabotage: how many of the two are done (0–1).</summary>
+        private static float? Fixing(Func<int> done)
+        {
+            try { return Math.Min(1f, done() / 2f); }
+            catch (Exception) { return null; }
+        }
+
         private static void ReadSabotages(FeedFrame frame)
         {
             var ship = ShipStatus.Instance;
@@ -101,7 +108,7 @@ namespace TournamentTracker.Plugin
                     var system = ship.Systems[type];
                     if (system == null) continue;
                     bool on = false;
-                    float? left = null;
+                    float? left = null, fixing = null;
                     var reactor = system.TryCast<ReactorSystemType>();
                     var o2 = system.TryCast<LifeSuppSystemType>();
                     var heli = system.TryCast<HeliSabotageSystem>();
@@ -109,14 +116,14 @@ namespace TournamentTracker.Plugin
                     var comms = system.TryCast<HudOverrideSystemType>();
                     var hqComms = system.TryCast<HqHudSystemType>();
                     var mushrooms = system.TryCast<MushroomMixupSabotageSystem>();
-                    if (reactor != null) { on = reactor.IsActive; left = reactor.Countdown; }
-                    else if (o2 != null) { on = o2.IsActive; left = o2.Countdown; }
-                    else if (heli != null) { on = heli.IsActive; left = heli.Countdown; }
+                    if (reactor != null) { on = reactor.IsActive; left = reactor.Countdown; fixing = Fixing(() => reactor.UserConsolePairs.Count); }
+                    else if (o2 != null) { on = o2.IsActive; left = o2.Countdown; fixing = Fixing(() => o2.CompletedConsoles.Count); }
+                    else if (heli != null) { on = heli.IsActive; left = heli.Countdown; fixing = Fixing(() => heli.CompletedConsoles.Count); }
                     else if (lights != null) on = lights.IsActive;
                     else if (comms != null) on = comms.IsActive;
                     else if (hqComms != null) on = hqComms.IsActive;
                     else if (mushrooms != null) on = mushrooms.IsActive;
-                    if (on) frame.Sabotages.Add(new FeedSabotage { System = type.ToString(), TimeLeft = left });
+                    if (on) frame.Sabotages.Add(new FeedSabotage { System = type.ToString(), TimeLeft = left, Fixing = fixing });
                 }
             }
             catch (Exception e)

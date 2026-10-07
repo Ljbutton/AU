@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -30,6 +31,8 @@ namespace TournamentTracker.Control
         private readonly Func<long, string> _activity;
         private readonly Func<string, Task<string>> _command;
         private readonly Func<long, string>? _feed;
+        /// <summary>POST /api/names {"names":{key:name}}: the caster's roster names for this lobby.</summary>
+        public Action<IDictionary<string, string>>? Names { get; set; }
         private readonly ILog _log;
 
         public int Port { get; }
@@ -107,6 +110,18 @@ namespace TournamentTracker.Control
                         reply = _activity(long.TryParse(HttpRequest.Query(query, "since"), out var since) ? since : 0);
                     else if (method == "GET" && route == "/api/feed" && _feed != null)
                         reply = _feed(long.TryParse(HttpRequest.Query(query, "since"), out var from) ? from : 0);
+                    else if (method == "POST" && route == "/api/names" && Names != null)
+                    {
+                        var names = new Dictionary<string, string>();
+                        try
+                        {
+                            foreach (var kv in JsonDocument.Parse(body).RootElement.GetProperty("names").EnumerateObject())
+                                if (kv.Value.ValueKind == JsonValueKind.String) names[kv.Name] = kv.Value.GetString() ?? "";
+                        }
+                        catch (Exception) { }
+                        Names(names);
+                        reply = "{\"ok\":true}";
+                    }
                     else if (method == "POST" && route == "/api/command")
                     {
                         string command = "";

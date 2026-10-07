@@ -19,6 +19,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrelimBoard", "tools\Prelim
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TournamentTracker.AppCore", "src\TournamentTracker.AppCore\TournamentTracker.AppCore.csproj", "{5B220EC7-A86B-45C4-91D8-ECE70EB220D2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TournamentTracker.Common", "src\TournamentTracker.Common\TournamentTracker.Common.csproj", "{83C9E06C-4FD8-4654-87C1-415733EC9FCE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TournamentTracker.Broadcast", "src\TournamentTracker.Broadcast\TournamentTracker.Broadcast.csproj", "{E802E729-EB4C-4D5F-9BD1-2353C5D1DA7E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TournamentTracker.Broadcast.Tests", "tests\TournamentTracker.Broadcast.Tests\TournamentTracker.Broadcast.Tests.csproj", "{643B888F-E9BF-470E-9A83-D6B07D951CE0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -48,6 +54,18 @@ Global
 		{5B220EC7-A86B-45C4-91D8-ECE70EB220D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5B220EC7-A86B-45C4-91D8-ECE70EB220D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5B220EC7-A86B-45C4-91D8-ECE70EB220D2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{83C9E06C-4FD8-4654-87C1-415733EC9FCE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{83C9E06C-4FD8-4654-87C1-415733EC9FCE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{83C9E06C-4FD8-4654-87C1-415733EC9FCE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{83C9E06C-4FD8-4654-87C1-415733EC9FCE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E802E729-EB4C-4D5F-9BD1-2353C5D1DA7E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E802E729-EB4C-4D5F-9BD1-2353C5D1DA7E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E802E729-EB4C-4D5F-9BD1-2353C5D1DA7E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E802E729-EB4C-4D5F-9BD1-2353C5D1DA7E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{643B888F-E9BF-470E-9A83-D6B07D951CE0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{643B888F-E9BF-470E-9A83-D6B07D951CE0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{643B888F-E9BF-470E-9A83-D6B07D951CE0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{643B888F-E9BF-470E-9A83-D6B07D951CE0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{675B7CB3-77C8-4E36-B957-4662D09C787C} = {2957507D-306C-4288-80DA-9AEEA9AEDFAB}
@@ -55,5 +73,8 @@ Global
 		{0BF1B393-5788-436E-A52F-EB8207AE4D17} = {9A330B33-B7EF-40BA-BDBB-9FA44F92DAC1}
 		{40840B4B-C69B-4BEE-99B4-44C8985A9300} = {526C0B98-C169-47DC-9F30-991CAE8A5124}
 		{5B220EC7-A86B-45C4-91D8-ECE70EB220D2} = {2957507D-306C-4288-80DA-9AEEA9AEDFAB}
+		{83C9E06C-4FD8-4654-87C1-415733EC9FCE} = {2957507D-306C-4288-80DA-9AEEA9AEDFAB}
+		{E802E729-EB4C-4D5F-9BD1-2353C5D1DA7E} = {2957507D-306C-4288-80DA-9AEEA9AEDFAB}
+		{643B888F-E9BF-470E-9A83-D6B07D951CE0} = {9A330B33-B7EF-40BA-BDBB-9FA44F92DAC1}
 	EndGlobalSection
 EndGlobal

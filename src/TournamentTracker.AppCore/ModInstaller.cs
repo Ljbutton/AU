@@ -36,7 +36,7 @@ namespace TournamentTracker.App
     /// <summary>Installs and updates the mod (with its BepInEx loader) in the Among Us folder.</summary>
     public sealed class ModInstaller
     {
-        public const string Repo = "Ljbutton/AU";
+        public const string Repo = GitHubRepo.Name;
         /// <summary>The full bundle for one bitness: TournamentTracker-Full-x86.zip or -x64.zip.</summary>
         public static string BundleName(string arch) => $"TournamentTracker-Full-{arch}.zip";
         /// <summary>The bundle's name before 64-bit Among Us (always x86). Releases keep it for older copies of The Button.</summary>

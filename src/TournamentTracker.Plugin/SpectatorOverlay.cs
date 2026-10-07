@@ -441,4 +441,57 @@ namespace TournamentTracker.Plugin
             WasInVent.Clear();
         }
     }
+    /// <summary>
+    /// On the referee's screen only: players' nameplates show their roster names (from the caster),
+    /// in the game and in meetings. Purely local text; nobody else's game changes.
+    /// </summary>
+    internal static class Nameplates
+    {
+        private static float _next;
+        private static bool _applied;
+
+        public static void Update()
+        {
+            if (Time.unscaledTime < _next) return;
+            _next = Time.unscaledTime + 0.25f;
+            var session = TournamentPlugin.Session;
+            bool on = session != null && Game.IsHost && session.IsSpectator;
+            var all = PlayerControl.AllPlayerControls;
+            for (int i = 0; i < all.Count; i++)
+            {
+                var pc = all[i];
+                if (pc == null || pc.Data == null || pc.cosmetics == null || pc.cosmetics.nameText == null) continue;
+                string real = pc.Data.PlayerName ?? "";
+                string? shown = on ? session!.DisplayName(PlayerSnapshot.MakeKey(pc.Data.FriendCode, real)) : null;
+                string want = shown ?? real;
+                if (shown == null && !_applied) continue;          // never touched: leave the game's own text alone
+                if (pc.cosmetics.nameText.text != want) pc.cosmetics.nameText.text = want;
+            }
+            // Meetings: the vote areas show names too. Matched by their text (real name ↔ roster name).
+            var meeting = MeetingHud.Instance;
+            if (meeting != null && meeting.playerStates != null)
+            {
+                var toShow = new System.Collections.Generic.Dictionary<string, string>();
+                var toReal = new System.Collections.Generic.Dictionary<string, string>();
+                for (int i = 0; i < all.Count; i++)
+                {
+                    var pc = all[i];
+                    if (pc == null || pc.Data == null) continue;
+                    string real = pc.Data.PlayerName ?? "";
+                    string? shown = session?.DisplayName(PlayerSnapshot.MakeKey(pc.Data.FriendCode, real));
+                    if (shown == null || shown == real) continue;
+                    toShow[real] = shown;
+                    toReal[shown] = real;
+                }
+                foreach (var area in meeting.playerStates)
+                {
+                    if (area == null || area.NameText == null) continue;
+                    string text = area.NameText.text ?? "";
+                    if (on && toShow.TryGetValue(text, out var shown)) area.NameText.text = shown;
+                    else if (!on && toReal.TryGetValue(text, out var real)) area.NameText.text = real;
+                }
+            }
+            _applied = on;
+        }
+    }
 }

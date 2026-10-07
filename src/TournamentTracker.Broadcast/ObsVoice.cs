@@ -1,0 +1,177 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+
+namespace TournamentTracker.App.Broadcast
+{
+    /// <summary>The lobbies' voice on stream (Part 11), in obs.json.</summary>
+    public sealed class VoiceSettings
+    {
+        public bool On { get; set; } = true;
+        /// <summary>Every lobby voice silenced (the caster's mute-all key).</summary>
+        public bool MuteAll { get; set; }
+        /// <summary>A lobby whose voice stays up whatever is on screen (the caster's override), or empty: the voice follows the picture.</summary>
+        public string Pin { get; set; } = "";
+        /// <summary>Per lobby: volume (dB, 0 = as sent) and delay (ms, to line the voice up with the picture).</summary>
+        public Dictionary<string, double> Volume { get; set; } = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, int> Offset { get; set; } = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>The caster's microphone in OBS: lobby voice ducks under it (a compressor with that sidechain). Empty: no ducking.</summary>
+        public string DuckUnder { get; set; } = "";
+        /// <summary>How hard the voice ducks (compressor ratio) and from what level of the caster's mic (dB).</summary>
+        public double DuckRatio { get; set; } = 8;
+        public double DuckThreshold { get; set; } = -30;
+    }
+
+    /// <summary>
+    /// Part 11 on the caster's side: each lobby's voice (its referee's Discord and game sound, sent as
+    /// its own VDO.Ninja stream) is a "TT Voice" source in every TT scene. The voice follows the
+    /// picture: the full-screen lobby, or slot 1, is heard; the rest are muted. During replays,
+    /// montages, intermission and when nothing is on, every voice is muted. The caster can pin one
+    /// lobby's voice, mute them all, set each lobby's volume and delay, and duck them under their mic.
+    /// It only goes to the stream: OBS's monitoring stays off, and nothing goes back to the players.
+    /// </summary>
+    public sealed partial class ObsDirector
+    {
+        public const string VoicePrefix = "TT Voice ";
+        public const string DuckFilter = "TT Duck";
+
+        /// <summary>Each lobby's voice stream (VDO.Ninja, no picture), as OBS should load it.</summary>
+        public Func<IReadOnlyList<(string Lobby, string Url)>>? VoiceFeeds { get; set; }
+        public string? VoiceProblem { get; private set; }
+        public List<string> InputNames { get; private set; } = new List<string>();
+        private readonly Dictionary<string, (bool Muted, double Db, int Offset)> _voiceSet = new Dictionary<string, (bool, double, int)>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _voiceInputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private string _duckWas = "\u0000";
+        private OnAir? _voiceAir;
+
+        /// <summary>Voice sources for every lobby that sends one, in every TT scene, and the ducking filter.</summary>
+        public async Task EnsureVoiceAsync()
+        {
+            var obs = _obs;
+            var feeds = VoiceFeeds?.Invoke();
+            if (obs == null || feeds == null || !Settings.Voice.On) return;
+            await _busy.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                var inputs = (await obs.RequestAsync("GetInputList").ConfigureAwait(false)).GetProperty("inputs").EnumerateArray().Select(i => i.GetProperty("inputName").GetString() ?? "").ToHashSet();
+                // For the ducking picker: OBS's own inputs (the caster's mic among them), not ours.
+                InputNames = inputs.Where(n => !n.StartsWith("TT ", StringComparison.Ordinal)).OrderBy(n => n).ToList();
+                var scenes = Settings.Scenes.Values.Concat(new[] { Settings.Replay.Scene }).ToList();
+                var have = (await obs.RequestAsync("GetSceneList").ConfigureAwait(false)).GetProperty("scenes").EnumerateArray().Select(x => x.GetProperty("sceneName").GetString()).ToHashSet();
+                string duck = Settings.Voice.DuckUnder.Trim();
+                bool duckChanged = duck != _duckWas;
+                foreach (var (lobby, url) in feeds)
+                {
+                    string name = VoicePrefix + lobby;
+                    bool fresh = false;
+                    if (!inputs.Contains(name))
+                    {
+                        // Tiny and see-through: only its sound matters. Stays connected when muted, so switching is instant.
+                        await obs.RequestAsync("CreateInput", new
+                        {
+                            sceneName = Settings.Scenes["full"], inputName = name, inputKind = "browser_source",
+                            inputSettings = new { url, width = 64, height = 64, reroute_audio = true, shutdown = false, restart_when_active = false },
+                            sceneItemEnabled = true,
+                        }).ConfigureAwait(false);
+                        await obs.RequestAsync("SetInputMute", new { inputName = name, inputMuted = true }).ConfigureAwait(false);
+                        inputs.Add(name);
+                        fresh = true;
+                    }
+                    else if (!_voiceInputs.Contains(name))
+                    {
+                        var current = await obs.RequestAsync("GetInputSettings", new { inputName = name }).ConfigureAwait(false);
+                        string? was = current.TryGetProperty("inputSettings", out var s) && s.TryGetProperty("url", out var u) ? u.GetString() : null;
+                        if (was != url) await obs.RequestAsync("SetInputSettings", new { inputName = name, inputSettings = new { url } }).ConfigureAwait(false);
+                    }
+                    // In every scene, always active: a hidden source would go silent; muting decides who's heard.
+                    foreach (var scene in scenes.Where(have.Contains))
+                    {
+                        var items = await ItemsAsync(obs, scene).ConfigureAwait(false);
+                        var item = items.FirstOrDefault(i => i.Source == name);
+                        int id = item?.Id ?? (await obs.RequestAsync("CreateSceneItem", new { sceneName = scene, sourceName = name, sceneItemEnabled = true }).ConfigureAwait(false)).GetProperty("sceneItemId").GetInt32();
+                        // At the bottom, out of the way of the pictures and graphics.
+                        if (item == null || items.IndexOf(item) != 0) await obs.RequestAsync("SetSceneItemIndex", new { sceneName = scene, sceneItemId = id, sceneItemIndex = 0 }).ConfigureAwait(false);
+                    }
+                    if (fresh || duckChanged || !_voiceInputs.Contains(name)) await DuckAsync(obs, name, duck).ConfigureAwait(false);
+                    _voiceInputs.Add(name);
+                }
+                _duckWas = duck;
+                VoiceProblem = null;
+            }
+            catch (Exception e) { VoiceProblem = "Lobby voice: " + e.Message; }
+            finally { _busy.Release(); }
+            if (_voiceAir != null) await SetVoicesAsync(_voiceAir).ConfigureAwait(false);
+        }
+
+        /// <summary>The ducking compressor on a voice source, keyed to the caster's mic; removed when there's none.</summary>
+        private async Task DuckAsync(ObsClient obs, string source, string duck)
+        {
+            var list = await obs.RequestAsync("GetSourceFilterList", new { sourceName = source }).ConfigureAwait(false);
+            bool has = list.GetProperty("filters").EnumerateArray().Any(f => f.GetProperty("filterName").GetString() == DuckFilter);
+            if (duck.Length == 0)
+            {
+                if (has) await obs.RequestAsync("RemoveSourceFilter", new { sourceName = source, filterName = DuckFilter }).ConfigureAwait(false);
+                return;
+            }
+            var settings = new { ratio = Settings.Voice.DuckRatio, threshold = Settings.Voice.DuckThreshold, attack_time = 6, release_time = 450, output_gain = 0.0, sidechain_source = duck };
+            if (has) await obs.RequestAsync("SetSourceFilterSettings", new { sourceName = source, filterName = DuckFilter, filterSettings = settings, overlay = true }).ConfigureAwait(false);
+            else await obs.RequestAsync("CreateSourceFilter", new { sourceName = source, filterName = DuckFilter, filterKind = "compressor_filter", filterSettings = settings }).ConfigureAwait(false);
+        }
+
+        /// <summary>Whose voice is heard for what's on stream (null: nothing, e.g. a replay).</summary>
+        public string? LoudVoice(OnAir? air)
+        {
+            var v = Settings.Voice;
+            if (!v.On || v.MuteAll) return null;
+            if (v.Pin.Length > 0) return v.Pin;
+            if (air == null || air.Layout is "replay" or "intermission" or "slate" or "none") return null;
+            return air.Slots.FirstOrDefault(s => s != null);
+        }
+
+        /// <summary>Mutes every lobby voice but the one heard, and sets each one's volume and delay (only what changed).</summary>
+        public async Task SetVoicesAsync(OnAir? air)
+        {
+            _voiceAir = air;
+            var obs = _obs;
+            if (obs == null) return;
+            string? loud = LoudVoice(air);
+            foreach (var name in _voiceInputs.ToList())
+            {
+                string lobby = name.Substring(VoicePrefix.Length);
+                var want = (Muted: !string.Equals(lobby, loud, StringComparison.OrdinalIgnoreCase),
+                            Db: Settings.Voice.Volume.TryGetValue(lobby, out var db) ? db : 0,
+                            Offset: Settings.Voice.Offset.TryGetValue(lobby, out var ms) ? ms : 0);
+                _voiceSet.TryGetValue(name, out var was);
+                bool known = _voiceSet.ContainsKey(name);
+                try
+                {
+                    if (!known || was.Muted != want.Muted) await obs.RequestAsync("SetInputMute", new { inputName = name, inputMuted = want.Muted }).ConfigureAwait(false);
+                    if (!known || was.Db != want.Db) await obs.RequestAsync("SetInputVolume", new { inputName = name, inputVolumeDb = Math.Max(-100, Math.Min(26, want.Db)) }).ConfigureAwait(false);
+                    if (!known || was.Offset != want.Offset) await obs.RequestAsync("SetInputAudioSyncOffset", new { inputName = name, inputAudioSyncOffset = Math.Max(-950, Math.Min(20000, want.Offset)) }).ConfigureAwait(false);
+                    _voiceSet[name] = want;
+                }
+                catch (ObsException) { _voiceInputs.Remove(name); _voiceSet.Remove(name); }    // removed in OBS: built again next time
+            }
+        }
+
+        /// <summary>A change from the caster tab (pin, mute all, volume, delay, ducking): saved and applied now.</summary>
+        public async Task VoiceChangedAsync(bool duck = false)
+        {
+            Save();
+            if (duck) _duckWas = "\u0000";
+            await EnsureVoiceAsync().ConfigureAwait(false);
+            await SetVoicesAsync(_voiceAir ?? _desk.OnAir).ConfigureAwait(false);
+        }
+
+        public object VoiceStatus() => new
+        {
+            Settings.Voice.On, Settings.Voice.MuteAll, Settings.Voice.Pin, Settings.Voice.DuckUnder,
+            Volume = Settings.Voice.Volume, Offset = Settings.Voice.Offset,
+            Heard = LoudVoice(_voiceAir ?? _desk.OnAir),
+            Sources = _voiceInputs.Select(n => n.Substring(VoicePrefix.Length)).OrderBy(x => x).ToList(),
+            Problem = VoiceProblem,
+            Inputs = InputNames,
+        };
+    }
+}

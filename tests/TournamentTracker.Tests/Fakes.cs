@@ -1,7 +1,9 @@
+using System.Text.Json;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using TournamentTracker.Discord;
+using TournamentTracker.Stats;
 using TournamentTracker.Voice;
 
 namespace TournamentTracker.Tests;
@@ -108,4 +110,119 @@ public static class Wait
             await Task.Delay(10);
         }
     }
+}
+
+/// <summary>A small fake of Discord: channels with messages and files, webhooks, reactions and the CDN.</summary>
+public sealed class FakeDiscord
+{
+    public sealed record Msg(string Id, string Channel, string Content, string? File, string? Json, bool Bot, JsonElement? Embeds);
+    public readonly List<Msg> Messages = new();                    // oldest first
+    public readonly List<(string Url, JsonElement Payload, string? File)> Webhooks = new();
+    public readonly List<(string Channel, string Message, string Emoji)> Reactions = new();
+    private long _next = 1_300_000_000_000_000_000;
+    public int Edits;
+
+    private string NextId(DateTime? at = null)
+    {
+        if (at.HasValue)
+        {
+            long ms = new DateTimeOffset(at.Value).ToUnixTimeMilliseconds() - 1420070400000L;
+            return ((ms << 22) + Interlocked.Increment(ref _next) % 1000).ToString();
+        }
+        // Posted now: after everything already in the channel.
+        long last = Messages.Count == 0 ? 0 : Messages.Max(m => long.Parse(m.Id));
+        return Math.Max(last + 1, Interlocked.Increment(ref _next)).ToString();
+    }
+
+    public void Say(string channel, string text, DateTime at) => Messages.Add(new Msg(NextId(at), channel, text, null, null, false, null));
+    public void AddGame(string channel, GameRecord g) =>
+        Messages.Add(new Msg(NextId(g.EndedUtc), channel, $"Game {g.Name}", SharedResults.FileNameFor(g), JsonSerializer.Serialize(g), true, null));
+
+    public HttpResponseMessage Handle(HttpRequestMessage r)
+    {
+        string url = r.RequestUri!.AbsoluteUri;
+        if (url.StartsWith("https://cdn.test/"))
+            return FakeHttp.Json(HttpStatusCode.OK, Messages.Single(m => m.Id == url.Split('/')[3]).Json!);
+        if (url.Contains("/reactions/"))
+        {
+            var parts = r.RequestUri.AbsolutePath.Split('/');
+            Reactions.Add((parts[^6], parts[^4], Uri.UnescapeDataString(parts[^2])));
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        }
+        if (url.Contains("/webhooks/"))
+        {
+            JsonElement payload;
+            string? file = null;
+            if (r.Content is MultipartFormDataContent form)
+            {
+                var parts = form.ToList();
+                payload = JsonDocument.Parse(parts[0].ReadAsStringAsync().Result).RootElement.Clone();
+                file = parts[1].ReadAsStringAsync().Result;
+            }
+            else payload = JsonDocument.Parse(r.Content!.ReadAsStringAsync().Result).RootElement.Clone();
+            Webhooks.Add((url, payload, file));
+            return FakeHttp.Json(HttpStatusCode.OK, """{"id":"42"}""");
+        }
+        var m = System.Text.RegularExpressions.Regex.Match(url, @"/channels/(\w+)/messages(\?|$)");
+        if (m.Success && r.Method == HttpMethod.Get)
+        {
+            string channel = m.Groups[1].Value;
+            List<Msg> snapshot;
+            lock (Messages) snapshot = Messages.ToList();
+            var items = snapshot.Where(x => x.Channel == channel).Reverse().Select(x => new Dictionary<string, object?>
+            {
+                ["id"] = x.Id,
+                ["content"] = x.Content,
+                ["author"] = new { id = x.Bot ? "bot" : "ref", bot = x.Bot },
+                ["embeds"] = x.Embeds.HasValue ? x.Embeds.Value : (object)Array.Empty<object>(),
+                ["attachments"] = x.File == null ? Array.Empty<object>() : new object[] { new { filename = x.File, url = $"https://cdn.test/{x.Id}/{x.File}" } },
+            });
+            return FakeHttp.Json(HttpStatusCode.OK, JsonSerializer.Serialize(items));
+        }
+        if (m.Success && r.Method == HttpMethod.Post)
+        {
+            string channel = m.Groups[1].Value;
+            string id;
+            lock (Messages)
+            {
+                id = NextId();
+                if (r.Content is MultipartFormDataContent form)
+                {
+                    var parts = form.ToList();
+                    var payload = JsonDocument.Parse(parts[0].ReadAsStringAsync().Result).RootElement;
+                    Messages.Add(new Msg(id, channel, payload.GetProperty("content").GetString()!,
+                        payload.GetProperty("attachments")[0].GetProperty("filename").GetString(), parts[1].ReadAsStringAsync().Result, true, null));
+                }
+                else
+                {
+                    var body = JsonDocument.Parse(r.Content!.ReadAsStringAsync().Result).RootElement.Clone();
+                    Messages.Add(new Msg(id, channel, body.TryGetProperty("content", out var c) ? c.GetString()! : "", null, null, true,
+                        body.TryGetProperty("embeds", out var e) ? e : null));
+                }
+            }
+            return FakeHttp.Json(HttpStatusCode.OK, "{\"id\":\"" + id + "\"}");
+        }
+        var edit = System.Text.RegularExpressions.Regex.Match(url, @"/channels/(\w+)/messages/(\d+)$");
+        if (edit.Success && r.Method.Method == "PATCH")
+        {
+            lock (Messages)
+            {
+                int i = Messages.FindIndex(x => x.Id == edit.Groups[2].Value);
+                if (i < 0) return FakeHttp.Json(HttpStatusCode.NotFound, "{}");
+                var body = JsonDocument.Parse(r.Content!.ReadAsStringAsync().Result).RootElement.Clone();
+                Messages[i] = Messages[i] with { Embeds = body.GetProperty("embeds") };
+                Edits++;
+            }
+            return FakeHttp.Json(HttpStatusCode.OK, "{}");
+        }
+        if (edit.Success && r.Method == HttpMethod.Delete)
+        {
+            lock (Messages) Messages.RemoveAll(x => x.Id == edit.Groups[2].Value);
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        }
+        return FakeHttp.Json(HttpStatusCode.OK, "{}");
+    }
+
+    public static string Title(JsonElement payload) => payload.GetProperty("embeds")[0].GetProperty("title").GetString()!;
+    public static string Description(JsonElement payload) => payload.GetProperty("embeds")[0].GetProperty("description").GetString()!;
 }

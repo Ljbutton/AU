@@ -42,6 +42,8 @@ namespace TournamentTracker.Plugin
             try { ReplayTheater.Update(); }
             catch (Exception e) { if (!_loggedTheater) TournamentPlugin.Logger.Error("Replay theatre failed: " + e); _loggedTheater = true; }
             if (ReplayTheater.Active) return;
+            try { Nameplates.Update(); }
+            catch (Exception e) { if (!_loggedOverlay) TournamentPlugin.Logger.Error("Nameplates failed: " + e); _loggedOverlay = true; }
             try { SpectatorOverlay.Update(); }
             catch (Exception e) { if (!_loggedOverlay) TournamentPlugin.Logger.Error("Spectator view failed: " + e); _loggedOverlay = true; }
             try { GhostZoom.Update(); }

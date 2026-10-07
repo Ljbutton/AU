@@ -16,7 +16,6 @@ using TournamentTracker.Control;
 using TournamentTracker.Setup;
 using TournamentTracker.Stats;
 
-using TournamentTracker.App.Broadcast;
 
 namespace TournamentTracker.App
 {
@@ -39,6 +38,15 @@ namespace TournamentTracker.App
         /// reinstall or a file check can remove it; from here it's put back.
         /// </summary>
         public string? SetupCode { get; set; }
+
+        /// <summary>Lobby voice for the broadcast (when sending the game to the caster): levels, and whether the referee's own microphone goes in.</summary>
+        public double VoiceLevel { get; set; } = 1.0;
+        public double GameSoundLevel { get; set; } = 0.5;
+        public bool VoiceIncludeMic { get; set; }
+        public bool VoiceOff { get; set; }
+
+        /// <summary>The host's Twitch channel: shown on the tournament stream with their lobby (sent with their game).</summary>
+        public string? Twitch { get; set; }
 
         public static AppSettings Load(string file)
         {
@@ -69,9 +77,6 @@ namespace TournamentTracker.App
         /// <summary>The running TheButton.exe, so it can update itself. Null: no self-update (tests, other platforms).</summary>
         public string? ExePath { get; set; }
 
-        /// <summary>The caster overlay's port (OBS points at it); 0 picks any free one (tests).</summary>
-        public int CasterPort { get; set; } = Organizer.CasterPort;
-
         /// <summary>Starts the new version and closes this one.</summary>
         public Action Restart { get; set; } = () => { };
     }
@@ -94,57 +99,32 @@ namespace TournamentTracker.App
         private readonly HttpClient _http;
         private Release? _latest;
         private Organizer? _organizer;
-        private CasterDesk? _desk;
-        private ObsDirector? _obs;
-        private ReplayManager? _replays;
+        private Voice.VoiceCapture? _voice;
+
+        /// <summary>The lobby's voice and game sound for the send page (started the first time it asks).</summary>
+        private Voice.VoiceCapture VoiceNow()
+        {
+            if (_voice == null)
+            {
+                _voice = new Voice.VoiceCapture { VoiceLevel = _settings.VoiceLevel, GameLevel = _settings.GameSoundLevel };
+                if (!_settings.VoiceOff) _voice.Start();
+            }
+            return _voice;
+        }
 
         /// <summary>Starts (or stops) the organiser's view for the saved administration code.</summary>
         private void StartOrganizer()
         {
             _organizer?.Dispose();
             _organizer = null;
-            _desk?.Dispose();
-            _desk = null;
-            _replays?.Dispose();
-            _replays = null;
-            var oldObs = _obs;
-            _obs = null;
-            if (oldObs != null) _ = oldObs.DisposeAsync().AsTask();
             if (_settings.AdminCode != null && SetupCode.TryParse(_settings.AdminCode, out var code, out _) && code.IsAdmin)
-            {
-                _organizer = new Organizer(code, _http, casterPort: _env.CasterPort);
-                var organizer = _organizer;
-                var desk = _desk = new CasterDesk(DeskConfigPath);
-                var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(organizer, desk));
-                // The overlay and video page follow the lobby in the first slot; OBS (when connected) shows the whole layout.
-                desk.Switch = air =>
-                {
-                    var first = air.Slots.FirstOrDefault(x => x != null);
-                    if (first != null) organizer.Cast(first);
-                    if (obs.Connected) _ = obs.ApplyAsync(air);
-                };
-                if (organizer.CasterUrl != null) obs.TagUrl = organizer.CasterUrl + "replaytag";
-                _replays = new ReplayManager(desk, obs) { TagChanged = json => organizer.ReplayNow = json };
-                obs.Start();
-            }
+                _organizer = new Organizer(code, _http);
         }
 
-        /// <summary>caster-priority.json, next to The Button's settings.</summary>
-        private string? DeskConfigPath => SideFile(PriorityConfig.FileName);
+        private string? SideFolder() => string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.GetDirectoryName(_env.SettingsFile);
 
         private string? SideFile(string name) =>
             string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.Combine(Path.GetDirectoryName(_env.SettingsFile) ?? ".", name);
-
-        /// <summary>What each lobby's OBS source shows: its VDO.Ninja video, or a stand-in page in simulation mode.</summary>
-        private static IReadOnlyList<(string Lobby, string Url)> ObsFeeds(Organizer organizer, CasterDesk desk)
-        {
-            var list = organizer.ObsLinks();
-            if (desk.Simulating && organizer.CasterUrl != null)
-                foreach (var r in desk.Board.Ranking())
-                    if (!list.Any(l => string.Equals(l.Lobby, r.Lobby, StringComparison.OrdinalIgnoreCase)))
-                        list.Add((r.Lobby, organizer.CasterUrl + "sim?lobby=" + Uri.EscapeDataString(r.Lobby)));
-            return list;
-        }
 
         private object SetAdminCode(string text)
         {
@@ -270,7 +250,7 @@ namespace TournamentTracker.App
                     "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head><body style=\"margin:0\">"
                     + Resource("ui/viewer-body.html") + "</body></html>");
             if (method == "GET" && route == "/send")
-                return Text(200, "text/html; charset=utf-8", CasterPages.Send);
+                return Text(200, "text/html; charset=utf-8", SendPage.Html);
             if (method == "GET" && route == "/generator")
                 return Text(200, "text/html; charset=utf-8", Resource("docs/setup-codes.html"));
             var font = Regex.Match(route, @"^/fonts/([a-z0-9-]+\.woff2)$");
@@ -320,118 +300,14 @@ namespace TournamentTracker.App
                 case ("POST", "/app/feed"): return Ok(await FeedAsync(Arg("on") == "true").ConfigureAwait(false));
                 case ("POST", "/app/admin/code"): return Ok(SetAdminCode(Arg("code")));
                 case ("GET", "/app/admin"): return _organizer == null ? Text(404, "application/json", "{\"error\":\"locked\"}") : Ok(_organizer.State());
-                case ("POST", "/app/admin/cast"):
-                    if (_organizer == null) return Ok(new { ok = false, message = "Administration is locked." });
-                    _organizer.Cast(Arg("lobby"));
-                    return Ok(new { ok = true, message = $"Casting {Arg("lobby")}." });
-                case ("GET", "/app/admin/desk"):
-                    if (_desk == null || _organizer == null) return Text(404, "application/json", "{\"error\":\"locked\"}");
-                    return Ok(new { desk = _desk.State(), obs = _obs?.Status(), replay = _replays?.State(), receivers = _organizer.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList() });
-                case ("POST", "/app/admin/feedin"):
-                    if (_desk == null) return Ok(new { ok = false });
-                    if (input.ValueKind == JsonValueKind.Object && input.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
-                        foreach (var item in items.EnumerateArray()) _desk.Apply(item);
-                    return Ok(new { ok = true });
-                case ("POST", "/app/admin/show"):
+                case ("POST", "/app/names"):
                 {
-                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
-                    string layout = Arg("layout").Length > 0 ? Arg("layout") : "full";
-                    int? slot = int.TryParse(Arg("slot"), out var sl) ? sl : (int?)null;
-                    List<string>? slots = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("slots", out var ss) && ss.ValueKind == JsonValueKind.Array
-                        ? ss.EnumerateArray().Select(x => x.ValueKind == JsonValueKind.String ? x.GetString() ?? "" : "").ToList() : null;
-                    var air = _desk.Show(Arg("lobby"), layout, slot, slots);
-                    return Ok(new { ok = true, message = air.Layout == "full" ? $"{Arg("lobby")} is on stream." : $"On stream: {string.Join(", ", air.Slots.Select(x => x ?? "empty"))}." });
+                    // From the caster, over VDO.Ninja (this host's send page): roster names for this lobby's players.
+                    if (GamePath == null) return Ok(new { ok = false });
+                    string json = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("names", out var nm) && nm.ValueKind == JsonValueKind.Object ? nm.GetRawText() : "{}";
+                    bool sent = await _mod.NamesAsync(GamePath, json).ConfigureAwait(false) != null;
+                    return Ok(new { ok = sent });
                 }
-                case ("POST", "/app/admin/watch"):
-                {
-                    var card = _desk?.Find(Arg("id"));
-                    if (_desk == null || card == null) return Ok(new { ok = false, message = "That card is gone." });
-                    // A card with a saved replay plays it; otherwise its lobby comes back up.
-                    if (_replays != null && card.ClipId != null && _replays.Find(card.ClipId)?.State == "ready")
-                    {
-                        string played = await _replays.PlayAsync(card.ClipId).ConfigureAwait(false);
-                        return Ok(new { ok = true, message = played });
-                    }
-                    _desk.Show(card.Lobby, _desk.OnAir.Layout == "none" ? "full" : _desk.OnAir.Layout, 1);
-                    return Ok(new { ok = true, message = $"Back to {card.Lobby}: {card.Text}." });
-                }
-                case ("POST", "/app/admin/obs"):
-                {
-                    if (_obs == null) return Ok(new { ok = false, message = "Administration is locked." });
-                    switch (Arg("action"))
-                    {
-                        case "disconnect":
-                            await _obs.DisconnectAsync().ConfigureAwait(false);
-                            return Ok(new { ok = true, message = "Disconnected from OBS." });
-                        case "build":
-                            if (!_obs.Connected) return Ok(new { ok = false, message = "Connect to OBS first." });
-                            await _obs.BuildAsync().ConfigureAwait(false);
-                            if (_desk != null && _desk.OnAir.Layout != "none") await _obs.ApplyAsync(_desk.OnAir).ConfigureAwait(false);
-                            return Ok(new { ok = true, message = "The TT scenes are up to date." });
-                        default:
-                        {
-                            int? port = int.TryParse(Arg("port"), out var pt) ? pt : (int?)null;
-                            string? password = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("password", out var pw) && pw.ValueKind == JsonValueKind.String ? pw.GetString() : null;
-                            string message = await _obs.ConnectAsync(Arg("host").Length > 0 ? Arg("host") : null, port, password).ConfigureAwait(false);
-                            if (_obs.Connected && _desk != null && _desk.OnAir.Layout != "none" && _desk.OnAir.By == "button") await _obs.ApplyAsync(_desk.OnAir).ConfigureAwait(false);
-                            return Ok(new { ok = _obs.Connected, message });
-                        }
-                    }
-                }
-                case ("POST", "/app/admin/replay"):
-                {
-                    if (_replays == null || _desk == null || _obs == null) return Ok(new { ok = false, message = "Administration is locked." });
-                    string action = Arg("action");
-                    double Num(string name) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty(name, out var n)
-                        ? n.ValueKind == JsonValueKind.Number ? n.GetDouble() : double.TryParse(n.GetString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0 : 0;
-                    switch (action)
-                    {
-                        case "save":
-                        {
-                            var card = _desk.Find(Arg("id"));
-                            if (card == null) return Ok(new { ok = false, message = "That card is gone." });
-                            if (!_obs.Connected) return Ok(new { ok = false, message = "Connect OBS first: replays come from its replay buffer." });
-                            _ = Task.Run(() => _replays.SaveAsync(card));
-                            return Ok(new { ok = true, message = $"Saving a replay of {card.Lobby}: {card.Text}." });
-                        }
-                        case "play":
-                        {
-                            string id = Arg("id");
-                            var card = _desk.Find(id);
-                            if (card?.ClipId != null) id = card.ClipId;
-                            return Ok(new { ok = true, message = await _replays.PlayAsync(id).ConfigureAwait(false) });
-                        }
-                        case "hotkeys":
-                        {
-                            if (input.TryGetProperty("map", out var map) && map.ValueKind == JsonValueKind.Object)
-                            {
-                                foreach (var kv in map.EnumerateObject())
-                                    if (kv.Value.ValueKind == JsonValueKind.String && _obs.Settings.Replay.Hotkeys.ContainsKey(kv.Name)) _obs.Settings.Replay.Hotkeys[kv.Name] = kv.Value.GetString() ?? "";
-                                _obs.SaveSettings();
-                            }
-                            return Ok(new { ok = true, message = "Replay keys saved." });
-                        }
-                        default:
-                        {
-                            string? said = await _replays.ControlAsync(action, Num("value"), Num("value2")).ConfigureAwait(false);
-                            return Ok(new { ok = said == null || action == "live", message = said ?? "" });
-                        }
-                    }
-                }
-                case ("POST", "/app/admin/spec"):
-                {
-                    // Real lobbies get the command from the tab, over their VDO.Ninja link; simulated ones here.
-                    string cmd = Arg("command");
-                    if (_desk == null || !cmd.StartsWith("spec ", StringComparison.Ordinal)) return Ok(new { ok = false });
-                    return Ok(new { ok = _desk.SimSpec(Arg("lobby"), cmd) });
-                }
-                case ("POST", "/app/admin/dismiss"):
-                    _desk?.Dismiss(Arg("id"));
-                    return Ok(new { ok = true });
-                case ("POST", "/app/admin/sim"):
-                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
-                    _desk.Simulate(Arg("on") == "true");
-                    return Ok(new { ok = true, message = _desk.Simulating ? "Simulation on: four fake lobbies are playing." : "Simulation off." });
                 case ("GET", "/app/sendinfo"):
                 {
                     string? push = null;
@@ -441,7 +317,31 @@ namespace TournamentTracker.App
                         if (status != null && JsonDocument.Parse(status).RootElement.TryGetProperty("feed", out var feed)
                             && feed.TryGetProperty("pushUrl", out var pu) && pu.ValueKind == JsonValueKind.String) push = pu.GetString();
                     }
-                    return Ok(new { pushUrl = push != null && push.StartsWith(TournamentSession.VdoNinja, StringComparison.Ordinal) ? push : null });
+                    return Ok(new { pushUrl = push != null && push.StartsWith(TournamentSession.VdoNinja, StringComparison.Ordinal) ? push : null, twitch = _settings.Twitch });
+                }
+                case ("GET", "/app/voice/pcm"):
+                    // The mix of Discord's and Among Us's sound since the last call, for the send page (never played here).
+                    if (_settings.VoiceOff) return (200, "application/octet-stream", Array.Empty<byte>());
+                    return (200, "application/octet-stream", VoiceNow().Read());
+                case ("GET", "/app/voice"):
+                {
+                    var v = VoiceNow();
+                    return Ok(new { on = !_settings.VoiceOff, mic = _settings.VoiceIncludeMic, state = v.State() });
+                }
+                case ("POST", "/app/voice"):
+                {
+                    var v = VoiceNow();
+                    double Level(string name, double was) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty(name, out var n) && n.ValueKind == JsonValueKind.Number ? Math.Max(0, Math.Min(1.5, n.GetDouble())) : was;
+                    _settings.VoiceLevel = v.VoiceLevel = Level("voiceLevel", _settings.VoiceLevel);
+                    _settings.GameSoundLevel = v.GameLevel = Level("gameLevel", _settings.GameSoundLevel);
+                    if (Arg("mic").Length > 0) _settings.VoiceIncludeMic = Arg("mic") == "true";
+                    if (Arg("on").Length > 0)
+                    {
+                        _settings.VoiceOff = Arg("on") != "true";
+                        if (_settings.VoiceOff) v.Stop(); else v.Start();
+                    }
+                    TrySave();
+                    return Ok(new { ok = true });
                 }
                 case ("GET", "/app/sendfeed"):
                 {
@@ -464,6 +364,15 @@ namespace TournamentTracker.App
                     TrySave();
                     _nextAutoModUpdate = DateTime.MinValue;
                     return Ok(new { ok = true, message = _settings.AutoUpdateMod ? "The mod updates itself while Among Us is closed." : "Automatic mod updates are off: Settings shows when a new version is out." });
+                case ("POST", "/app/twitch"):
+                {
+                    string typed = Arg("name").Trim();
+                    string? handle = TournamentTracker.Broadcast.FeedProtocol.TwitchHandle(typed);
+                    if (typed.Length > 0 && handle == null) return Ok(new { ok = false, message = "That isn't a Twitch channel name (letters, numbers and _, like your twitch.tv/ link)." });
+                    _settings.Twitch = handle;
+                    _settings.Save(_env.SettingsFile);
+                    return Ok(new { ok = true, message = handle == null ? "Twitch channel removed." : $"Your Twitch: {handle}. It shows on the tournament stream with your lobby." });
+                }
                 case ("POST", "/app/autoupdate"):
                     _settings.AutoUpdateApp = Arg("on") == "true";
                     TrySave();
@@ -493,6 +402,7 @@ namespace TournamentTracker.App
             return new
             {
                 App = _env.Version,
+                Twitch = _settings.Twitch,
                 Game = new { Path = GamePath, Found = mod.GameFound, Candidates = Candidates() },
                 Mod = new
                 {
@@ -781,6 +691,7 @@ namespace TournamentTracker.App
                 "config" => GamePath == null ? null : Path.Combine(GamePath, "BepInEx", "config", "com.ljbutton.tournamenttracker.cfg"),
                 "overlay" => "http://localhost:8765/",
                 "releases" => $"https://github.com/{ModInstaller.Repo}/releases/latest",
+                "broadcast" => $"https://github.com/{ModInstaller.Repo}/releases?q={Uri.EscapeDataString("broadcast-v")}&expanded=true",
                 "generator" => Url + "generator",
                 _ => null,
             };
@@ -810,9 +721,7 @@ namespace TournamentTracker.App
         {
             _cts.Cancel();
             _organizer?.Dispose();
-            _desk?.Dispose();
-            _replays?.Dispose();
-            if (_obs != null) try { _obs.DisposeAsync().AsTask().Wait(1500); } catch (Exception) { }
+            _voice?.Dispose();
             try { _listener.Stop(); } catch (Exception) { }
         }
     }

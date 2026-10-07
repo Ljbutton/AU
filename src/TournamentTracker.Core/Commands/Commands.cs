@@ -68,6 +68,9 @@ namespace TournamentTracker
                 case "feed" when fromHost:
                     FeedCommand(args);
                     return true;
+                case "voicenotice" when fromHost:
+                    VoiceNoticeCommand();
+                    return true;
                 case "lead" when fromHost:
                     LeadCommand();
                     return true;

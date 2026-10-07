@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Broadcast</title>
+<style>
+@font-face{font-family:"Teko";src:url(/fonts/teko-700.woff2) format("woff2");font-weight:700}
+@font-face{font-family:"Rajdhani";src:url(/fonts/rajdhani-700.woff2) format("woff2");font-weight:700}
+:root{--primary:#1fa143;--accent:#ffc15a;--danger:#ff2d55;--text:#fff;--panel:rgba(8,10,14,.82);--font:"Rajdhani";--head:"Teko"}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}
+#stage{position:absolute;left:0;top:0;transform-origin:0 0;color:var(--text);font:700 26px/1.15 var(--font),"Segoe UI",system-ui,sans-serif}
+.el{position:absolute;transition:opacity .45s ease,left .6s cubic-bezier(.22,.8,.24,1),top .6s cubic-bezier(.22,.8,.24,1),right .6s cubic-bezier(.22,.8,.24,1),bottom .6s cubic-bezier(.22,.8,.24,1),font-size .6s cubic-bezier(.22,.8,.24,1)}
+/* New pieces fade and slide in (on the inner box: the outer one may be centred with a transform). */
+.el.enter>*{animation:elin .55s cubic-bezier(.22,.8,.24,1)}
+@keyframes elin{from{opacity:0;transform:translateY(.5em)}}
+@media (prefers-reduced-motion:reduce){.el{transition:opacity .3s}.el.enter>*{animation:none}}
+.hide{opacity:0!important;pointer-events:none}
+img.sw{display:inline-block;height:1.1em;width:auto;margin-right:.25em;vertical-align:-.22em;filter:drop-shadow(0 .05em .08em rgba(0,0,0,.6))}
+/* Lobby label */
+.label{display:flex;align-items:center;gap:.4em;padding:.18em .55em .12em;border-radius:.3em;background:var(--panel);border-left:.22em solid var(--primary);font:700 1em/1 var(--head),sans-serif;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+.label .num{color:var(--primary)}
+.label .twi,.t3h .twi{height:1em;width:1em;border-radius:.22em;flex:none}
+.label .tn{text-transform:none;letter-spacing:.02em}
+.label .ph{font:700 .62em/1 var(--font),sans-serif;padding:.22em .45em;border-radius:.3em;background:rgba(255,255,255,.14);letter-spacing:.06em}
+.label .ph.meeting{background:var(--accent);color:#111}
+.label .ph.ended{background:rgba(255,255,255,.3)}
+/* Impostor tag */
+.imps{padding:.3em .6em;border-radius:.3em;background:var(--panel);border-right:.22em solid var(--danger);font-size:.78em;white-space:nowrap}
+.imps b{font:700 1.05em/1 var(--head),sans-serif;letter-spacing:.08em;color:var(--danger);margin-right:.4em}
+.imps .p{margin-right:.55em}
+.imps .p.dead{text-decoration:line-through;text-decoration-thickness:.12em;opacity:.6}
+/* Sabotage countdown */
+.sab{display:flex;flex-direction:column;align-items:center;gap:.15em;padding:.3em .9em .45em;border-radius:.35em;background:rgba(40,0,6,.78);border:.12em solid var(--danger);box-shadow:0 0 1.2em rgba(255,45,85,.55);animation:alarm 1s infinite}
+.sab .what{font:700 .9em/1 var(--head),sans-serif;letter-spacing:.12em;color:#ffd0d8;text-transform:uppercase}
+.sab .left{font:700 3.6em/0.95 var(--head),sans-serif;color:#fff;text-shadow:0 0 .3em var(--danger);font-variant-numeric:tabular-nums}
+.sab .fix{width:7em;height:.42em;border-radius:.21em;background:rgba(255,255,255,.18);overflow:hidden}
+.sab .fix i{display:block;height:100%;background:#fff}
+.sab .fixl{font-size:.55em;color:#ffd0d8;letter-spacing:.06em}
+@keyframes alarm{50%{box-shadow:0 0 2.2em rgba(255,45,85,.9);border-color:#ff7a90}}
+.sabicon{display:flex;align-items:center;gap:.3em;padding:.2em .45em;border-radius:.3em;background:var(--panel);font-size:.7em;color:var(--accent)}
+.sabicon svg{width:1.2em;height:1.2em}
+/* Grid tiles */
+.tile{box-sizing:border-box;border:.12em solid rgba(255,255,255,.18);border-radius:.25em}
+.tile.high{border-color:var(--accent)}
+.tile.hot{border-color:var(--danger);animation:tilepulse 1s infinite}
+@keyframes tilepulse{50%{box-shadow:0 0 1.2em var(--danger),inset 0 0 .8em rgba(255,45,85,.6)}}
+.mini{display:flex;gap:.6em;align-items:center;padding:.18em .5em;border-radius:.3em;background:var(--panel);font-size:.72em;white-space:nowrap;font-variant-numeric:tabular-nums}
+.mini svg{width:.85em;height:.95em}
+.mini .ph{font:700 .9em/1 var(--head),sans-serif;letter-spacing:.08em}
+.mini .ph.meeting{color:var(--accent)}
+.empty{display:flex;align-items:center;justify-content:center;box-sizing:border-box;border-radius:.25em;background:rgba(8,10,14,.55);border:.08em dashed rgba(255,255,255,.18)}
+.empty img{max-width:60%;max-height:60%;object-fit:contain;opacity:.9}
+.empty .tn{font:700 1.4em/1 var(--head),sans-serif;letter-spacing:.1em;opacity:.7;text-transform:uppercase}
+/* Standings */
+.panel{background:var(--panel);border-radius:.35em;border-top:.2em solid var(--primary);padding:.5em .7em .6em;box-shadow:0 .6em 2em rgba(0,0,0,.45)}
+.panel h2{margin:0 0 .3em;font:700 1.35em/1 var(--head),sans-serif;letter-spacing:.08em;text-transform:uppercase}
+.panel h2 small{font:700 .5em/1 var(--font),sans-serif;opacity:.7;letter-spacing:.06em;margin-left:.6em}
+.st{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+.st td{padding:.18em .35em;font-size:.85em;white-space:nowrap}
+.st td.r{width:1.6em;text-align:right;color:var(--primary);font:700 1.05em/1 var(--head),sans-serif}
+.st td.p{text-align:right;font-weight:700}
+.st tr.adv td{background:rgba(31,161,67,.16)}
+.st tr.cut td{border-bottom:.08em dashed var(--danger)}
+.st .arrow{font-size:.8em;margin-left:.3em}
+.st .up{color:#46c28b}.st .down{color:var(--danger)}
+.by{margin-top:.4em;font-size:.6em;opacity:.8;letter-spacing:.05em;display:flex;align-items:center;gap:.4em}
+.by img{height:1.6em}
+/* Points on the line */
+.line{background:var(--panel);border-radius:.3em;border-left:.2em solid var(--accent);padding:.3em .6em;font-size:.72em;display:grid;gap:.15em;white-space:nowrap}
+.line b{font:700 1.05em/1 var(--head),sans-serif;letter-spacing:.06em;color:var(--accent);text-transform:uppercase}
+/* Storyline note */
+.note{display:flex;align-items:center;gap:.6em;background:var(--panel);border-radius:.3em;border-left:.25em solid var(--accent);padding:.4em .9em;font-size:.9em;max-width:1300px}
+.note b{font:700 1em/1 var(--head),sans-serif;letter-spacing:.08em;color:var(--accent);text-transform:uppercase}
+/* Sponsor break */
+.brk{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5em;background:var(--panel);border-radius:.35em;border-top:.2em solid var(--accent);padding:1em;text-align:center}
+.brk .top{font:700 .7em/1 var(--font),sans-serif;letter-spacing:.2em;opacity:.75}
+.brk .nm{font:700 2em/1 var(--head),sans-serif;letter-spacing:.06em;text-transform:uppercase}
+.brk .tl{font-size:.8em;opacity:.85}
+.brk img{max-width:85%;max-height:9em;object-fit:contain}
+.brkv{box-sizing:border-box;border-radius:.3em;overflow:hidden;background:#000}
+.brkv video{width:100%;height:100%;object-fit:contain;display:block}
+.brkt{display:flex;align-items:center;gap:.6em;font-size:.7em;letter-spacing:.08em}
+.brkt .b{flex:1;height:.35em;border-radius:.2em;background:rgba(255,255,255,.18);overflow:hidden}
+.brkt .b i{display:block;height:100%;background:var(--accent)}
+.brklabel{font:700 1em/1 var(--head),sans-serif;letter-spacing:.12em;padding:.2em .6em .1em;border-radius:.3em;background:var(--accent);color:#111}
+/* Off-screen alerts */
+.alrt{display:flex;align-items:center;gap:.55em;padding:.3em .8em .3em .3em;border-radius:.35em;background:var(--panel);box-shadow:0 .4em 1.4em rgba(0,0,0,.5);white-space:nowrap;animation:alin .35s ease-out}
+.alrt .k{font:700 .8em/1 var(--head),sans-serif;letter-spacing:.1em;padding:.32em .5em .22em;border-radius:.25em;background:var(--danger);color:#fff}
+.alrt.win .k{background:var(--accent);color:#111}.alrt.report .k{background:#ff8a3d}.alrt.button .k{background:#5aa9ff}
+.alrt .lb{font:700 1em/1 var(--head),sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--primary)}
+.alrt .x2{font-size:.7em;padding:.15em .4em;border-radius:.3em;background:rgba(255,255,255,.18)}
+@keyframes alin{from{opacity:0;transform:translateY(-.6em)}}
+/* Intermission */
+.inter{box-sizing:border-box;display:grid;grid-template-columns:1.25fr 1fr;gap:60px;padding:90px 110px 140px;background:radial-gradient(ellipse at 20% 10%,rgba(31,161,67,.28),transparent 60%),linear-gradient(160deg,rgba(6,9,13,.96),rgba(12,16,22,.96))}
+/* Part 23: Twitch predictions, polls, !sus and results */
+.tw{box-sizing:border-box;width:560px;padding:.55em .7em .6em;border-radius:.35em;background:var(--panel);border-left:.22em solid #9146ff;box-shadow:0 .4em 1.4em rgba(0,0,0,.35)}
+.tw .hd{display:flex;align-items:center;gap:.5em;font:700 .62em/1 var(--font),sans-serif;letter-spacing:.16em;color:#bf94ff}
+.tw .hd .k{background:#9146ff;color:#fff;padding:.25em .45em;border-radius:.25em}
+.tw .hd .cd{margin-left:auto;color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:.04em;font-size:1.2em}
+.tw h3{margin:.3em 0 .35em;font:700 1.05em/1.05 var(--head),sans-serif;letter-spacing:.03em}
+.tw .row{position:relative;display:flex;align-items:center;gap:.4em;height:1.45em;margin-top:.22em;padding:0 .4em;border-radius:.25em;background:rgba(255,255,255,.06);overflow:hidden;font-size:.82em}
+.tw .row i{position:absolute;left:0;top:0;bottom:0;background:rgba(145,70,255,.45);transition:width .6s ease}
+.tw .row.win i{background:rgba(31,161,67,.6)}.tw .row.top i{background:rgba(145,70,255,.7)}
+.tw .row span,.tw .row b,.tw .row img{position:relative}
+.tw .row b{margin-left:auto;font-variant-numeric:tabular-nums}
+.tw .row img.sw{width:1.1em;height:1.1em}
+.tw .ft{margin-top:.35em;font-size:.6em;color:#cfd3da;letter-spacing:.06em}
+.tw .ok{color:#46c28b}.tw .no{color:var(--danger)}
+.tw.res{border-left-color:var(--accent)}
+.inter .det{margin-top:.6em}
+/* Part 22: a lobby that dropped (frozen graphics, covered picture) and the be-right-back slate */
+.ph.rc{background:var(--danger)!important;color:#fff!important;animation:rcblink 1.2s ease-in-out infinite}
+@keyframes rcblink{50%{opacity:.55}}
+.frozen{filter:grayscale(1);opacity:.6}
+.cell.rc{opacity:.85}.cell.rc .ph{padding:.1em .35em;border-radius:.25em}
+.rcbox{box-sizing:border-box;display:grid;place-items:center;background:repeating-linear-gradient(135deg,rgba(10,12,16,.94) 0 26px,rgba(18,21,27,.94) 26px 52px);border:4px solid var(--danger)}
+.rcbox div{display:grid;gap:.25em;text-align:center}
+.rcbox b{font:700 1.5em/1 var(--head),sans-serif;letter-spacing:.06em}
+.rcbox span{font:700 .8em/1 var(--font),sans-serif;letter-spacing:.32em;color:var(--danger)}
+.rcbox i{font-style:normal;animation:rcdot 1.4s infinite}.rcbox i:nth-child(2){animation-delay:.2s}.rcbox i:nth-child(3){animation-delay:.4s}
+@keyframes rcdot{0%,60%,100%{opacity:.2}30%{opacity:1}}
+.inter .td{margin-top:.4em;font:700 1em/1 var(--font),sans-serif;letter-spacing:.3em;color:var(--danger)}
+.inter .tn{font:700 1.1em/1 var(--font),sans-serif;letter-spacing:.18em;text-transform:uppercase;color:var(--primary)}
+.inter h1{margin:.1em 0 .2em;font:700 4.6em/.9 var(--head),sans-serif;letter-spacing:.04em;text-transform:uppercase}
+.inter .cd{margin-top:.6em;display:grid;gap:.1em}
+.inter .cd small{font:700 .9em/1 var(--font),sans-serif;letter-spacing:.14em;color:var(--accent);text-transform:uppercase}
+.inter .cd b{font:700 6.4em/.9 var(--head),sans-serif;font-variant-numeric:tabular-nums}
+.inter .nt{margin-top:1.2em;display:flex;gap:.6em;align-items:flex-start;font-size:1.05em;line-height:1.3;animation:fadein .6s}
+.inter .nt b{font:700 .85em/1.5 var(--head),sans-serif;letter-spacing:.08em;color:var(--accent);text-transform:uppercase;white-space:nowrap}
+.inter .nx{margin-top:1.2em;display:inline-flex;gap:.5em;align-items:center;padding:.3em .7em;border-radius:.3em;background:rgba(255,193,90,.16);border-left:.2em solid var(--accent);font-size:.9em}
+.inter .side{display:grid;gap:30px;align-content:start}
+@keyframes fadein{from{opacity:0}}
+/* Win counter */
+.wins{display:flex;align-items:center;gap:.6em;padding:.3em .8em;border-radius:.3em;background:var(--panel);font:700 .9em/1 var(--head),sans-serif;letter-spacing:.08em;white-space:nowrap}
+.wins .i{color:var(--danger)}.wins .c{color:#7fd3ff}
+.wins b{font-size:1.35em;display:inline-block;font-variant-numeric:tabular-nums;margin-left:.25em}
+.wins b.bump{animation:bump 1.2s ease-out}
+.wins .sep{opacity:.5}
+.wins small{font:700 .55em/1 var(--font),sans-serif;opacity:.6;letter-spacing:.1em}
+@keyframes bump{0%{transform:scale(1.9);color:#fff;text-shadow:0 0 .5em currentColor}100%{transform:none}}
+/* Player card */
+.pcard{display:grid;gap:.25em;padding:.5em 1em .55em .9em;border-radius:.35em;background:var(--panel);border-left:.3em solid var(--primary);box-shadow:0 .5em 1.6em rgba(0,0,0,.5);animation:pcin .45s ease-out;min-width:12em}
+.pcard .nm{font:700 1.7em/1 var(--head),sans-serif;letter-spacing:.04em;display:flex;align-items:center;gap:.15em}
+.pcard .say{font:700 .5em/1 var(--font),sans-serif;opacity:.6;letter-spacing:.04em;margin-left:.6em}
+.pcard .rk{font-size:.8em;display:flex;gap:.8em;align-items:center}
+.pcard .rk .big{font:700 1.4em/1 var(--head),sans-serif;color:var(--primary)}
+.pcard .rec{display:flex;gap:.5em;font-size:.68em;letter-spacing:.06em}
+.pcard .rec span{padding:.2em .45em;border-radius:.25em;background:rgba(255,255,255,.1)}
+.pcard .rec .i{color:#ff7a90}.pcard .rec .c{color:#7fd3ff}
+@keyframes pcin{from{opacity:0;transform:translateX(-1em)}}
+/* Top 3 of a lobby's round, top left, taking turns through the lobbies */
+.t3{min-width:11.5em;background:var(--panel);border-radius:.3em;border-left:.22em solid var(--primary);padding:.4em .6em .45em;box-shadow:0 .4em 1.4em rgba(0,0,0,.4);animation:t3in .6s cubic-bezier(.22,.8,.24,1)}
+@keyframes t3in{from{opacity:0;transform:translateX(-.8em)}}
+.t3h{display:flex;align-items:center;gap:.35em;font:700 .95em/1 var(--head),sans-serif;letter-spacing:.04em;margin-bottom:.3em;white-space:nowrap}
+.t3h small{margin-left:auto;padding-left:.8em;font:700 .55em/1 var(--font),sans-serif;letter-spacing:.14em;opacity:.7}
+.t3 .r{display:flex;align-items:center;gap:.4em;font-size:.82em;padding:.12em 0;font-variant-numeric:tabular-nums;white-space:nowrap}
+.t3 .r .n{font:700 1.15em/1 var(--head),sans-serif;color:var(--primary);width:.9em;text-align:center}
+.t3 .r .p{margin-left:auto;padding-left:1em;font-weight:700}
+.t3 .dots{display:flex;gap:.25em;margin-top:.35em}.t3 .dots i{width:.35em;height:.35em;border-radius:50%;background:rgba(255,255,255,.25)}.t3 .dots i.on{background:var(--primary)}
+/* Stats ticker along the bottom: leader boards taking turns, five names at a time */
+.tk{box-sizing:border-box;display:flex;align-items:stretch;height:2.5em;background:linear-gradient(180deg,rgba(14,16,20,.94),rgba(4,5,7,.97));border-top:.1em solid var(--primary);overflow:hidden}
+.tk-l{display:flex;flex-direction:column;justify-content:center;gap:.12em;padding:0 1.6em 0 1.1em;background:var(--primary);color:#fff;clip-path:polygon(0 0,100% 0,calc(100% - .9em) 100%,0 100%);min-width:9.5em}
+.tk-l b{font:700 1.05em/1 var(--head),sans-serif;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.tk-l small{font:700 .5em/1 var(--font),sans-serif;letter-spacing:.18em;opacity:.85}
+.tk-r{flex:1;display:flex;align-items:center;gap:1.6em;padding:0 1.2em;animation:tkin .55s cubic-bezier(.22,.8,.24,1);min-width:0}
+@keyframes tkin{from{opacity:0;transform:translateY(60%)}}
+.tk-it{display:flex;align-items:center;gap:.35em;white-space:nowrap;font-size:.86em}
+.tk-it b{font:700 1.15em/1 var(--head),sans-serif;color:var(--primary)}
+.tk-it i{font-style:normal;font-weight:700;color:var(--accent);margin-left:.2em;font-variant-numeric:tabular-nums}
+.tk-brand{display:flex;align-items:center;padding:0 1.1em;font:700 .7em/1 var(--head),sans-serif;letter-spacing:.14em;text-transform:uppercase;opacity:.65;white-space:nowrap}
+/* Multiview presented by */
+.mvs{display:flex;align-items:center;gap:.5em;padding:.35em .8em;border-radius:.3em;background:var(--panel);border:.08em solid rgba(255,255,255,.18);box-shadow:0 .4em 1.6em rgba(0,0,0,.55);white-space:nowrap}
+.mvs small{font:700 .55em/1 var(--font),sans-serif;letter-spacing:.16em;opacity:.75}
+.mvs b{font:700 1em/1 var(--head),sans-serif;letter-spacing:.05em;text-transform:uppercase}
+.mvs img{height:1.4em;max-width:6em;object-fit:contain}
+/* Status bar */
+.bar{display:flex;flex-wrap:wrap;gap:6px;padding:6px 10px;box-sizing:border-box;background:linear-gradient(transparent,rgba(0,0,0,.55) 30%)}
+.cell{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:.45em;padding:.25em .55em;border-radius:.3em;background:var(--panel);border:.08em solid rgba(255,255,255,.12);font-size:.82em;white-space:nowrap;overflow:hidden;position:relative}
+.cell .n{font:700 1.25em/1 var(--head),sans-serif;color:var(--primary);min-width:1.1em;text-align:center}
+.cell .nm{font:700 .8em/1 var(--font),sans-serif;opacity:.75;overflow:hidden;text-overflow:ellipsis;max-width:6em}
+.cell .ct{display:flex;align-items:center;gap:.15em;font-variant-numeric:tabular-nums}
+.cell .ct svg{width:.85em;height:.95em}
+.cell .tk{font-size:.85em;opacity:.85;font-variant-numeric:tabular-nums}
+.cell .ph{margin-left:auto;font:700 .72em/1 var(--head),sans-serif;letter-spacing:.08em;padding:.25em .4em .15em;border-radius:.25em;background:rgba(255,255,255,.12)}
+.cell .ph.meeting{background:var(--accent);color:#111}
+.cell .ph.ended{background:rgba(255,255,255,.3)}
+.cell .sb{color:var(--danger);display:flex}
+.cell .sb svg{width:1em;height:1em}
+.cell.on{border-color:var(--primary);box-shadow:inset 0 0 0 .1em var(--primary);background:rgba(10,40,20,.85)}
+.cell.on::before{content:"ON AIR";position:absolute;right:.3em;top:.12em;font:700 .45em/1 var(--font),sans-serif;letter-spacing:.1em;color:var(--primary)}
+.cell.hot{animation:pulse 1.1s infinite}
+.cell.off{opacity:.45}
+@keyframes pulse{50%{box-shadow:inset 0 0 0 .14em var(--danger),0 0 .9em rgba(255,45,85,.7)}}
+</style></head><body>
+<div id="stage"></div>
+<script>
+const CREW = ['#c51111','#132ed1','#117f2d','#ed54ba','#ef7d0d','#f5f557','#3f474e','#d6e0f0','#6b2fbb','#71491e','#38fedc','#50ef39','#5f1d2e','#ecc0d3','#f0e7a8','#758593','#918877','#d76464'];
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// A player's colour is their crewmate head (the same pictures as The Button), never a plain swatch.
+const head = c => `/crew/${c >= 0 && c < 18 ? c : 15}.png`;
+const sw = c => `<img class="sw" src="${head(+c)}" alt="">`;
+const rich = t => esc(t).replace(/\[\[(\d+)\|([^\]]*)\]\]/g, (m, c, n) => `${sw(+c)}${n}`);
+const ICON = {
+  reactor: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.4" fill="currentColor"/><path fill="currentColor" d="M12 2a10 10 0 0 1 8.66 5l-5.2 3a4 4 0 0 0-3.46-2zm8.66 15A10 10 0 0 1 12 22v-6a4 4 0 0 0 3.46-2zM3.34 17A10 10 0 0 1 3.34 7l5.2 3a4 4 0 0 0 0 4z"/></svg>`,
+  o2: `<svg viewBox="0 0 24 24"><circle cx="9" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2.4"/><text x="15.5" y="21" font-size="9" font-weight="700" fill="currentColor">2</text></svg>`,
+  lights: `<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 1 4 12.7V17H8v-2.3A7 7 0 0 1 12 2zM9 19h6v1.5a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 20.5z"/></svg>`,
+  comms: `<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M5 19 12 7l7 12M8.5 13h7M4 8a9 9 0 0 1 3-4M20 8a9 9 0 0 0-3-4"/></svg>`,
+  other: `<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 1 21h22zm-1 7h2v6h-2zm0 8h2v2h-2z"/></svg>`,
+};
+// Twitch's logo, beside a host's channel name (so viewers can find their stream).
+const TWI = '<img class="twi" src="data:image/png;base64,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" alt="Twitch">';
+const CNT = { crew: `<img class="sw" src="/crew/7.png" alt="crew">`, imp: `<img class="sw" src="/crew/0.png" alt="impostors">` };
+const sabIcon = s => ({ Reactor: ICON.reactor, 'Seismic stabilizers': ICON.reactor, 'Crash course': ICON.reactor, O2: ICON.o2, Lights: ICON.lights, Comms: ICON.comms }[s] || ICON.other);
+const PH = { ingame: 'In game', meeting: 'Meeting', ended: 'Game over', lobby: 'Lobby', menu: 'Offline' };
+
+// Each piece of the overlay is kept by id and only rewritten when it changes, so animations don't restart.
+const shown = {};
+function put(id, html, css) {
+  let el = shown[id];
+  if (!el) { el = document.createElement('div'); el.className = 'el enter'; el.dataset.id = id; stage.appendChild(el); shown[id] = el; el.dataset.html = ''; setTimeout(() => el.classList.remove('enter'), 700); }
+  if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
+  Object.assign(el.style, css || {});
+  el.classList.remove('hide');
+  el.dataset.seen = '1';
+}
+const stage = document.getElementById('stage');
+let S = null;
+
+// ---- Elements ----------------------------------------------------------------------------------
+// Each draws into its slot (where that lobby's picture is on the canvas). k scales with the slot.
+const ELEMENTS = {
+  lobbyLabels(slot, l, k) {
+    if (!l) return;
+    put(`label-${slot.slot}`, `<div class="label"><span class="num">#${l.number}</span>${l.twitch ? `${TWI}<span class="tn">${esc(l.twitch)}</span>` : esc(slot.lobby)}${l.reconnecting ? '<span class="ph rc">RECONNECTING</span>' : `<span class="ph ${l.phase}">${PH[l.phase] || l.phase}</span>`}</div>`,
+      { left: slot.x + 18 * k + 'px', top: slot.y + 14 * k + 'px', fontSize: 34 * k + 'px' });
+  },
+  impostorTags(slot, l, k) {
+    if (!l) return;
+    const live = (l.phase === 'ingame' || l.phase === 'meeting') && l.impostors.length;
+    if (!live) return;                      // fades out (after the game ends)
+    put(`imps-${slot.slot}`, `<div class="imps${l.reconnecting ? ' frozen' : ''}"><b>Impostors</b>${l.impostors.map(p => `<span class="p${p.dead ? ' dead' : ''}">${sw(p.color)}${esc(p.name)}</span>`).join('')}</div>`,
+      { right: (S.canvas.w - slot.x - slot.w) + 18 * k + 'px', top: slot.y + 14 * k + 'px', fontSize: 30 * k + 'px' });
+  },
+  sabotage(slot, l, k) {
+    if (!l || !l.sabotage || !(l.phase === 'ingame')) return;
+    const s = l.sabotage;
+    if (s.critical && s.left != null) {
+      const fix = s.fixing != null ? `<div class="fix"><i style="width:${Math.round(s.fixing * 100)}%"></i></div><div class="fixl">${s.fixing >= 1 ? 'FIXED' : s.fixing > 0 ? 'FIXING ' + Math.round(s.fixing * 2) + '/2' : 'NOBODY FIXING'}</div>` : '';
+      put(`sab-${slot.slot}`, `<div class="sab${l.reconnecting ? ' frozen' : ''}"><div class="what">${esc(s.system)}</div><div class="left">${Math.max(0, Math.ceil(s.left))}</div>${l.reconnecting ? '<div class="fixl">RECONNECTING</div>' : fix}</div>`,
+        { left: slot.x + slot.w / 2 + 'px', top: slot.y + slot.h * 0.2 + 'px', transform: 'translateX(-50%)', fontSize: 30 * Math.max(k, 0.55) + 'px' });
+    } else {
+      put(`sabi-${slot.slot}`, `<div class="sabicon">${sabIcon(s.system)}${esc(s.system)}</div>`,
+        { left: slot.x + 18 * k + 'px', top: slot.y + 62 * k + 'px', fontSize: 34 * k + 'px' });
+    }
+  },
+};
+
+// Grid: a frame on each tile that pulses at high priority, a status line, and the logo (or a sponsor) in empty tiles.
+ELEMENTS.gridTiles = (slot, l, k) => {
+  if (S.layout !== 'grid' || !l) return;
+  const hot = l.tier === 'must' || l.tier === 'veryHigh', high = l.tier === 'high';
+  put(`tile-${slot.slot}`, `<div class="tile${hot ? ' hot' : high ? ' high' : ''}" style="width:${slot.w}px;height:${slot.h}px"></div>`, { left: slot.x + 'px', top: slot.y + 'px', fontSize: 30 + 'px' });
+  const playing = l.phase === 'ingame' || l.phase === 'meeting';
+  put(`mini-${slot.slot}`, `<div class="mini${l.reconnecting ? ' frozen' : ''}">${l.reconnecting ? '<span class="ph rc">RECONNECTING</span>' : `<span class="ph ${l.phase}">${(PH[l.phase] || l.phase).toUpperCase()}</span>`}${playing && l.crew != null ? `<span>${CNT.crew} ${l.crew}</span><span>${CNT.imp} ${l.imps}</span><span>tasks ${l.tasks ?? 0}%</span>` : ''}${l.sabotage ? `<span style="color:var(--danger)">${esc(l.sabotage.system)}${l.sabotage.left != null ? ' ' + Math.ceil(l.sabotage.left) + 's' : ''}</span>` : ''}</div>`,
+    { left: slot.x + 14 * k + 'px', top: slot.y + slot.h - 52 * k + 'px', fontSize: 34 * k + 'px' });
+};
+function emptyTile(slot) {
+  if (S.layout !== 'grid' || !S.elements.gridTiles) return;
+  const sp = S.extras && S.extras.sponsorTiles && S.extras.sponsorTiles[slot.slot];
+  const inner = sp ? (sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : `<span class="tn">${esc(sp.name)}</span>`)
+    : S.logo ? `<img src="${esc(S.logo)}" alt="">` : `<span class="tn">${esc((S.theme && S.theme.tournamentName) || '')}</span>`;
+  put(`empty-${slot.slot}`, `<div class="empty" style="width:${slot.w}px;height:${slot.h}px">${inner}</div>`, { left: slot.x + 'px', top: slot.y + 'px', fontSize: 40 * slot.w / S.canvas.w * 2 + 'px' });
+}
+
+// The status bar: one cell per lobby, along the bottom of the screen.
+function statusBar() {
+  const list = Object.entries(S.lobbies).filter(([, l]) => l.online || l.phase !== 'menu').sort((a, b) => a[1].number - b[1].number);
+  if (!list.length) return;
+  const onAir = new Set(S.slots.map(s => s.lobby).filter(Boolean));
+  const rows = list.length * 230 > S.canvas.w - 20 ? 2 : 1;
+  const cells = list.map(([name, l]) => {
+    const sab = l.sabotage ? `<span class="sb" title="${esc(l.sabotage.system)}">${sabIcon(l.sabotage.system)}</span>` : '';
+    const hot = l.tier === 'must' || l.tier === 'veryHigh';
+    const playing = l.phase === 'ingame' || l.phase === 'meeting';
+    if (l.reconnecting && l.phase !== 'menu') return `<div class="cell rc${onAir.has(name) ? ' on' : ''}" style="flex-basis:${100 / Math.ceil(list.length / rows) - 1}%">
+      <span class="n">${l.number}</span><span class="nm">${esc(name)}</span>${playing && l.crew != null ? `<span class="ct">${CNT.crew}${l.crew}</span><span class="ct">${CNT.imp}${l.imps}</span>` : ''}<span class="ph rc">RECONNECTING</span></div>`;
+    return `<div class="cell${onAir.has(name) ? ' on' : ''}${hot ? ' hot' : ''}${l.online ? '' : ' off'}" style="flex-basis:${100 / Math.ceil(list.length / rows) - 1}%">
+      <span class="n">${l.number}</span><span class="nm">${esc(name)}</span>
+      ${playing && l.crew != null ? `<span class="ct">${CNT.crew}${l.crew}</span><span class="ct">${CNT.imp}${l.imps}</span><span class="tk">${l.tasks ?? 0}%</span>` : ''}
+      ${sab}<span class="ph ${l.online ? l.phase : 'menu'}">${(l.online ? PH[l.phase] || l.phase : 'Offline').toUpperCase()}</span></div>`;
+  }).join('');
+  put('statusbar', `<div class="bar" style="flex-wrap:${rows > 1 ? 'wrap' : 'nowrap'}">${cells}</div>`, { left: '0px', bottom: '0px', width: S.canvas.w + 'px', fontSize: (rows > 1 ? 24 : 28) + 'px' });
+}
+
+// Top 3: each playing lobby's top three for its own round, top left, a different lobby every 8 s.
+const LEFT_BUSY = () => S.standingsChange || S.layout === 'intermission' || S.layout === 'slate' || S.layout === 'replay';
+function top3() {
+  const list = S.top3; if (!list || !list.length || LEFT_BUSY()) return;
+  const i = Math.floor(Date.now() / 8000) % list.length, x = list[i];
+  const rows = x.rows.map(r => `<div class="r"><span class="n">${r.rank}</span>${sw(r.color)}<span>${esc(r.name)}</span><span class="p">${r.points}</span></div>`).join('');
+  const dots = list.length > 1 ? `<div class="dots">${list.map((_, j) => `<i${j === i ? ' class="on"' : ''}></i>`).join('')}</div>` : '';
+  put('top3', `<div class="t3" data-k="${esc(x.lobby)}"><div class="t3h">${x.twitch ? TWI + esc(x.twitch) : esc(x.lobby)}<small>TOP 3 · ROUND ${x.round}</small></div>${rows}${dots}</div>`,
+    { left: '24px', top: (S.slots.length > 1 ? 66 : 78) + 'px', fontSize: '26px' });
+}
+// The stats ticker: leader boards along the bottom, five names at a time, a new page every 7 s.
+function ticker() {
+  const boards = S.ticker; if (!boards || !boards.length || S.layout === 'intermission' || S.layout === 'slate') return;
+  const pages = boards.flatMap(b => b.rows.length > 5 ? [[b, 0], [b, 1]] : [[b, 0]]);
+  const [b, p] = pages[Math.floor(Date.now() / 7000) % pages.length];
+  const items = b.rows.slice(p * 5, p * 5 + 5).map(r => `<span class="tk-it"><b>${r.rank}</b>${sw(r.color)}${esc(r.name)}<i>${esc(r.value)}</i></span>`).join('');
+  put('ticker', `<div class="tk" style="width:${S.canvas.w}px"><div class="tk-l"><b>${esc(b.title)}</b><small>TOP ${b.rows.length} · ${p ? '6–' + b.rows.length : '1–' + Math.min(5, b.rows.length)}</small></div><div class="tk-r">${items}</div><div class="tk-brand">${esc((S.theme && S.theme.tournamentName) || '')}</div></div>`,
+    { left: '0px', bottom: '0px', fontSize: '26px' });
+}
+const BOTTOM = () => S.ticker && S.ticker.length && S.layout !== 'intermission' && S.layout !== 'slate' ? 66 : S.elements.statusBar ? (Object.keys(S.lobbies).length * 230 > S.canvas.w - 20 ? 130 : 84) : 0;
+// A multiview with 4 or more lobbies, presented by a sponsor: a badge where the pictures meet.
+function multiviewSponsor() {
+  const m = S.extras && S.extras.multiviewSponsor; if (!m || (S.layout !== '4up' && S.layout !== 'grid')) return;
+  put('mvsp', `<div class="mvs"><small>MULTIVIEW PRESENTED BY</small>${m.logo ? `<img src="${esc(m.logo)}" alt="">` : ''}<b>${esc(m.name)}</b></div>`,
+    { left: S.canvas.w / 2 + 'px', top: S.canvas.h / 2 - 10 + 'px', transform: 'translate(-50%,-100%)', fontSize: '24px' });   // just above the seam, clear of the lower pictures' labels
+}
+
+// Standings: the round's (or the tournament's) top ten, from the tournament's own scoring.
+function standings() {
+  const st = S.standings; if (!st || !st.rows.length || S.layout === 'intermission' || S.layout === 'slate') return;
+  const sp = S.extras && S.extras.standingsSponsor;
+  put('standings', `<div class="panel"><h2>${esc(st.title)}</h2><table class="st">${st.rows.map(r => `<tr class="${r.advancing ? 'adv' : ''}"><td class="r">${r.rank}</td><td>${sw(r.color)}${esc(r.name)}</td><td class="p">${r.points}</td></tr>`).join('')}</table>${sp ? `<div class="by">Presented by ${sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : ''}<b>${esc(sp.name)}</b></div>` : ''}</div>`,
+    { right: '40px', top: '120px', width: '520px', fontSize: '32px' });
+}
+// After a game: the lobby's table with arrows for who went up and down.
+function standingsChange() {
+  const ch = S.standingsChange; if (!ch || S.layout === 'intermission' || S.layout === 'slate') return;   // those screens have their own tables
+  put('stchange', `<div class="panel"><h2>${esc(ch.lobby)} <small>after the game</small></h2><table class="st">${ch.rows.slice(0, 10).map(r => {
+    const d = r.was == null ? 0 : r.was - r.rank;
+    return `<tr class="${r.advancing ? 'adv' : ''}"><td class="r">${r.rank}</td><td>${sw(r.color)}${esc(r.name)}${d > 0 ? `<span class="arrow up">▲${d}</span>` : d < 0 ? `<span class="arrow down">▼${-d}</span>` : ''}</td><td class="p">${r.points}</td></tr>`;
+  }).join('')}</table></div>`, { left: '40px', top: '120px', width: '480px', fontSize: '30px' });
+}
+// A storyline note the caster put up, as a lower third.
+function storyline() {
+  if (!S.storyline) return;
+  put('storyline', `<div class="note"><b>Storyline</b><span>${rich(S.storyline)}</span></div>`, { left: '60px', bottom: BOTTOM() + 30 + 'px', fontSize: '34px' });
+}
+// Points on the line: what each ending does to the lobby's table, near the end of a game.
+ELEMENTS.pointsOnTheLine = (slot, l, k) => {
+  if (!l || !l.onTheLine) return;
+  const lines = l.onTheLine.filter(x => x.moves.length);
+  if (!lines.length) return;
+  put(`line-${slot.slot}`, `<div class="line">${lines.map(x => `<div><b>${esc(x.title)}:</b> ${x.moves.map(rich).join(' · ')}</div>`).join('')}</div>`,
+    { left: slot.x + slot.w / 2 + 'px', top: slot.y + slot.h - 150 * k + 'px', transform: 'translateX(-50%)', fontSize: 34 * k + 'px' });
+};
+
+// A split-screen sponsor break: the lobby on the left, the sponsor on the right with a countdown.
+function sponsorBreak() {
+  const b = S.extras && S.extras.sponsorBreak; if (!b || S.layout !== 'break') return;
+  const slot = S.slots[0]; if (!slot) return;
+  const x = slot.x + slot.w + 40, w = S.canvas.w - x - 48;
+  const vh = b.video ? w * 9 / 16 : 0;
+  const top = slot.y;
+  put('brk-label', `<div class="brklabel">SPONSOR BREAK</div>`, { left: slot.x + 'px', top: slot.y - 60 + 'px', fontSize: '36px' });
+  if (b.video) put('brk-video', `<div class="brkv" style="width:${w}px;height:${vh}px"><video src="${esc(b.video)}" autoplay playsinline></video></div>`, { left: x + 'px', top: top + 'px' });
+  put('brk-panel', `<div class="brk" style="width:${w}px;height:${slot.h - vh - (b.video ? 16 : 0) - 50}px"><div class="top">PRESENTED BY</div>${b.logo ? `<img src="${esc(b.logo)}" alt="">` : ''}<div class="nm">${esc(b.name)}</div>${b.tagline ? `<div class="tl">${esc(b.tagline)}</div>` : ''}</div>`,
+    { left: x + 'px', top: top + vh + (b.video ? 16 : 0) + 'px', fontSize: '30px' });
+  put('brk-time', `<div class="brkt" style="width:${w}px"><span>BACK IN ${b.left}s</span><span class="b"><i style="width:${Math.round(100 * b.left / b.total)}%;transition:width 1s linear"></i></span></div>`,
+    { left: x + 'px', top: slot.y + slot.h - 30 + 'px', fontSize: '30px' });
+}
+
+// Banners for plays in lobbies that aren't on screen, stacked at the top.
+const ALERT_KIND = { kill: 'KILL', win: 'GAME OVER', report: 'BODY REPORTED', button: 'EMERGENCY' };
+function alerts() {
+  (S.alerts || []).forEach((a, i) => put(`alert-${a.id}`, `<div class="alrt ${a.kind}"><span class="k">${ALERT_KIND[a.kind] || a.kind}</span><span class="lb">#${a.number} ${esc(a.lobby)}</span><span>${rich(a.text)}</span>${a.count > 1 ? `<span class="x2">×${a.count}</span>` : ''}</div>`,
+    { left: '50%', top: 22 + i * 64 + 'px', transform: 'translateX(-50%)', fontSize: '30px', transition: 'opacity .45s ease, top .3s ease' }));
+}
+
+// Intermission: the whole screen between rounds (the status bar stays along the bottom).
+const mmss = n => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
+function intermission() {
+  const it = S.intermission; if (!it || (S.layout !== 'intermission' && S.layout !== 'slate')) return;
+  // Chat Detectives in the space under the notes, unless a Twitch poll or result is showing there.
+  const tw = S.extras && S.extras.twitch, det = tw && !tw.active && !tw.result ? tw.detectives : null;
+  const st = it.standings;
+  const table = st && st.rows.length ? `<div class="panel"><h2>${esc(st.title)}</h2><table class="st">${st.rows.map(r => `<tr class="${r.advancing ? 'adv' : ''}"><td class="r">${r.rank}</td><td>${sw(r.color)}${esc(r.name)}</td><td class="p">${r.points}</td></tr>`).join('')}</table></div>` : '';
+  const sp = S.extras && S.extras.standingsSponsor;
+  put('inter-bg', `<div class="inter" style="width:${S.canvas.w}px;height:${S.canvas.h}px"><div>
+      <div class="tn">${esc(it.title || '')}</div>${it.slate ? '<div class="td">TECHNICAL DIFFICULTIES</div><h1>Be right back</h1>' : '<h1>Intermission</h1>'}
+      ${it.nextRoundIn != null && !it.slate ? `<div class="cd"><small>Round ${(it.round || 0) + 1} starts in</small><b id="inter-cd"></b></div>` : ''}
+      ${it.note ? `<div class="nt" data-note="${esc(it.note)}"><b>Storyline</b><span>${rich(it.note)}</span></div>` : ''}
+      ${it.montage ? `<div class="nx"><b style="color:var(--accent)">UP NEXT</b> ${rich(it.montage)}</div>` : ''}
+      ${det && det.length ? `<div class="panel det"><h2>Chat Detectives</h2><table class="st">${det.map((d, i) => `<tr><td class="r">${i + 1}</td><td>${esc(d.name)}</td><td class="p">${d.n}</td></tr>`).join('')}</table></div>` : ''}
+    </div><div class="side">${table}${sp ? `<div class="by">Presented by ${sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : ''}<b>${esc(sp.name)}</b></div>` : ''}</div></div>`,
+    { left: '0px', top: '0px', fontSize: '34px', zIndex: '-1' });
+  const cd = document.getElementById('inter-cd'); if (cd && it.nextRoundIn != null) cd.textContent = mmss(it.nextRoundIn);
+}
+// Impostor wins v crewmate wins (today or this round), in the corner and in intermission; the number that changed jumps.
+const winsSeen = { i: null, c: null, at: { i: 0, c: 0 } };
+function winCounter() {
+  const w = S.wins; if (!w) return;
+  const now = Date.now();
+  for (const [k, v] of [['i', w.impostors], ['c', w.crew]]) { if (winsSeen[k] !== null && winsSeen[k] !== v) winsSeen.at[k] = now; winsSeen[k] = v; }
+  const b = k => now - winsSeen.at[k] < 1300 ? ' class="bump"' : '';
+  const html = `<div class="wins"><span class="i">IMPOSTOR WINS<b${b('i')}>${w.impostors}</b></span><span class="sep">·</span><span class="c">CREWMATE WINS<b${b('c')}>${w.crew}</b></span><small>${w.scope === 'round' ? 'THIS ROUND' : 'TODAY'}</small></div>`;
+  if (S.layout === 'intermission' || S.layout === 'slate') put('wins', html, { left: '110px', bottom: '150px', right: 'auto', top: 'auto', fontSize: '40px' });
+  else if (S.elements.winCounter) put('wins', html, { right: '40px', bottom: (BOTTOM() || 10) + 20 + 'px', left: 'auto', top: 'auto', fontSize: '28px' });
+}
+// A player's card: on their lobby's tile in a multi-view, else bottom left.
+function playerCard() {
+  const c = S.playerCard; if (!c) return;
+  const d = c.data, k = c.full ? 1 : Math.max(c.w / S.canvas.w, 0.5);
+  const rank = d.rank ? `<span><span class="big">#${d.rank}</span> of ${d.of}</span><span><span class="big">${d.points}</span> pts</span><span>${d.round ? 'Round ' + d.round : 'Tournament'}</span>` : '<span>Not ranked yet</span>';
+  put(`pcard-${c.id}`, `<div class="pcard"><div class="nm">${sw(d.color)}${esc(d.name)}${d.pronunciation ? `<span class="say">say “${esc(d.pronunciation)}”</span>` : ''}</div>
+      <div class="rk">${rank}</div>
+      <div class="rec"><span class="i">IMPOSTOR ${d.imp.w}–${d.imp.l}</span><span class="c">CREW ${d.crew.w}–${d.crew.l}</span><span>${d.kills} KILL${d.kills === 1 ? '' : 'S'} TODAY</span></div></div>`,
+    // Above the status bar when the tile reaches down to it.
+    { left: c.x + 40 * k + 'px', top: Math.min(c.y + c.h - (c.full ? 330 : 250 * k), S.canvas.h - BOTTOM() - 60 - 190 * k) + 'px', fontSize: 34 * k + 'px' });
+}
+
+// Part 22: a lobby that dropped: its picture is covered (it would be frozen or black) until it's back.
+function reconnecting(slot, l, k) {
+  if (!l || !l.reconnecting) return;
+  put(`rc-${slot.slot}`, `<div class="rcbox" style="width:${slot.w}px;height:${slot.h}px"><div><b>LOBBY ${l.number} · ${esc(slot.lobby)}</b><span>RECONNECTING<i>.</i><i>.</i><i>.</i></span></div></div>`,
+    { left: slot.x + 'px', top: slot.y + 'px', fontSize: 46 * k + 'px', zIndex: '-1' });
+}
+
+// Part 23: what's running on Twitch (a meeting vote first), then the result for a few seconds.
+const TWK = { prediction: 'PREDICTION', poll: 'POLL', chat: 'CHAT VOTE' };
+function twIcon(o) { return o.icon ? (o.icon === 'imp' ? CNT.imp : CNT.crew) : o.color != null ? sw(o.color) : ''; }
+function twitch() {
+  const t = S.extras && S.extras.twitch; if (!t || S.layout === 'replay') return;
+  const pos = S.standings && S.layout !== 'intermission' && S.layout !== 'slate' ? { left: '40px', right: 'auto', top: S.top3 && S.top3.length ? '300px' : '120px' } : { right: '40px', left: 'auto' };
+  // Between rounds: under the storyline on the left, clear of the standings.
+  const css = S.layout === 'intermission' || S.layout === 'slate' ? { left: '110px', right: 'auto', top: '430px', fontSize: '34px' } : Object.assign({ top: '120px', fontSize: '34px' }, pos);
+  const a = t.active, r = t.result;
+  if (r) {
+    const lines = (r.lines || []).map(l => `<div class="row${l.win ? ' win' : ''}">${l.pct != null ? `<i style="width:${l.pct}%"></i>` : ''}${twIcon(l)}<span>${esc(l.name)}</span><b>${l.right === true ? '<span class="ok">IMPOSTOR ✓</span>' : l.right === false ? '<span class="no">CREWMATE ✗</span>' : l.n != null ? l.n + ' right' : l.pct != null ? l.pct + '%' : ''}</b></div>`).join('');
+    const verdict = r.right === true ? '<span class="ok">CHAT WAS RIGHT</span>' : r.right === false ? '<span class="no">CHAT WAS WRONG</span>' : '';
+    put('twitch', `<div class="tw res"><div class="hd"><span class="k">TWITCH</span>${esc(r.lobby || '')}</div><h3>${esc(r.title)}</h3>${lines}${r.text || verdict ? `<div class="ft">${esc(r.text || '')} ${verdict}</div>` : ''}</div>`, css);
+    return;
+  }
+  if (!a) return;
+  const max = Math.max(...a.options.map(o => o.pct));
+  // A !sus vote can have ten names: the five chat suspects most.
+  const opts = a.type === 'chat' ? a.options.slice().sort((x, y) => y.pct - x.pct).slice(0, 5) : a.options;
+  const rows = opts.map(o => `<div class="row${o.pct === max && max > 0 ? ' top' : ''}"><i style="width:${o.pct}%"></i>${twIcon(o)}<span>${esc(o.title)}</span><b>${o.pct}%</b></div>`).join('');
+  const foot = a.type === 'chat' ? `TYPE <b>!sus NAME</b> IN CHAT · ${a.voters} VOTED` : a.type === 'prediction' ? `${a.voters} PREDICTED · ${Number(a.total).toLocaleString()} CHANNEL POINTS` : `${a.total} VOTES`;
+  put('twitch', `<div class="tw"><div class="hd"><span class="k">${TWK[a.type] || 'TWITCH'}</span>${a.lobby ? esc(a.lobby) : ''}<span class="cd">${a.status === 'locked' ? 'LOCKED' : mmss(a.left)}</span></div><h3>${esc(a.type === 'chat' ? 'Chat thinks…' : a.title)}</h3>${rows}<div class="ft">${foot}</div></div>`, css);
+}
+
+// More elements are added by later parts (sponsors, alerts, counters…).
+const GLOBAL = { intermission, statusBar, top3, ticker, standings, standingsChange, storyline, sponsorBreak, multiviewSponsor, winCounter, playerCard, alerts, twitch };
+const ALWAYS = new Set(['sponsorBreak', 'multiviewSponsor', 'intermission', 'winCounter', 'playerCard', 'twitch']);
+
+function render() {
+  const th = S.theme || {};
+  const root = document.documentElement.style;
+  root.setProperty('--primary', th.primary || '#1fa143'); root.setProperty('--accent', th.accent || '#ffc15a');
+  root.setProperty('--danger', th.danger || '#ff2d55'); root.setProperty('--text', th.text || '#fff'); root.setProperty('--panel', th.panel || 'rgba(8,10,14,.82)');
+  root.setProperty('--font', `"${th.font || 'Rajdhani'}"`); root.setProperty('--head', `"${th.headingFont || 'Teko'}"`);
+  loadFonts(th);
+  stage.style.width = S.canvas.w + 'px'; stage.style.height = S.canvas.h + 'px';
+  const scale = Math.min(innerWidth / S.canvas.w, innerHeight / S.canvas.h);
+  stage.style.transform = `scale(${scale})`;
+  for (const el of Object.values(shown)) el.dataset.seen = '';
+  for (const slot of S.slots) {
+    if (!slot.lobby) { emptyTile(slot); continue; }
+    const l = S.lobbies[slot.lobby], k = slot.w / S.canvas.w;
+    for (const [name, draw] of Object.entries(ELEMENTS)) if (S.elements[name]) draw(slot, l, Math.max(k, 0.42));
+    reconnecting(slot, l, Math.max(k, 0.42));
+  }
+  for (const [name, draw] of Object.entries(GLOBAL)) if (S.elements[name] || ALWAYS.has(name)) draw();
+  for (const el of Object.values(shown)) if (!el.dataset.seen) el.classList.add('hide');
+}
+let fontKey = '';
+function loadFonts(th) {
+  const fams = [th.font, th.headingFont].filter(f => f && !['Rajdhani', 'Teko'].includes(f));
+  const key = fams.join('|'); if (key === fontKey) return; fontKey = key;
+  if (!fams.length) return;
+  const link = document.createElement('link'); link.rel = 'stylesheet';
+  link.href = 'https://fonts.googleapis.com/css2?' + fams.map(f => 'family=' + encodeURIComponent(f) + ':wght@400;700').join('&') + '&display=swap';
+  document.head.appendChild(link);
+}
+async function tick() {
+  try { S = await (await fetch('/broadcast/state', { cache: 'no-store' })).json(); render(); } catch (e) { }
+}
+tick(); setInterval(tick, 250);
+addEventListener('resize', () => S && render());
+</script></body></html>

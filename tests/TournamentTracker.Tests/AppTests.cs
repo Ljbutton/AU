@@ -290,7 +290,7 @@ public class AppTests : IDisposable
     }
 
     [Fact]
-    public async Task The_send_page_needs_the_token_and_the_caster_desk_needs_administration()
+    public async Task The_send_page_needs_the_token_and_the_caster_desk_is_in_TT_Broadcast_now()
     {
         var (app, http, _) = App();
         using var _ = app;
@@ -300,8 +300,8 @@ public class AppTests : IDisposable
         Assert.DoesNotContain(app.Token, page);                                   // the token only comes in the link The Button opens
         Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync("app/sendfeed?since=0")).StatusCode);
         Assert.Equal(-1, (await Get(http, "app/sendfeed?since=0")).GetProperty("last").GetInt32());   // no game running
-        Assert.Equal(HttpStatusCode.NotFound, (await http.GetAsync("app/admin/desk")).StatusCode);    // locked without the code
-        Assert.False((await Post(http, "app/admin/show", new { lobby = "A" })).GetProperty("ok").GetBoolean());
+        Assert.Equal(HttpStatusCode.NotFound, (await http.GetAsync("app/admin/desk")).StatusCode);    // the caster's tools aren't here any more
+        Assert.Equal(HttpStatusCode.NotFound, (await http.PostAsync("app/admin/show", new StringContent("{}"))).StatusCode);
     }
 
     [Fact]

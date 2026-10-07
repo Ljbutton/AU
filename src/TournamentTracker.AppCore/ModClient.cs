@@ -42,6 +42,7 @@ namespace TournamentTracker.App
 
         public Task<string?> StatusAsync(string gameDir) => SendAsync(gameDir, HttpMethod.Get, "api/status");
         public Task<string?> ActivityAsync(string gameDir, long since) => SendAsync(gameDir, HttpMethod.Get, "api/activity?since=" + since);
+        public Task<string?> NamesAsync(string gameDir, string namesJson) => SendAsync(gameDir, HttpMethod.Post, "api/names", "{\"names\":" + namesJson + "}");
         public Task<string?> FeedAsync(string gameDir, long since) => SendAsync(gameDir, HttpMethod.Get, "api/feed?since=" + since);
         public Task<string?> CommandAsync(string gameDir, string command) =>
             SendAsync(gameDir, HttpMethod.Post, "api/command", JsonSerializer.Serialize(new { command }));

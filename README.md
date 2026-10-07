@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.24**, a beta.
+The current release is **v0.1.25**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -170,9 +170,12 @@ put back by itself.
   back and the host is told. A game that still starts on the wrong settings says so in its
   report (and to the referees). For a casual game the host turns **Settings lock** off on
   The Button's Home page (until they restart Among Us); without a code nothing is ever touched.
-* **Fair impostor rotation** (off unless ticked): within a round nobody is impostor a
-  second time until everyone has been once, still drawn at random. The mod swaps the
-  roles the game handed out, and announces it when a round starts.
+* **Impostor rotation** (off unless ticked): last game's impostors are rarely impostor
+  again straight away. Each of them has a 2% chance (`RepeatImpostorChance` in the config)
+  and everyone else shares the rest equally, so in a 10-player game with 2 impostors the
+  other 8 each have about 24.5%. Back to back is possible but rare (about 1 in 50), three
+  in a row almost never happens. The mod swaps the roles the game handed out, and announces
+  it when a round starts.
 
 ### 4. The combined preliminary leaderboard
 
@@ -281,89 +284,17 @@ seconds after anything changes; the Organiser tab reads them all:
 * **Awards:** candidates for this round or the whole tournament, the top three in each of
   top score, most kills, best impostor, sharpest voter, impostor hunter, task machine and
   survivor. **Copy for Discord** copies them; you pick the winners.
-* **Jump to action** (or **N**): casts the lobby worth watching now (a meeting first, then
-  whatever just happened, else the next lobby in turn). A lobby whose host has gone silent
-  for a couple of minutes gets a warning at the top.
+* **Caster tools** (the caster overlay, game video, the Caster tab, OBS, replays) are in
+  their own app now, **Red Alert** (below), for whoever runs the stream. The Organiser tab
+  links to it.
 * **Referee** (on **Home**, for whoever has the administration code): adjust points, void or
   unvoid a game, or type any `!` command; it's posted in the results channel as the
   administration bot and the lead lobby carries it out. On a PC without Among Us, Home
   waits for the game as usual, with the referee tools below.
-* **Caster overlay:** an OBS Browser source at `http://localhost:8767/` that shows whichever
-  lobby you pick with **Cast** (or the number keys 1-9 while the tab is open), switching
-  live: players, round standings and the latest meetings and ejections for that game.
-  `http://localhost:8767/?full=1` adds roles, kills and task bars (for a stream on a delay
-  only).
-* **Game video, RedZone style:** each host turns on **Send my game to the caster** (Home →
-  Tools). The Button opens a private VDO.Ninja page in their browser; they choose **Entire
-  screen**, tick **Share system audio** (a window share has no sound on Windows) and leave
-  the tab open. The sound is everything the host's PC plays, Discord included. The link is random, kept for the tournament, and only
-  written in the private results channel. In your OBS:
-  * `http://localhost:8767/video` (1920×1080): the lobby you're casting, full frame, with its
-    game sound. Every lobby's picture stays connected in the background, so pressing Cast
-    switches instantly; the sound follows a moment later and only the lobby on air is ever
-    heard. Put the caster overlay on top of it. `?sound=0` for picture only.
-  * `http://localhost:8767/multiview` (1920×1080): every lobby at once, with its name,
-    phase and players alive, the one on air outlined, and a red mark on a lobby with a
-    meeting or an ejection happening. Silent (the video page carries the sound);
-    `?sound=1` plays the lobby on air if you use the multiview on its own.
-  * The Organiser tab marks lobbies with something happening too (with **show roles**,
-    kills and sabotages as well), so you know where to jump.
-  * Each host needs about 3-6 Mbps upload spare, and you download every lobby at once, so
-    use a wired connection.
-  * Put a delay on your public stream (OBS → Settings → Advanced → Stream Delay, 2-3
-    minutes) so players in other lobbies can't watch it for information.
 
 The administration bot needs View Channel, Read Message History and Send Messages in the
 private results channel, and its **Message Content Intent** turned on (Discord Developer
 Portal → Bot). Hosts can turn the live data off with `PublishLive = false`.
-
-### Caster tab (RedZone broadcast)
-
-With the administration code, The Button also has a **Caster** tab: every lobby's live play,
-ranked, and one click to put a lobby on stream. It shows who the impostors are, so it stays on
-the caster's PC and off stream.
-
-* **Where the data comes from:** each tournament host plays as the referee ghost and turns on
-  *Send my game to the caster*. Their Button opens its own page with VDO.Ninja inside: it shares
-  the screen and sends the mod's live data (kills with room and position, meetings, ejections,
-  sabotages with time left, vents, task bar, kill-ready, danger, a snapshot every second) along
-  the same private stream. The caster's Button joins each stream for its data. A lobby that
-  stops sending shows as offline; the rest keep going.
-* **Cards:** "Happening now" lists plays highest priority first (must show, very high, high,
-  medium), with the lobby, the play ("Reactor 12s, nobody fixing", "Purple killed Lime in
-  Electrical"), crew v impostors, task bar and time. Repeats update the same card. Each card and
-  lobby says if it's on stream and how (LIVE (full), LIVE (quad, slot 2)); plays that happened on
-  stream get a SHOWN badge. Calmed-down plays move to *Earlier*, with **Watch again**.
-* **Ranking:** every weight and limit is in `caster-priority.json` next to The Button's
-  settings (written the first time, re-read when you save it).
-* **OBS:** in OBS, Tools → WebSocket Server Settings → Enable WebSocket server, set a password,
-  and connect from the Caster tab. The Button builds the scenes **TT Full**, **TT 2-up** and
-  **TT Quad** with one source per lobby (each stays connected, so switching is instant), places
-  the lobbies in their slots, plays only slot 1's game sound, and switches scene when you click.
-  It never touches your other scenes. Switch in OBS yourself and the LIVE labels follow.
-  Settings and the lobby → source mapping are in `obs.json` next to The Button's settings.
-* **Replays** (needs the free **Source Record** plugin for OBS, by Exeldro): The Button puts a
-  Source Record replay buffer (last 30 s) on every lobby source. Every kill saves a clip by itself
-  (8 s before to 2 s after); any card can save one with **Save replay**, while OBS still has it.
-  **▶ REPLAY** on the card (or **Watch again**) plays it in the **TT Replay** scene: a Media
-  Source, so you can pause and scrub, cropped and zoomed (up to 2.5×) to keep the killer and
-  victim in frame, following them if the host's camera moves, with a slow push-in from the wide
-  shot and a REPLAY tag. Controls: play/pause, ±1 s, frame step, scrub bar, restart, zoom, pan,
-  follow, back to live; every one has a key (change them under **Keys**). Clip lengths, zoom,
-  folder (default Videos\TT Replays) and keys are in the `replay` part of `obs.json`.
-* **Spectator view** (the host's own screen, while they play as the referee ghost; drawn only in
-  their game, never sent to players): the whole map lit with every player shown (impostors in
-  vents stay hidden); **vision** FOCUS shows one crewmate's real sight (wall-blocked, their
-  vision setting, lights sabotage included) with the rest of the map a little darker, picked by
-  itself (a crewmate in danger, else whoever did something last) or by you, or RINGS outlines
-  every living player's sight in their colour; **"!"** pops over anyone close enough to report a
-  body (the game's own check); a faint **eye** by a crewmate's name while an impostor is in
-  their sight, flashing when they see a kill or a vent, which also makes a "Lime SAW Purple
-  vent in MedBay" card. Switch each one per lobby under its row in the Caster tab (it goes to
-  the host over their VDO.Ninja link), or with keys for the lobby on stream (M lit, V vision,
-  X "!", E eye; change them under Keys).
-* **Simulation:** the Simulation button plays four fake lobbies (with stand-in video in OBS), to
-  try the tab and OBS switching without real games.
 
 ### Replays
 
@@ -403,6 +334,280 @@ For an 11-player lobby that plays like 10 while the host referees: the host turn
 referee. At the start of every game the host becomes a ghost: never an impostor, no tasks, not in stats, points or automute (they can
 always talk). The host can zoom out with the **mouse wheel** or **+ / −** to see the
 whole map (for refereeing and streaming). The same switch turns it off; the choice is remembered.
+
+## Red Alert (the broadcaster's app)
+
+<img src="docs/red-alert-logo.svg" alt="" width="56" align="left">
+
+**Red Alert** is a separate Windows app for whoever runs the stream: the Caster tab, OBS
+scenes, replays and montages, the on-stream graphics, the caster overlay and video pages,
+spectator view switches, Twitch, and Simulation. Hosts, referees and the organiser only need
+The Button; a host still turns on **Send my game to the caster** in their Button, and Red
+Alert receives it. It shows who the impostors are, so it stays on the caster's PC and off
+stream.
+
+* **Install:** download **`Install-RedAlert.bat`** from the
+  [Red Alert releases](https://github.com/Ljbutton/AU/releases?q=broadcast-v) (tags
+  `broadcast-v…`, a beta from v0.1.0) and double-click it. It installs to
+  `%LOCALAPPDATA%\Programs\RedAlert` with Start menu and desktop shortcuts, and can sit
+  next to The Button on the same PC.
+* **The side menu** has a page per job: **Live desk** (lobby buttons, layouts, what's happening
+  and the lobbies), **Lobby health**, **Montages**, **Graphics**, **Standings**, **Sponsors**,
+  **Twitch**, **OBS**, **Lobby voice** and **Players**. A dot or a number beside an item shows
+  what needs a look. The keys (1-9, N, replay keys) and the replay controls work on every page.
+* **Unlock** it with the tournament's administration code (the same one as The Button's
+  Organiser tab).
+* **First start:** on a PC that already had The Button's caster tools, Red Alert copies
+  their settings once (never overwriting): `obs.json` (OBS, replay folder and keys),
+  `caster-priority.json`, `roster.csv`, `broadcast.json`, `sponsors.json`, `health.json`, the
+  Twitch settings and sign-in, the kept games and the administration code. Its own folder is
+  `%LOCALAPPDATA%\RedAlert`.
+* **It was called TT Broadcast** (v0.1.0). Installing Red Alert replaces it (its shortcuts and
+  program folder go) and its settings come over the first time Red Alert opens; a TT Broadcast
+  that updates itself becomes Red Alert where it is.
+* **Updates:** Red Alert updates itself from its own releases, separately from The Button
+  (its header says when a new version is ready to restart into; untick **update automatically**
+  there to update only when you choose). Hosts never
+  need to reinstall anything for a broadcast change.
+* **Ports:** its screen is on `127.0.0.1:8768` (this PC only, with a private key); the OBS
+  pages are on `localhost:8767`, as before. The mod uses 8765 and 8766 on the host's PC.
+* **Older hosts:** hosts send their game data in a versioned format
+  ([docs/broadcast-protocol.md](docs/broadcast-protocol.md)). A host whose mod is older than
+  Red Alert still shows, with **host needs update** in Lobby health.
+
+### Caster overlay and game video
+
+* **Jump to action** (or **N**): casts the lobby worth watching now (a meeting first, then
+  whatever just happened, else the next lobby in turn). A lobby whose host has gone silent
+  for a couple of minutes gets a warning at the top.
+* **Caster overlay:** an OBS Browser source at `http://localhost:8767/` that shows whichever
+  lobby you pick (its numbered button, or the number keys 1-9 while Red Alert is open), switching
+  live: players, round standings and the latest meetings and ejections for that game.
+  `http://localhost:8767/?full=1` adds roles, kills and task bars (for a stream on a delay
+  only).
+* **Game video, RedZone style:** each host turns on **Send my game to the caster** (Home →
+  Tools) in their Button. It opens a private VDO.Ninja page in their browser; they choose **Entire
+  screen**, tick **Share system audio** (a window share has no sound on Windows) and leave
+  the tab open. The sound is everything the host's PC plays, Discord included. The link is random, kept for the tournament, and only
+  written in the private results channel. In your OBS:
+  * `http://localhost:8767/video` (1920×1080): the lobby you're casting, full frame, with its
+    game sound. Every lobby's picture stays connected in the background, so picking a lobby
+    switches instantly; the sound follows a moment later and only the lobby on air is ever
+    heard. Put the caster overlay on top of it. `?sound=0` for picture only.
+  * `http://localhost:8767/multiview` (1920×1080): every lobby at once, with its name,
+    phase and players alive, the one on air outlined, and a red mark on a lobby with a
+    meeting or an ejection happening. Silent (the video page carries the sound);
+    `?sound=1` plays the lobby on air if you use the multiview on its own.
+  * The Caster tab ranks what's happening in every lobby, so you know where to jump.
+  * Each host needs about 3-6 Mbps upload spare, and you download every lobby at once, so
+    use a wired connection.
+  * Put a delay on your public stream (OBS → Settings → Advanced → Stream Delay, 2-3
+    minutes) so players in other lobbies can't watch it for information.
+
+### Caster tab (RedZone broadcast)
+
+Red Alert's main screen is the **Caster** tab: every lobby's live play,
+ranked, and one click to put a lobby on stream. It shows who the impostors are, so it stays on
+the caster's PC and off stream.
+
+* **Where the data comes from:** each tournament host plays as the referee ghost and turns on
+  *Send my game to the caster*. Their Button opens its own page with VDO.Ninja inside: it shares
+  the screen and sends the mod's live data (kills with room and position, meetings, ejections,
+  sabotages with time left, vents, task bar, kill-ready, danger, a snapshot every second) along
+  the same private stream. Red Alert joins each stream for its data. A lobby that
+  stops sending shows as offline; the rest keep going.
+* **Cards:** "Happening now" lists plays highest priority first (must show, very high, high,
+  medium), with the lobby, the play ("Reactor 12s, nobody fixing", "Purple killed Lime in
+  Electrical"), crew v impostors, task bar and time. Repeats update the same card. Each card and
+  lobby says if it's on stream and how (LIVE (full), LIVE (quad, slot 2)); plays that happened on
+  stream get a SHOWN badge. Calmed-down plays move to *Earlier*, with **Watch again**.
+* **Ranking:** every weight and limit is in `caster-priority.json` in Red Alert's
+  folder (written the first time, re-read when you save it).
+* **OBS:** in OBS, Tools → WebSocket Server Settings → Enable WebSocket server, set a password,
+  and connect from the Caster tab. Red Alert builds the scenes **TT Full**, **TT 2-up**,
+  **TT Quad**, **TT Grid**, **TT Sponsor Break** and **TT Intermission** with one source per lobby (each stays connected, so switching is instant), places
+  the lobbies in their slots, plays only slot 1's game sound, and switches scene when you click.
+  It never touches your other scenes. Switch in OBS yourself and the LIVE labels follow.
+  Settings and the lobby → source mapping are in `obs.json` in Red Alert's folder.
+* **Replays** (needs the free **Source Record** plugin for OBS, by Exeldro): Red Alert puts a
+  Source Record replay buffer (last 30 s) on every lobby source. Every kill saves a clip by itself
+  (8 s before to 2 s after); any card can save one with **Save replay**, while OBS still has it.
+  **▶ REPLAY** on the card (or **Watch again**) plays it in the **TT Replay** scene: a Media
+  Source, so you can pause and scrub, cropped and zoomed (up to 2.5×) to keep the killer and
+  victim in frame, following them if the host's camera moves, with a slow push-in from the wide
+  shot and a REPLAY tag. Controls: play/pause, ±1 s, frame step, scrub bar, restart, zoom, pan,
+  follow, back to live; every one has a key (change them under **Keys**). Clip lengths, zoom,
+  folder (default Videos\TT Replays) and keys are in the `replay` part of `obs.json`.
+* **Spectator view** (the host's own screen, while they play as the referee ghost; drawn only in
+  their game, never sent to players): the whole map lit with every player shown (impostors in
+  vents stay hidden); **vision** FOCUS shows one crewmate's real sight (wall-blocked, their
+  vision setting, lights sabotage included) with the rest of the map a little darker, picked by
+  itself (a crewmate in danger, else whoever did something last) or by you, or RINGS outlines
+  every living player's sight in their colour; **"!"** pops over anyone close enough to report a
+  body (the game's own check); a faint **eye** by a crewmate's name while an impostor is in
+  their sight, flashing when they see a kill or a vent, which also makes a "Lime SAW Purple
+  vent in MedBay" card. Switch each one per lobby under its row in the Caster tab (it goes to
+  the host over their VDO.Ninja link), or with keys for the lobby on stream (M lit, V vision,
+  X "!", E eye; change them under Keys).
+* **Real names:** `roster.csv` in Red Alert's folder (name, Discord ID, in-game names,
+  friend codes, pronunciation; `;` between several). Each player is matched by the Discord
+  account automute links them to, then friend code, then in-game name; pick someone by hand in
+  the **Players** card to override. Names show with their colour swatch everywhere (cards, on
+  stream, montages), and each referee's nameplates show the roster names (on their screen only).
+* **On-stream graphics:** one transparent 1920×1080 page (`/broadcast` on the caster port; Red
+  Alert adds it as **TT Broadcast** on top of every TT scene) that places each graphic on the
+  right lobby in every layout. Colours, fonts and logo are in `broadcast.json`; switch each
+  graphic on the **Graphics** page:
+  * **Lobby labels:** the host's Twitch channel with Twitch's logo (so viewers can find their
+    stream), else the lobby's name. Hosts type it in The Button: Settings → **Your Twitch**.
+  * **Top 3:** top left, each playing lobby's top three for its own round, a different lobby
+    every 8 s.
+  * **Stats ticker:** along the bottom, leader boards taking turns five names at a time, like a
+    football broadcast: tournament points, sharpest voters (vote %), most kills, impostor win %,
+    task machines and survivors (top 10 of the counted games).
+  * Impostor tags per feed (dead crossed out), a big reactor/O2 countdown with the fixing
+    progress (lights and comms as a small icon), grid tiles, standings, points on the line,
+    standings changes, storyline notes, off-screen alerts, the win counter and player cards.
+  * The status bar (a cell per lobby along the bottom) is still there, off by default: the top 3
+    and the ticker took its place.
+  * Graphics slide to their new places when the layout changes and fade in and out, so a switch
+    is smooth under the swoosh.
+* **Grid:** every active lobby at once in **TT Grid** (1 full, 2 side by side, up to 4×4), each
+  tile with its label, a status line, the impostor tag and a border that pulses at high
+  priority; empty tiles show a sponsor or the logo. Click a tile (on stream) for full screen.
+  **Auto grid** brings it up whenever no lobby is mid-game.
+* **Multiview:** the **Multiview** card on the Live desk has a small live picture of every lobby
+  sending its game. Click the ones you want (they're numbered in the order you pick), then
+  **Send**: one goes full screen, two side by side, four in the quad, three or five and more in
+  the grid. Nothing changes on stream until you press Send.
+* **Stats and storylines:** every game is kept on the caster's PC (`broadcast-games`), and the
+  **Standings & storylines** card lists talking points from them (records, streaks, first
+  blood, rivalries, who keeps getting voted out, milestones), the ones about players on stream
+  first: pin, dismiss, mark used, or put one on stream as a lower third.
+* **Standings** come from the tournament's own scoring (the same tables as the Points page and
+  Discord: `Stats/Scoring.cs` and `Stats/Standings.cs`, rules from the setup code). On the
+  **Standings** page: **Lobby on stream** (the default: the lobby full screen, or slot 1 of a
+  multi-view, in its own round), **Round · every lobby** (that round's totals, all lobbies) or
+  **Tournament**. Lobbies can be in different rounds (a big tournament starts round 2 in one
+  lobby while another finishes round 1): each lobby's table and each round's totals only count
+  their own round's games, and before a lobby's first game of a new round its last round's final
+  table stays up. Near the end of a game, *points on the line* shows what each ending does to
+  the lobby's table; after each game, arrows show who moved.
+* **Montages:** clips are saved by themselves for kills, ejections, meetings, witnessed kills and
+  game ends. When a game ends Red Alert builds a 30–60 s montage of it with ffmpeg (each moment
+  cut to a few seconds, cropped like replays, a lower third such as "Jake → Maria,
+  Electrical", wipes between them); when a round ends, "every kill" then the top plays counting
+  down. The **Montages** card shows them ready with Play (in the replay scene), Preview and
+  Discard; **Get ffmpeg** downloads it the first time. The **Moments** card lists every clip:
+  pick some, drag them into order and Build montage; that montage is deleted once it has played
+  and its clips are marked USED.
+* **Sponsors:** `sponsors.json` (name, logo, tagline, video, placements). Placements: `killcam`
+  ("Kill Cam presented by" on kill replays), `replay` ("presented by" on every other replay),
+  `multiview` (a "Multiview presented by" badge while 4 or more lobbies are on screen),
+  `montage` (an opening card), `standings`
+  ("Presented by" under the table), `grid` (empty tiles), `break` (a split-screen break, the
+  lobby on the left and the sponsor on the right, that ends by itself, and straight back to
+  full screen on a must-show play). Every appearance is logged; **Export report** saves a CSV
+  and a summary.
+* **Swoosh:** a stinger plays on every switch (scenes, pictures moving within a layout, the grid
+  changing, replays coming up), once per 1.5 s, never while scrubbing a replay. Add a Stinger
+  transition called **TT Swoosh** in OBS (Scene Transitions → +) to have OBS play it for scene
+  changes; Red Alert sets its video. It's made with ffmpeg in the tournament's colours (from
+  `broadcast.json`): a slanted band with crewmate heads of every colour tumbling across it and the
+  logo in the middle as it covers the screen; it's made again when the colours or logo change.
+  `swoosh.path` in `obs.json` uses your own video instead.
+* **Off-screen alerts:** a banner for each kill, win, body report and emergency button in a lobby
+  that isn't on screen; about 4 s each, three at once, the rest queued, merged per lobby. Each
+  kind switches off in the graphics card; **B** pauses them all.
+* **Intermission:** the **TT Intermission** scene between rounds: a countdown to the next round
+  (set it in the tab: minutes or a time), standings, the win counter, storyline notes taking
+  turns and the montage up next. Offered when every lobby has been out of a game for 45 s, or by
+  itself with **Auto intermission**; a lobby going live brings it back (auto) or says so.
+  Key **I**.
+* **Win counter:** IMPOSTOR WINS · CREWMATE WINS, today or this round, in the corner and in
+  intermission.
+* **Player cards:** a lower third with the player's real name, rank, points and today's
+  impostor and crewmate records and kills. **Card** buttons on every notification, lobby and
+  roster row, key **C** for the top notification's player, and by itself for the key player of
+  each replay and montage moment. One at a time, gone after 6 s; on the lobby's tile in a
+  multi-view, or skipped when the tile is too small.
+* **Lobby voice:** the referee's Button captures what Discord plays (the lobby voice as they
+  hear it, which never includes their own voice) and what Among Us plays, each on its own
+  (Windows 10 2004 or later; no virtual cables), mixes them with a level for each and, if they
+  tick it, their microphone, and sends that as a second VDO.Ninja stream next to their screen.
+  Their send page shows a meter for each. In OBS each lobby gets a **TT Voice** source; the
+  voice follows the picture (the full-screen lobby, or slot 1), and replays, montages and
+  intermission are silent. The **Lobby voice** card shows each lobby's status and levels, and
+  has a volume and delay per lobby, **Listen** to keep one lobby up whatever is on screen,
+  **Mute all** (key **U**), and **Duck under** your mic (an OBS compressor keyed to it). It only
+  goes to the stream: nothing is played back to the players, and when voice sending starts the
+  bot posts "voice in this channel may be recorded" in the lobby's voice channel chat. On older
+  Windows, the referee ticks *Share system audio* instead (the old way: game sound and voice
+  together, no separate levels).
+* **Lobby drops:** the **Lobby health** card shows each lobby green (all good), yellow
+  (degraded: no data for 3 s, sound silent for 2 min while sending voice, a voice problem, data
+  2 s later than usual) or red (down: no data for 10 s, video lost for 3 s, data more than 8 s
+  late), with the problem in plain words. All of it is in `health.json` (**Thresholds**).
+  * A lobby on stream that goes red is switched away from at once, even when you switch by hand
+    (**Auto switch** turns that off): to the next lobby worth showing, else the grid. A card says
+    what happened; another says when it's back. It isn't put back by itself.
+  * In 2-up, quad and the grid the tile says **LOBBY 3 · RECONNECTING** and its graphics (label,
+    impostor tags, countdowns, status bar cell) stay at their last state, greyed and marked;
+    after 45 s the next lobby takes the slot (the grid closes up).
+  * Every lobby down mid-game: the **TT Be Right Back** scene ("Technical difficulties", standings
+    and storylines taking turns); between games it's intermission instead. **Be right back** puts
+    it up by hand. It goes back to a lobby when one returns.
+  * Nothing is lost: the referee's page keeps every message until Red Alert says it
+    arrived and sends the rest again when the link is back, with their own times. Repeats are
+    dropped; anything more than 8 s old counts for the stats but is never shown as live. The
+    referee sees "Disconnected from caster, reconnecting…" meanwhile; their game isn't touched.
+    Data links reconnect by themselves (5 s, then longer each time, up to a minute), and so does
+    lobby voice.
+  * A referee's game that crashes or restarts mid-game (or starts a new game before the last one
+    ended, or abandons it) is **INTERRUPTED**: a card, and that game stays out of the standings
+    on stream until you pick **Count**, **Void** (posts `!void <game> interrupted`) or **Replay**
+    (void it, and a card to replay it).
+* **Twitch:** the **Twitch** card. Set up once:
+  1. At dev.twitch.tv → Your Console, register an application with client type **Public**
+     (any OAuth redirect URL, e.g. `http://localhost`).
+  2. Paste its Client ID into the card.
+  3. Press **Sign in**: enter the code shown at twitch.tv/activate, signed in as the channel.
+
+  Red Alert keeps the sign-in fresh (it's in `twitch-token.json` on this PC only) and listens to
+  the channel with EventSub. Settings are in `twitch.json`. Polls, predictions and channel point
+  rewards need **Affiliate or Partner** (the card says so if the channel isn't); the !sus vote and
+  Chat Detective work on any channel. Twitch allows one poll and one prediction at a time; polls
+  have 2–5 choices of up to 25 characters and last 15–1800 s; predictions have 2–10 outcomes and
+  a 30–1800 s window. Red Alert keeps to those. **Stream delay** (0 by default) holds every
+  action back so it matches what viewers see.
+  * **Predictions:** "LJ: Impostors or Crewmates?" opens when a game starts in the featured lobby
+    (the one you pick, else the one on stream), locks after 90 s and resolves when the game ends;
+    an interrupted game cancels it and everyone's points go back. By hand: **First to finish**
+    (which lobby ends its game first) and **More wins** (more impostor or crew wins across the
+    lobbies playing). Lock, cancel or resolve from the card any time.
+  * **Meetings** in the lobby on stream: a "Who's the impostor?" poll when five or fewer are alive,
+    else a **!sus name** chat vote (a full or first name, in-game name or colour; one vote per
+    viewer, the latest counts). The stream shows CHAT THINKS with live bars and, after the
+    ejection, what chat thought and who went. Whether chat was right is shown when the game ends
+    (tournament lobbies don't confirm ejects; tick the setting if yours do).
+  * **Chat Detective:** each !sus vote for a real impostor scores; the leaderboard is in
+    intermission, and the round's best get a shoutout in chat and on stream when it starts.
+  * **Which lobby next?** in a calm moment (by hand, or by itself with Auto): chat's pick becomes a
+    card with a **Put it on** button. Nothing switches until you press it.
+  * **Round MVP:** a poll of the round's top five from the standings when intermission starts.
+  * **Channel points:** Red Alert makes "Request a replay" and "Shoutout a player". Requests wait in
+    the card: approve a replay (pick the clip) or a shoutout (their player card goes up and chat is
+    told), or deny it (points back). Shoutouts must name someone on the roster; a filter turns
+    away bad words at once, with the points back.
+  * **Nothing gives impostors away:** options are shuffled, players are listed by real name only,
+    and nothing from the caster's own view is used.
+  * **Test mode:** a fake Affiliate channel with a pretend audience (votes, !sus, redemptions), so
+    all of it can be tried with Simulation and nothing is sent. **Twitch off** stops everything.
+* **Simulation:** the Simulation button plays four fake lobbies (with stand-in video in OBS, or
+  stand-in clips made with ffmpeg when OBS isn't connected), to try everything above without
+  real games. In simulation each lobby's health row has test buttons: Video, Audio, Data, All
+  (drops), Lag, Crash (the referee's game dies mid-game and comes back in the lobby) and
+  Reconnect.
 
 ## Discord setup (without a setup code)
 
@@ -672,7 +877,8 @@ game is saved as `-void`.
 ## Building
 
 ```bash
-dotnet test tests/TournamentTracker.Tests          # core logic, no game needed
+dotnet test tests/TournamentTracker.Tests          # core logic and The Button, no game needed
+dotnet test tests/TournamentTracker.Broadcast.Tests # Red Alert
 dotnet build src/TournamentTracker.Plugin -c Release -p:GameLibsVersion=2025.x.y
 ```
 
@@ -682,7 +888,8 @@ uses the newest game version (currently 2026.8.18); pass `GameLibsVersion` to ma
 game. BepInEx is pinned to be.735, because newer builds use an Il2CppInterop version the
 interop generator can't run. On GitHub, run the
 **Build** workflow by hand (Actions → Build → Run workflow) to choose the version; give it a
-`release_tag` (e.g. `v0.1.1`) to publish a release, and `delete_tags` to remove old ones.
+`release_tag` (e.g. `v0.1.1` for The Button and the mod, `broadcast-v0.1.0` for Red
+Alert) to publish a release, and `delete_tags` to remove old ones.
 
 Layout:
 
@@ -691,6 +898,12 @@ Layout:
   the commands The Button sends. It is unit-tested.
 * `src/TournamentTracker.AppCore` is The Button's engine and pages (cross-platform, tested);
   `src/TournamentTracker.App` is the Windows window around it (WebView2), built in CI.
+* `src/TournamentTracker.Common` is what both apps share: the organiser's tournament link
+  (the Live data messages) and self-updating.
+* `src/TournamentTracker.Broadcast` is Red Alert's engine and pages (cross-platform, tested);
+  `src/TournamentTracker.BroadcastApp` is its Windows window, built in CI. The feed between a
+  host and Red Alert is defined in `Core/Broadcast/FeedProtocol.cs` and
+  `docs/broadcast-protocol.md`.
 * `src/TournamentTracker.Plugin` is the BepInEx plugin: Harmony hooks on the game, and a
   per-frame driver that reads the game phase for automute. It compiles the core in, so the
   build is a single DLL.

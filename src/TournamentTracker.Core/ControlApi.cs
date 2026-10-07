@@ -56,7 +56,7 @@ namespace TournamentTracker
             if (_settings.ControlPort < 0) return;
             try
             {
-                _control = new ControlServer(_settings.ControlPort, _dataDir, () => _statusJson, ActivitySince, RunCommandForApp, _log, FeedSince);
+                _control = new ControlServer(_settings.ControlPort, _dataDir, () => _statusJson, ActivitySince, RunCommandForApp, _log, FeedSince) { Names = SetDisplayNames };
                 RefreshStatus();
                 _log.Info($"App connection ready on port {_control.Port}");
             }
