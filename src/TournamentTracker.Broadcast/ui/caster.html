@@ -439,8 +439,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .mv .nm small{margin-left:auto;font:600 11px/1 "Segoe UI",sans-serif;letter-spacing:.02em;text-transform:none;color:var(--muted)}
 .mv .no{position:absolute;right:6px;top:6px;min-width:22px;height:22px;display:grid;place-items:center;background:var(--red);color:#fff;font:700 15px/1 var(--hand);padding:2px 5px 0}
 .mv .air{position:absolute;left:6px;top:6px;background:#000c;color:#fff;font:700 10px/1 "Segoe UI",sans-serif;letter-spacing:.14em;padding:4px 6px;border-left:3px solid var(--red)}
-.autoup{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);margin-right:10px;-webkit-app-region:no-drag;white-space:nowrap}
-.autoup input{accent-color:var(--red);margin:0}
+.ver{font-size:11.5px;color:var(--muted);margin-left:auto;margin-right:10px;white-space:nowrap}
+.ver+.winctl{margin-left:0}
 /* Side menu: one page per job. Cards outside the page are hidden with a class, never the hidden attribute,
    so keys (1-9, N, replay keys) and the replay controls work from every page. */
 body{grid-template-columns:196px minmax(0,1fr)}
@@ -476,7 +476,7 @@ nav .st.count{background:#2a2a31;color:#fff}nav .st.count.hot{background:var(--r
 <header>
   <div class="brand"><svg class="logo-mark" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="ra-dome" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff5a4f"/><stop offset=".55" stop-color="#e10600"/><stop offset="1" stop-color="#9e0400"/></linearGradient><radialGradient id="ra-glow" cx=".5" cy=".62" r=".55"><stop offset="0" stop-color="#ff2a1f" stop-opacity=".55"/><stop offset="1" stop-color="#ff2a1f" stop-opacity="0"/></radialGradient></defs><circle cx="32" cy="38" r="30" fill="url(#ra-glow)"/><g stroke="#ff3b30" stroke-width="4.2" stroke-linecap="round"><path d="M32 4.5v7.5"/><path d="M10.5 13.5l5.3 5.3"/><path d="M53.5 13.5l-5.3 5.3"/><path d="M3.5 33h7.5"/><path d="M60.5 33h-7.5"/></g><path d="M16.5 47V36a15.5 15.5 0 0 1 31 0v11z" fill="url(#ra-dome)"/><path d="M22.2 36.5a9.8 9.8 0 0 1 7.3-9.4" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="3.2" stroke-linecap="round"/><rect x="11" y="47" width="42" height="9" rx="2" fill="#f2f2f4"/><rect x="11" y="53" width="42" height="3" rx="1" fill="#b9b9c2"/></svg><span class="word"><b>Red <span>Alert</span></b></span></div>
   <div class="alerts" id="alerts"></div>
-  <label class="autoup" id="autoup" hidden title="Download new versions of Red Alert by themselves (they're used from the next start)"><input type="checkbox" id="autoup-on"> <span id="autoup-ver"></span> · update automatically</label>
+  <span class="ver" id="app-ver"></span>
   <div class="winctl" id="winctl" hidden>
     <button data-win="min" title="Minimise" aria-label="Minimise"><svg viewBox="0 0 12 12"><path d="M2 6.5h8"/></svg></button>
     <button data-win="max" title="Maximise" aria-label="Maximise"><svg viewBox="0 0 12 12" class="i-max"><rect x="2" y="2" width="8" height="8" rx="1"/></svg><svg viewBox="0 0 12 12" class="i-restore"><rect x="2" y="4" width="6" height="6" rx="1"/><path d="M4 4V2.5a.5.5 0 0 1 .5-.5H9.5a.5.5 0 0 1 .5.5V7.5a.5.5 0 0 1-.5.5H8"/></svg></button>
@@ -1446,7 +1446,7 @@ function renderSide() {
 }
 setInterval(() => { if (S && S.admin) renderSide(); }, 1000);
 
-// ---- Red Alert: unlocking, the caster overlay's lobby, updates -------------------------------
+// ---- Red Alert: unlocking and the caster overlay's lobby -------------------------------
 let ORG = null, showRoles = false;
 async function refresh() {
   try { S = await api('GET', '/app/state'); } catch (e) { return; }
@@ -1454,27 +1454,12 @@ async function refresh() {
   document.body.classList.toggle('locked', !S.admin);
   $('caster').hidden = !S.admin;
   $('cast-card').hidden = !S.admin;
-  renderUpdate();
+  $('app-ver').textContent = S.app ? 'v' + S.app : '';
 }
 $('lock-form').addEventListener('submit', async e => {
   e.preventDefault();
   const r = await api('POST', '/app/admin/code', { code: $('lock-code').value.trim() });
   toast(r.message); if (r.ok) $('lock-code').value = ''; refresh();
-});
-function renderUpdate() {
-  const u = S.update || {}, el = $('alerts'), ver = s => esc(String(s).replace(/^broadcast-/, ''));   // tags are broadcast-v0.1.1
-  el.innerHTML = u.ready ? `<button class="alert good" data-app="restart">${ver(u.ready)} is ready: restart</button>`
-    : u.available && !u.busy ? `<button class="alert" data-app="update">Update to ${ver(u.available)}</button>`
-    : u.busy ? '<button class="alert" disabled>Updating…</button>' : u.error ? `<button class="alert bad" disabled title="${esc(u.error)}">Update failed</button>` : '';
-  $('autoup').hidden = !u.supported;
-  $('autoup-ver').textContent = 'v' + (S.app || '');
-  $('autoup-on').checked = !!u.auto;
-}
-$('autoup-on').addEventListener('change', e => api('POST', '/app/autoupdate', { on: e.target.checked ? 'true' : 'false' }).then(r => { toast(r.message); refresh(); }));
-document.addEventListener('click', e => {
-  const a = e.target.closest('[data-app]');
-  if (a && a.dataset.app === 'restart') api('POST', '/app/restart').then(r => toast(r.message));
-  if (a && a.dataset.app === 'update') api('POST', '/app/update').then(r => { toast(r.message); refresh(); });
 });
 async function loadOrganiser() {
   if (!S || !S.admin) { ORG = null; return; }

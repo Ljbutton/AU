@@ -22,8 +22,6 @@ namespace TournamentTracker.App.Broadcast
     {
         /// <summary>The administration code that unlocks everything (null: locked).</summary>
         public string? AdminCode { get; set; }
-        /// <summary>Download and install new versions by itself.</summary>
-        public bool AutoUpdate { get; set; } = true;
 
         public static BroadcastAppSettings Load(string file)
         {
@@ -47,10 +45,6 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Opens a folder, file or web link with Windows.</summary>
         public Action<string> Open { get; set; } = _ => { };
         public string Version { get; set; } = "";
-        /// <summary>The running RedAlert.exe, so it can update itself. Null: no self-update (tests, other platforms).</summary>
-        public string? ExePath { get; set; }
-        /// <summary>Starts the new version and closes this one.</summary>
-        public Action Restart { get; set; } = () => { };
         /// <summary>The caster pages' port (OBS points at it); 0 picks any free one (tests).</summary>
         public int CasterPort { get; set; } = CasterServer.DefaultPort;
         /// <summary>This app's own screen; 0 picks any free one. Fixed, so a producer's browser can find it later.</summary>
@@ -66,9 +60,6 @@ namespace TournamentTracker.App.Broadcast
     public sealed class BroadcastServer : IDisposable
     {
         public const int DefaultPort = 8768;
-        public const string ExeName = "RedAlert.exe";
-        /// <summary>Its releases on GitHub are tagged broadcast-v0.1.0 and so on (The Button's are v0.1.23…).</summary>
-        public const string TagPrefix = "broadcast-v";
         private static readonly JsonSerializerOptions Json = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
         private readonly TcpListener _listener;
@@ -276,91 +267,12 @@ namespace TournamentTracker.App.Broadcast
             return new { ok = true, message = $"Unlocked for {code.TournamentName}." };
         }
 
-        // ---- Updating itself (its own releases: broadcast-v…) -----------------------------------
-
-        private (string Tag, string Url)? _latest;
-        private DateTime _latestChecked = DateTime.MinValue;
-        private volatile string? _ready;
-        private volatile bool _updating;
-        private volatile string? _updateError;
-
-        private bool UpdateAvailable => _env.ExePath != null && _latest is { } l && _ready == null && Newer(l.Tag, _env.Version);
-
-        /// <summary>"broadcast-v0.2.0" is newer than "0.1.0" (or than nothing recorded).</summary>
-        public static bool Newer(string tag, string? installed)
-        {
-            static Version? V(string? t) => Version.TryParse((t ?? "").Replace(TagPrefix, "").TrimStart('v', 'V'), out var v) ? v : null;
-            var l = V(tag);
-            var i = V(installed);
-            return l != null && (i == null || l > i);
-        }
-
-        /// <summary>The newest broadcast release with a RedAlert.exe, from the repository's release list.</summary>
-        public static (string Tag, string Url)? PickRelease(JsonElement releases)
-        {
-            foreach (var r in releases.EnumerateArray())
-            {
-                string tag = r.TryGetProperty("tag_name", out var t) ? t.GetString() ?? "" : "";
-                if (!tag.StartsWith(TagPrefix, StringComparison.Ordinal) || (r.TryGetProperty("draft", out var d) && d.GetBoolean())) continue;
-                if (!r.TryGetProperty("assets", out var assets)) continue;
-                foreach (var a in assets.EnumerateArray())
-                    if (a.TryGetProperty("name", out var n) && n.GetString() == ExeName && a.TryGetProperty("browser_download_url", out var u))
-                        return (tag, u.GetString()!);
-            }
-            return null;
-        }
-
-        private async Task CheckForUpdateAsync()
-        {
-            try
-            {
-                using var req = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{GitHubRepo.Name}/releases?per_page=30");
-                req.Headers.TryAddWithoutValidation("User-Agent", "RedAlert");
-                req.Headers.TryAddWithoutValidation("Accept", "application/vnd.github+json");
-                using var r = await _http.SendAsync(req).ConfigureAwait(false);
-                if (!r.IsSuccessStatusCode) return;
-                _latest = PickRelease(JsonDocument.Parse(await r.Content.ReadAsStringAsync().ConfigureAwait(false)).RootElement) ?? _latest;
-                if (_settings.AutoUpdate && UpdateAvailable) await UpdateAsync().ConfigureAwait(false);
-            }
-            catch (Exception) { }
-        }
-
-        private async Task UpdateAsync()
-        {
-            var release = _latest;
-            string? exe = _env.ExePath;
-            if (_updating || release == null || exe == null) return;
-            _updating = true;
-            _updateError = null;
-            try
-            {
-                string error = await AppUpdater.InstallAsync(_http, release.Value.Url, exe, "Red Alert").ConfigureAwait(false);
-                if (error.Length > 0) _updateError = error;
-                else _ready = release.Value.Tag;
-            }
-            finally { _updating = false; }
-        }
-
         private object StateNow()
         {
-            if (DateTime.UtcNow - _latestChecked > TimeSpan.FromMinutes(20))
-            {
-                _latestChecked = DateTime.UtcNow;
-                _ = Task.Run(CheckForUpdateAsync);
-            }
             return new
             {
                 App = _env.Version,
                 Admin = _organizer == null ? null : new { _organizer.Tournament },
-                Update = new
-                {
-                    Supported = _env.ExePath != null,
-                    Auto = _settings.AutoUpdate,
-                    Available = UpdateAvailable ? _latest!.Value.Tag : null,
-                    Ready = _ready,
-                    Busy = _updating,
-                    Error = _updateError,
-                },
             };
         }
 
@@ -901,19 +813,6 @@ namespace TournamentTracker.App.Broadcast
                     if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
                     _desk.Simulate(Arg("on") == "true");
                     return Ok(new { ok = true, message = _desk.Simulating ? "Simulation on: four fake lobbies are playing." : "Simulation off." });
-                case ("POST", "/app/update"):
-                    if (!UpdateAvailable) return Ok(new { ok = false, message = "Red Alert is up to date." });
-                    _ = Task.Run(UpdateAsync);
-                    return Ok(new { ok = true, message = "Downloading the new version of Red Alert…" });
-                case ("POST", "/app/restart"):
-                    if (_ready == null) return Ok(new { ok = false, message = "No update is waiting." });
-                    _ = Task.Run(async () => { await Task.Delay(300).ConfigureAwait(false); _env.Restart(); });
-                    return Ok(new { ok = true, message = "Restarting…" });
-                case ("POST", "/app/autoupdate"):
-                    _settings.AutoUpdate = Arg("on") == "true";
-                    TrySave();
-                    if (_settings.AutoUpdate && UpdateAvailable) _ = Task.Run(UpdateAsync);
-                    return Ok(new { ok = true, message = _settings.AutoUpdate ? "Red Alert updates itself." : "Automatic updates are off." });
                 default: return Text(404, "application/json", "{\"error\":\"not found\"}");
             }
         }

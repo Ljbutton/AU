@@ -3,7 +3,7 @@
     Red Alert: the broadcaster's app for Windows (the caster desk, OBS, replays, graphics,
     Twitch), served by TournamentTracker.Broadcast on this computer and shown in a WebView2
     window. Published as one self-contained RedAlert.exe. Its own version line (beta: 0.x),
-    released as broadcast-v… so it updates without The Button.
+    released as broadcast-v…. It never updates itself: a new version is downloaded by hand.
   -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>

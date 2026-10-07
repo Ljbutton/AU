@@ -60,34 +60,17 @@ public class BroadcastServerTests : IDisposable
     }
 
     [Fact]
-    public void It_updates_from_its_own_releases_not_The_Buttons()
+    public async Task It_never_updates_itself()
     {
-        var releases = JsonDocument.Parse("""
-            [ { "tag_name": "v0.1.30", "draft": false, "assets": [ { "name": "TheButton.exe", "browser_download_url": "https://x/TheButton.exe" } ] },
-              { "tag_name": "broadcast-v0.1.3", "draft": true, "assets": [ { "name": "RedAlert.exe", "browser_download_url": "https://x/draft" } ] },
-              { "tag_name": "broadcast-v0.1.2", "draft": false, "assets": [ { "name": "RedAlert.exe", "browser_download_url": "https://x/012" } ] },
-              { "tag_name": "broadcast-v0.1.1", "draft": false, "assets": [ { "name": "RedAlert.exe", "browser_download_url": "https://x/011" } ] } ]
-            """).RootElement;
-        Assert.Equal(("broadcast-v0.1.2", "https://x/012"), BroadcastServer.PickRelease(releases));
-        Assert.True(BroadcastServer.Newer("broadcast-v0.1.2", "0.1.0"));
-        Assert.False(BroadcastServer.Newer("broadcast-v0.1.0", "0.1.0"));
-        Assert.True(BroadcastServer.Newer("broadcast-v1.0.0", "0.9.9"));
-    }
-
-    [Fact]
-    public async Task Automatic_updates_can_be_turned_off_and_stay_off()
-    {
-        using (var server = Server())
+        using var server = Server();
+        using var http = new HttpClient { BaseAddress = new Uri(server.Url) };
+        http.DefaultRequestHeaders.Add("X-App-Token", server.Token);
+        var state = await Call(http, HttpMethod.Get, "app/state");
+        Assert.False(state.TryGetProperty("update", out _));
+        foreach (var path in new[] { "app/update", "app/restart", "app/autoupdate" })
         {
-            using var http = new HttpClient { BaseAddress = new Uri(server.Url) };
-            http.DefaultRequestHeaders.Add("X-App-Token", server.Token);
-            Assert.True((await Call(http, HttpMethod.Get, "app/state")).GetProperty("update").GetProperty("auto").GetBoolean());
-            Assert.True((await Call(http, HttpMethod.Post, "app/autoupdate", new { on = "false" })).GetProperty("ok").GetBoolean());
-            Assert.False((await Call(http, HttpMethod.Get, "app/state")).GetProperty("update").GetProperty("auto").GetBoolean());
+            var r = await http.PostAsync(path, new StringContent("{}"));
+            Assert.Equal(System.Net.HttpStatusCode.NotFound, r.StatusCode);
         }
-        using var again = Server();
-        using var http2 = new HttpClient { BaseAddress = new Uri(again.Url) };
-        http2.DefaultRequestHeaders.Add("X-App-Token", again.Token);
-        Assert.False((await Call(http2, HttpMethod.Get, "app/state")).GetProperty("update").GetProperty("auto").GetBoolean());
     }
 }
