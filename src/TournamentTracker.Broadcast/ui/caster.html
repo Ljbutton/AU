@@ -586,6 +586,15 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
 .pltg-row{grid-column:1/-1}
 .pltg{all:unset;cursor:pointer;font:600 12px/1 var(--round);color:var(--muted);padding:3px 0}
 .pltg:hover{color:#fff}
+.gq-card{display:grid;gap:6px}
+.gq{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px}
+.gq .it{padding:4px 9px;background:var(--sunk);border:1px solid var(--line)}
+.gq .it.now{background:var(--red);border-color:var(--red);color:#fff;font-weight:600}
+.gq .it.wait{color:var(--muted);border-style:dashed}
+.prompts{display:grid;gap:6px}.prompts:empty{display:none}
+.prompt{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 14px;background:#141417;border:2px solid var(--edge);border-left:6px solid var(--red)}
+.prompt b{font:700 22px/1 var(--hand);letter-spacing:.06em;text-transform:uppercase}
+.prompt .t{color:var(--muted);font-size:12px;margin-left:auto;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -638,7 +647,13 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
     </div>
   </div>
   <div class="warns" id="desk-warn" data-page="live"></div>
+  <div class="prompts" id="ag-prompts" data-page="live"></div>
   <div class="reads" id="reads" data-page="live"></div>
+  <div class="card gq-card" id="gq-card" data-page="live">
+    <div class="row" style="justify-content:space-between"><div><b>Graphics queue</b> <span class="muted" id="gq-line"></span></div>
+      <div class="row"><label class="muted" style="font-size:12.5px" title="How long each table, card or note stays on stream">Each <input id="gq-hold" type="number" min="3" max="60" step="1" style="width:56px"> s</label><button class="b" id="gq-skip">Skip</button><button class="b danger" id="gq-clear">Clear</button></div></div>
+    <div class="gq" id="gq-list"></div>
+  </div>
   <div class="muted-all" id="muted-all" data-page="live" hidden><b>ALL LOBBY AUDIO MUTED</b><span id="muted-key"></span><button class="b" id="muted-un">Unmute</button></div>
   <div class="desk-head" data-page="live">
     <div><h1>Live desk</h1><p class="sub" id="desk-sub">Only on this PC. It shows who the impostors are, so keep it off stream.</p></div>
@@ -694,6 +709,7 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
     <p class="muted help" style="font-size:12.5px;margin:6px 0 0">One transparent page with every graphic, placed on each lobby's picture in every layout. Red Alert puts it on top of the TT scenes in OBS (source "Red Alert"); to add it by hand, use the link at 1920×1080.</p>
     <div class="gfx-groups" id="gfx-els"></div>
     <div class="gfx-row"><span class="gh">Off-screen alerts</span><span id="gfx-alerts" class="sws"></span></div>
+    <div class="gfx-row"><span class="gh">After a game</span><span class="sws" id="gfx-ag"></span></div>
     <div class="gfx-row"><span class="gh">Win counter counts</span><span class="seg" id="gfx-wins"><button data-wins="today">Today</button><button data-wins="round">This round</button></span><span class="muted" id="gfx-wins-now" style="font-size:12.5px"></span></div>
   </details>
   <details class="card roster-card" id="story-card" open data-page="stories">
@@ -947,6 +963,29 @@ document.addEventListener('click', async e => {
   const f = e.target.closest('[data-fix]'); if (!f) return;
   const r = await api('POST', '/app/admin/obs', { action: 'fix', id: f.dataset.fix }); toast(r.message); loadDesk();
 });
+// The big-graphics queue (one at a time on stream) and the after-game "show table?" prompts.
+const GQ_KIND = { afterGame: 'Table', playerCard: 'Card', storyline: 'Note', standings: 'Standings' };
+function renderQueue() {
+  const b = r_broadcast; if (!b || !b.queue) return;
+  const q = b.queue;
+  if (document.activeElement !== $('gq-hold')) $('gq-hold').value = b.hold;
+  $('gq-line').textContent = q.now ? `showing ${q.now.title}${q.now.left != null ? ' · ' + q.now.left + 's left' : ' · until switched off'}` : q.next.length ? 'waiting' : 'nothing on';
+  const html = (q.now ? `<span class="it now">${GQ_KIND[q.now.kind] || q.now.kind}: ${esc(q.now.title)}</span>` : '<span class="muted">Nothing on stream.</span>')
+    + (q.next.length ? ' <span class="muted">Next:</span> ' + q.next.map(x => `<span class="it${x.ready ? '' : ' wait'}" title="${x.ready ? 'Next in line' : 'Waits until ' + esc(x.lobby || '') + ' is on screen with room for it'}">${GQ_KIND[x.kind] || x.kind}: ${esc(x.title)}${x.ready ? '' : ' (waiting for ' + esc(x.lobby || '') + ')'}</span>`).join('') : '');
+  if ($('gq-list').innerHTML !== html) $('gq-list').innerHTML = html;
+  const ag = b.afterGame || { prompts: [], saved: [] };
+  const ph = ag.prompts.map(p => `<div class="prompt"><b>${esc(p.lobby)} finished</b><span>Show the table?</span><button class="b primary" data-ag="show" data-id="${p.id}">Show</button><button class="b" data-ag="skip" data-id="${p.id}">Skip</button><button class="b" data-ag="save" data-id="${p.id}" title="It plays during the next intermission">Save for intermission</button><span class="t">${p.left}s</span></div>`).join('')
+    + (ag.saved.length ? `<div class="prompt" style="border-left-color:var(--warn)"><span>Saved for intermission: <b style="font-size:16px">${ag.saved.map(esc).join(', ')}</b></span></div>` : '');
+  if ($('ag-prompts').innerHTML !== ph) $('ag-prompts').innerHTML = ph;
+  const agk = String(!!b.afterGameAuto);
+  if ($('gfx-ag').dataset.k !== agk) { $('gfx-ag').dataset.k = agk; $('gfx-ag').innerHTML = swHtml('data-agauto=""', b.afterGameAuto, 'Put the table up by itself', 'Off: the Live desk asks first (Show / Skip / Save for intermission)'); }
+}
+const gqDo = async body => { const r = await api('POST', '/app/admin/graphics', body); toast(r.message); loadDesk(); };
+$('gq-skip').addEventListener('click', () => gqDo({ action: 'skip' }));
+$('gq-clear').addEventListener('click', () => gqDo({ action: 'clear' }));
+$('gq-hold').addEventListener('change', e => { gqDo({ action: 'hold', value: e.target.value }); e.target.blur(); });
+$('ag-prompts').addEventListener('click', e => { const b = e.target.closest('[data-ag]'); if (b) gqDo({ action: 'prompt', id: b.dataset.id, answer: b.dataset.ag }); });
+$('gfx-ag').addEventListener('change', e => { $('gfx-ag').dataset.k = ''; gqDo({ action: 'afterGameAuto', on: String(e.target.checked) }); });
 function renderSetup() {
   const o = OBS; $('setup-card').hidden = !(o && o.connected);
   if (!o || !o.connected) return;
@@ -993,7 +1032,7 @@ function failWhy(p) {
 }
 function renderDesk() {
   if (!DESK) return;
-  renderOnAir(); renderTalk(); renderWarnings(); renderSetup();
+  renderOnAir(); renderTalk(); renderWarnings(); renderSetup(); renderQueue();
   renderPicker();
   renderReplay();
   renderRoster();

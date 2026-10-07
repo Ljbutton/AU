@@ -291,7 +291,8 @@ function statusBar() {
 }
 
 // Top 3: each playing lobby's top three for its own round, top left, a different lobby every 8 s.
-const LEFT_BUSY = () => S.standingsChange || S.layout === 'intermission' || S.layout === 'slate' || S.layout === 'replay';
+// The top 3 steps aside while a big graphic (a table, a card, a note) is up.
+const LEFT_BUSY = () => S.big || S.layout === 'intermission' || S.layout === 'slate' || S.layout === 'replay';
 function top3() {
   const list = S.top3; if (!list || !list.length || LEFT_BUSY()) return;
   const i = Math.floor(Date.now() / 8000) % list.length, x = list[i];
@@ -324,13 +325,21 @@ function standings() {
   put('standings', `<div class="panel"><h2>${esc(st.title)}</h2><table class="st">${st.rows.map(r => `<tr class="${r.advancing ? 'adv' : ''}"><td class="r">${r.rank}</td><td>${sw(r.color)}${esc(r.name)}</td><td class="p">${r.points}</td></tr>`).join('')}</table>${sp ? `<div class="by">Presented by ${sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : ''}<b>${esc(sp.name)}</b></div>` : ''}</div>`,
     { right: '40px', top: '120px', width: '520px', fontSize: '32px' });
 }
-// After a game: the lobby's table with arrows for who went up and down.
+// After a game: the lobby's table with arrows for who went up and down. One big graphic at a time
+// (the graphics queue): on that lobby's tile in a multi-view, on the left full screen, beside intermission.
 function standingsChange() {
-  const ch = S.standingsChange; if (!ch || S.layout === 'intermission' || S.layout === 'slate') return;   // those screens have their own tables
-  put('stchange', `<div class="panel"><h2>${esc(ch.lobby)} <small>after the game</small></h2><table class="st">${ch.rows.slice(0, 10).map(r => {
+  const sc = S.standingsChange; if (!sc || !sc.change) return;
+  const ch = sc.change, at = sc.at || { full: true };
+  const brk = S.layout === 'intermission' || S.layout === 'slate';
+  const html = `<div class="panel"><h2>${esc(ch.lobby)} <small>after the game</small></h2><table class="st">${ch.rows.slice(0, 10).map(r => {
     const d = r.was == null ? 0 : r.was - r.rank;
     return `<tr class="${r.advancing ? 'adv' : ''}"><td class="r">${r.rank}</td><td>${sw(r.color)}${esc(r.name)}${d > 0 ? `<span class="arrow up">▲${d}</span>` : d < 0 ? `<span class="arrow down">▼${-d}</span>` : ''}</td><td class="p">${r.points}</td></tr>`;
-  }).join('')}</table></div>`, { left: '40px', top: '120px', width: '480px', fontSize: '30px' });
+  }).join('')}</table></div>`;
+  if (brk) { put('stchange', html, { right: '110px', left: 'auto', top: '120px', width: '560px', fontSize: '32px', zIndex: '1' }); return; }
+  if (at.full) { put('stchange', html, { left: '40px', right: 'auto', top: '120px', width: '480px', fontSize: '30px' }); return; }
+  // Inside the lobby's own tile, scaled to it.
+  const k = Math.max(at.w / S.canvas.w, 0.42) * 1.25;
+  put('stchange', html, { left: at.x + 16 * k + 'px', right: 'auto', top: at.y + 56 * k + 'px', width: 480 * k + 'px', fontSize: 30 * k + 'px' });
 }
 // A storyline note the caster put up, as a lower third.
 function storyline() {
@@ -374,7 +383,7 @@ function intermission() {
   const it = S.intermission; if (!it || (S.layout !== 'intermission' && S.layout !== 'slate')) return;
   // Chat Detectives in the space under the notes, unless a Twitch poll or result is showing there.
   const tw = S.extras && S.extras.twitch, det = tw && !tw.active && !tw.result ? tw.detectives : null;
-  const st = it.standings;
+  const st = S.standingsChange ? null : it.standings;      // a saved after-game table takes the table's place
   const table = st && st.rows.length ? `<div class="panel"><h2>${esc(st.title)}</h2><table class="st">${st.rows.map(r => `<tr class="${r.advancing ? 'adv' : ''}"><td class="r">${r.rank}</td><td>${sw(r.color)}${esc(r.name)}</td><td class="p">${r.points}</td></tr>`).join('')}</table></div>` : '';
   const sp = S.extras && S.extras.standingsSponsor;
   put('inter-bg', `<div class="inter" style="width:${S.canvas.w}px;height:${S.canvas.h}px"><div>
@@ -443,7 +452,7 @@ function twitch() {
 
 // More elements are added by later parts (sponsors, alerts, counters…).
 const GLOBAL = { intermission, statusBar, top3, ticker, standings, standingsChange, storyline, sponsorBreak, multiviewSponsor, winCounter, playerCard, alerts, twitch };
-const ALWAYS = new Set(['sponsorBreak', 'multiviewSponsor', 'intermission', 'winCounter', 'playerCard', 'twitch']);
+const ALWAYS = new Set(['sponsorBreak', 'multiviewSponsor', 'intermission', 'winCounter', 'playerCard', 'twitch', 'standingsChange', 'storyline', 'standings']);
 
 function render() {
   const th = S.theme || {};

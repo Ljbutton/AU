@@ -172,7 +172,7 @@ public class ShowTests : IDisposable
         Assert.Equal(1, d.GetProperty("imp").GetProperty("w").GetInt32());
         Assert.Equal(1, d.GetProperty("imp").GetProperty("l").GetInt32());
         Assert.Equal(1, d.GetProperty("kills").GetInt32());
-        _clock.Advance(6.5);
+        _clock.Advance(8.5);                                     // the graphics queue's hold time
         Assert.Equal(JsonValueKind.Null, Broadcast().GetProperty("playerCard").ValueKind);
 
         // In 2-up it sits on the lobby's half; in a 3×3 grid the tile is too small.
@@ -183,6 +183,81 @@ public class ShowTests : IDisposable
         Assert.True(card.GetProperty("x").GetDouble() > 900);
         foreach (var l in new[] { "LJ", "MAL", "A1", "A2", "A3", "A4", "A5", "A6", "A7" }) Snap(l, "lobby");
         _desk.ShowGrid();
-        Assert.StartsWith("Skipped", _desk.ShowPlayerCard("maria#1", "LJ"));
+        _clock.Advance(8.5); Broadcast();
+        Assert.StartsWith("Player card queued: it goes on when LJ is on screen", _desk.ShowPlayerCard("maria#1", "LJ"));
+        Assert.Equal(JsonValueKind.Null, Broadcast().GetProperty("playerCard").ValueKind);
+        // Back to LJ full screen: its turn.
+        _desk.Show("LJ");
+        Assert.Equal("maria#1", Broadcast().GetProperty("playerCard").GetProperty("id").GetString()!.Split('|')[0]);
+    }
+
+    [Fact]
+    public void One_big_graphic_at_a_time_each_on_its_own_lobby()
+    {
+        Snap("LJ"); Snap("MAL"); Snap("KAI");
+        _desk.Show("KAI");
+        var app = new BroadcastApp(_desk, () => null, null);
+        JsonElement St() => JsonSerializer.SerializeToElement(app.State(), Camel);
+        // Two tables and a note at once: one at a time, the note (about nobody) first, MAL's waits for MAL.
+        _desk.Graphics.Add("afterGame", "MAL", "MAL after the game", new { lobby = "MAL", round = 1, rows = new object[0] });
+        _desk.Graphics.Add("afterGame", "KAI", "KAI after the game", new { lobby = "KAI", round = 1, rows = new object[0] });
+        _desk.Graphics.Add("storyline", null, "A note", "A note");
+        var s = St();
+        Assert.Equal("KAI", s.GetProperty("big").GetProperty("lobby").GetString());
+        Assert.Equal(JsonValueKind.Null, s.GetProperty("storyline").ValueKind);
+        _clock.Advance(8.5);
+        s = St();
+        Assert.Equal("storyline", s.GetProperty("big").GetProperty("kind").GetString());
+        Assert.Equal(JsonValueKind.Null, s.GetProperty("standingsChange").ValueKind);
+        _clock.Advance(8.5);
+        Assert.Equal(JsonValueKind.Null, St().GetProperty("big").ValueKind);        // MAL's table waits: MAL isn't on
+        // Quad with MAL in slot 4: its table goes inside MAL's quarter.
+        _desk.Show("", "4up", null, new List<string> { "KAI", "LJ", "", "MAL" });
+        s = St();
+        var at = s.GetProperty("standingsChange").GetProperty("at");
+        Assert.False(at.GetProperty("full").GetBoolean());
+        Assert.True(at.GetProperty("x").GetDouble() > 900 && at.GetProperty("y").GetDouble() > 500);
+        _desk.Graphics.Skip();
+        Assert.Equal(JsonValueKind.Null, St().GetProperty("big").ValueKind);
+    }
+
+    [Fact]
+    public void After_a_game_the_desk_asks_and_saved_tables_play_in_intermission()
+    {
+        Snap("LJ");
+        _desk.Show("LJ");
+        var app = new BroadcastApp(_desk, () => null, null);
+        var games = new List<TournamentTracker.Stats.GameRecord>();
+        _desk.ExternalGames = () => games;
+        TournamentTracker.Stats.GameRecord G(int n, string winner)
+        {
+            var g = new TournamentTracker.Stats.GameRecord { GameNumber = n, Host = "LJ", Round = 1, StartedUtc = _clock.Now, Winner = winner, EndReason = winner == "Impostors" ? "ImpostorsByKill" : "HumansByVote" };
+            g.Players.Add(new TournamentTracker.Stats.GamePlayer { Key = "a", Name = "A", IsImpostor = true, Kills = 2 });
+            g.Players.Add(new TournamentTracker.Stats.GamePlayer { Key = "b", Name = "B" });
+            g.Players.Add(new TournamentTracker.Stats.GamePlayer { Key = "c", Name = "C" });
+            TournamentTracker.Stats.Scoring.ScoreGame(g, new TournamentTracker.ScoringRules());
+            return g;
+        }
+        void Next() { _clock.Advance(6); _desk.Tick(); }
+        games.Add(G(1, "Crewmates")); Next();
+        games.Add(G(2, "Impostors")); Next();
+        var prompts = JsonSerializer.SerializeToElement(_desk.PromptState(), Camel).GetProperty("prompts");
+        Assert.Equal("LJ", prompts[0].GetProperty("lobby").GetString());
+        Assert.Null(_desk.Graphics.Current());                    // nothing on stream until asked
+        Assert.Contains("next intermission", _desk.AnswerPrompt(prompts[0].GetProperty("id").GetString()!, "save"));
+        _desk.ShowIntermission();
+        _desk.Tick();
+        Assert.Equal("afterGame", _desk.Graphics.Current()!.Kind);
+        _desk.Graphics.Clear();
+        // Unanswered prompts go by themselves after a minute.
+        _desk.Show("LJ");
+        games.Add(G(3, "Crewmates")); Next();
+        Assert.Single(JsonSerializer.SerializeToElement(_desk.PromptState(), Camel).GetProperty("prompts").EnumerateArray());
+        _clock.Advance(61); _desk.Tick();
+        Assert.Empty(JsonSerializer.SerializeToElement(_desk.PromptState(), Camel).GetProperty("prompts").EnumerateArray());
+        // The old way: straight into the queue.
+        app.Settings.SetQueue(null, true);
+        games.Add(G(4, "Impostors")); Next();
+        Assert.Equal("afterGame", _desk.Graphics.Current()!.Kind);
     }
 }

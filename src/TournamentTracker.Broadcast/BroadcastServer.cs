@@ -404,7 +404,7 @@ namespace TournamentTracker.App.Broadcast
                         montages = _montages?.State(), moments = _replays?.Moments(), sponsors = SponsorState(),
                         voice = new { status = _desk.VoiceState(), obs = _obs?.VoiceStatus() },
                         twitch = _twitch?.State(),
-                        broadcast = _broadcast == null ? null : new { url = _caster?.Url == null ? null : _caster.Url + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem, alerts = _desk.Alerts.Settings, alertsWaiting = _desk.Alerts.Waiting },
+                        broadcast = _broadcast == null ? null : new { url = _caster?.Url == null ? null : _caster.Url + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem, alerts = _desk.Alerts.Settings, alertsWaiting = _desk.Alerts.Waiting, queue = _desk.Graphics.State(), afterGame = _desk.PromptState(), afterGameAuto = _broadcast.Settings.Current.AfterGameAuto, hold = _broadcast.Settings.Current.GraphicSeconds },
                         names = _caster!.DataLinks().ToDictionary(d => d.Lobby, d => _desk.NamesFor(d.Lobby)), receivers = _caster.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList(),
                         previews = Previews(), twitchHandles = _desk.Board.Ranking().ToDictionary(r => r.Lobby, r => _desk.TwitchOf(r.Lobby)) });
                 case ("POST", "/app/admin/feedin"):
@@ -757,6 +757,27 @@ namespace TournamentTracker.App.Broadcast
                     if (element == "impostorTags" && _obs?.Connected == true) _ = Task.Run(_obs.CheckSetupAsync);
                     return Ok(new { ok = true, message = $"{BroadcastSettings.ElementNames[element]} {(Arg("on") == "true" ? "on" : "off")}." });
                 }
+                case ("POST", "/app/admin/graphics"):
+                {
+                    // The big-graphics queue: skip, clear, hold time, and the after-game prompts.
+                    if (_desk == null || _broadcast == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    switch (Arg("action"))
+                    {
+                        case "skip": _desk.Graphics.Skip(); return Ok(new { ok = true, message = "Skipped: the next graphic comes up." });
+                        case "clear":
+                            _desk.Graphics.Clear();
+                            if (_broadcast.Settings.Current.Elements.GetValueOrDefault("standings")) _broadcast.Settings.Set("standings", false);
+                            return Ok(new { ok = true, message = "Graphics queue cleared." });
+                        case "hold":
+                            _broadcast.Settings.SetQueue(double.TryParse(Arg("value"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sec) ? sec : 8, null);
+                            return Ok(new { ok = true, message = $"Each graphic stays {_broadcast.Settings.Current.GraphicSeconds} s." });
+                        case "afterGameAuto":
+                            _broadcast.Settings.SetQueue(null, Arg("on") == "true");
+                            return Ok(new { ok = true, message = _broadcast.Settings.Current.AfterGameAuto ? "After a game, its table goes up by itself." : "After a game, the Live desk asks first." });
+                        case "prompt": return Ok(new { ok = true, message = _desk.AnswerPrompt(Arg("id"), Arg("answer")) });
+                        default: return Ok(new { ok = false, message = "Unknown graphics action." });
+                    }
+                }
                 case ("POST", "/app/admin/dismiss"):
                     _desk?.Dismiss(Arg("id"));
                     return Ok(new { ok = true });
@@ -771,7 +792,8 @@ namespace TournamentTracker.App.Broadcast
                         _desk.ShownNote = (note.Text, DateTime.UtcNow);
                         _broadcast?.Settings.Set("storyline", true);
                         _desk.Storylines.Mark(id, "used");
-                        return Ok(new { ok = true, message = "On stream: " + NameTag.Plain(note.Text) });
+                        var g = _desk.Graphics.Add("storyline", null, NameTag.Plain(note.Text), note.Text);
+                        return Ok(new { ok = true, message = (_desk.Graphics.Current()?.Id == g.Id ? "On stream: " : "Queued (after what's showing): ") + NameTag.Plain(note.Text) });
                     }
                     _desk.Storylines.Mark(id, action);
                     return Ok(new { ok = true, message = action switch { "pin" => "Pinned.", "unpin" => "Unpinned.", "used" => "Marked used.", "dismiss" => "Dismissed.", _ => "Done." } });

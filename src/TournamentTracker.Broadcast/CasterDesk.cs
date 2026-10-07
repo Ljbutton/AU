@@ -177,6 +177,7 @@ namespace TournamentTracker.App.Broadcast
             Health = new LobbyHealth(_clock, () => HealthConfig);
             Sponsors = new SponsorBook(dataFolder, _clock) { Hold = () => Simulating };
             Alerts = new AlertQueue(_clock, dataFolder == null ? null : System.IO.Path.Combine(dataFolder, "alerts.json"));
+            Graphics = new GraphicsQueue(_clock);
             if (config != null) _config = () => config;
             else
             {
@@ -429,6 +430,8 @@ namespace TournamentTracker.App.Broadcast
             if (LiveDuringIntermission != null && sim(LiveDuringIntermission)) LiveDuringIntermission = null;
             if (Break is { } b && sim(b.Lobby ?? "")) { Break = null; Sponsors.End("break"); }
             if (PlayerCard is { } pc && sim(pc.Lobby ?? "")) PlayerCard = null;
+            Graphics.Remove(g => g.Lobby != null && sim(g.Lobby) || g.Kind == "storyline");
+            lock (_lock) { _prompts.RemoveAll(x => sim(x.Lobby)); _savedTables.RemoveAll(x => sim(x.Lobby)); }
             if (_featured != null && sim(_featured)) _featured = null;
             // A storyline or note from the fake games may be up: it goes too.
             ShownNote = null;
@@ -673,31 +676,109 @@ namespace TournamentTracker.App.Broadcast
         public double PlayerCardMinTile { get; set; } = 760;
 
         /// <summary>
-        /// A player's card as a lower third (one at a time; it goes after a few seconds). On the lobby's
-        /// tile when it's in a multi-view, or skipped when that tile is too small. Says what it did.
+        /// A player's card as a lower third, through the graphics queue (one big graphic at a time):
+        /// on the lobby's tile in a multi-view, waiting while that lobby isn't on screen or its tile is
+        /// too small. During a replay or montage, its own key player's card goes straight on.
         /// </summary>
         public string ShowPlayerCard(string key, string? lobby, bool auto = false)
         {
             var air = OnAir;
             lobby ??= Board.Ranking().FirstOrDefault(r => r.People.Any(p => p.Key == key))?.Lobby;
-            if (lobby != null && air.Layout is "2up" or "4up" or "grid" && air.Has(lobby))
+            if (auto && air.Layout == "replay")
             {
-                var boxes = air.Boxes ?? ObsDirector.Slots(air.Layout, 1920, 1080, 8, air.Slots.Count);
-                int i = air.Slots.FindIndex(x => string.Equals(x, lobby, StringComparison.OrdinalIgnoreCase));
-                if (i >= 0 && i < boxes.Count && boxes[i].W < PlayerCardMinTile) return "Skipped: that lobby's tile is too small for a card.";
+                PlayerCard = (key, lobby, _clock(), auto);
+                return "Player card on stream.";
             }
-            PlayerCard = (key, lobby, _clock(), auto);
-            return "Player card on stream.";
+            string name = lobby != null && Board.Lobby(lobby) is { } live && live.People.Values.FirstOrDefault(p => p.Key == key) is { } lp ? Board.DisplayName(live, lp.Id, lp.Name) : key;
+            var g = Graphics.Add("playerCard", lobby, $"{NameTag.Plain(name)}'s card", key);
+            var cur = Graphics.Current();
+            return cur?.Id == g.Id ? "Player card on stream." : Graphics.CanShow(g) ? "Player card queued: it goes on after what's showing." : $"Player card queued: it goes on when {lobby} is on screen with room for it.";
         }
 
-        /// <summary>The card still showing, or null once its time is up.</summary>
+        /// <summary>The card still showing, or null once its time is up (a replay's own card, else the queue's).</summary>
         public (string Key, string? Lobby, DateTime At, bool Auto)? CardNow()
         {
-            if (PlayerCard is { } c && (_clock() - c.At).TotalSeconds < PlayerCardSeconds) return c;
-            return null;
+            if (OnAir.Layout == "replay")
+                return PlayerCard is { } c && (_clock() - c.At).TotalSeconds < PlayerCardSeconds ? c : null;
+            return Graphics.Current() is { Kind: "playerCard" } g && g.Data is string key ? (key, g.Lobby, g.Started ?? _clock(), false) : null;
         }
 
-        public void HidePlayerCard() => PlayerCard = null;
+        public void HidePlayerCard() { PlayerCard = null; Graphics.Remove("playerCard"); }
+
+        // ---- Big graphics: one at a time; after-game tables asked about first (Part 14) ----------
+
+        /// <summary>Tables, player cards and storyline notes take turns on stream.</summary>
+        public GraphicsQueue Graphics { get; }
+        /// <summary>After a game: the lobby's table goes straight into the queue (the old way) instead of asking.</summary>
+        public Func<bool> AfterGameAuto { get; set; } = () => false;
+        /// <summary>The after-game table is switched on in Graphics at all.</summary>
+        public Func<bool> AfterGameOn { get; set; } = () => true;
+        public sealed class AfterGamePrompt { public string Id = ""; public string Lobby = ""; public int Round; public object? Data; public DateTime At; }
+        private readonly List<AfterGamePrompt> _prompts = new List<AfterGamePrompt>();
+        private readonly List<AfterGamePrompt> _savedTables = new List<AfterGamePrompt>();
+        private DateTime _changeSeen;
+        private long _promptSeq;
+        /// <summary>How long the "show table?" prompt waits before it counts as Skip.</summary>
+        public double PromptSeconds { get; set; } = 60;
+
+        /// <summary>A lobby finished a game and its table changed: ask (or, the old way, queue it).</summary>
+        private void AfterGameTick()
+        {
+            if (Tables.Change is not { } change || Tables.ChangeAt == _changeSeen) goto Expire;
+            _changeSeen = Tables.ChangeAt;
+            if (!AfterGameOn()) goto Expire;
+            var el = System.Text.Json.JsonSerializer.SerializeToElement(change);
+            string lobby = el.TryGetProperty("lobby", out var l) ? l.GetString() ?? "" : "";
+            int round = el.TryGetProperty("round", out var r) && r.ValueKind == System.Text.Json.JsonValueKind.Number ? r.GetInt32() : 0;
+            if (AfterGameAuto()) Graphics.Add("afterGame", lobby, $"{lobby} after the game", change);
+            else lock (_lock)
+            {
+                _prompts.RemoveAll(x => string.Equals(x.Lobby, lobby, StringComparison.OrdinalIgnoreCase));
+                _prompts.Add(new AfterGamePrompt { Id = "p" + (++_promptSeq), Lobby = lobby, Round = round, Data = change, At = _clock() });
+            }
+        Expire:
+            var now = _clock();
+            lock (_lock) _prompts.RemoveAll(x => (now - x.At).TotalSeconds >= PromptSeconds);     // unanswered: skipped
+            // Saved for intermission: they play once it's on.
+            if (OnAir.Layout is "intermission" or "slate")
+            {
+                List<AfterGamePrompt> play;
+                lock (_lock) { play = _savedTables.ToList(); _savedTables.Clear(); }
+                foreach (var p in play) Graphics.Add("afterGame", p.Lobby, $"{p.Lobby} after the game (saved)", p.Data);
+            }
+        }
+
+        /// <summary>The caster's answer to "show table?": show, skip or save (for intermission).</summary>
+        public string AnswerPrompt(string id, string answer)
+        {
+            AfterGamePrompt? p;
+            lock (_lock)
+            {
+                p = _prompts.FirstOrDefault(x => x.Id == id);
+                if (p == null) return "That table has gone.";
+                _prompts.Remove(p);
+                if (answer == "save") _savedTables.Add(p);
+            }
+            switch (answer)
+            {
+                case "show":
+                    var g = Graphics.Add("afterGame", p.Lobby, $"{p.Lobby} after the game", p.Data);
+                    return Graphics.CanShow(g) ? $"{p.Lobby}'s table is in the queue." : $"{p.Lobby}'s table goes on when {p.Lobby} is on screen with room for it.";
+                case "save": return $"{p.Lobby}'s table plays in the next intermission.";
+                default: return "Skipped.";
+            }
+        }
+
+        public object PromptState()
+        {
+            var now = _clock();
+            lock (_lock)
+                return new
+                {
+                    Prompts = _prompts.Select(x => new { x.Id, x.Lobby, x.Round, Left = Math.Max(0, (int)Math.Ceiling(PromptSeconds - (now - x.At).TotalSeconds)) }).ToList(),
+                    Saved = _savedTables.Select(x => x.Lobby).ToList(),
+                };
+        }
 
         /// <summary>Everything a player card says: name, rank and points, and today's records.</summary>
         public object? PlayerCardData(string key, string? lobby)
@@ -888,6 +969,7 @@ namespace TournamentTracker.App.Broadcast
                 Archive.Merge(games);
                 Tables.Update(Board.Ranking().Select(r => r.Lobby), _clock());
             }
+            AfterGameTick();
             if (HealthTick()) return;
             OnAir air;
             lock (_lock) air = _onAir;

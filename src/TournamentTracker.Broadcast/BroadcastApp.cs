@@ -33,6 +33,10 @@ namespace TournamentTracker.App.Broadcast
 
         public BroadcastTheme Theme { get; set; } = new BroadcastTheme();
         public Dictionary<string, bool> Elements { get; set; } = DefaultElements();
+        /// <summary>How long each big graphic (a table, a player card, a note) stays before the next, in seconds.</summary>
+        public double GraphicSeconds { get; set; } = 8;
+        /// <summary>After a game, put the lobby's table up by itself (the old way) instead of asking on the Live desk.</summary>
+        public bool AfterGameAuto { get; set; }
 
         public static Dictionary<string, bool> DefaultElements() => new Dictionary<string, bool>
         {
@@ -128,6 +132,14 @@ namespace TournamentTracker.App.Broadcast
             Save();
         }
 
+        /// <summary>The graphics queue's hold time and the after-game choice, saved.</summary>
+        public void SetQueue(double? seconds, bool? afterGameAuto)
+        {
+            if (seconds is { } sec) Current.GraphicSeconds = Math.Max(3, Math.Min(60, Math.Round(sec)));
+            if (afterGameAuto is { } a) Current.AfterGameAuto = a;
+            Save();
+        }
+
         private void Save()
         {
             if (_path == null) return;
@@ -155,6 +167,10 @@ namespace TournamentTracker.App.Broadcast
             _desk = desk;
             _obs = obs;
             Settings = new BroadcastSettingsFile(settingsPath);
+            // The big graphics take turns, each where it belongs (or waiting for its lobby).
+            desk.Graphics.CanShow = CanShow;
+            desk.AfterGameAuto = () => Settings.Current.AfterGameAuto;
+            desk.AfterGameOn = () => Settings.Current.Elements.GetValueOrDefault("standingsChange");
             // Part 16: sponsors on the standings, the grid's empty tiles and the split-screen break.
             Extras["standingsSponsor"] = () =>
             {
@@ -181,6 +197,34 @@ namespace TournamentTracker.App.Broadcast
                 : null;
         }
 
+        /// <summary>
+        /// Whether a big graphic can be on stream now: one about a lobby only on that lobby (full screen,
+        /// or its tile when the tile is big enough) or in intermission; the standings table not over
+        /// intermission's own; nothing over a replay.
+        /// </summary>
+        public bool CanShow(Graphic g)
+        {
+            var air = _desk.OnAir;
+            if (air.Layout is "replay" or "none") return false;
+            bool brk = air.Layout is "intermission" or "slate";
+            if (g.Kind == "standings") return !brk;
+            if (g.Lobby == null) return !brk || g.Kind == "playerCard";
+            if (brk) return true;
+            var (_, _, slots) = Layout(air);
+            int i = slots.FindIndex(x => string.Equals(x.Lobby, g.Lobby, StringComparison.OrdinalIgnoreCase));
+            if (i < 0) return false;
+            return air.Layout is "full" or "break" || slots[i].Box.W >= _desk.PlayerCardMinTile;
+        }
+
+        /// <summary>Where a graphic about a lobby goes: its tile (multi-view), or the whole screen.</summary>
+        private object Place(string? lobby, double w, double h, List<(string? Lobby, Box Box)> slots)
+        {
+            var air = _desk.OnAir;
+            var slot = air.Layout is "2up" or "4up" or "grid" && lobby != null ? slots.FirstOrDefault(x => string.Equals(x.Lobby, lobby, StringComparison.OrdinalIgnoreCase)) : default;
+            var b = slot.Lobby != null ? slot.Box : new Box(0, 0, w, h);
+            return new { x = b.X, y = b.Y, w = b.W, h = b.H, full = slot.Lobby == null };
+        }
+
         /// <summary>The canvas and where each lobby is on it, for the layout on stream.</summary>
         public (double W, double H, List<(string? Lobby, Box Box)> Slots) Layout(OnAir air)
         {
@@ -198,6 +242,12 @@ namespace TournamentTracker.App.Broadcast
         public object State()
         {
             var s = Settings.Refresh();
+            _desk.Graphics.HoldSeconds = s.GraphicSeconds;
+            // The standings switch: a table that stays up while it's on (others wait their turn).
+            bool standingsOn = s.Elements.GetValueOrDefault("standings");
+            if (standingsOn && !_desk.Graphics.Has("standings")) _desk.Graphics.Add("standings", null, "Standings", persistent: true);
+            if (!standingsOn && _desk.Graphics.Has("standings")) _desk.Graphics.Remove("standings");
+            var big = _desk.Graphics.Current();
             var air = _desk.OnAir;
             var (w, h, slots) = Layout(air);
             var ranking = _desk.Board.Ranking();
@@ -251,14 +301,16 @@ namespace TournamentTracker.App.Broadcast
                 logo = string.IsNullOrEmpty(s.Theme.Logo) ? null : s.Theme.Logo.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? s.Theme.Logo : "/broadcast/logo",
                 elements = s.Elements,
                 lobbies,
-                standings = s.Elements.GetValueOrDefault("standings") ? Standings() : null,
+                // One big graphic at a time (the graphics queue): which, and where.
+                big = big == null ? null : new { kind = big.Kind, lobby = big.Lobby, id = big.Id },
+                standings = big?.Kind == "standings" ? Standings() : null,
                 top3 = s.Elements.GetValueOrDefault("top3") ? Top3(ranking) : null,
                 ticker = s.Elements.GetValueOrDefault("ticker") ? Ticker() : null,
-                standingsChange = s.Elements.GetValueOrDefault("standingsChange") && _desk.Tables.Change != null && (now - _desk.Tables.ChangeAt).TotalSeconds < 15 ? _desk.Tables.Change : null,
-                storyline = s.Elements.GetValueOrDefault("storyline") && _desk.ShownNote is { } note && (now - note.At).TotalSeconds < 12 ? note.Text : null,
+                standingsChange = big?.Kind == "afterGame" ? new { change = big.Data, at = Place(big.Lobby, w, h, slots) } : null,
+                storyline = big?.Kind == "storyline" ? big.Data as string : null,
                 intermission = air.Layout is "intermission" or "slate" ? Intermission(round, air.Layout == "slate") : null,
                 wins = s.Elements.GetValueOrDefault("winCounter") || air.Layout is "intermission" or "slate" ? new { impostors = _desk.Wins().Impostors, crew = _desk.Wins().Crew, scope = _desk.WinScope } : null,
-                playerCard = s.Elements.GetValueOrDefault("playerCards") ? PlayerCard(air, w, h, slots) : null,
+                playerCard = s.Elements.GetValueOrDefault("playerCards") || air.Layout == "replay" ? PlayerCard(air, w, h, slots) : null,
                 alerts = s.Elements.GetValueOrDefault("alerts") ? _desk.Alerts.Active().Select(a => new { a.Id, a.Lobby, number = numbers.GetValueOrDefault(a.Lobby), a.Kind, a.Text, a.Count }).ToList() : null,
                 extras = Extras.ToDictionary(kv => kv.Key, kv => { try { return kv.Value(); } catch (Exception) { return null; } }),
             };
@@ -293,11 +345,7 @@ namespace TournamentTracker.App.Broadcast
             if (air.Layout is "2up" or "4up" or "grid" && c.Lobby != null)
             {
                 var slot = slots.FirstOrDefault(x => string.Equals(x.Lobby, c.Lobby, StringComparison.OrdinalIgnoreCase));
-                if (slot.Lobby != null)
-                {
-                    if (slot.Box.W < _desk.PlayerCardMinTile) return null;
-                    box = slot.Box;
-                }
+                if (slot.Lobby != null) box = slot.Box;
             }
             var b = box ?? new Box(0, 0, w, h);
             return new { id = c.Key + "|" + c.At.Ticks, data, x = b.X, y = b.Y, w = b.W, h = b.H, full = box == null };
