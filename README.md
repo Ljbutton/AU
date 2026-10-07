@@ -23,6 +23,13 @@ Switch, Xbox or PlayStation.
 The host's client runs the game, so it sees every kill, vote and role. That is why only the
 host needs the mod.
 
+**Discord goes through The Button.** While The Button is open it keeps the lobby's bot
+connected, so the bot shows online (and `/link` is heard) before Among Us starts. The mod sends
+everything it does in Discord (automute, results, the live message, webhooks) through The
+Button. Among Us without The Button open is plain Among Us: the mod still tracks games and saves
+them on the PC, but nothing reaches Discord, and the host's chat says so when a game starts.
+Closing The Button unmutes anyone the bot had muted.
+
 ---
 
 ## Install (host only)

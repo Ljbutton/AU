@@ -82,6 +82,9 @@ namespace TournamentTracker.App
 
         /// <summary>Starts the new version and closes this one.</summary>
         public Action Restart { get; set; } = () => { };
+
+        /// <summary>Connects the Discord bot (a pretend one in tests). Null: the real gateway.</summary>
+        public Func<BotConfig, TournamentTracker.Discord.IBotGateway>? Bots { get; set; }
     }
 
     /// <summary>
@@ -103,6 +106,7 @@ namespace TournamentTracker.App
         private Release? _latest;
         private Organizer? _organizer;
         private Voice.VoiceCapture? _voice;
+        private readonly DiscordBridge _bridge;
 
         /// <summary>The lobby's voice and game sound for the send page (started the first time it asks).</summary>
         private Voice.VoiceCapture VoiceNow()
@@ -198,7 +202,12 @@ namespace TournamentTracker.App
             Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
             Task.Run(AcceptLoop);
             StartOrganizer();
+            // The bot stays online while The Button is open; the mod reaches Discord through it.
+            _bridge = new DiscordBridge(() => DiscordBridge.FromSetupCode(_settings.SetupCode),
+                () => GamePath == null ? null : ModInstaller.DataDir(GamePath), connect: env.Bots);
         }
+
+        public DiscordBridge Bridge => _bridge;
 
         public string? GamePath => _settings.GamePath;
 
@@ -438,6 +447,7 @@ namespace TournamentTracker.App
                 },
                 Connected = status != null,
                 Status = status == null ? (JsonElement?)null : JsonDocument.Parse(status).RootElement,
+                Bot = _bridge.Status(),
             };
         }
 
@@ -740,6 +750,7 @@ namespace TournamentTracker.App
         public void Dispose()
         {
             _cts.Cancel();
+            _bridge.Dispose();
             _organizer?.Dispose();
             _voice?.Dispose();
             try { _listener.Stop(); } catch (Exception) { }

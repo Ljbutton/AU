@@ -73,7 +73,9 @@ namespace TournamentTracker
             Links = LinkRegistry.Load(Path.Combine(dataDir, "links.json"), log);
             Tracker = new GameTracker(settings.Scoring);
 
-            _rest = new DiscordRest(http ?? DiscordRest.CreateHttpClient(), log);
+            // In the game, Discord only goes through The Button (none when it isn't open).
+            _viaButton = http == null;
+            _rest = new DiscordRest(http ?? ButtonBridge.CreateClient(dataDir), log);
 
             var mute = settings.AutoMute;
             if (mute.IsConfigured)
@@ -88,10 +90,12 @@ namespace TournamentTracker
                 // comes over the gateway, which uses the first bot token.
                 Presence = presence;
                 bool listen = settings.ResultsChannelId.Length > 0 && settings.Mode == TrackerMode.Tournament;
-                // The gateway also carries /link and /unlink, so it always runs.
+                // The gateway also carries /link and /unlink, so it always runs. The Button keeps the
+                // connection; the mod asks it what happened.
                 if (Presence == null)
                 {
-                    _gateway = new VoiceGateway(mute.BotTokens[0], mute.GuildId, log, listenToMessages: listen);
+                    _gateway = new ButtonGateway(dataDir, mute.BotTokens[0], mute.GuildId, listen, log);
+                    _gateway.ButtonChanged += open => _mainThread.Enqueue(() => ButtonChanged(open));
                     _gateway.Start();
                     Presence = _gateway;
                 }
@@ -141,7 +145,7 @@ namespace TournamentTracker
 
         /// <summary>The leaderboard to show: combined across hosts when available, else this host's.</summary>
         public StatsStore Standings => Combined?.Store ?? Store;
-        private readonly VoiceGateway? _gateway;
+        private readonly ButtonGateway? _gateway;
 
         /// <summary>The most recent player list the plugin reported, used to resolve chat command targets.</summary>
         public IReadOnlyList<PlayerSnapshot> Players { get; private set; } = Array.Empty<PlayerSnapshot>();
@@ -170,6 +174,7 @@ namespace TournamentTracker
             _log.Info($"Tracking game {game.Name} on {map} with {players.Count} players");
             StartReplay(game);
             FeedGameStarted(game);
+            WarnIfNoButton();
             if (_settings.Mode == TrackerMode.Tournament && Round == 0)
                 Reply($"No round set, so this game counts as round 0. {Cap(HowTo("r1", "Next round"))} before the next game.", false);
             else if (_settings.Mode == TrackerMode.Tournament && _settings.GamesPerRound > 0 && GamesThisRound >= _settings.GamesPerRound)
@@ -370,6 +375,39 @@ namespace TournamentTracker
             var replies = _outbox.ToList();
             _outbox.Clear();
             return replies;
+        }
+
+        /// <summary>Discord goes through The Button (false in tests, which talk to a pretend Discord).</summary>
+        private readonly bool _viaButton;
+        private bool _buttonClosedOnce;
+
+        /// <summary>This lobby uses Discord at all: a bot, a results channel or a webhook.</summary>
+        private bool UsesDiscord => AutoMute != null || Shared != null || !string.IsNullOrWhiteSpace(_settings.StatsWebhookUrl) || !string.IsNullOrWhiteSpace(_settings.StatusWebhookUrl);
+
+        /// <summary>The Button is open, so Discord works (always true when the mod talks to Discord itself).</summary>
+        public bool ButtonOpen => !_viaButton || (_gateway?.ButtonOpen ?? ButtonBridge.Read(_dataDir) != null);
+
+        /// <summary>The Button opened or closed while the game runs (seen by the bot's gateway).</summary>
+        private void ButtonChanged(bool open)
+        {
+            if (!open)
+            {
+                _buttonClosedOnce = true;
+                Reply("The Button closed, so Discord is off: automute stops and results won't post until it's open again.", false);
+            }
+            else if (_buttonClosedOnce)
+            {
+                Reply("The Button is open again: Discord is back on.", false);
+                _dispatcher?.ResendAll();
+            }
+            RefreshStatus();
+        }
+
+        /// <summary>A game starting without The Button, in a lobby that posts to Discord: the host should know.</summary>
+        private void WarnIfNoButton()
+        {
+            if (UsesDiscord && !ButtonOpen)
+                Reply("The Button isn't open, so this game won't post to Discord" + (AutoMute != null ? " and automute is off" : "") + ". Open The Button to turn Discord on.", false);
         }
 
         private void Reply(string text, bool isPublic) => Reply(text, isPublic, false);

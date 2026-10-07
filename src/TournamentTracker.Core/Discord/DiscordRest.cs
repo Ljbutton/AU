@@ -40,7 +40,8 @@ namespace TournamentTracker.Discord
 
     /// <summary>
     /// The handful of Discord REST calls the mod needs. No gateway connection: server mute,
-    /// member lookup and webhooks are all plain HTTPS. Rate limits are honoured per bucket
+    /// member lookup and webhooks are all plain HTTPS (in the mod, through The Button: see
+    /// <see cref="ButtonBridge"/>). Rate limits are honoured per bucket
     /// from Discord's headers, and 429s are retried after the advertised delay.
     /// </summary>
     public sealed class DiscordRest
@@ -398,6 +399,9 @@ namespace TournamentTracker.Discord
 
                 using (response)
                 {
+                    // The Button isn't open: nothing went to Discord, and trying again won't help.
+                    if (response.Headers.Contains(ButtonBridge.OfflineHeader))
+                        return new DiscordResult { Ok = false, Status = 503, Body = "The Button isn't open, so Discord is off." };
                     TrackBucket(bucket, response);
 
                     if ((int)response.StatusCode == 429 && attempt < MaxAttempts)
