@@ -157,7 +157,7 @@ namespace TournamentTracker.Plugin
             for (int i = 0; i < all.Count; i++)
                 Try("hide players", () => all[i].Visible = false);
             Try("freeze", () => local.moveable = false);
-            Try("camera", () => HudManager.Instance.PlayerCam.enabled = false);
+            if (HudManager.InstanceExists) Try("camera", () => HudManager.Instance.PlayerCam.enabled = false);
             PlayUpdate();
         }
 
@@ -332,7 +332,7 @@ namespace TournamentTracker.Plugin
             for (int i = 0; i < all.Count; i++)
                 Try("show players", () => all[i].Visible = true);
             if (local != null) Try("unfreeze", () => local.moveable = true);
-            Try("camera back", () => HudManager.Instance.PlayerCam.enabled = true);
+            if (HudManager.InstanceExists) Try("camera back", () => HudManager.Instance.PlayerCam.enabled = true);
             if (Camera.main != null) Camera.main.orthographicSize = 3f;
         }
 

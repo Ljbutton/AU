@@ -67,7 +67,12 @@ namespace TournamentTracker.Plugin
 
         private static void Lit(bool on)
         {
-            var quad = HudManager.Instance != null ? HudManager.Instance.ShadowQuad : null;
+            // Runs every frame from the main menu on, so it must never touch HudManager.Instance
+            // when there's no HUD: that getter makes an empty HudManager, which then throws a
+            // NullReferenceException every frame for the rest of the session.
+            if (!on && !_shadowOff) return;
+            if (!HudManager.InstanceExists) { _shadowOff = false; return; }
+            var quad = HudManager.Instance.ShadowQuad;
             if (quad == null) return;
             if (on && quad.gameObject.activeSelf) { quad.gameObject.SetActive(false); _shadowOff = true; }
             else if (!on && _shadowOff) { quad.gameObject.SetActive(true); _shadowOff = false; }
