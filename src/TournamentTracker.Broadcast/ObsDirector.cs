@@ -100,8 +100,15 @@ namespace TournamentTracker.App.Broadcast
         private readonly Func<string, int, string?, TimeSpan, Task<ObsClient>> _connect;
         private ObsClient? _obs;
         private Timer? _timer;
-        private DateTime _ignoreSceneUntil;
-        private string? _lastAppliedScene;
+        // A switch Red Alert asked OBS for, until OBS says the scene changed (CurrentProgramSceneChanged).
+        private sealed class Expect { public string Scene = ""; public OnAir? Air; public DateTime Asked; }
+        private Expect? _expect;
+        /// <summary>How long OBS gets to make a switch before the Live desk says it didn't.</summary>
+        public static TimeSpan SwitchTimeout { get; set; } = TimeSpan.FromSeconds(2.5);
+        /// <summary>The last switch OBS didn't make (shown on the Live desk), or null.</summary>
+        public string? SwitchProblem { get; private set; }
+        /// <summary>The scene Red Alert is waiting for OBS to switch to, or null.</summary>
+        public string? SwitchingTo => _expect?.Scene;
         private DateTime _nextReconnect;
         private bool _wantConnected;
 
@@ -157,7 +164,8 @@ namespace TournamentTracker.App.Broadcast
                 await EnsureSwooshAsync().ConfigureAwait(false);
                 _voiceInputs.Clear(); _voiceSet.Clear(); _duckWas = "\u0000";
                 await EnsureVoiceAsync().ConfigureAwait(false);
-                await ReadBackAsync().ConfigureAwait(false);
+                await ReadBackAsync(force: true).ConfigureAwait(false);
+                try { await CheckSetupAsync().ConfigureAwait(false); } catch (Exception) { }
                 return $"Connected to OBS{(ObsVersion != null ? " " + ObsVersion : "")}. The TT scenes are ready.";
             }
             catch (Exception e)
@@ -373,6 +381,9 @@ namespace TournamentTracker.App.Broadcast
         {
             var obs = _obs;
             if (obs == null || !Settings.Scenes.TryGetValue(air.Layout, out var scene)) return;
+            // From here until OBS confirms, its item events are ours (arranging the scene), not a switch by hand.
+            var ex = new Expect { Scene = scene, Air = air, Asked = DateTime.UtcNow };
+            _expect = ex;
             await AddSourcesAsync().ConfigureAwait(false);
             // A swoosh when what's on stream changes (a new scene, or pictures moving in this one).
             string key = AirKey(air);
@@ -415,13 +426,20 @@ namespace TournamentTracker.App.Broadcast
                     try { await obs.RequestAsync("SetInputMute", new { inputName = source, inputMuted = muted }).ConfigureAwait(false); }
                     catch (ObsException) { /* the source was removed in OBS */ }
                 }
-                _ignoreSceneUntil = DateTime.UtcNow.AddSeconds(1.5);
-                _lastAppliedScene = scene;
+                ex.Asked = DateTime.UtcNow;
                 await obs.RequestAsync("SetCurrentProgramScene", new { sceneName = scene }).ConfigureAwait(false);
-                Scene = scene;
                 Problem = null;
+                // Already on that scene (the pictures moved within it): OBS sends no scene change, so check.
+                var cur = await obs.RequestAsync("GetCurrentProgramScene").ConfigureAwait(false);
+                if (ProgramName(cur) == scene) Confirm(ex);
+                else _ = Task.Delay(SwitchTimeout).ContinueWith(_ => TimedOut(ex));
             }
-            catch (Exception e) { Problem = "OBS: " + e.Message; }
+            catch (Exception e)
+            {
+                Problem = "OBS: " + e.Message;
+                if (_expect == ex) { _expect = null; SwitchProblem = $"OBS didn't switch to {scene}: {e.Message}"; }
+                _ = Task.Run(async () => { try { await ReadBackAsync().ConfigureAwait(false); } catch (Exception) { } });
+            }
             finally { _busy.Release(); }
             // The voice follows the picture.
             await SetVoicesAsync(air).ConfigureAwait(false);
@@ -435,25 +453,76 @@ namespace TournamentTracker.App.Broadcast
 
         // ---- When you switch in OBS yourself ------------------------------------------------------
 
+        private static string ProgramName(JsonElement cur) =>
+            cur.TryGetProperty("currentProgramSceneName", out var s) ? s.GetString() ?? "" : cur.TryGetProperty("sceneName", out var n) ? n.GetString() ?? "" : "";
+
+        /// <summary>OBS made the switch we asked for: what's on stream is now what the desk thinks.</summary>
+        private void Confirm(Expect ex)
+        {
+            if (_expect != ex) return;
+            _expect = null;
+            SwitchProblem = null;
+            Scene = ex.Scene;
+            if (ex.Air != null) _desk.ObsConfirmed(ex.Air, ex.Scene);
+        }
+
+        /// <summary>OBS didn't switch in time: say so, and show what OBS really has.</summary>
+        private void TimedOut(Expect ex)
+        {
+            if (_expect != ex) return;
+            _expect = null;
+            SwitchProblem = $"OBS didn't switch to {ex.Scene} (still on {Scene ?? "another scene"}). Check OBS, then try again.";
+            _ = Task.Run(async () => { try { await ReadBackAsync(force: true).ConfigureAwait(false); } catch (Exception) { } });
+        }
+
+        /// <summary>A replay going on: OBS's switch to the replay scene is ours too.</summary>
+        private Expect ExpectReplay() => _expect = new Expect { Scene = Settings.Replay.Scene, Asked = DateTime.UtcNow };
+
         private void OnEvent(string type, JsonElement data)
         {
             if (type == "InputVolumeMeters") { OnMeters(data); return; }      // 20 times a second: nothing else
             if (type == "VendorEvent") { OnVendorEvent(data); return; }
-            if (type == "CurrentProgramSceneChanged" && data.TryGetProperty("sceneName", out var sn) && sn.GetString() == Settings.Replay.Scene) return;
-            if (type != "CurrentProgramSceneChanged" && type != "SceneItemEnableStateChanged" && type != "SceneItemTransformChanged") return;
-            if (type == "CurrentProgramSceneChanged" && DateTime.UtcNow < _ignoreSceneUntil
-                && data.TryGetProperty("sceneName", out var n) && n.GetString() == _lastAppliedScene) return;
-            if (type != "CurrentProgramSceneChanged" && DateTime.UtcNow < _ignoreSceneUntil) return;
-            _ = Task.Run(async () => { try { await ReadBackAsync().ConfigureAwait(false); } catch (Exception) { } });
+            if (type == "InputMuteStateChanged") { OnMuteChanged(data); return; }
+            if (type == "CurrentProgramSceneChanged")
+            {
+                string name = data.TryGetProperty("sceneName", out var sn) ? sn.GetString() ?? "" : "";
+                var ex = _expect;
+                if (ex != null && name == ex.Scene) { Confirm(ex); if (ex.Air == null) Scene = name; return; }
+                Scene = name;
+                if (name == Settings.Replay.Scene) return;           // the replay manager keeps track of replays
+                // Someone switched in OBS (or OBS went elsewhere while we waited): OBS is right.
+                if (ex != null) { _expect = null; SwitchProblem = null; }
+                _ = Task.Run(async () => { try { await ReadBackAsync().ConfigureAwait(false); } catch (Exception) { } });
+                return;
+            }
+            if (type != "SceneItemEnableStateChanged" && type != "SceneItemTransformChanged") return;
+            // While a switch of ours is under way these are us arranging the scene.
+            if (_expect != null || _busy.CurrentCount == 0) return;
+            // A picture shown, hidden or moved by hand in the live scene.
+            if (data.TryGetProperty("sceneName", out var sc) && sc.GetString() != Scene) return;
+            QueueReadBack();
+        }
+
+        // Dragging a picture in OBS sends a burst of events: one read a moment after they stop.
+        private int _readQueued;
+        private void QueueReadBack()
+        {
+            if (System.Threading.Interlocked.Exchange(ref _readQueued, 1) == 1) return;
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(300).ConfigureAwait(false);
+                System.Threading.Interlocked.Exchange(ref _readQueued, 0);
+                try { await ReadBackAsync().ConfigureAwait(false); } catch (Exception) { }
+            });
         }
 
         /// <summary>Works out what's on stream from OBS's program scene and tells the desk (on-air labels follow).</summary>
-        public async Task ReadBackAsync()
+        public async Task ReadBackAsync(bool force = false)
         {
             var obs = _obs;
-            if (obs == null) return;
+            if (obs == null || _expect != null && !force) return;
             var cur = await obs.RequestAsync("GetCurrentProgramScene").ConfigureAwait(false);
-            string scene = cur.TryGetProperty("currentProgramSceneName", out var s) ? s.GetString() ?? "" : cur.GetProperty("sceneName").GetString() ?? "";
+            string scene = ProgramName(cur);
             Scene = scene;
             if (scene == Settings.Replay.Scene) return;           // the replay manager keeps track of replays
             string? layout = Settings.Scenes.FirstOrDefault(kv => kv.Value == scene).Key;
@@ -475,6 +544,13 @@ namespace TournamentTracker.App.Broadcast
                 if (slots[best] == null) slots[best] = lobby;
                 else { int free = slots.IndexOf(null); if (free >= 0) slots[free] = lobby; }
             }
+            // The same as the desk has (our own switch, read again): just note the scene.
+            var now = _desk.OnAir;
+            if (now.Layout == layout && now.Slots.Count == slots.Count && now.Slots.Zip(slots).All(p => string.Equals(p.First, p.Second, StringComparison.OrdinalIgnoreCase)))
+            {
+                _desk.ObsConfirmed(now, scene);
+                return;
+            }
             _desk.ObsChanged(new OnAir { Layout = layout, Slots = slots, Scene = scene });
         }
 
@@ -492,6 +568,11 @@ namespace TournamentTracker.App.Broadcast
             Canvas = $"{Width}×{Height}",
             Voice = VoiceStatus(),
             Swoosh = new { Settings.Swoosh.On, Stinger = _stinger, Problem = SwooshProblem, File = SwooshFile, Count = Swooshes },
+            SwitchingTo, SwitchProblem,
+            Checks = Connected ? Checks : new List<SetupCheck>(),
+            CheckedAt = CheckedAt?.ToString("o"),
+            DesktopAudioOn = Connected ? DesktopAudioOn : new List<string>(),
+            SourceRecord, ReplayProblem,
         };
 
         public async ValueTask DisposeAsync()

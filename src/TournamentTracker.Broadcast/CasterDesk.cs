@@ -914,6 +914,12 @@ namespace TournamentTracker.App.Broadcast
             Left(state);
         }
 
+        /// <summary>OBS made the switch the desk asked for (or showed it's on what the desk has): note its scene.</summary>
+        public void ObsConfirmed(OnAir air, string scene)
+        {
+            lock (_lock) if (ReferenceEquals(_onAir, air) || _onAir.Layout == air.Layout && _onAir.Slots.SequenceEqual(air.Slots)) _onAir.Scene = scene;
+        }
+
         /// <summary>Live cards of lobbies that just went on air count as shown from now.</summary>
         private void MarkShown(OnAir state)
         {

@@ -155,6 +155,7 @@ namespace TournamentTracker.App.Broadcast
                     GamesPerRound = () => organizer.GamesPerRound,
                 };
                 var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(caster, desk)) { VoiceFeeds = () => VoiceFeeds(caster, desk), MuteHotkey = MuteHotkey };
+                obs.ImpostorTagsOn = () => _broadcast?.Settings.Current.Elements.GetValueOrDefault("impostorTags") == true;
                 // The overlay and video page follow the lobby in the first slot; OBS (when connected) shows the whole layout.
                 desk.Switch = air =>
                 {
@@ -524,6 +525,14 @@ namespace TournamentTracker.App.Broadcast
                             _obs.SaveSettings();
                             if (_obs.Settings.Swoosh.On && _obs.Connected) await _obs.EnsureSwooshAsync().ConfigureAwait(false);
                             return Ok(new { ok = true, message = _obs.Settings.Swoosh.On ? "Swoosh on every switch." : "Swoosh off: straight cuts." });
+                        case "check":
+                            if (!_obs.Connected) return Ok(new { ok = false, message = "Connect to OBS first." });
+                            var found = await _obs.CheckSetupAsync().ConfigureAwait(false);
+                            return Ok(new { ok = true, message = found.All(c => c.Ok) ? "OBS setup: all good." : $"OBS setup: {found.Count(c => !c.Ok)} to look at." });
+                        case "fix":
+                            if (!_obs.Connected) return Ok(new { ok = false, message = "Connect to OBS first." });
+                            try { return Ok(new { ok = true, message = await _obs.FixAsync(Arg("id")).ConfigureAwait(false) }); }
+                            catch (Exception e) { return Ok(new { ok = false, message = "OBS: " + e.Message }); }
                         case "disconnect":
                             await _obs.DisconnectAsync().ConfigureAwait(false);
                             return Ok(new { ok = true, message = "Disconnected from OBS." });
@@ -737,6 +746,8 @@ namespace TournamentTracker.App.Broadcast
                     string element = Arg("element");
                     if (!BroadcastSettings.DefaultElements().ContainsKey(element)) return Ok(new { ok = false, message = "Unknown element." });
                     _broadcast.Settings.Set(element, Arg("on") == "true");
+                    // Impostor tags without a stream delay is a setup warning: check again.
+                    if (element == "impostorTags" && _obs?.Connected == true) _ = Task.Run(_obs.CheckSetupAsync);
                     return Ok(new { ok = true, message = $"{BroadcastSettings.ElementNames[element]} {(Arg("on") == "true" ? "on" : "off")}." });
                 }
                 case ("POST", "/app/admin/dismiss"):

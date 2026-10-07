@@ -559,6 +559,17 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
 .ar details{grid-column:1/-1;font-size:12.5px}.ar summary{cursor:pointer;color:var(--muted)}
 .ar ol{margin:4px 0 0;padding-left:20px;display:grid;gap:2px}.ar li.gone{color:var(--muted);text-decoration:line-through}
 .ar .b.sure{background:var(--red);border-color:var(--red);color:#fff}
+.warns{display:grid;gap:6px}.warns:empty{display:none}
+.warn{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 14px;background:#1a1408;border:1px solid var(--warn);border-left:5px solid var(--warn);color:#ffe2a8;font-size:14px}
+.warn.bad{background:#1c0806;border-color:var(--red);color:#ffb3ad}
+.warn b{font:700 18px/1 var(--hand);letter-spacing:.08em;text-transform:uppercase;color:#fff}
+.warn span{flex:1;min-width:200px}
+.checks-list{display:grid;gap:6px;margin-top:8px}
+.ck{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:10px;align-items:start;padding:8px 10px;background:var(--sunk);font-size:13.5px}
+.ck .ic{font:700 16px/1.2 "Segoe UI",sans-serif;color:var(--good)}.ck.no .ic{color:var(--warn)}
+.ck .dt{color:var(--muted);font-size:12.5px;margin-top:2px}
+.onair.wait{--oa:#6a6a75}
+.onair.wait .oa-tag{animation:hlb 1s infinite}
 </style>
 </head>
 <body>
@@ -610,6 +621,7 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
       <div class="talk-list" id="talk-list"></div>
     </div>
   </div>
+  <div class="warns" id="desk-warn" data-page="live"></div>
   <div class="reads" id="reads" data-page="live"></div>
   <div class="muted-all" id="muted-all" data-page="live" hidden><b>ALL LOBBY AUDIO MUTED</b><span id="muted-key"></span><button class="b" id="muted-un">Unmute</button></div>
   <div class="desk-head" data-page="live">
@@ -650,6 +662,10 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
       <button class="b primary">Connect</button>
     </form>
     <p class="muted help" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. Red Alert then builds the scenes TT Full, TT 2-up and TT Quad, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
+  </div>
+  <div class="card setup-card" id="setup-card" data-page="obs" hidden>
+    <div class="row" style="justify-content:space-between"><div><b>Setup check</b> <span class="muted" id="setup-line"></span></div><button class="b" id="setup-again">Check again</button></div>
+    <div class="checks-list" id="setup-list"></div>
   </div>
   <div class="card test-card" id="test-card" data-page="obs">
     <div class="row" style="justify-content:space-between"><div><b>Test</b> <span class="muted" id="test-line">Simulation: four fake lobbies (SIM-1 to SIM-4) for trying Red Alert without games.</span></div>
@@ -883,11 +899,14 @@ function renderOnAir() {
   const d = DESK; if (!d) return;
   const air = d.onAir, lobbies = air.slots.filter(Boolean);
   const kind = air.layout === 'none' ? 'none' : ['intermission', 'slate', 'break'].includes(air.layout) ? 'brk' : 'live';
-  $('onair').className = 'onair ' + kind;
-  $('oa-tag').textContent = kind === 'live' ? (air.layout === 'replay' ? 'REPLAY' : 'LIVE') : kind === 'brk' ? 'BREAK' : 'OFF AIR';
+  const waiting = OBS && OBS.connected && OBS.switchingTo;
+  $('onair').className = 'onair ' + (waiting ? 'wait' : kind);
+  $('oa-tag').textContent = waiting ? 'SWITCHING' : kind === 'live' ? (air.layout === 'replay' ? 'REPLAY' : 'LIVE') : kind === 'brk' ? 'BREAK' : 'OFF AIR';
   $('oa-what').textContent = air.layout === 'none' ? (air.scene ? 'OBS: ' + air.scene : 'Nothing on stream') : `${LAYOUT_NAME[air.layout] || air.layout}${lobbies.length ? ' · ' + lobbies.join(' · ') : ''}`;
   const sub = air.since ? `${air.by === 'obs' ? 'switched in OBS' : air.by === 'health' ? 'switched by itself (a lobby dropped)' : air.by === 'auto' ? 'switched by itself' : 'from here'}${air.scene ? ' · OBS scene ' + air.scene : ''}` : '';
-  if ($('oa-sub').textContent !== sub && !$('oa-sub').classList.contains('bad')) $('oa-sub').textContent = sub;
+  const prob = OBS && OBS.connected && OBS.switchProblem;
+  const subNow = prob ? prob : waiting ? `Waiting for OBS to show ${OBS.switchingTo}…` : OBS && OBS.connected && air.layout !== 'none' && air.layout !== 'replay' && !air.scene ? 'Not confirmed by OBS yet' : sub;
+  $('oa-sub').textContent = subNow; $('oa-sub').classList.toggle('bad', !!prob);
   const o = LVOICE && LVOICE.obs;
   const heard = !o ? '—' : o.muteAll ? 'Muted' : o.on === false ? 'Voice off' : o.heard || 'None';
   $('oa-heard').textContent = heard; $('oa-heard').className = o && o.muteAll ? 'muted' : '';
@@ -895,6 +914,32 @@ function renderOnAir() {
   if (o && o.hotkey) $('muted-key').textContent = `Nothing from any lobby reaches the stream. Mute all key: ${o.hotkey} (works from any window).`;
   shotTick();
 }
+// Things that could hurt the stream, on the Live desk until they're put right.
+function renderWarnings() {
+  const w = [], o = OBS;
+  if (o && o.connected && o.switchProblem) w.push(['bad', 'OBS didn\'t switch', o.switchProblem, '']);
+  if (o && o.connected && o.desktopAudioOn && o.desktopAudioOn.length) w.push(['bad', 'Desktop Audio is on', `${o.desktopAudioOn.join(', ')} goes to the stream: Discord pings and Windows sounds can be heard.`, '<button class="b" data-fix="desktopAudio">Mute it</button>']);
+  const ck = o && o.connected && o.checks ? Object.fromEntries(o.checks.map(c => [c.id, c])) : {};
+  if (ck.replays && !ck.replays.ok) w.push(['', 'Replays won\'t save', ck.replays.title + '. See OBS → Setup check.', '<button class="b" data-gopage="obs">Setup check</button>']);
+  if (ck.delay && !ck.delay.ok) w.push(['bad', 'No stream delay', 'Impostor tags are on: players watching the stream could find the impostors.', '<button class="b" data-gopage="obs">Setup check</button>']);
+  if (DESK && DESK.simulating && MONT && !MONT.ffmpeg) w.push(['', 'No ffmpeg', 'Simulation makes its replay clips and montages with ffmpeg, which isn\'t installed: Montages → Get ffmpeg.', '<button class="b" data-gopage="replays">Montages</button>']);
+  const html = w.map(([c, t, d, b]) => `<div class="warn ${c}"><b>${t}</b><span>${esc(d)}</span>${b}</div>`).join('');
+  if ($('desk-warn').innerHTML !== html) $('desk-warn').innerHTML = html;
+}
+document.addEventListener('click', async e => {
+  const g = e.target.closest('[data-gopage]'); if (g) { go(g.dataset.gopage); return; }
+  const f = e.target.closest('[data-fix]'); if (!f) return;
+  const r = await api('POST', '/app/admin/obs', { action: 'fix', id: f.dataset.fix }); toast(r.message); loadDesk();
+});
+function renderSetup() {
+  const o = OBS; $('setup-card').hidden = !(o && o.connected);
+  if (!o || !o.connected) return;
+  const list = o.checks || [];
+  $('setup-line').textContent = !list.length ? 'checking…' : list.every(c => c.ok) ? 'all good' : `${list.filter(c => !c.ok).length} to look at`;
+  const html = list.map(c => `<div class="ck${c.ok ? '' : ' no'}"><span class="ic">${c.ok ? '✓' : '⚠'}</span><div><b>${esc(c.title)}</b>${c.detail ? `<div class="dt">${esc(c.detail)}</div>` : ''}</div>${c.fix ? `<button class="b" data-fix="${esc(c.id)}">${esc(c.fix)}</button>` : '<span></span>'}</div>`).join('');
+  if ($('setup-list').innerHTML !== html) $('setup-list').innerHTML = html;
+}
+$('setup-again').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'check' }); toast(r.message); loadDesk(); });
 function shotTick() {
   const air = DESK && DESK.onAir;
   const s = air && air.since ? Math.max(0, Math.floor((Date.now() - new Date(air.since).getTime()) / 1000)) : 0;
@@ -925,7 +970,7 @@ $('talk-list').addEventListener('click', async e => {
 $('muted-un').addEventListener('click', () => voiceDo({ action: 'mute' }));
 function renderDesk() {
   if (!DESK) return;
-  renderOnAir(); renderTalk();
+  renderOnAir(); renderTalk(); renderWarnings(); renderSetup();
   renderPicker();
   renderReplay();
   renderRoster();
