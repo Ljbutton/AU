@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace TournamentTracker.App.Broadcast
@@ -18,6 +19,8 @@ namespace TournamentTracker.App.Broadcast
         public Dictionary<string, int> Offset { get; set; } = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         /// <summary>The caster's microphone in OBS: lobby voice ducks under it (a compressor with that sidechain). Empty: no ducking.</summary>
         public string DuckUnder { get; set; } = "";
+        /// <summary>Set once Red Alert has picked the mic for <see cref="DuckUnder"/> (or the caster chose): it's not picked again.</summary>
+        public bool DuckPicked { get; set; }
         /// <summary>How hard the voice ducks (compressor ratio) and from what level of the caster's mic (dB).</summary>
         public double DuckRatio { get; set; } = 8;
         public double DuckThreshold { get; set; } = -30;
@@ -54,9 +57,18 @@ namespace TournamentTracker.App.Broadcast
             await _busy.WaitAsync().ConfigureAwait(false);
             try
             {
-                var inputs = (await obs.RequestAsync("GetInputList").ConfigureAwait(false)).GetProperty("inputs").EnumerateArray().Select(i => i.GetProperty("inputName").GetString() ?? "").ToHashSet();
+                var all = (await obs.RequestAsync("GetInputList").ConfigureAwait(false)).GetProperty("inputs").EnumerateArray()
+                    .Select(i => (Name: i.GetProperty("inputName").GetString() ?? "", Kind: i.TryGetProperty("inputKind", out var k) ? k.GetString() ?? "" : "")).ToList();
+                var inputs = all.Select(i => i.Name).ToHashSet();
                 // For the ducking picker: OBS's own inputs (the caster's mic among them), not ours.
                 InputNames = inputs.Where(n => !n.StartsWith("TT ", StringComparison.Ordinal)).OrderBy(n => n).ToList();
+                // The first time: duck under the obvious mic (changeable; "No ducking" is remembered too).
+                if (!Settings.Voice.DuckPicked && Settings.Voice.DuckUnder.Length == 0 && PickMic(all) is { } mic)
+                {
+                    Settings.Voice.DuckUnder = mic;
+                    Settings.Voice.DuckPicked = true;
+                    Save();
+                }
                 var scenes = Settings.Scenes.Values.Concat(new[] { Settings.Replay.Scene }).ToList();
                 var have = (await obs.RequestAsync("GetSceneList").ConfigureAwait(false)).GetProperty("scenes").EnumerateArray().Select(x => x.GetProperty("sceneName").GetString()).ToHashSet();
                 string duck = Settings.Voice.DuckUnder.Trim();
@@ -102,6 +114,38 @@ namespace TournamentTracker.App.Broadcast
             catch (Exception e) { VoiceProblem = "Lobby voice: " + e.Message; }
             finally { _busy.Release(); }
             if (_voiceAir != null) await SetVoicesAsync(_voiceAir).ConfigureAwait(false);
+        }
+
+        /// <summary>The caster's mic among OBS's inputs: an audio input capture, preferring one called mic.</summary>
+        public static string? PickMic(IEnumerable<(string Name, string Kind)> inputs)
+        {
+            var caps = inputs.Where(i => !i.Name.StartsWith("TT ", StringComparison.Ordinal) && i.Kind is "wasapi_input_capture" or "coreaudio_input_capture" or "pulse_input_capture" or "alsa_input_capture").ToList();
+            return caps.FirstOrDefault(i => i.Name.Contains("mic", StringComparison.OrdinalIgnoreCase)).Name ?? caps.FirstOrDefault().Name;
+        }
+
+        // ---- Level meters (OBS's InputVolumeMeters event) ------------------------------------------------
+        private readonly Dictionary<string, (double Db, DateTime At)> _levels = new Dictionary<string, (double, DateTime)>(StringComparer.OrdinalIgnoreCase);
+
+        private void OnMeters(JsonElement data)
+        {
+            if (!data.TryGetProperty("inputs", out var list) || list.ValueKind != JsonValueKind.Array) return;
+            var now = DateTime.UtcNow;
+            lock (_levels)
+                foreach (var i in list.EnumerateArray())
+                {
+                    string name = i.TryGetProperty("inputName", out var n) ? n.GetString() ?? "" : "";
+                    double peak = 0;
+                    if (i.TryGetProperty("inputLevelsMul", out var ch) && ch.ValueKind == JsonValueKind.Array)
+                        foreach (var c in ch.EnumerateArray())
+                            if (c.ValueKind == JsonValueKind.Array && c.GetArrayLength() > 1 && c[1].ValueKind == JsonValueKind.Number) peak = Math.Max(peak, c[1].GetDouble());
+                    _levels[name] = (peak <= 0.000001 ? -100 : Math.Round(20 * Math.Log10(peak), 1), now);
+                }
+        }
+
+        /// <summary>An input's level now (dB, peak), or null when OBS hasn't sent one lately.</summary>
+        public double? Level(string input)
+        {
+            lock (_levels) return _levels.TryGetValue(input, out var l) && (DateTime.UtcNow - l.At).TotalSeconds < 2 ? l.Db : null;
         }
 
         /// <summary>The ducking compressor on a voice source, keyed to the caster's mic; removed when there's none.</summary>
@@ -164,11 +208,17 @@ namespace TournamentTracker.App.Broadcast
             await SetVoicesAsync(_voiceAir ?? _desk.OnAir).ConfigureAwait(false);
         }
 
+        /// <summary>The Mute all key that works from any window (set by the app).</summary>
+        public string? MuteHotkey { get; set; }
+
         public object VoiceStatus() => new
         {
             Settings.Voice.On, Settings.Voice.MuteAll, Settings.Voice.Pin, Settings.Voice.DuckUnder,
             Volume = Settings.Voice.Volume, Offset = Settings.Voice.Offset,
             Heard = LoudVoice(_voiceAir ?? _desk.OnAir),
+            // What each lobby's voice source in OBS is putting out (muted ones still show their level).
+            Levels = _voiceInputs.ToDictionary(n => n.Substring(VoicePrefix.Length), n => Level(n), StringComparer.OrdinalIgnoreCase),
+            Hotkey = MuteHotkey,
             Sources = _voiceInputs.Select(n => n.Substring(VoicePrefix.Length)).OrderBy(x => x).ToList(),
             Problem = VoiceProblem,
             Inputs = InputNames,

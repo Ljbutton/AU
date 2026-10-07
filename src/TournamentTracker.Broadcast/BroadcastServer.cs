@@ -22,6 +22,8 @@ namespace TournamentTracker.App.Broadcast
     {
         /// <summary>The administration code that unlocks everything (null: locked).</summary>
         public string? AdminCode { get; set; }
+        /// <summary>Mute every lobby voice from any window (Red Alert doesn't need to be in front).</summary>
+        public string MuteHotkey { get; set; } = Hotkey.DefaultMuteAll;
 
         public static BroadcastAppSettings Load(string file)
         {
@@ -79,6 +81,21 @@ namespace TournamentTracker.App.Broadcast
 
         public int Port { get; }
         public string Token { get; }
+
+        /// <summary>The Mute all key, as the window should register it; raised when it changes.</summary>
+        public string MuteHotkey => Hotkey.TryParse(_settings.MuteHotkey, out _, out _, out var n) ? n : Hotkey.DefaultMuteAll;
+        public event Action<string>? MuteHotkeyChanged;
+        /// <summary>Set by the window when Windows wouldn't give it the key (another app has it).</summary>
+        public string? HotkeyProblem { get; set; }
+
+        /// <summary>The Mute all key was pressed (anywhere in Windows): every lobby voice off, or back on.</summary>
+        public void MuteHotkeyPressed()
+        {
+            var obs = _obs;
+            if (obs == null) return;
+            obs.Settings.Voice.MuteAll = !obs.Settings.Voice.MuteAll;
+            _ = obs.VoiceChangedAsync();
+        }
         public string Url => $"http://127.0.0.1:{Port}/";
         public CasterDesk? Desk => _desk;
         public string? CasterUrl => _caster?.Url;
@@ -137,7 +154,7 @@ namespace TournamentTracker.App.Broadcast
                     Advance = () => organizer.Advance,
                     GamesPerRound = () => organizer.GamesPerRound,
                 };
-                var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(caster, desk)) { VoiceFeeds = () => VoiceFeeds(caster, desk) };
+                var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(caster, desk)) { VoiceFeeds = () => VoiceFeeds(caster, desk), MuteHotkey = MuteHotkey };
                 // The overlay and video page follow the lobby in the first slot; OBS (when connected) shows the whole layout.
                 desk.Switch = air =>
                 {
@@ -292,6 +309,7 @@ namespace TournamentTracker.App.Broadcast
             {
                 App = _env.Version,
                 Admin = _organizer == null ? null : new { _organizer.Tournament },
+                HotkeyProblem,
             };
         }
 
@@ -762,9 +780,21 @@ namespace TournamentTracker.App.Broadcast
                             break;
                         case "duck":
                             v.DuckUnder = Arg("name").Trim();
+                            v.DuckPicked = true;
                             duck = true;
                             said = v.DuckUnder.Length > 0 ? $"Lobby voice ducks under {v.DuckUnder}." : "No ducking.";
                             break;
+                        case "hotkey":
+                        {
+                            if (!Hotkey.TryParse(Arg("value"), out _, out _, out var key))
+                                return Ok(new { ok = false, message = "That key can't be used: hold Ctrl, Shift or Alt with a letter, number or F key (or use an F key or Pause alone)." });
+                            _settings.MuteHotkey = key;
+                            TrySave();
+                            _obs.MuteHotkey = key;
+                            HotkeyProblem = null;
+                            MuteHotkeyChanged?.Invoke(key);
+                            return Ok(new { ok = true, message = $"Mute all key: {key}." });
+                        }
                         case "on":
                             v.On = Arg("on") == "true";
                             said = v.On ? "Lobby voice on stream." : "Lobby voice off stream.";

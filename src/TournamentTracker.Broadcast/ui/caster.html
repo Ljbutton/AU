@@ -522,6 +522,13 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
 .read .tg{font:700 18px/1 var(--hand);letter-spacing:.1em;color:#16120a;background:var(--warn);padding:5px 9px 2px;white-space:nowrap}
 .read .sc{font-size:16px;line-height:1.4}.read .sc small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
 .read .acts{display:flex;gap:6px}
+.vo .obsm{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;font-size:12px;color:var(--muted);grid-column:1/-1}
+.mtr.big{height:10px}
+.mtr i.hot{background:var(--warn)}.mtr i.clip{background:var(--red)}
+.mtr.off i{background:#55555f}
+.dlob .lvl{grid-column:1/-1;display:grid;grid-template-columns:auto 1fr;gap:6px;align-items:center;font-size:11px;color:var(--muted)}
+.dlob .lvl .mtr{height:5px;border-radius:3px;background:#0f0f12;overflow:hidden}.dlob .lvl .mtr i{display:block;height:100%;background:var(--good);transition:width .2s}
+#vo-key.wait{border-color:var(--red);color:var(--red)}
 </style>
 </head>
 <body>
@@ -637,7 +644,9 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
     <summary><div><b>Lobby voice</b> <span class="muted" id="vo-line"></span></div>
       <div class="row"><button class="b" id="vo-mute" title="Mute every lobby voice (key U)">Mute all</button><button class="b" id="vo-on" title="Lobby voice on stream at all">On stream</button></div></summary>
     <p class="muted" style="font-size:12.5px;margin:6px 0 0">Each referee's Button sends the lobby's Discord voice and game sound (and their own mic only if they tick it). The voice follows the picture: the full-screen lobby, or slot 1, is heard; replays, montages and intermission are silent. <b>Listen</b> keeps one lobby's voice up whatever is on screen. It only goes to the stream; nothing is played back to the players.</p>
-    <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Duck under</span><select id="vo-duck" title="Your mic in OBS: lobby voice gets quieter while you talk"></select></div>
+    <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Duck under</span><select id="vo-duck" title="Your mic in OBS: lobby voice gets quieter while you talk"></select>
+      <span style="flex:1"></span><span class="muted" style="font-size:12.5px">Mute all key (works from any window)</span><button class="b" id="vo-key" title="Click, then press the new key combination">Ctrl+Shift+M</button></div>
+    <p class="note bad" id="vo-keyprob" hidden></p>
     <div class="vo-list" id="vo-list"></div>
   </details>
   <details class="card roster-card" id="tw-card" open data-page="twitch">
@@ -922,6 +931,7 @@ function renderDesk() {
       <div class="sc">${l.online ? Math.round(l.score) : '–'}</div>
       <div style="min-width:0"><div class="nm">${l.health && l.health !== 'green' ? `<span class="hdot ${l.health}" title="${l.health === 'red' ? 'Down' : 'Degraded'}: see Lobby health"></span>` : ''}${esc(l.lobby)}${l.onAir ? `<span class="live">${esc(l.onAir)}</span>` : ''}${l.online ? '' : '<span class="off">OFFLINE</span>'}</div><div class="ln">${rich(l.line)}</div></div>
       <div class="lay"><button data-put="full" title="Full screen">Full</button><button data-put="2up" title="2-up, slot 1">2-up</button><button data-put="4up" title="Quad, slot 1">Quad</button></div>
+      ${LVOICE && LVOICE.obs && obsDb(LVOICE.obs, l.lobby) !== undefined ? `<div class="lvl" title="This lobby's voice in OBS${isHeard(LVOICE.obs, l.lobby) ? ': on stream now' : ' (muted on stream)'}"><span>Voice</span>${obsMeter(LVOICE.obs, l.lobby)}</div>` : ''}
       ${specRow(l)}
       ${l.people && l.people.length && l.online ? `<div class="ppl" data-pplrow>${l.people.map(p => `<button data-pcard="${esc(p.key)}" data-plobby="${esc(l.lobby)}" title="${esc(p.name)}'s player card on stream">${sw(p.color)}${esc(p.name)}</button>`).join('')}</div>` : ''}
     </div>`).join('') : '<p class="empty">No lobbies.</p>';
@@ -1161,8 +1171,43 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-cardshow]'); if (!b) return;
   e.stopPropagation(); show(b.dataset.cardshow, 'full');
 }, true);
-function renderVoice() {
+// OBS's own level for a lobby's voice source: what the stream would get (grey when it's muted).
+const obsDb = (o, lobby) => o && o.levels ? o.levels[Object.keys(o.levels).find(k => k.toLowerCase() === lobby.toLowerCase())] : null;
+const isHeard = (o, lobby) => !!(o && o.heard && o.heard.toLowerCase() === lobby.toLowerCase());
+function obsMeter(o, lobby, big) {
+  const db = obsDb(o, lobby), pct = db == null ? 0 : meterPct(db);
+  return `<span class="mtr${big ? ' big' : ''}${isHeard(o, lobby) ? '' : ' off'}" data-meter="${esc(lobby)}"><i class="${db > -6 ? 'clip' : db > -15 ? 'hot' : ''}" style="width:${pct}%"></i></span>`;
+}
+const dbText = (o, lobby) => { const db = obsDb(o, lobby); return db == null ? '—' : db <= -99 ? 'silent' : Math.round(db) + ' dB'; };
+// Meters move without redrawing the rows.
+function updateMeters() {
+  const o = LVOICE && LVOICE.obs; if (!o) return;
+  document.querySelectorAll('[data-meter]').forEach(m => {
+    const db = obsDb(o, m.dataset.meter), i = m.querySelector('i');
+    i.style.width = (db == null ? 0 : meterPct(db)) + '%';
+    i.className = db > -6 ? 'clip' : db > -15 ? 'hot' : '';
+    m.classList.toggle('off', !isHeard(o, m.dataset.meter));
+  });
+  document.querySelectorAll('[data-dbt]').forEach(t => t.textContent = dbText(o, t.dataset.dbt));
+}
+let keyWaitVo = false;
+$('vo-key').addEventListener('click', e => { e.preventDefault(); keyWaitVo = true; $('vo-key').classList.add('wait'); $('vo-key').textContent = 'Press keys…'; });
+document.addEventListener('keydown', e => {
+  if (!keyWaitVo) return;
+  if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  keyWaitVo = false; $('vo-key').classList.remove('wait');
+  if (e.key === 'Escape') { renderVoice(true); return; }
+  const k = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3) : /^Digit\d$/.test(e.code) ? e.code.slice(5) : /^F\d{1,2}$/.test(e.code) ? e.code : { Pause: 'Pause', Space: 'Space', Home: 'Home', End: 'End', Insert: 'Insert', Delete: 'Delete', PageUp: 'PageUp', PageDown: 'PageDown' }[e.code] || e.code;
+  const combo = [e.ctrlKey && 'Ctrl', e.shiftKey && 'Shift', e.altKey && 'Alt', e.metaKey && 'Win', k].filter(Boolean).join('+');
+  voiceDo({ action: 'hotkey', value: combo });
+}, true);
+function renderVoice(force) {
   const v = LVOICE; if (!v) return;
+  updateMeters();
+  if (!keyWaitVo) $('vo-key').textContent = (v.obs && v.obs.hotkey) || 'Ctrl+Shift+M';
+  const kp = S && S.hotkeyProblem; $('vo-keyprob').hidden = !kp; $('vo-keyprob').textContent = kp || '';
+  if (force) voKey = '';
   const o = v.obs || { volume: {}, offset: {}, inputs: [], sources: [] };
   $('vo-mute').classList.toggle('on', !!o.muteAll); $('vo-mute').textContent = o.muteAll ? 'Muted' : 'Mute all';
   $('vo-on').classList.toggle('on', o.on !== false);
@@ -1173,12 +1218,13 @@ function renderVoice() {
     $('vo-duck').innerHTML = `<option value="">No ducking</option>` + names.map(n => `<option${n === o.duckUnder ? ' selected' : ''}>${esc(n)}</option>`).join('');
   }
   if ($('vo-list').contains(document.activeElement)) return;
-  const key = JSON.stringify(v); if (key === voKey) return; voKey = key;
+  const key = JSON.stringify([v.status.map(x => [x.lobby, x.reported, x.online, x.problem, x.sending, x.mic, x.discord, x.game]), Object.assign({}, v.obs, { levels: Object.keys((v.obs || {}).levels || {}) })]); if (key === voKey) return; voKey = key;
   $('vo-list').innerHTML = v.status.length ? v.status.map(x => {
     const chip = !x.reported ? '<span class="chip">NO VOICE YET</span>' : !x.online ? '<span class="chip bad">OFFLINE</span>' : x.problem ? `<span class="chip bad" title="${esc(x.problem)}">PROBLEM</span>` : x.sending ? '<span class="chip ok">SENDING</span>' : '<span class="chip">NOT SENDING</span>';
     const heard = o.heard && o.heard.toLowerCase() === x.lobby.toLowerCase();
     return `<div class="vo${heard ? ' heard' : ''}">
       <div class="nm">${esc(x.lobby)} ${chip}${heard ? '<span class="chip on">HEARD</span>' : ''}${x.mic ? '<span class="chip" title="The referee\'s own mic is in">MIC</span>' : ''}</div>
+      <div class="obsm"><span>On stream (OBS)</span>${obsMeter(o, x.lobby, true)}<span class="mono" data-dbt="${esc(x.lobby)}">${dbText(o, x.lobby)}</span></div>
       <div class="lv">${x.reported ? `<span>Discord ${esc(VO_STATE[x.discord] || x.discord || '')}</span><span class="mtr"><i style="width:${meterPct(x.voiceDb)}%"></i></span><span>Among Us ${esc(VO_STATE[x.game] || x.game || '')}</span><span class="mtr"><i style="width:${meterPct(x.gameDb)}%"></i></span>` : '<span style="grid-column:1/-1">Their Button reports here once they send their game.</span>'}</div>
       <div class="ctl"><label title="Volume (dB)">Vol <input type="range" min="-30" max="12" step="1" value="${o.volume[x.lobby] ?? 0}" data-vovol="${esc(x.lobby)}"></label>
         <label title="Delay to line the voice up with the picture">Delay <input type="number" min="0" max="5000" step="50" value="${o.offset[x.lobby] ?? 0}" data-vooff="${esc(x.lobby)}"> ms</label>

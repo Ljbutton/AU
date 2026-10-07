@@ -39,7 +39,16 @@ namespace TournamentTracker.App
                 Version = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "",
             };
             using var server = new BroadcastServer(env, new HttpClient { Timeout = TimeSpan.FromMinutes(10) });
-            Application.Run(new MainForm(server.Url, Path.Combine(appData, "WebView2")));
+            var form = new MainForm(server.Url, Path.Combine(appData, "WebView2"));
+            // Mute all lobby voice from anywhere in Windows (default Ctrl+Shift+M, changed in Lobby voice).
+            using var hotkey = new GlobalHotkey(server.MuteHotkeyPressed);
+            void Register(string key) => server.HotkeyProblem = hotkey.Set(key) ? null : $"{key} is in use by another app: pick another Mute all key in Lobby voice.";
+            Register(server.MuteHotkey);
+            server.MuteHotkeyChanged += key =>
+            {
+                if (form.IsHandleCreated) form.BeginInvoke(new Action(() => Register(key)));
+            };
+            Application.Run(form);
         }
     }
 }

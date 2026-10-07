@@ -437,6 +437,7 @@ namespace TournamentTracker.App.Broadcast
 
         private void OnEvent(string type, JsonElement data)
         {
+            if (type == "InputVolumeMeters") { OnMeters(data); return; }      // 20 times a second: nothing else
             if (type == "VendorEvent") { OnVendorEvent(data); return; }
             if (type == "CurrentProgramSceneChanged" && data.TryGetProperty("sceneName", out var sn) && sn.GetString() == Settings.Replay.Scene) return;
             if (type != "CurrentProgramSceneChanged" && type != "SceneItemEnableStateChanged" && type != "SceneItemTransformChanged") return;
