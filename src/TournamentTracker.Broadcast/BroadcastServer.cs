@@ -154,13 +154,15 @@ namespace TournamentTracker.App.Broadcast
                     Advance = () => organizer.Advance,
                     GamesPerRound = () => organizer.GamesPerRound,
                 };
+                // The overlay, video and multiview pages follow what's on stream (unless pinned).
+                caster.Follow = () => desk.OnAir.Slots.FirstOrDefault(x => x != null);
+                desk.AirChangedInObs += _ => caster.Refresh();
                 var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(caster, desk)) { VoiceFeeds = () => VoiceFeeds(caster, desk), MuteHotkey = MuteHotkey };
                 obs.ImpostorTagsOn = () => _broadcast?.Settings.Current.Elements.GetValueOrDefault("impostorTags") == true;
                 // The overlay and video page follow the lobby in the first slot; OBS (when connected) shows the whole layout.
                 desk.Switch = air =>
                 {
-                    var first = air.Slots.FirstOrDefault(x => x != null);
-                    if (first != null) caster.Cast(first);
+                    caster.Refresh();
                     if (obs.Connected) _ = obs.ApplyAsync(air);
                 };
                 if (caster.Url != null) obs.TagUrl = caster.Url + "replaytag";
@@ -263,7 +265,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>What each lobby's OBS source shows: its VDO.Ninja video, or a stand-in page in simulation mode.</summary>
         /// <summary>A small live picture of each lobby sending its game, for the Multiview card (VDO.Ninja asked for a low resolution).</summary>
         private object Previews() => _caster == null || _desk == null ? new List<object>()
-            : ObsFeeds(_caster, _desk).Select(f => new { lobby = f.Lobby, url = f.Url.Contains("vdo.ninja", StringComparison.OrdinalIgnoreCase) ? f.Url + "&scale=25&noaudio" : f.Url }).ToList<object>();
+            : ObsFeeds(_caster, _desk).OrderBy(f => _desk.NumberOf(f.Lobby)).Select(f => new { lobby = f.Lobby, no = _desk.NumberOf(f.Lobby), url = f.Url.Contains("vdo.ninja", StringComparison.OrdinalIgnoreCase) ? f.Url + "&scale=25&noaudio" : f.Url }).ToList<object>();
 
         private static IReadOnlyList<(string Lobby, string Url)> ObsFeeds(CasterServer caster, CasterDesk desk)
         {
@@ -388,12 +390,14 @@ namespace TournamentTracker.App.Broadcast
                     view["casterUrl"] = _caster?.Url;
                     view["casterProblem"] = _caster?.Problem;
                     view["cast"] = _caster?.Casting;
+                    view["pinned"] = _caster?.Pinned;
+                    view["following"] = _desk?.OnAir.Slots.FirstOrDefault(x => x != null);
                     return Ok(view);
                 }
                 case ("POST", "/app/admin/cast"):
                     if (_caster == null) return Ok(new { ok = false, message = "Administration is locked." });
-                    _caster.Cast(Arg("lobby"));
-                    return Ok(new { ok = true, message = $"Casting {Arg("lobby")}." });
+                    _caster.Pin(Arg("pin") == "false" ? null : Arg("lobby"));
+                    return Ok(new { ok = true, message = _caster.Pinned is { } p ? $"Overlay pinned to {p}." : "Overlay follows what's on stream." });
                 case ("GET", "/app/admin/desk"):
                     if (_desk == null || _organizer == null) return Text(404, "application/json", "{\"error\":\"locked\"}");
                     return Ok(new { desk = _desk.State(), obs = _obs?.Status(), replay = _replays?.State(), roster = _desk.RosterState(), story = _desk.StoryState(),

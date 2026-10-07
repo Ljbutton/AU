@@ -204,11 +204,14 @@ namespace TournamentTracker.App.Broadcast
             var lobbies = new Dictionary<string, object>();
             var now = DateTime.UtcNow;
             int round = _desk.Tables.CurrentRound;
-            int number = 0;
-            var numbers = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            foreach (var r in ranking.OrderBy(r => r.Lobby, StringComparer.OrdinalIgnoreCase))
+            // The number viewers see: in a multi-view, where the lobby is on screen (1 top left…);
+            // otherwise its fixed number (the order lobbies connected, the same as on the desk).
+            bool multi = air.Layout is "2up" or "4up" or "grid";
+            var numbers = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var r in ranking.OrderBy(r => _desk.NumberOf(r.Lobby)))
             {
-                number++;
+                int at = slots.FindIndex(x => string.Equals(x.Lobby, r.Lobby, StringComparison.OrdinalIgnoreCase));
+                int? number = multi ? (at >= 0 ? at + 1 : null) : _desk.NumberOf(r.Lobby);
                 numbers[r.Lobby] = number;
                 var live = _desk.Board.Lobby(r.Lobby);
                 // Part 22: a lobby that's dropped keeps its last state, marked, and nothing of it counts down as if live.
@@ -218,6 +221,8 @@ namespace TournamentTracker.App.Broadcast
                 lobbies[r.Lobby] = new
                 {
                     number,
+                    order = multi ? (at >= 0 ? at + 1 : 100 + _desk.NumberOf(r.Lobby)) : _desk.NumberOf(r.Lobby),
+                    onScreen = at >= 0,
                     online = r.Online,
                     phase = r.Phase,
                     crew = r.Crew, imps = r.Imps, tasks = r.TaskPct,

@@ -75,7 +75,7 @@ namespace TournamentTracker.App.Broadcast
         public List<Clip> Clips { get { lock (_lock) return _clips.ToList(); } }
 
         /// <summary>Clips can be saved: OBS is connected, or (simulation) ffmpeg makes stand-ins.</summary>
-        public bool CanSave => _obs.Connected || _desk.Simulating && Builder?.Ffmpeg != null;
+        public bool CanSave => _obs.Connected || _desk.Simulating;
 
         /// <summary>Where stand-in clips and thumbnails go.</summary>
         public string Folder => _obs.ClipFolder;
@@ -167,7 +167,13 @@ namespace TournamentTracker.App.Broadcast
             _desk.SetClip(card.Id, clip.Id, "saving");
             try
             {
-                if (!_obs.Connected && _desk.Simulating && Builder?.Ffmpeg != null) { await StandInAsync(clip).ConfigureAwait(false); return Done(); }
+                // A simulated lobby's picture is a stand-in page: its clip is a stand-in too (OBS or not).
+                if (_desk.Simulating && (CasterDesk.IsSimLobby(clip.Lobby) || !_obs.Connected))
+                {
+                    if (Builder?.Ffmpeg == null) throw new InvalidOperationException("ffmpeg isn't installed: simulation makes its clips with it (Montages → Get ffmpeg).");
+                    await StandInAsync(clip).ConfigureAwait(false);
+                    return Done();
+                }
                 if (!_obs.Connected) throw new InvalidOperationException("Connect OBS first: replays come from its replay buffer.");
                 var now = _clock();
                 if ((now - clip.EventAt).TotalSeconds > S.BufferSeconds - clip.Pre)

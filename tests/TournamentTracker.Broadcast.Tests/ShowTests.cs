@@ -37,7 +37,7 @@ public class ShowTests : IDisposable
     // ---- Part 18 ---------------------------------------------------------------------------------
 
     [Fact]
-    public void Plays_in_lobbies_off_screen_get_a_banner_merged_per_lobby_and_queued_three_at_a_time()
+    public void Plays_in_lobbies_off_screen_get_a_banner_merged_per_lobby_and_queued_one_at_a_time()
     {
         foreach (var l in new[] { "LJ", "MAL", "ZED", "KAI", "BO" }) Snap(l);
         _desk.Show("LJ");
@@ -51,13 +51,16 @@ public class ShowTests : IDisposable
         Assert.Equal("Sam killed Priya in Electrical", NameTag.Plain(a.Text));
 
         Kill("ZED"); Kill("KAI"); Kill("BO");
-        Assert.Equal(new[] { "MAL", "ZED", "KAI" }, _desk.Alerts.Active().Select(x => x.Lobby));
-        Assert.Equal(1, _desk.Alerts.Waiting);
+        Assert.Equal(new[] { "MAL" }, _desk.Alerts.Active().Select(x => x.Lobby));     // never more than one at once
+        Assert.Equal(3, _desk.Alerts.Waiting);
+        _clock.Advance(4.5);
+        Assert.Equal(new[] { "ZED" }, _desk.Alerts.Active().Select(x => x.Lobby));
+        _clock.Advance(4.5); _desk.Alerts.Active();
         _clock.Advance(4.5);
         Assert.Equal(new[] { "BO" }, _desk.Alerts.Active().Select(x => x.Lobby));
         var shown = Broadcast().GetProperty("alerts")[0];
         Assert.Equal("BO", shown.GetProperty("lobby").GetString());
-        Assert.Equal(1, shown.GetProperty("number").GetInt32());   // BO is first by name
+        Assert.Equal(5, shown.GetProperty("number").GetInt32());   // BO connected fifth: its number stays 5
 
         // Off: a kind, or everything.
         _clock.Advance(5);

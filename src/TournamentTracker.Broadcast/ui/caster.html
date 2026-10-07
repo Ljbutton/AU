@@ -570,6 +570,17 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
 .ck .dt{color:var(--muted);font-size:12.5px;margin-top:2px}
 .onair.wait{--oa:#6a6a75}
 .onair.wait .oa-tag{animation:hlb 1s infinite}
+/* Fixed order: the lobby's number; excitement is a badge and a glow, never a new place in the list. */
+.dlob .sc{display:grid;gap:3px;justify-items:center}
+.dlob .sc .no,.mv .lno{font:700 13px/1 var(--hand);letter-spacing:.04em;color:#fff;background:#2a2a31;padding:3px 6px 1px;min-width:18px;text-align:center}
+.tierb{font:700 10.5px/1 "Segoe UI",sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:3px 6px;background:var(--tier);color:#06080c}
+.dlob.glow{box-shadow:0 0 0 1px var(--tier),0 0 16px -2px var(--tier)}
+.mv .lno{position:absolute;left:6px;bottom:30px}
+.mv .exc{position:absolute;right:6px;bottom:30px;font:700 12px/1 "Segoe UI",sans-serif;padding:3px 6px;background:var(--tier,#2a2a31);color:#06080c}
+.mv.glow{box-shadow:0 0 0 2px var(--tier),0 0 18px -2px var(--tier)}
+.mv.glow.on{box-shadow:0 0 0 3px var(--red),0 0 18px -2px var(--tier)}
+.cast-state{font-size:13px;color:var(--muted)}
+.cast-state b.pin{font:700 13px/1 "Segoe UI",sans-serif;letter-spacing:.1em;color:#16120a;background:var(--warn);padding:3px 7px;margin-right:6px}
 </style>
 </head>
 <body>
@@ -641,11 +652,11 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
     <div class="mv-grid" id="mv-grid"></div>
   </div>
   <div class="card cast-card" id="cast-card" hidden data-page="live">
-    <div class="row" style="justify-content:space-between"><div><b>Caster overlay</b> <span class="muted" id="org-casting"></span></div>
-      <div class="row"><label class="muted" style="font-size:13px"><input type="checkbox" id="org-roles"> Count kills (staff view)</label><button class="b primary" id="org-jump" title="Key N">Jump to action</button></div></div>
+    <div class="row" style="justify-content:space-between"><div><b>Caster overlay</b> <span class="cast-state" id="org-casting"></span></div>
+      <div class="row"><label class="muted" style="font-size:13px"><input type="checkbox" id="org-roles"> Count kills (staff view)</label><button class="b primary" id="org-jump" title="Puts the lobby worth watching on stream (key N)">Jump to action</button></div></div>
     <div class="urls" id="org-cast-url"></div>
     <div class="row" id="org-cast-list"></div>
-    <div class="muted help" style="font-size:12px">OBS Browser sources. Video and overlay follow the lobby you pick (keys 1–9 switch while this card is open, N jumps to the action). Overlay 380×720, add <span class="mono">?full=1</span> on a delayed stream for roles and kills. Video (with the game sound of the lobby on air) and multiview (silent) 1920×1080: hosts turn on "Send my game to the caster" in their Button.</div>
+    <div class="muted help" style="font-size:12px">OBS Browser sources. The overlay, video and multiview follow what's on stream (the full-screen lobby, or slot 1 of a multi-view); Pin keeps them on one lobby. On the Live desk, keys 1–9 put that lobby number full screen and N jumps to the action. Overlay 380×720, add <span class="mono">?full=1</span> on a delayed stream for roles and kills. Video (with the game sound of the lobby on air) and multiview (silent) 1920×1080: hosts turn on "Send my game to the caster" in their Button.</div>
   </div>
   <div class="card hl-card" id="hl-card" hidden data-page="health">
     <div class="row" style="justify-content:space-between"><div><b>Lobby health</b> <span class="muted" id="hl-line"></span></div>
@@ -890,7 +901,7 @@ function replayButton(c) {
   if (st === 'ready') return `<button class="rpb ready" data-rplay="${c.id}" title="Play the replay">▶ REPLAY</button>`;
   if (st === 'saving') return '<span class="rpb saving">Saving replay…</span>';
   const fail = st === 'failed' && RP && (RP.clips.find(x => x.id === c.clip.id) || {}).problem;
-  return `<button class="rpb${st === 'failed' ? ' failed' : ''}" data-rsave="${c.id}" title="${esc(plain(fail) || 'Save a replay of this play')}">${st === 'failed' ? 'Replay failed · retry' : 'Save replay'}</button>`;
+  return `<button class="rpb${st === 'failed' ? ' failed' : ''}" data-rsave="${c.id}" title="${esc(plain(fail) || 'Save a replay of this play')}">${st === 'failed' ? `Replay failed: ${esc(failWhy(fail))} · retry` : 'Save replay'}</button>`;
 }
 // ---- On stream: big, readable at a glance -----------------------------------------------------
 const LAYOUT_NAME = { full: 'Full', '2up': '2-Up', '4up': 'Quad', grid: 'Grid', break: 'Sponsor break', intermission: 'Intermission', slate: 'Be right back', replay: 'Replay', none: 'Nothing on stream' };
@@ -968,6 +979,13 @@ $('talk-list').addEventListener('click', async e => {
   toast(plain(r.message)); storyKey = ''; loadDesk();
 });
 $('muted-un').addEventListener('click', () => voiceDo({ action: 'mute' }));
+// Why a replay didn't save, in a few words (the whole reason is in the tooltip).
+function failWhy(p) {
+  p = plain(p || '');
+  return /Source Record/i.test(p) ? 'no Source Record plugin' : /ffmpeg/i.test(p) ? 'no ffmpeg' : /Connect OBS|Not connected/i.test(p) ? 'OBS not connected'
+    : /too long ago/i.test(p) ? 'too long ago' : /didn't save|buffer/i.test(p) ? 'buffer not running' : /no source/i.test(p) ? 'no OBS source for this lobby'
+    : /not found|could not find|no such file/i.test(p) ? 'file not found' : p ? p.slice(0, 40) : 'unknown';
+}
 function renderDesk() {
   if (!DESK) return;
   renderOnAir(); renderTalk(); renderWarnings(); renderSetup();
@@ -1009,9 +1027,9 @@ function renderDesk() {
       <div class="t3">${counts(c)}<span>${ago(c.ago)}</span>${c.updatedAgo < c.ago - 1 ? `<span>updated ${ago(c.updatedAgo)}</span>` : ''}${replayButton(c)}</div>
       ${c.people && c.people.length ? `<div class="ppl">${c.people.map(p => `<button data-pcard="${esc(p.key)}" data-plobby="${esc(c.lobby)}" title="${esc(p.name)}'s player card on stream">${sw(p.color)}${esc(p.name)}</button>`).join('')}</div>` : ''}
     </div>`).join('') : `<div class="card"><p class="empty">${d.lobbies.length ? 'Quiet right now.' : 'No lobbies yet. Hosts appear here when they turn on "Send my game to the caster" (or turn on Simulation under OBS → Test).'}</p></div>`;
-  $('desk-lobbies').innerHTML = d.lobbies.length ? d.lobbies.map((l, i) => `<div class="dlob tier-${l.tier}${l.online ? '' : ' offline'}" data-lobby="${esc(l.lobby)}" title="Put ${esc(l.lobby)} on stream (full)">
-      <div class="sc">${l.online ? Math.round(l.score) : '–'}</div>
-      <div style="min-width:0"><div class="nm">${l.health && l.health !== 'green' ? `<span class="hdot ${l.health}" title="${l.health === 'red' ? 'Down' : 'Degraded'}: see Lobby health"></span>` : ''}${esc(l.lobby)}${l.onAir ? `<span class="live">${esc(l.onAir)}</span>` : ''}${l.online ? '' : '<span class="off">OFFLINE</span>'}</div><div class="ln">${rich(l.line)}</div></div>
+  $('desk-lobbies').innerHTML = d.lobbies.length ? d.lobbies.map((l, i) => `<div class="dlob tier-${l.tier}${l.online ? '' : ' offline'}${l.online && (l.tier === 'must' || l.tier === 'veryHigh') ? ' glow' : ''}" data-lobby="${esc(l.lobby)}" title="Put ${esc(l.lobby)} on stream (full)${l.no <= 9 ? ' · key ' + l.no : ''}">
+      <div class="sc"><span class="no">${l.no}</span>${l.online ? Math.round(l.score) : '–'}</div>
+      <div style="min-width:0"><div class="nm">${l.online && l.tier !== 'low' ? `<span class="tierb">${TIER_NAME[l.tier] || l.tier}</span>` : ''}${l.health && l.health !== 'green' ? `<span class="hdot ${l.health}" title="${l.health === 'red' ? 'Down' : 'Degraded'}: see Lobby health"></span>` : ''}${esc(l.lobby)}${l.onAir ? `<span class="live">${esc(l.onAir)}</span>` : ''}${l.online ? '' : '<span class="off">OFFLINE</span>'}</div><div class="ln">${rich(l.line)}</div></div>
       <div class="lay"><button data-put="full" title="Full screen">Full</button><button data-put="2up" title="2-up, slot 1">2-up</button><button data-put="4up" title="Quad, slot 1">Quad</button></div>
       ${LVOICE && LVOICE.obs && obsDb(LVOICE.obs, l.lobby) !== undefined ? `<div class="lvl" title="This lobby's voice in OBS${isHeard(LVOICE.obs, l.lobby) ? ': on stream now' : ' (muted on stream)'}"><span>Voice</span>${obsMeter(LVOICE.obs, l.lobby)}</div>` : ''}
       ${specRow(l)}
@@ -1672,7 +1690,7 @@ function renderPicker() {
       let el = have[p.lobby + '|' + p.url];
       if (!el) {
         el = document.createElement('button'); el.className = 'mv'; el.dataset.lobby = p.lobby; el.dataset.url = p.url; el.type = 'button';
-        el.innerHTML = `<div class="pv"><iframe src="${esc(p.url)}" allow="autoplay" tabindex="-1" title="${esc(p.lobby)}"></iframe></div><div class="nm"><span>${esc(p.lobby)}</span><small></small></div><span class="no" hidden></span><span class="air" hidden>ON AIR</span>`;
+        el.innerHTML = `<div class="pv"><iframe src="${esc(p.url)}" allow="autoplay" tabindex="-1" title="${esc(p.lobby)}"></iframe></div><div class="nm"><span>${esc(p.lobby)}</span><small></small></div><span class="no" hidden></span><span class="air" hidden>ON AIR</span><span class="lno">${p.no || ''}</span><span class="exc" hidden></span>`;
         el.onclick = () => { const i = PICK.indexOf(p.lobby); if (i >= 0) PICK.splice(i, 1); else PICK.push(p.lobby); renderPicker(); };
       }
       grid.appendChild(el);
@@ -1681,10 +1699,14 @@ function renderPicker() {
   const onAir = DESK && DESK.onAir ? DESK.onAir.slots : [];
   grid.querySelectorAll('.mv').forEach(el => {
     const i = PICK.indexOf(el.dataset.lobby), f = el.querySelector('iframe');
-    el.classList.toggle('on', i >= 0);
     el.querySelector('.no').hidden = i < 0; el.querySelector('.no').textContent = i + 1;
     el.querySelector('.air').hidden = !onAir.includes(el.dataset.lobby);
     el.querySelector('small').textContent = TWH[el.dataset.lobby] ? 'twitch.tv/' + TWH[el.dataset.lobby] : '';
+    // Excitement: a badge and a glow on the tile, which stays where it is.
+    const lb = DESK && DESK.lobbies.find(x => x.lobby === el.dataset.lobby), ex = el.querySelector('.exc');
+    const hot = lb && lb.online && (lb.tier === 'must' || lb.tier === 'veryHigh');
+    el.className = 'mv' + (i >= 0 ? ' on' : '') + (lb ? ' tier-' + lb.tier : '') + (hot ? ' glow' : '');
+    ex.hidden = !(lb && lb.online && lb.tier !== 'low'); if (lb) ex.textContent = `${Math.round(lb.score)} · ${TIER_NAME[lb.tier] || lb.tier}`;
     const w = el.querySelector('.pv').clientWidth; if (w) f.style.transform = `scale(${w / 1920})`;
   });
   $('mv-send').disabled = !PICK.length;
@@ -1782,14 +1804,16 @@ async function loadOrganiser() {
   try { ORG = await api('GET', '/app/admin'); } catch (e) { ORG = null; }
   renderCast();
 }
-function castLobby(label) { api('POST', '/app/admin/cast', { lobby: label }).then(r => { toast(r.message); loadOrganiser(); }); }
+function castLobby(label, pin) { api('POST', '/app/admin/cast', { lobby: label || '', pin: pin === false ? 'false' : 'true' }).then(r => { toast(r.message); castKey = ''; loadOrganiser(); }); }
 $('org-roles').addEventListener('change', e => { showRoles = e.target.checked; });
 document.addEventListener('keydown', e => {
   const f = document.activeElement;
-  if (!ORG || $('cast-card').hidden || (/INPUT|TEXTAREA|SELECT/.test(f.tagName) && f.type !== 'checkbox')) return;
+  if (!ORG || $('cast-card').hidden || PAGE !== 'live' || keyWaitVo || (/INPUT|TEXTAREA|SELECT/.test(f.tagName) && f.type !== 'checkbox')) return;
   if (RP && RP.hotkeys && Object.values(RP.hotkeys).includes(e.code)) return;     // a desk key
-  const n = parseInt(e.key, 10);
-  if (n >= 1 && n <= 9 && ORG.lobbies[n - 1]) castLobby(ORG.lobbies[n - 1].label);
+  // 1–9: lobby number n full screen (the numbers on the lobby cards and the Multiview tiles).
+  const n = /^Digit[1-9]$/.test(e.code) && !e.ctrlKey && !e.altKey && !e.metaKey ? +e.code.slice(5) : 0;
+  const byNo = n && DESK && DESK.lobbies.find(l => l.no === n);
+  if (byNo) { e.preventDefault(); show(byNo.lobby, 'full'); }
   if (e.key === 'n' || e.key === 'N') jumpToAction();
 });
 // The lobby worth watching now: a meeting first, then anything that just happened, else the next live lobby in turn.
@@ -1801,20 +1825,24 @@ function jumpToAction() {
   const hot = live.filter(l => hotOf(l) && l.label !== ORG.cast);
   const next = live[(live.findIndex(l => l.label === ORG.cast) + 1) % live.length];
   const pick = hot.find(l => l.data.phase === 'Meeting') || hot[0] || next;
-  castLobby(pick.label);
+  show(pick.label, 'full');
 }
 $('org-jump').addEventListener('click', jumpToAction);
 let castKey = '';
 function renderCast() {
   if (!ORG) return;
-  const key = JSON.stringify([ORG.casterUrl, ORG.cast, ORG.problem, ORG.casterProblem, ORG.lobbies.map(l => [l.label, l.hot, l.quiet])]);
+  const nos = DESK ? DESK.lobbies.map(l => [l.lobby, l.no]) : [];
+  const key = JSON.stringify([ORG.casterUrl, ORG.cast, ORG.pinned, ORG.following, ORG.problem, ORG.casterProblem, ORG.lobbies.map(l => [l.label, l.hot, l.quiet]), nos]);
   if (key === castKey) return; castKey = key;
   $('org-problem').hidden = !ORG.problem && !ORG.casterProblem; $('org-problem').textContent = ORG.problem || ORG.casterProblem || '';
   const cu = ORG.casterUrl;
   $('org-cast-url').innerHTML = cu ? urlRow('Overlay', cu) + urlRow('Video', cu + 'video') + urlRow('Multiview', cu + 'multiview') : '';
-  $('org-casting').textContent = ORG.cast ? `· now showing ${ORG.cast}` : '· waiting for a lobby';
-  $('org-cast-list').innerHTML = ORG.lobbies.map((l, i) => `<button class="b${l.label === ORG.cast ? ' on' : ''}" data-cast="${esc(l.label)}" title="${l.hot ? esc(l.hot) : ''}">${i < 9 ? (i + 1) + ' · ' : ''}${esc(l.label)}${l.hot ? ' •' : ''}</button>`).join('') || '<span class="muted" style="font-size:12.5px">No lobbies yet.</span>';
-  $('org-cast-list').querySelectorAll('[data-cast]').forEach(b => b.onclick = () => castLobby(b.dataset.cast));
+  $('org-casting').innerHTML = ORG.pinned ? `<b class="pin">PINNED</b>to ${esc(ORG.pinned)} <button class="b" id="org-unpin" style="margin-left:6px">Follow the stream</button>`
+    : ORG.cast ? `· follows the stream: now ${esc(ORG.cast)}${ORG.following && ORG.following !== ORG.cast ? ` (${esc(ORG.following)} isn't sending its game)` : ''}` : '· follows the stream: waiting for a lobby';
+  const no = l => (DESK && (DESK.lobbies.find(x => x.lobby === l.label) || {}).no) || 99;
+  $('org-cast-list').innerHTML = ORG.lobbies.slice().sort((a, b) => no(a) - no(b)).map(l => `<button class="b${l.label === ORG.pinned ? ' on' : ''}" data-cast="${esc(l.label)}" title="Pin the overlay to ${esc(l.label)}${l.hot ? ' · ' + esc(l.hot) : ''}">Pin ${no(l) < 99 ? no(l) + ' · ' : ''}${esc(l.label)}${l.hot ? ' •' : ''}</button>`).join('') || '<span class="muted" style="font-size:12.5px">No lobbies yet.</span>';
+  $('org-cast-list').querySelectorAll('[data-cast]').forEach(b => b.onclick = () => castLobby(b.dataset.cast, b.dataset.cast !== ORG.pinned));
+  if ($('org-unpin')) $('org-unpin').onclick = () => castLobby('', false);
 }
 refresh();
 setInterval(refresh, 1500);

@@ -189,6 +189,25 @@ namespace TournamentTracker.App.Broadcast
         }
 
         public string? ConfigPath => _file?.Path;
+
+        // ---- One fixed order: each lobby's number, given when it first connects ------------------
+        private readonly Dictionary<string, int> _numbers = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>A lobby's number (1, 2, 3… in the order they connected; the lowest free one). Kept for the session.</summary>
+        public int NumberOf(string lobby)
+        {
+            lock (_numbers)
+            {
+                if (_numbers.TryGetValue(lobby, out int n)) return n;
+                n = 1;
+                while (_numbers.ContainsValue(n)) n++;
+                _numbers[lobby] = n;
+                return n;
+            }
+        }
+
+        /// <summary>Lobbies in their fixed order (by number), never by score: what's on the desk doesn't move.</summary>
+        public List<LobbyRank> Ordered() => Board.Ranking().OrderBy(r => NumberOf(r.Lobby)).ToList();
         public bool Simulating => _sim != null;
 
         // ---- Feed in ------------------------------------------------------------------------
@@ -216,6 +235,7 @@ namespace TournamentTracker.App.Broadcast
                 // How up to date the host's mod is (the broadcast feed's version).
                 if (lobby.Length > 0 && TournamentTracker.Broadcast.FeedProtocol.FromMod(type)) lock (_lock) _versions[lobby] = TournamentTracker.Broadcast.FeedProtocol.VersionOf(item);
                 if (type == "skip") return;
+                if (lobby.Length > 0 && type is "snap" or "event") NumberOf(lobby);
                 if (type == TournamentTracker.Broadcast.FeedProtocol.Types.Host)
                 {
                     string? tw = item.TryGetProperty("twitch", out var th) && th.ValueKind == JsonValueKind.String ? th.GetString() : null;
@@ -378,6 +398,7 @@ namespace TournamentTracker.App.Broadcast
         {
             Func<string, bool> sim = IsSimLobby;
             Board.Forget(sim);
+            lock (_numbers) foreach (var k in _numbers.Keys.Where(sim).ToList()) _numbers.Remove(k);
             Tracks.Forget(sim);
             Health.Forget(sim);
             Alerts.Forget(sim);
@@ -902,6 +923,9 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>OBS switched by itself (Part 4 calls this when you change scenes there).</summary>
+        /// <summary>What's on stream changed without a switch from here (in OBS): the caster pages follow.</summary>
+        public event Action<OnAir>? AirChangedInObs;
+
         public void ObsChanged(OnAir state)
         {
             lock (_lock)
@@ -912,6 +936,7 @@ namespace TournamentTracker.App.Broadcast
                 MarkShown(state);
             }
             Left(state);
+            AirChangedInObs?.Invoke(state);
         }
 
         /// <summary>OBS made the switch the desk asked for (or showed it's on what the desk has): note its scene.</summary>
@@ -1005,8 +1030,9 @@ namespace TournamentTracker.App.Broadcast
                     WinScope, Wins = new { Impostors = Wins().Impostors, Crew = Wins().Crew },
                     Break = Break is { } br ? new { Sponsor = br.Sponsor.Name, Left = Math.Max(0, (int)Math.Ceiling((br.Until - now).TotalSeconds)), br.Lobby } : null,
                     OnAir = new { _onAir.Layout, _onAir.Slots, _onAir.By, _onAir.Scene, Since = _onAir.Since == default ? null : _onAir.Since.ToString("o") },
-                    Lobbies = ranking.Select(r => new
+                    Lobbies = ranking.OrderBy(r => NumberOf(r.Lobby)).Select(r => new
                     {
+                        No = NumberOf(r.Lobby),
                         People = r.People.Where(p => p.Key.Length > 0).Select(p => { var l = Board.Lobby(r.Lobby); return new { p.Key, Name = l == null ? p.Name : Board.DisplayName(l, p.Id, p.Name), p.Color }; }).ToList(),
                         r.Lobby, r.Online, r.Score, r.Tier, r.Line, r.Phase, r.Crew, r.Imps, r.TaskPct, r.Game, r.Round, r.Spec,
                         Players = r.Players.Select(p => new

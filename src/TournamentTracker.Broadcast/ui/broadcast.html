@@ -228,7 +228,7 @@ let S = null;
 const ELEMENTS = {
   lobbyLabels(slot, l, k) {
     if (!l) return;
-    put(`label-${slot.slot}`, `<div class="label"><span class="num">#${l.number}</span>${l.twitch ? `${TWI}<span class="tn">${esc(l.twitch)}</span>` : esc(slot.lobby)}${l.reconnecting ? '<span class="ph rc">RECONNECTING</span>' : `<span class="ph ${l.phase}">${PH[l.phase] || l.phase}</span>`}</div>`,
+    put(`label-${slot.slot}`, `<div class="label">${l.number != null ? `<span class="num">#${l.number}</span>` : ''}${l.twitch ? `${TWI}<span class="tn">${esc(l.twitch)}</span>` : esc(slot.lobby)}${l.reconnecting ? '<span class="ph rc">RECONNECTING</span>' : `<span class="ph ${l.phase}">${PH[l.phase] || l.phase}</span>`}</div>`,
       { left: slot.x + 18 * k + 'px', top: slot.y + 14 * k + 'px', fontSize: 34 * k + 'px' });
   },
   impostorTags(slot, l, k) {
@@ -271,7 +271,8 @@ function emptyTile(slot) {
 
 // The status bar: one cell per lobby, along the bottom of the screen.
 function statusBar() {
-  const list = Object.entries(S.lobbies).filter(([, l]) => l.online || l.phase !== 'menu').sort((a, b) => a[1].number - b[1].number);
+  // Fixed order; in a multi-view, the lobbies on screen first, numbered where they are (1 top left…).
+  const list = Object.entries(S.lobbies).filter(([, l]) => l.online || l.phase !== 'menu').sort((a, b) => a[1].order - b[1].order);
   if (!list.length) return;
   const onAir = new Set(S.slots.map(s => s.lobby).filter(Boolean));
   const rows = list.length * 230 > S.canvas.w - 20 ? 2 : 1;
@@ -280,9 +281,9 @@ function statusBar() {
     const hot = l.tier === 'must' || l.tier === 'veryHigh';
     const playing = l.phase === 'ingame' || l.phase === 'meeting';
     if (l.reconnecting && l.phase !== 'menu') return `<div class="cell rc${onAir.has(name) ? ' on' : ''}" style="flex-basis:${100 / Math.ceil(list.length / rows) - 1}%">
-      <span class="n">${l.number}</span><span class="nm">${esc(name)}</span>${playing && l.crew != null ? `<span class="ct">${CNT.crew}${l.crew}</span><span class="ct">${CNT.imp}${l.imps}</span>` : ''}<span class="ph rc">RECONNECTING</span></div>`;
+      <span class="n">${l.number ?? '–'}</span><span class="nm">${esc(name)}</span>${playing && l.crew != null ? `<span class="ct">${CNT.crew}${l.crew}</span><span class="ct">${CNT.imp}${l.imps}</span>` : ''}<span class="ph rc">RECONNECTING</span></div>`;
     return `<div class="cell${onAir.has(name) ? ' on' : ''}${hot ? ' hot' : ''}${l.online ? '' : ' off'}" style="flex-basis:${100 / Math.ceil(list.length / rows) - 1}%">
-      <span class="n">${l.number}</span><span class="nm">${esc(name)}</span>
+      <span class="n">${l.number ?? '–'}</span><span class="nm">${esc(name)}</span>
       ${playing && l.crew != null ? `<span class="ct">${CNT.crew}${l.crew}</span><span class="ct">${CNT.imp}${l.imps}</span><span class="tk">${l.tasks ?? 0}%</span>` : ''}
       ${sab}<span class="ph ${l.online ? l.phase : 'menu'}">${(l.online ? PH[l.phase] || l.phase : 'Offline').toUpperCase()}</span></div>`;
   }).join('');
@@ -363,7 +364,7 @@ function sponsorBreak() {
 // Banners for plays in lobbies that aren't on screen, stacked at the top.
 const ALERT_KIND = { kill: 'KILL', win: 'GAME OVER', report: 'BODY REPORTED', button: 'EMERGENCY' };
 function alerts() {
-  (S.alerts || []).forEach((a, i) => put(`alert-${a.id}`, `<div class="alrt ${a.kind}"><span class="k">${ALERT_KIND[a.kind] || a.kind}</span><span class="lb">#${a.number} ${esc(a.lobby)}</span><span>${rich(a.text)}</span>${a.count > 1 ? `<span class="x2">×${a.count}</span>` : ''}</div>`,
+  (S.alerts || []).forEach((a, i) => put(`alert-${a.id}`, `<div class="alrt ${a.kind}"><span class="k">${ALERT_KIND[a.kind] || a.kind}</span><span class="lb">${a.number != null ? '#' + a.number + ' ' : ''}${esc(a.lobby)}</span><span>${rich(a.text)}</span>${a.count > 1 ? `<span class="x2">×${a.count}</span>` : ''}</div>`,
     { left: '50%', top: 22 + i * 64 + 'px', transform: 'translateX(-50%)', fontSize: '30px', transition: 'opacity .45s ease, top .3s ease' }));
 }
 
@@ -412,7 +413,7 @@ function playerCard() {
 // Part 22: a lobby that dropped: its picture is covered (it would be frozen or black) until it's back.
 function reconnecting(slot, l, k) {
   if (!l || !l.reconnecting) return;
-  put(`rc-${slot.slot}`, `<div class="rcbox" style="width:${slot.w}px;height:${slot.h}px"><div><b>LOBBY ${l.number} · ${esc(slot.lobby)}</b><span>RECONNECTING<i>.</i><i>.</i><i>.</i></span></div></div>`,
+  put(`rc-${slot.slot}`, `<div class="rcbox" style="width:${slot.w}px;height:${slot.h}px"><div><b>${l.number != null ? 'LOBBY ' + l.number + ' · ' : ''}${esc(slot.lobby)}</b><span>RECONNECTING<i>.</i><i>.</i><i>.</i></span></div></div>`,
     { left: slot.x + 'px', top: slot.y + 'px', fontSize: 46 * k + 'px', zIndex: '-1' });
 }
 
