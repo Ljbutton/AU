@@ -569,6 +569,7 @@ details.advanced[open] summary h2::before{content:'▾ '}
       <h2>Administration</h2>
       <p class="muted" id="admin-line" style="margin:0 0 8px"></p>
       <div class="row"><button class="b" data-open="generator">Make setup codes</button><button class="b danger" id="admin-lock">Lock</button></div>
+      <div class="toggle" style="margin-top:10px"><div><b>Mod console window</b><span>The black BepInEx window with the mod's log when Among Us starts. Hidden for everyone by default; this only changes it on this PC. The log is always in Mod and updates → Open log.</span></div><button class="b" id="t-console"></button></div>
       <p class="muted" style="margin:8px 0 0;font-size:12.5px">Only people with an administration code see this. Lock hides it again; paste the code into Setup code to come back.</p>
     </div>
   </div>
@@ -984,6 +985,8 @@ function renderSettings() {
 function renderAdmin() {
   const on = !!S.admin;
   $('admin-card').hidden = !on;
+  $('t-console').textContent = S.modConsole ? 'Shown' : 'Hidden'; $('t-console').classList.toggle('on', !!S.modConsole);
+  $('t-console').onclick = async () => { const r = await api('POST', '/app/modconsole', { on: String(!S.modConsole) }); toast(r.message); refresh(); };
   $('admin-line').textContent = on ? `Unlocked: ${S.admin.tournament}. The Organiser tab is open.` : '';
   $('nav-organiser').hidden = !on;
   if (!on && $('organiser').classList.contains('on')) go('settings');

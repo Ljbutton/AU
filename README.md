@@ -27,7 +27,7 @@ host needs the mod.
 
 ## Install (host only)
 
-The current release is **v0.1.25**, a beta.
+The current release is **v0.1.26**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -43,7 +43,10 @@ is typed in the game chat, so there's nothing for Among Us's anti-cheat to trip 
    setup code the organiser gave you; the page then shows the tournament and the locked
    lobby settings (point values stay with the organiser).
 2. **Start Among Us** and host a lobby. The first start takes a few minutes while BepInEx
-   sets itself up (a black console window appears). The app connects on its own.
+   sets itself up. The app connects on its own. BepInEx's black console window
+   (the mod's log) is hidden; with the administration code, Settings → Administration →
+   **Mod console window** shows it on your PC. The log is always in Settings → Mod and
+   updates → **Open log**.
 
 The top bar only shows the logo, plus a warning when something needs you: "No setup code
 installed", "New version available", "Mod not installed", "Mod needs repair", "Among Us not
