@@ -12,6 +12,8 @@
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="ui\*.html" LogicalName="ui/%(Filename)%(Extension)" />
+    <!-- The same replay viewer as The Button's (docs/replay-viewer.html), for the games Red Alert keeps. -->
+    <EmbeddedResource Include="..\..\docs\replay-viewer.html" LogicalName="ui/viewer-body.html" Link="ui\viewer-body.html" />
     <!-- Shared with The Button (one copy, in its ui folder): fonts, crewmate heads (for players' colours), logo. -->
     <EmbeddedResource Include="..\TournamentTracker.AppCore\ui\fonts\*" LogicalName="ui/fonts/%(Filename)%(Extension)" Link="ui\fonts\%(Filename)%(Extension)" />
     <EmbeddedResource Include="..\TournamentTracker.AppCore\ui\crew\*.png" LogicalName="ui/crew/%(Filename)%(Extension)" Link="ui\crew\%(Filename)%(Extension)" />

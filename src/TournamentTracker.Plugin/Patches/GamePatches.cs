@@ -34,22 +34,53 @@ namespace TournamentTracker.Plugin.Patches
         public static void Prefix() => Hook.Run("Game start", Driver.StartGame);
     }
 
-    // Referee ghost slot: fix the referee's role once roles are chosen, clear their tasks once
-    // tasks are handed out. (They become a ghost in Driver.StartGame, as the intro begins.)
+    // Roles: the impostor rotation and the referee ghost slot are applied to the game's own role
+    // choice before it's sent, so each player gets one role message (see RoleChoice).
+    // (The referee becomes a ghost in Driver.StartGame, as the intro begins.)
     [HarmonyPatch(typeof(RoleManager), nameof(RoleManager.SelectRoles))]
-    internal static class RefereeRolePatch
+    internal static class RoleChoicePatch
     {
+        public static void Prefix() => Hook.Run("Roles", RoleChoice.Begin);
         public static void Postfix()
         {
-            Hook.Run("Impostor rotation", ImpostorRotation.Apply);
-            Hook.Run("Referee role", RefSlot.KeepCrewmate);
+            // Always let go, even if the hook fails: role messages must never stay held back.
+            try { Hook.Run("Roles", RoleChoice.Finish); }
+            finally { RoleChoice.Collecting = false; RoleChoice.Sending = false; }
         }
     }
 
+    [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.RpcSetRole))]
+    internal static class RoleOncePatch
+    {
+        /// <summary>While the game hands out roles: hold its message back (RoleChoice sends the final one).</summary>
+        public static bool Prefix(PlayerControl __instance, AmongUs.GameOptions.RoleTypes __0, bool __1)
+        {
+            if (!RoleChoice.Collecting || RoleChoice.Sending || __instance == null) return true;
+            RoleChoice.Chosen[__instance.PlayerId] = (__instance, __0, __1);
+            return false;
+        }
+    }
+
+    // Referee ghost slot: their task message (the game's own, the only one) carries no tasks.
     [HarmonyPatch(typeof(ShipStatus), nameof(ShipStatus.Begin))]
     internal static class RefereeTasksPatch
     {
-        public static void Postfix() => Hook.Run("Referee tasks", RefSlot.ClearTasks);
+        public static void Prefix() => RefSlot.HandingOutTasks = Game.IsHost;
+        public static void Postfix() => RefSlot.HandingOutTasks = false;
+    }
+
+    [HarmonyPatch(typeof(NetworkedPlayerInfo), nameof(NetworkedPlayerInfo.RpcSetTasks))]
+    internal static class RefereeNoTasksPatch
+    {
+        public static void Prefix(NetworkedPlayerInfo __instance, ref Il2CppStructArray<byte> __0)
+        {
+            if (!RefSlot.HandingOutTasks || __instance == null || TournamentPlugin.Session?.RefSlotKey == null) return;
+            try
+            {
+                if (RefSlot.RefereeId() == __instance.PlayerId) __0 = new Il2CppStructArray<byte>(0);
+            }
+            catch (Exception e) { TournamentPlugin.Logger.Error("Referee tasks hook failed: " + e); }
+        }
     }
 
     [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.MurderPlayer))]

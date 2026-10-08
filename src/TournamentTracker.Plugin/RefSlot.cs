@@ -8,9 +8,10 @@ using UnityEngine;
 namespace TournamentTracker.Plugin
 {
     /// <summary>
-    /// The referee ghost slot, done by the host: keep the referee a plain crewmate, give them
-    /// no tasks, and make them a ghost as the game starts. Experimental: it relies on the game
-    /// accepting a player dying before anything has happened.
+    /// The referee ghost slot, done by the host: the referee is a plain crewmate (RoleChoice), gets
+    /// no tasks, and becomes a ghost as the game starts. Experimental: it relies on the game
+    /// accepting a player dying before anything has happened. Every message the game sends for
+    /// them is sent once, as the game would: a second role or task message gets the host kicked.
     /// </summary>
     internal static class RefSlot
     {
@@ -22,34 +23,14 @@ namespace TournamentTracker.Plugin
             return id.HasValue ? Game.Player(id.Value) : null;
         }
 
-        /// <summary>After roles are handed out: if the referee drew impostor, give it to someone else.</summary>
-        public static void KeepCrewmate()
-        {
-            var referee = Referee();
-            if (referee == null || referee.Data == null || referee.Data.Role == null) return;
-            if (referee.Data.Role.IsImpostor)
-            {
-                var role = referee.Data.Role.Role;
-                var others = new System.Collections.Generic.List<PlayerControl>();
-                var all = PlayerControl.AllPlayerControls;
-                for (int i = 0; i < all.Count; i++)
-                {
-                    var pc = all[i];
-                    if (pc != null && pc.PlayerId != referee.PlayerId && pc.Data != null && !pc.Data.Disconnected
-                        && pc.Data.Role != null && !pc.Data.Role.IsImpostor)
-                        others.Add(pc);
-                }
-                if (others.Count > 0) others[new System.Random().Next(others.Count)].RpcSetRole(role, true);
-            }
-            if (referee.Data.Role.Role != RoleTypes.Crewmate) referee.RpcSetRole(RoleTypes.Crewmate, true);
-        }
+        /// <summary>The referee's player ID this game, if the slot is on (their role is decided in RoleChoice).</summary>
+        public static byte? RefereeId() => Referee()?.PlayerId;
 
-        /// <summary>After tasks are handed out: the referee gets none, so the task bar isn't held back.</summary>
-        public static void ClearTasks()
-        {
-            var referee = Referee();
-            referee?.Data?.RpcSetTasks(new Il2CppStructArray<byte>(0));
-        }
+        /// <summary>
+        /// While the game hands out tasks (ShipStatus.Begin): the referee's one task message carries
+        /// no tasks, so the task bar isn't held back. (A second, empty one afterwards got the host kicked.)
+        /// </summary>
+        public static bool HandingOutTasks;
 
         /// <summary>As the game starts: the referee becomes a ghost, with no body left behind.</summary>
         public static void MakeGhost()

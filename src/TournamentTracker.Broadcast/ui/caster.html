@@ -222,6 +222,10 @@ img.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 .05em;vert
 .hl .sim{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}.hl .sim .b{padding:3px 8px;font-size:13px}
 .hl .upd{color:#ffc15a;font-size:12px;margin-left:6px}
 .hl-int{display:grid;gap:5px;margin-top:8px}.hl-int:empty{display:none}
+.gr-list{display:grid;gap:5px;margin-top:8px}
+.gr{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 10px;border:1px solid var(--line);font-size:13px}
+.gr .st{font:700 10.5px/1 var(--round);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.gr .st.live{color:var(--good)}.gr .st.cut{color:var(--danger)}
 .hl-int .it{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 10px;border-radius:10px;border:1.5px solid var(--danger);font-size:13px}
 .hl-int .it .tag{font:700 10.5px/1 var(--round);letter-spacing:.1em;color:var(--danger)}
 .dcard .acts{display:flex;gap:6px;flex-wrap:wrap}
@@ -428,6 +432,12 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .inter-card .tag{background:var(--red);color:#fff}
 .roster-card summary b,.tw-grid h3{font:700 20px/1 var(--hand);letter-spacing:.06em;text-transform:uppercase}
 .lock-card{border-top:2px solid var(--red)}
+/* Next on stream: picked lobbies wait here until Send. */
+.stage-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding:8px 10px;border:1px dashed var(--line);border-radius:8px}
+.stage-bar.on{border-style:solid;border-color:var(--red);background:rgba(225,6,0,.08)}
+.stage-line{flex:1;min-width:0;font-size:13.5px;color:var(--muted)}
+.stage-bar.on .stage-line{color:var(--fg,#fff);font-weight:600}
+[data-layout].pick{outline:2px dashed var(--red);outline-offset:1px}
 /* Multiview picker: a live picture per lobby sending its game; click to pick (numbered in order), Send puts them on. */
 .mv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:10px}
 .mv-grid:empty::before{content:"Lobbies show here as their hosts turn on Send my game to the caster.";color:var(--muted);font-size:13px}
@@ -662,13 +672,14 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
       <div class="air-slots" id="air-slots"></div>
       <div class="air-pick" id="air-pick" hidden></div>
       <div class="lay-grp"><span class="lay-h">Views</span><button class="b" data-layout="full">Full</button><button class="b" data-layout="2up">2-Up</button><button class="b" data-layout="4up">Quad</button><button class="b" data-layout="grid" title="Every lobby at once (key G)">Grid</button><button class="b" id="desk-autogrid" title="Grid by itself whenever no lobby is mid-game">Auto grid</button></div>
+      <div class="stage-bar" id="stage-bar"><span class="lay-h">Next</span><span class="stage-line" id="stage-line">Click lobbies (cards, lobby list, tiles or 1–9), then Send.</span><button class="b" id="stage-clear" hidden>Clear</button><button class="b primary" id="stage-send" disabled title="Put the picked lobbies on stream (Enter)">Send</button></div>
       <div class="lay-grp brk"><span class="lay-h">Breaks</span><button class="b" data-layout="slate" title="Technical difficulties: be right back (standings and storylines take turns)">Be right back</button><button class="b" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" id="desk-autointer" title="Intermission by itself when every lobby is between games, and back when one starts">Auto intermission</button></div>
     </div>
   </div>
   <div class="card mv-card" id="mv-card" data-page="live">
     <div class="row" style="justify-content:space-between"><div><b>Multiview</b> <span class="muted" id="mv-line">Click the lobbies you want on stream, then Send.</span></div>
       <div class="row"><button class="b" id="mv-clear">Clear</button><button class="b primary" id="mv-send" disabled>Send</button></div></div>
-    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Click the lobbies you want on stream (they're numbered in the order you pick), then Send. 1 lobby goes full screen, 2 side by side, 4 in the quad, 3 or 5 and more in the grid.</p>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Click the lobbies you want on stream (they're numbered in the order you pick), then Send. 1 lobby goes full screen, 2 side by side, 3 or 4 in the quad, 5 and more in the grid. Clicking a lobby anywhere on the Live desk picks it the same way; nothing changes on stream until Send.</p>
     <div class="mv-grid" id="mv-grid"></div>
   </div>
   <div class="card cast-card" id="cast-card" hidden data-page="live">
@@ -683,6 +694,11 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
       <div class="row"><button class="b" id="hl-auto" title="Switch away from a lobby on stream that drops, even when you switch by hand">Auto switch</button><button class="b" id="hl-slate" title="Every lobby down: the be-right-back screen (off: intermission)">BRB screen</button><button class="b" id="hl-open" title="Thresholds and timings (health.json)">Thresholds</button></div></div>
     <div class="hl-list" id="hl-list"></div>
     <div class="hl-int" id="hl-int"></div>
+  </div>
+  <div class="card gr-card" id="gr-card" data-page="health">
+    <div><b>Game replays</b> <span class="muted">kept by Red Alert as each game is played</span></div>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Every host's mod sends its game's replay here as it goes, so a game can still be watched, to count, void or replay it, when the host's PC drops out before posting it. Watch opens the replay viewer (it shows the impostors: keep it off stream). Files: the "game-replays" folder next to Red Alert's settings.</p>
+    <div class="gr-list" id="gr-list"></div>
   </div>
   <div class="card obs-card" id="obs-card" data-page="obs">
     <div class="row" style="justify-content:space-between"><div><b>OBS</b> <span class="muted" id="obs-line">Not connected</span></div>
@@ -844,9 +860,27 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 const head = c => `/crew/${c >= 0 && c < 18 ? c : 15}.png`;
 let S = null;
 
+// Every button's call: anything that goes wrong is said (a toast), never silent. Reads (GET) poll quietly and throw.
 async function api(method, path, body) {
-  const r = await fetch(path, { method, headers: { 'X-App-Token': TOKEN, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
-  return r.json();
+  const quiet = method === 'GET';
+  let r, text;
+  try {
+    r = await fetch(path, { method, headers: { 'X-App-Token': TOKEN, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    text = await r.text();
+  } catch (e) {
+    if (quiet) throw e;
+    const msg = 'Red Alert didn\'t answer: ' + (e && e.message || e);
+    toast(msg); return { ok: false, message: msg };
+  }
+  let j = null;
+  try { j = JSON.parse(text); } catch (e) { j = null; }
+  if (!r.ok || j === null || typeof j !== 'object') {
+    const msg = `That didn't work (${r.status}${text ? ': ' + text.slice(0, 120) : ''}).`;
+    if (quiet) throw new Error(msg);
+    toast(msg); return { ok: false, message: msg };
+  }
+  if (!quiet && j.ok === false && j.message) toast(j.message);
+  return j;
 }
 function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 4200); }
 
@@ -869,12 +903,25 @@ async function loadDesk() {
   let r; try { r = await api('GET', '/app/admin/desk'); } catch (e) { return; }
   if (!r || !r.desk) return;
   DESK = r.desk; OBS = r.obs || null; RP = r.replay || null; ROSTER = r.roster || null; r_broadcast = r.broadcast || null; r_story = r.story || null; rpSync = performance.now();
-  PREVIEWS = r.previews || []; TWH = r.twitchHandles || {};
+  PREVIEWS = r.previews || []; TWH = r.twitchHandles || {}; GR = r.gameReplays || [];
   MONT = r.montages || null; MOMENTS = r.moments || []; SPON = r.sponsors || null; LVOICE = r.voice || null; TW = r.twitch || null;
   receivers(r.receivers || []);
   sendNames(r.names || {});
   if ($('caster').classList.contains('on')) renderDesk();
 }
+// ---- Game replays Red Alert keeps (sent by each host's mod as the game goes) -------------------
+let GR = [];
+const grFor = (lobby, game) => GR.find(g => g.name === game && (!lobby || g.lobby === lobby));
+// Opens the replay viewer on a kept game (impostors shown: this PC only, never on stream).
+function watchGame(id) { window.open('/viewer?src=' + encodeURIComponent(`/app/admin/gamereplay?id=${encodeURIComponent(id)}&token=${TOKEN}`), '_blank'); }
+document.addEventListener('click', e => { const w = e.target.closest('[data-grwatch]'); if (!w) return; e.stopPropagation(); watchGame(w.dataset.grwatch); });
+const grState = g => g.ended ? (g.voided ? 'VOID' : g.winner ? g.winner + ' win' : 'ended') : g.live ? 'being played' : 'stopped part way (host dropped)';
+function renderGameReplays() {
+  const html = GR.length ? GR.slice(0, 30).map(g => `<div class="gr"><b>${esc(g.name || g.id)}</b><span class="muted">${esc(g.lobby)}${g.round ? ' · round ' + g.round : ''}${g.map ? ' · ' + esc(g.map) : ''} · ${fmtShot(g.seconds || 0)}</span><span class="st ${g.cut ? 'cut' : g.live ? 'live' : ''}">${esc(grState(g))}</span><span style="flex:1"></span><button class="b" data-grwatch="${esc(g.id)}">Watch</button></div>`).join('')
+    : '<p class="muted" style="font-size:13px;margin:4px 0 0">None yet. Every game a host plays while sending to you is kept here as it\'s played, so it can be watched even if their PC drops out.</p>';
+  if ($('gr-list').innerHTML !== html) $('gr-list').innerHTML = html;
+}
+
 // One hidden VDO.Ninja link per sending lobby, for its data. Only messages from these frames are taken.
 const RECV = {};
 function receivers(list) {
@@ -912,10 +959,57 @@ addEventListener('message', e => {
     if (ack && Object.keys(ack).length && e.source) e.source.postMessage({ sendData: { ttack: ack }, type: 'rpcs' }, '*');
   }).catch(() => { });
 });
+// Nothing goes on stream from a click: lobbies are picked (numbered in order) and wait under Next
+// until Send. The layout follows how many are picked (1 full, 2 2-up, 3–4 quad, more grid) unless a
+// view button chose one. Breaks (Be right back, Intermission, a sponsor break) go on at once.
+let STAGE_LAYOUT = null, PICK = [];
 async function show(lobby, layout, slot) {
-  const r = await api('POST', '/app/admin/show', { lobby, layout: layout || 'full', slot: slot ? String(slot) : '' });
-  toast(r.message); loadDesk();
+  layout = layout || 'full';
+  if (['intermission', 'slate', 'break'].includes(layout)) {
+    const r = await api('POST', '/app/admin/show', { lobby, layout, slot: slot ? String(slot) : '' });
+    toast(r.message); loadDesk(); return;
+  }
+  if (layout === 'grid' && !lobby) { stageAll(); STAGE_LAYOUT = 'grid'; renderStage(); return; }
+  if (!lobby) return;
+  const i = PICK.indexOf(lobby);
+  if (layout === 'full' || i < 0) { if (i >= 0) PICK.splice(i, 1); else PICK.push(lobby); }
+  STAGE_LAYOUT = layout === 'full' ? STAGE_LAYOUT : layout;
+  if (!PICK.length) STAGE_LAYOUT = null;
+  renderStage();
 }
+const onlineLobbies = () => DESK ? DESK.lobbies.filter(l => l.online).map(l => l.lobby) : [];
+function stageAll() { PICK = onlineLobbies(); }
+const STAGE_NAME = { full: 'Full screen', '2up': '2-up', '4up': 'Quad', grid: 'Grid' };
+const SLOTS = { full: 1, '2up': 2, '4up': 4 };
+function stageLayout() { return STAGE_LAYOUT || (PICK.length <= 1 ? 'full' : PICK.length === 2 ? '2up' : PICK.length <= 4 ? '4up' : 'grid'); }
+function renderStage() {
+  const lay = stageLayout(), n = SLOTS[lay];
+  const left = n && PICK.length > n ? PICK.slice(n) : [];
+  $('stage-bar').classList.toggle('on', PICK.length > 0);
+  $('stage-send').disabled = !PICK.length;
+  $('stage-clear').hidden = !PICK.length;
+  $('stage-send').textContent = PICK.length ? `Send · ${STAGE_NAME[lay]}` : 'Send';
+  $('stage-line').textContent = PICK.length
+    ? PICK.map((l, i) => `${i + 1} ${l}`).join(' · ') + ` → ${STAGE_NAME[lay]}${left.length ? ` (${left.join(', ')} left out)` : ''}`
+    : 'Click lobbies (cards, lobby list, tiles or 1–9), then Send.';
+  document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('pick', PICK.length > 0 && b.dataset.layout === lay));
+  if (typeof renderPicker === 'function') renderPicker();
+}
+async function sendStage() {
+  if (!PICK.length) return;
+  const r = await api('POST', '/app/admin/multiview', { lobbies: PICK, layout: STAGE_LAYOUT || '' });
+  toast(r.message);
+  if (r.ok) { PICK = []; STAGE_LAYOUT = null; }
+  renderStage(); loadDesk();
+}
+function clearStage() { PICK = []; STAGE_LAYOUT = null; renderStage(); }
+$('stage-send').addEventListener('click', sendStage);
+$('stage-clear').addEventListener('click', clearStage);
+document.addEventListener('keydown', e => {
+  if (PAGE !== 'live' || /INPUT|TEXTAREA|SELECT|BUTTON/.test(document.activeElement.tagName)) return;
+  if (e.key === 'Enter' && PICK.length) { e.preventDefault(); sendStage(); }
+  else if (e.key === 'Escape' && PICK.length) { e.preventDefault(); clearStage(); }
+});
 // Replay button on a card: save one now, or play it once saved.
 function replayButton(c) {
   const st = c.clip && c.clip.state;
@@ -930,11 +1024,13 @@ const fmtShot = s => s >= 3600 ? `${Math.floor(s / 3600)}:${String(Math.floor(s 
 function renderOnAir() {
   const d = DESK; if (!d) return;
   const air = d.onAir, lobbies = air.slots.filter(Boolean);
-  const kind = air.layout === 'none' ? 'none' : ['intermission', 'slate', 'break'].includes(air.layout) ? 'brk' : 'live';
+  // A lobby layout with no lobby in it is an empty screen, not LIVE.
+  const empty = ['full', '2up', '4up', 'grid'].includes(air.layout) && lobbies.length === 0;
+  const kind = air.layout === 'none' || empty ? 'none' : ['intermission', 'slate', 'break'].includes(air.layout) ? 'brk' : 'live';
   const waiting = OBS && OBS.connected && OBS.switchingTo;
   $('onair').className = 'onair ' + (waiting ? 'wait' : kind);
-  $('oa-tag').textContent = waiting ? 'SWITCHING' : kind === 'live' ? (air.layout === 'replay' ? 'REPLAY' : 'LIVE') : kind === 'brk' ? 'BREAK' : 'OFF AIR';
-  $('oa-what').textContent = air.layout === 'none' ? (air.scene ? 'OBS: ' + air.scene : 'Nothing on stream') : `${LAYOUT_NAME[air.layout] || air.layout}${lobbies.length ? ' · ' + lobbies.join(' · ') : ''}`;
+  $('oa-tag').textContent = waiting ? 'SWITCHING' : empty ? 'EMPTY' : kind === 'live' ? (air.layout === 'replay' ? 'REPLAY' : 'LIVE') : kind === 'brk' ? 'BREAK' : 'OFF AIR';
+  $('oa-what').textContent = empty ? `Nothing on · ${LAYOUT_NAME[air.layout]} has no lobby` : air.layout === 'none' ? (air.scene ? 'OBS: ' + air.scene : 'Nothing on stream') : `${LAYOUT_NAME[air.layout] || air.layout}${lobbies.length ? ' · ' + lobbies.join(' · ') : ''}`;
   const sub = air.since ? `${air.by === 'obs' ? 'switched in OBS' : air.by === 'health' ? 'switched by itself (a lobby dropped)' : air.by === 'auto' ? 'switched by itself' : 'from here'}${air.scene ? ' · OBS scene ' + air.scene : ''}` : '';
   const prob = OBS && OBS.connected && OBS.switchProblem;
   const subNow = prob ? prob : waiting ? `Waiting for OBS to show ${OBS.switchingTo}…` : OBS && OBS.connected && air.layout !== 'none' && air.layout !== 'replay' && !air.scene ? 'Not confirmed by OBS yet' : sub;
@@ -950,6 +1046,9 @@ function renderOnAir() {
 function renderWarnings() {
   const w = [], o = OBS;
   if (o && o.connected && o.switchProblem) w.push(['bad', 'OBS didn\'t switch', o.switchProblem, '']);
+  // A lobby on stream with no picture in OBS: viewers see nothing there.
+  if (o && o.connected && o.missing) for (const [l, why] of Object.entries(o.missing))
+    w.push(['bad', `${l} isn't in OBS`, `${l} isn't in OBS: ${why}`, '<button class="b" data-fix="rebuild" title="Rebuild the TT scenes and its source">Fix</button>']);
   if (o && o.connected && o.desktopAudioOn && o.desktopAudioOn.length) w.push(['bad', 'Desktop Audio is on', `${o.desktopAudioOn.join(', ')} goes to the stream: Discord pings and Windows sounds can be heard.`, '<button class="b" data-fix="desktopAudio">Mute it</button>']);
   const ck = o && o.connected && o.checks ? Object.fromEntries(o.checks.map(c => [c.id, c])) : {};
   if (ck.replays && !ck.replays.ok) w.push(['', 'Replays won\'t save', ck.replays.title + '. See OBS → Setup check.', '<button class="b" data-gopage="obs">Setup check</button>']);
@@ -961,7 +1060,10 @@ function renderWarnings() {
 document.addEventListener('click', async e => {
   const g = e.target.closest('[data-gopage]'); if (g) { go(g.dataset.gopage); return; }
   const f = e.target.closest('[data-fix]'); if (!f) return;
-  const r = await api('POST', '/app/admin/obs', { action: 'fix', id: f.dataset.fix }); toast(r.message); loadDesk();
+  f.disabled = true;
+  const r = f.dataset.fix === 'rebuild' ? await api('POST', '/app/admin/obs', { action: 'build' }) : await api('POST', '/app/admin/obs', { action: 'fix', id: f.dataset.fix });
+  f.disabled = false;
+  toast(r.message); loadDesk();
 });
 // The big-graphics queue (one at a time on stream) and the after-game "show table?" prompts.
 const GQ_KIND = { afterGame: 'Table', playerCard: 'Card', storyline: 'Note', standings: 'Standings' };
@@ -1094,6 +1196,7 @@ function sysCard(c) {
     <div class="t1"><span class="tier">${{ lobbyDown: 'Lobby down', lobbyBack: 'Back', interrupted: 'Interrupted', replayGame: 'Replay game', twitchLobby: "Chat's pick" }[c.rule] || 'Notice'}</span><b>${esc(c.lobby)}</b>${c.onAir ? `<span class="live">${esc(c.onAir)}</span>` : ''}</div>
     <div class="play">${rich(c.text)}</div>
     <div class="t3"><span>${ago(c.ago)}</span></div>
+    ${c.rule === 'interrupted' ? (g => g ? `<div class="acts"><button class="b" data-grwatch="${esc(g.id)}" title="Red Alert's copy of the game's replay">Watch the game</button></div>` : '')(grFor(c.lobby, (/INTERRUPTED: (\S+)/.exec(c.text) || [])[1])) : ''}
     ${c.action && c.action.startsWith('show:') ? `<div class="acts"><button class="b primary" data-cardshow="${esc(c.action.slice(5))}">Put ${esc(c.action.slice(5))} on</button></div>` : ''}
     ${it ? `<div class="acts"><button class="b" data-decide="count" data-iid="${it}" title="Put it in the standings">Count</button><button class="b" data-decide="void" data-iid="${it}" title="Posts !void for it">Void</button><button class="b primary" data-decide="replay" data-iid="${it}" title="Void it; the lobby plays it again">Replay</button></div>` : ''}
   </div>`;
@@ -1108,18 +1211,19 @@ document.addEventListener('click', e => {
 const SIMFAIL = [['video', 'Video'], ['audio', 'Audio'], ['data', 'Data'], ['all', 'All'], ['lag', 'Lag'], ['crash', 'Crash']];
 let hlKey = '';
 function renderHealth(d) {
+  renderGameReplays();
   const h = d.health; if (!h) return;
   $('hl-card').hidden = !h.lobbies.length && !h.interrupted.length && !d.simulating;
   $('hl-auto').classList.toggle('on', !!h.settings.autoSwitch);
   $('hl-slate').classList.toggle('on', !!h.settings.slate);
   const red = h.lobbies.filter(x => x.level === 'red').length, yellow = h.lobbies.filter(x => x.level === 'yellow').length;
   $('hl-line').textContent = h.lobbies.length ? (red || yellow ? `${red ? red + ' down' : ''}${red && yellow ? ' · ' : ''}${yellow ? yellow + ' degraded' : ''}` : 'all good') : 'no lobbies yet';
-  const key = JSON.stringify([h, d.simulating]); if (key === hlKey) return; hlKey = key;
+  const key = JSON.stringify([h, d.simulating, GR.map(g => g.id)]); if (key === hlKey) return; hlKey = key;
   $('hl-list').innerHTML = h.lobbies.map(x => `<div class="hl ${x.level}"><span class="dot" title="${x.level}"></span><span class="nm">${esc(x.lobby)}</span>
       <span class="pr">${x.problems.length ? esc(x.problems.join(' · ')) : 'All good'}${x.lagMs != null && !x.problems.length ? ` <span class="muted" style="font-size:11.5px">· ${x.lagMs} ms lag</span>` : ''}${x.update ? ` <span class="upd" title="Their Button updates the mod by itself while Among Us is closed">${esc(x.update)}</span>` : ''}</span>
       <span class="sim">${d.simulating && x.sim ? SIMFAIL.map(([k, n]) => `<button class="b${x.sim[k] ? ' on' : ''}" data-hlsim="${k}" data-hllobby="${esc(x.lobby)}" title="Simulate a ${n.toLowerCase()} problem">${n}</button>`).join('') : ''}<button class="b" data-hlsim="reconnect" data-hllobby="${esc(x.lobby)}" title="${x.sim ? 'Everything comes back' : 'Reload this lobby\'s data link now'}">Reconnect</button>${x.level === 'red' && !x.sim ? `<button class="b" data-hlsim="forget" data-hllobby="${esc(x.lobby)}" title="Take it off the list (its referee has gone)">Forget</button>` : ''}</span></div>`).join('');
   $('hl-int').innerHTML = h.interrupted.filter(i => !i.decision).map(i => `<div class="it"><span class="tag">INTERRUPTED</span><b>${esc(i.game)}</b><span class="muted">round ${i.round} · ${esc(i.why)} · not in the standings</span><span style="flex:1"></span>
-      <button class="b" data-decide="count" data-iid="${i.id}">Count</button><button class="b" data-decide="void" data-iid="${i.id}">Void</button><button class="b primary" data-decide="replay" data-iid="${i.id}">Replay</button></div>`).join('');
+      ${(g => g ? `<button class="b" data-grwatch="${esc(g.id)}" title="Watch the game first (Red Alert's copy)">Watch</button>` : '')(grFor(i.lobby, i.game))}<button class="b" data-decide="count" data-iid="${i.id}">Count</button><button class="b" data-decide="void" data-iid="${i.id}">Void</button><button class="b primary" data-decide="replay" data-iid="${i.id}">Replay</button></div>`).join('');
 }
 $('hl-list').addEventListener('click', async e => {
   const b = e.target.closest('[data-hlsim]'); if (!b) return;
@@ -1204,18 +1308,28 @@ $('desk-history').addEventListener('click', e => {
   const w = e.target.closest('[data-watch]'); if (!w) return;
   api('POST', '/app/admin/watch', { id: w.dataset.watch }).then(r => { toast(r.message); loadDesk(); });
 });
+// A view button chooses the layout for the next Send (breaks go on at once). With nothing picked
+// it starts from what's on stream (Grid: every lobby sending).
 document.querySelectorAll('[data-layout]').forEach(b => b.addEventListener('click', () => {
-  const first = DESK && DESK.onAir.slots.find(x => x) || (DESK && DESK.lobbies[0] && DESK.lobbies[0].lobby) || '';
-  show(first, b.dataset.layout, 1);
+  const lay = b.dataset.layout;
+  if (['intermission', 'slate', 'break'].includes(lay)) { show('', lay); return; }
+  if (!PICK.length) {
+    if (lay === 'grid') stageAll();
+    else PICK = DESK ? DESK.onAir.slots.filter(Boolean) : [];
+    if (!PICK.length) PICK = onlineLobbies().slice(0, SLOTS[lay] || 99);
+  }
+  STAGE_LAYOUT = lay;
+  renderStage();
 }));
 // Clicking a lobby on stream (e.g. a grid tile) takes it full screen.
 $('air-slots').addEventListener('click', e => { const t = e.target.closest('[data-tile]'); if (t) show(t.dataset.tile, 'full'); });
 $('desk-autogrid').addEventListener('click', async () => { const r = await api('POST', '/app/admin/autogrid', { on: String(!(DESK && DESK.autoGrid)) }); toast(r.message); loadDesk(); });
 $('air-pick').addEventListener('change', async e => {
   const sel = e.target.closest('[data-slot]'); if (!sel || !DESK) return;
-  const slots = [...$('air-pick').querySelectorAll('[data-slot]')].map(x => x.value);
-  const r = await api('POST', '/app/admin/show', { lobby: '', layout: DESK.onAir.layout, slots });
-  toast(r.message); loadDesk();
+  // Rearranging slots is picked like anything else: it goes on with Send.
+  PICK = [...$('air-pick').querySelectorAll('[data-slot]')].map(x => x.value).filter(Boolean);
+  STAGE_LAYOUT = PICK.length ? DESK.onAir.layout : null;
+  renderStage();
 });
 let OBS = null;
 function renderObs() {
@@ -1589,7 +1703,7 @@ function renderGfx(g) {
 }
 // Graphics in three groups: what's always up, what comes up when something happens, and what you put up.
 const GFX_GROUPS = [
-  ['Always on', 'on the pictures all the time', ['lobbyLabels', 'impostorTags', 'sabotage', 'gridTiles', 'winCounter', 'top3', 'ticker', 'statusBar']],
+  ['Always on', 'on the pictures all the time', ['hideRoomCode', 'lobbyLabels', 'impostorTags', 'sabotage', 'gridTiles', 'winCounter', 'top3', 'ticker', 'statusBar']],
   ['Moments', 'come up by themselves', ['alerts', 'standingsChange', 'playerCards']],
   ['Info', 'up while on', ['standings', 'pointsOnTheLine', 'storyline']],
 ];
@@ -1707,8 +1821,7 @@ document.addEventListener('keydown', e => {
   if (!name) return;
   if (name === 'grid') {
     e.preventDefault();
-    if (DESK && DESK.onAir.layout === 'grid') { const top = DESK.lobbies.find(l => l.online); if (top) show(top.lobby, 'full'); }
-    else show('', 'grid');
+    show('', 'grid');
     return;
   }
   if (name === 'alertsPause') { e.preventDefault(); api('POST', '/app/admin/broadcast', { action: 'alerts' }).then(r => { toast(r.message); loadDesk(); }); return; }
@@ -1742,11 +1855,9 @@ setInterval(() => { if (S && S.admin && ($('caster').classList.contains('on') ||
 setInterval(() => { if (RP && RP.now && $('caster').classList.contains('on')) loadDesk(); }, 250);
 
 // ---- Multiview picker: pick lobbies by their picture, then Send ---------------------------------
-let PREVIEWS = [], TWH = {}, PICK = [], mvKey = '';
-const LAYOUT_FOR = n => n === 1 ? 'Full screen' : n === 2 ? '2-up' : n === 4 ? 'Quad' : 'Grid';
+let PREVIEWS = [], TWH = {}, mvKey = '';
 function renderPicker() {
   const grid = $('mv-grid');
-  PICK = PICK.filter(l => PREVIEWS.some(p => p.lobby === l));
   const key = PREVIEWS.map(p => p.lobby + '|' + p.url).join(';');
   if (key !== mvKey) {
     mvKey = key;
@@ -1758,7 +1869,7 @@ function renderPicker() {
       if (!el) {
         el = document.createElement('button'); el.className = 'mv'; el.dataset.lobby = p.lobby; el.dataset.url = p.url; el.type = 'button';
         el.innerHTML = `<div class="pv"><iframe src="${esc(p.url)}" allow="autoplay" tabindex="-1" title="${esc(p.lobby)}"></iframe></div><div class="nm"><span>${esc(p.lobby)}</span><small></small></div><span class="no" hidden></span><span class="air" hidden>ON AIR</span><span class="lno">${p.no || ''}</span><span class="exc" hidden></span>`;
-        el.onclick = () => { const i = PICK.indexOf(p.lobby); if (i >= 0) PICK.splice(i, 1); else PICK.push(p.lobby); renderPicker(); };
+        el.onclick = () => show(p.lobby, 'full');
       }
       grid.appendChild(el);
     }
@@ -1777,11 +1888,11 @@ function renderPicker() {
     const w = el.querySelector('.pv').clientWidth; if (w) f.style.transform = `scale(${w / 1920})`;
   });
   $('mv-send').disabled = !PICK.length;
-  $('mv-send').textContent = PICK.length ? `Send · ${LAYOUT_FOR(PICK.length)}` : 'Send';
-  $('mv-line').textContent = PICK.length ? `${PICK.join(', ')} → ${LAYOUT_FOR(PICK.length)}` : 'Pick lobbies, then Send.';
+  $('mv-send').textContent = PICK.length ? `Send · ${STAGE_NAME[stageLayout()]}` : 'Send';
+  $('mv-line').textContent = PICK.length ? `${PICK.join(', ')} → ${STAGE_NAME[stageLayout()]}` : 'Pick lobbies, then Send.';
 }
-$('mv-send').addEventListener('click', async () => { const r = await api('POST', '/app/admin/multiview', { lobbies: PICK }); toast(r.message); if (r.ok) PICK = []; loadDesk(); });
-$('mv-clear').addEventListener('click', () => { PICK = []; renderPicker(); });
+$('mv-send').addEventListener('click', sendStage);
+$('mv-clear').addEventListener('click', clearStage);
 addEventListener('resize', () => renderPicker());
 
 // ---- Help behind "?": each card's explanation opens on demand ---------------------------------

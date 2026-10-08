@@ -90,6 +90,9 @@ namespace TournamentTracker.Stats
         public Dictionary<byte, ReplayOutfit> Outfits { get; } = new Dictionary<byte, ReplayOutfit>();
         public int Frames => _frames.Count;
 
+        /// <summary>The frames from number <paramref name="index"/> on (for the caster's copy, sent as the game goes).</summary>
+        public List<double[]> FramesFrom(int index) => _frames.Skip(Math.Max(0, index)).ToList();
+
         /// <summary>Adds a frame at <paramref name="seconds"/> into the game (skipped if too soon after the last).</summary>
         public void Record(double seconds, IEnumerable<ReplayPosition> positions)
         {

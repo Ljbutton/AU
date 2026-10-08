@@ -385,6 +385,56 @@ namespace TournamentTracker
                 Snapshot(frame);
             }
             Track(game, frame, now);
+            ReplayFeed(now);
+        }
+
+        // ---- The game's replay, for the caster to keep -----------------------------------------
+        // Red Alert keeps its own copy of every game's replay, built from these as the game goes, so a
+        // game can still be watched (and judged) when the host's PC drops out before it's posted.
+        private string? _replayFeedGame;
+        private int _replaySentFrames, _replaySentEvents;
+        private bool _replaySentMap;
+        private DateTime _nextReplaySend;
+        /// <summary>How often the game's new replay frames go to the caster.</summary>
+        public static TimeSpan ReplayFeedEvery { get; set; } = TimeSpan.FromSeconds(2);
+
+        /// <summary>Sends the replay's new frames and timeline (every couple of seconds, and all of the rest when the game ends).</summary>
+        private void ReplayFeed(DateTime now, GameRecord? ended = null)
+        {
+            var r = _replay;
+            var game = ended ?? Tracker.Current;
+            if (r == null || game == null) return;
+            if (_replayFeedGame != game.Id) { _replayFeedGame = game.Id; _replaySentFrames = 0; _replaySentEvents = 0; _replaySentMap = false; }
+            if (ended == null && now < _nextReplaySend) return;
+            _nextReplaySend = now + ReplayFeedEvery;
+            var frames = r.FramesFrom(_replaySentFrames);
+            var events = game.Timeline.Skip(_replaySentEvents).ToList();
+            bool map = !_replaySentMap && r.Map != null;
+            if (ended == null && frames.Count == 0 && events.Count == 0 && !map) return;
+            _replaySentFrames += frames.Count;
+            _replaySentEvents += events.Count;
+            var data = new Dictionary<string, object?>
+            {
+                ["id"] = game.Id,
+                ["name"] = game.Name,
+                ["tournament"] = game.Tournament,
+                ["map"] = game.Map,
+                ["mapId"] = r.MapId,
+                // The frames' columns, in this order.
+                ["players"] = game.Players.Select(p => new { id = p.PlayerId, name = p.Name, color = p.ColorId, impostor = p.IsImpostor }).ToList(),
+                ["from"] = _replaySentFrames - frames.Count,
+                ["frames"] = frames,
+                ["events"] = events.Select(e => new { t = e.AtSeconds, kind = e.Kind, text = e.Text }).ToList(),
+            };
+            if (map)
+            {
+                // The walls, rooms and vents (not the map picture: too big to send).
+                data["geometry"] = new { walls = r.Map!.Walls, rooms = r.Map.Rooms, vents = r.Map.Vents };
+                _replaySentMap = true;
+            }
+            if (ended != null)
+                data["end"] = new { winner = game.Winner, endReason = game.EndReason, voided = game.Voided, points = game.Players.Select(p => new { id = p.PlayerId, points = p.Points }).ToList() };
+            Emit(FeedProtocol.Types.Replay, null, data);
         }
 
         // Where everyone is on the host's screen, a few times a second, for the caster's replays

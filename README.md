@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.27**, a beta.
+The current release is **v0.1.28**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -344,6 +344,9 @@ For an 11-player lobby that plays like 10 while the host referees: the host turn
 referee. At the start of every game the host becomes a ghost: never an impostor, no tasks, not in stats, points or automute (they can
 always talk). The host can zoom out with the **mouse wheel** or **+ / −** to see the
 whole map (for refereeing and streaming). The same switch turns it off; the choice is remembered.
+The mod sends each player's role and task list once, as the game itself does (Among Us's servers
+kick a host who sends a second one): the referee's place is taken into account before the roles go
+out.
 
 ## Red Alert (the broadcaster's app)
 
@@ -375,6 +378,18 @@ stream.
 * **Layouts:** **Views** (Full, 2-Up, Quad, Grid, Auto grid) and **Breaks** (Be right back,
   Intermission, Auto intermission, in amber) are separate rows, so a break isn't clicked by
   mistake.
+* **Pick, then Send:** clicking a lobby anywhere (a card, the lobby list, a tile, the Multiview
+  pictures, keys 1-9) picks it under **Next**, numbered in order; nothing changes on stream until
+  **Send** (or Enter; Esc clears). One lobby goes full screen, two side by side, three or four in
+  the quad, five and more in the grid; a **Views** button chooses the layout instead. Breaks go on
+  at once.
+* **On stream** says **EMPTY** (not LIVE) when a layout has no lobby in it, and the Live desk warns
+  when a lobby on stream isn't in OBS ("LJ isn't in OBS: …"), with **Fix** (it rebuilds the TT
+  scenes). No button fails silently: anything that goes wrong says why.
+* **OBS that keeps a removed source:** OBS can keep a removed source alive in the background,
+  still listed but refusing to go in a scene. Red Alert then makes a fresh one under a new name
+  ("TT Lobby LJ 2") and carries on; a source that can't be made is tried again after 30 s or on
+  Rebuild, never in a loop. No need to restart OBS.
 * **One order:** each lobby gets a number when it first connects and keeps it all session. The
   lobby cards, the Multiview tiles, keys **1-9** (that lobby full screen) and the stream use it;
   how exciting a lobby is shows as a badge and a glow, never by moving it. In 2-up, Quad and
@@ -512,6 +527,9 @@ the caster's PC and off stream.
     standings changes, storyline notes, off-screen alerts, the win counter and player cards.
   * The status bar (a cell per lobby along the bottom) is still there, off by default: the top 3
     and the ticker took its place.
+  * **Hide room code** (on by default): a "Room code hidden" box over the room code while a lobby
+    on stream is in its lobby or menu, so viewers can't join. Where it goes is `roomCodeBox` in
+    `broadcast.json` (shares of the game picture).
   * Graphics slide to their new places when the layout changes and fade in and out, so a switch
     is smooth under the swoosh.
 * **Grid:** every active lobby at once in **TT Grid** (1 full, 2 side by side, up to 4×4), each
@@ -520,7 +538,7 @@ the caster's PC and off stream.
   **Auto grid** brings it up whenever no lobby is mid-game.
 * **Multiview:** the **Multiview** card on the Live desk has a small live picture of every lobby
   sending its game. Click the ones you want (they're numbered in the order you pick), then
-  **Send**: one goes full screen, two side by side, four in the quad, three or five and more in
+  **Send**: one goes full screen, two side by side, three or four in the quad, five and more in
   the grid. Nothing changes on stream until you press Send.
 * **Stats and storylines:** every game is kept on the caster's PC (`broadcast-games`), and the
   **Standings & storylines** card lists talking points from them (records, streaks, first
@@ -594,6 +612,12 @@ the caster's PC and off stream.
   bot posts "voice in this channel may be recorded" in the lobby's voice channel chat. On older
   Windows, the referee ticks *Share system audio* instead (the old way: game sound and voice
   together, no separate levels).
+* **Game replays kept by Red Alert:** every host's mod sends its game's replay (positions, timeline,
+  walls) as the game is played, and Red Alert keeps it (`game-replays` next to its settings). So a
+  game can be watched, to count, void or replay it, even when the host's PC drops out before the
+  game is posted: the copy runs up to where the host stopped sending. **Lobby health → Game
+  replays** lists them with **Watch**; interrupted games have a Watch button too. It's the same
+  replay viewer as The Button's and shows the impostors: keep it off stream.
 * **Lobby drops:** the **Lobby health** card shows each lobby green (all good), yellow
   (degraded: no data for 3 s, sound silent for 2 min while sending voice, a voice problem, data
   2 s later than usual) or red (down: no data for 10 s, video lost for 3 s, data more than 8 s

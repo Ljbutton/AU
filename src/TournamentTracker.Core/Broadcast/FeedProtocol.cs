@@ -37,6 +37,7 @@ namespace TournamentTracker.Broadcast
             public const string Event = "event";    // something happened (Kinds)
             public const string Snap = "snap";      // the lobby's state, once a second
             public const string Track = "track";    // everyone's screen position, for replays, once a second
+            public const string Replay = "replay";  // the game's replay (map positions and timeline), every 2 s, for the caster to keep
             public const string Voice = "voice";    // from the host's page: lobby voice status (Part 11)
             public const string Health = "health";  // from the host's page: is the screen share sending pictures (Part 22)
             public const string Skip = "skip";      // from the host's page: a stand-in for an old snap/track it dropped while the link was down
@@ -80,7 +81,7 @@ namespace TournamentTracker.Broadcast
             message.ValueKind == JsonValueKind.Object && message.TryGetProperty(V, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out int n) ? n : 0;
 
         /// <summary>Messages the mod sends (the ones that say how up to date the host's game is).</summary>
-        public static bool FromMod(string? type) => type is Types.Event or Types.Snap or Types.Track;
+        public static bool FromMod(string? type) => type is Types.Event or Types.Snap or Types.Track or Types.Replay;
 
         /// <summary>What to tell the caster about a host on <paramref name="version"/>, or null when it's current.</summary>
         public static string? NeedsUpdate(int version) =>

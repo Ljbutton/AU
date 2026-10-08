@@ -178,6 +178,7 @@ namespace TournamentTracker.App.Broadcast
             Sponsors = new SponsorBook(dataFolder, _clock) { Hold = () => Simulating };
             Alerts = new AlertQueue(_clock, dataFolder == null ? null : System.IO.Path.Combine(dataFolder, "alerts.json"));
             Graphics = new GraphicsQueue(_clock);
+            Replays = new GameReplays(dataFolder == null ? null : System.IO.Path.Combine(dataFolder, "game-replays"), clock);
             if (config != null) _config = () => config;
             else
             {
@@ -268,6 +269,12 @@ namespace TournamentTracker.App.Broadcast
                         string? problem = item.TryGetProperty("problem", out var pr) && pr.ValueKind == JsonValueKind.String ? pr.GetString() : null;
                         Health.Audio(lobby, B("on") && B("sending"), N("voiceDb"), N("gameDb"), B("on") ? problem : null);
                     }
+                    return;
+                }
+                if (type == TournamentTracker.Broadcast.FeedProtocol.Types.Replay)
+                {
+                    // Red Alert's own copy of the game's replay (kept even if the host drops out).
+                    if (lobby.Length > 0) Replays.Add(lobby, item, IsSimLobby(lobby));
                     return;
                 }
                 if (type == "track")
@@ -405,6 +412,7 @@ namespace TournamentTracker.App.Broadcast
             Alerts.Forget(sim);
             Archive.Forget(sim);
             Tables.Forget(sim);
+            Replays.Forget(sim);
             lock (_lock)
             {
                 foreach (var c in _cards.Where(c => sim(c.Lobby)).ToList()) { _cards.Remove(c); _byPlay.Remove(c.PlayKey); }
@@ -709,6 +717,8 @@ namespace TournamentTracker.App.Broadcast
 
         /// <summary>Tables, player cards and storyline notes take turns on stream.</summary>
         public GraphicsQueue Graphics { get; }
+        /// <summary>Every game's replay as the hosts send it: watchable even if a host drops out before posting it.</summary>
+        public GameReplays Replays { get; }
         /// <summary>After a game: the lobby's table goes straight into the queue (the old way) instead of asking.</summary>
         public Func<bool> AfterGameAuto { get; set; } = () => false;
         /// <summary>The after-game table is switched on in Graphics at all.</summary>
@@ -877,15 +887,23 @@ namespace TournamentTracker.App.Broadcast
         /// Exactly these lobbies on stream, picked in the Multiview card: one full screen, two side by
         /// side, four in the quad, three or five and more in the grid (in the order they were picked).
         /// </summary>
-        public OnAir ShowPicked(IList<string> lobbies, string by = "button")
+        /// <summary>The layout picked lobbies go in: 1 full screen, 2 side by side, 3 or 4 the quad, more the grid.</summary>
+        public static string LayoutFor(int count) => count <= 1 ? "full" : count == 2 ? "2up" : count <= 4 ? "4up" : "grid";
+
+        /// <summary>
+        /// The lobbies picked on the Live desk, sent: in <paramref name="layout"/> when a view was chosen
+        /// (extra lobbies left out, empty slots left empty), else the layout for how many there are.
+        /// </summary>
+        public OnAir ShowPicked(IList<string> lobbies, string by = "button", string? layout = null)
         {
             var pick = lobbies.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            return pick.Count switch
+            if (pick.Count == 0) return OnAir;
+            List<string?> Fill(int n) { var s = pick.Take(n).Cast<string?>().ToList(); while (s.Count < n) s.Add(null); return s; }
+            return (layout is "full" or "2up" or "4up" or "grid" ? layout : LayoutFor(pick.Count)) switch
             {
-                0 => OnAir,
-                1 => Show(pick[0], "full", null, null, by),
-                2 => Show("", "2up", null, pick, by),
-                4 => Show("", "4up", null, pick, by),
+                "full" => Show(pick[0], "full", null, null, by),
+                "2up" => Show("", "2up", null, Fill(2), by),
+                "4up" => Show("", "4up", null, Fill(4), by),
                 _ => ShowGrid(by, pick),
             };
         }

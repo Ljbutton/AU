@@ -107,9 +107,26 @@ public class BroadcastTests : IDisposable
         var four = _desk.ShowPicked(new[] { "E", "B", "A", "C" });
         Assert.Equal("4up", four.Layout); Assert.Equal(new[] { "E", "B", "A", "C" }, four.Slots.ToArray());
         var three = _desk.ShowPicked(new[] { "B", "C", "E" });
-        Assert.Equal("grid", three.Layout);
-        Assert.Equal(new[] { "B", "C", "E" }, three.Slots.Where(x => x != null).ToArray());   // the fourth tile is left for a sponsor or the logo
-        Assert.Equal(5, _desk.ShowPicked(new[] { "A", "B", "C", "D", "E", "A" }).Slots.Count(x => x != null));
+        Assert.Equal("4up", three.Layout);                                                    // 3 or 4 picked: the quad
+        Assert.Equal(new string?[] { "B", "C", "E", null }, three.Slots.ToArray());          // the fourth quarter is left empty
+        var five = _desk.ShowPicked(new[] { "A", "B", "C", "D", "E", "A" });
+        Assert.Equal("grid", five.Layout);
+        Assert.Equal(5, five.Slots.Count(x => x != null));
+    }
+
+    [Fact]
+    public void A_view_chosen_before_Send_wins_over_the_count()
+    {
+        foreach (var x in new[] { "A", "B", "C", "D", "E" }) Snap(x);
+        var full = _desk.ShowPicked(new[] { "C", "A" }, layout: "full");
+        Assert.Equal(("full", "C"), (full.Layout, full.Slots[0]));
+        var two = _desk.ShowPicked(new[] { "E", "D", "C" }, layout: "2up");
+        Assert.Equal(new string?[] { "E", "D" }, two.Slots.ToArray());                       // extra lobbies left out
+        var quad = _desk.ShowPicked(new[] { "B" }, layout: "4up");
+        Assert.Equal(new string?[] { "B", null, null, null }, quad.Slots.ToArray());
+        Assert.Equal("grid", _desk.ShowPicked(new[] { "A", "B" }, layout: "grid").Layout);
+        Assert.Equal("2up", _desk.ShowPicked(new[] { "A", "B" }, layout: "nonsense").Layout);  // unknown: by the count
+        Assert.Equal(new[] { "full", "2up", "4up", "4up", "grid", "grid" }, new[] { 1, 2, 3, 4, 5, 9 }.Select(CasterDesk.LayoutFor));
     }
 
     [Fact]

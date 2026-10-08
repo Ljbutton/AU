@@ -45,6 +45,8 @@ namespace TournamentTracker
 
         private void FinishReplay(GameRecord game)
         {
+            // The last of it to the caster, with the result.
+            try { ReplayFeed(_clock(), game); } catch (Exception e) { _log.Warn("Replay for the caster: " + e.Message); }
             var replay = _replay;
             _replay = null;
             if (replay == null || replay.Frames == 0) return;

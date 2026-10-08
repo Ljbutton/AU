@@ -347,7 +347,34 @@ namespace TournamentTracker.App.Broadcast
         private static (int, string, byte[]) Text(int status, string type, string text) => (status, type, Encoding.UTF8.GetBytes(text));
         private static (int, string, byte[]) Ok(object value) => Text(200, "application/json", JsonSerializer.Serialize(value, Json));
 
+        /// <summary>Rebuild TT scenes (and the Live desk's Fix): every scene and source again, failed lobbies tried now.</summary>
+        internal async Task<object> RebuildAsync()
+        {
+            var obs = _obs!;
+            await obs.BuildAsync().ConfigureAwait(false);
+            await obs.EnsureReplaySceneAsync().ConfigureAwait(false);
+            await obs.EnsureBroadcastAsync().ConfigureAwait(false);
+            await obs.EnsureSwooshAsync().ConfigureAwait(false);
+            await obs.EnsureVoiceAsync().ConfigureAwait(false);
+            if (_desk != null && _desk.OnAir.Layout != "none") await obs.ApplyAsync(_desk.OnAir).ConfigureAwait(false);
+            var problems = obs.SourceProblems;
+            if (problems.Count > 0)
+                return new { ok = false, message = "Not in OBS: " + string.Join("; ", problems.Select(p => $"{p.Key} ({p.Value})")) };
+            var other = new[] { obs.Problem, obs.ReplayProblem, obs.SwooshProblem, obs.VoiceProblem }.FirstOrDefault(p => p != null && !p.StartsWith("Install", StringComparison.Ordinal) && !p.StartsWith("No swoosh", StringComparison.Ordinal));
+            return other != null ? new { ok = false, message = "The TT scenes are rebuilt, but: " + other } : (object)new { ok = true, message = "The TT scenes are up to date." };
+        }
+
+        /// <summary>Every request, answered: an action that throws says what went wrong instead of leaving its button silent.</summary>
         internal async Task<(int Status, string Type, byte[] Body)> Route(string method, string path, Dictionary<string, string> headers, string body)
+        {
+            try { return await RouteCore(method, path, headers, body).ConfigureAwait(false); }
+            catch (Exception e) when (path.StartsWith("/app/", StringComparison.Ordinal))
+            {
+                return Ok(new { ok = false, message = "That didn't work: " + e.Message });
+            }
+        }
+
+        private async Task<(int Status, string Type, byte[] Body)> RouteCore(string method, string path, Dictionary<string, string> headers, string body)
         {
             // Only this computer, by name: stops a web page reaching us through DNS tricks.
             headers.TryGetValue("host", out var host);
@@ -357,6 +384,16 @@ namespace TournamentTracker.App.Broadcast
             string query = path.Contains('?') ? path.Substring(path.IndexOf('?') + 1) : "";
             if (method == "GET" && (route == "/" || route == "/index.html"))
                 return Text(200, "text/html; charset=utf-8", Resource("ui/caster.html").Replace("__APP_TOKEN__", Token));
+            // The replay viewer (the same as The Button's): it loads a kept game with ?src=.
+            if (method == "GET" && route == "/viewer")
+                return Text(200, "text/html; charset=utf-8",
+                    "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Replay</title></head><body style=\"margin:0\">"
+                    + Resource("ui/viewer-body.html") + "</body></html>");
+            // The replay viewer (the same as The Button's): it loads a kept game with ?src=.
+            if (method == "GET" && route == "/viewer")
+                return Text(200, "text/html; charset=utf-8",
+                    "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Replay</title></head><body style=\"margin:0\">"
+                    + Resource("ui/viewer-body.html") + "</body></html>");
             var font = Regex.Match(route, @"^/fonts/([a-z0-9-]+\.woff2)$");
             if (method == "GET" && font.Success)
             {
@@ -406,7 +443,7 @@ namespace TournamentTracker.App.Broadcast
                         twitch = _twitch?.State(),
                         broadcast = _broadcast == null ? null : new { url = _caster?.Url == null ? null : _caster.Url + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem, alerts = _desk.Alerts.Settings, alertsWaiting = _desk.Alerts.Waiting, queue = _desk.Graphics.State(), afterGame = _desk.PromptState(), afterGameAuto = _broadcast.Settings.Current.AfterGameAuto, hold = _broadcast.Settings.Current.GraphicSeconds },
                         names = _caster!.DataLinks().ToDictionary(d => d.Lobby, d => _desk.NamesFor(d.Lobby)), receivers = _caster.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList(),
-                        previews = Previews(), twitchHandles = _desk.Board.Ranking().ToDictionary(r => r.Lobby, r => _desk.TwitchOf(r.Lobby)) });
+                        previews = Previews(), gameReplays = _desk.Replays.List(), twitchHandles = _desk.Board.Ranking().ToDictionary(r => r.Lobby, r => _desk.TwitchOf(r.Lobby)) });
                 case ("POST", "/app/admin/feedin"):
                     if (_desk == null) return Ok(new { ok = false });
                 {
@@ -507,7 +544,14 @@ namespace TournamentTracker.App.Broadcast
                     List<string>? slots = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("slots", out var ss) && ss.ValueKind == JsonValueKind.Array
                         ? ss.EnumerateArray().Select(x => x.ValueKind == JsonValueKind.String ? x.GetString() ?? "" : "").ToList() : null;
                     var air = _desk.Show(Arg("lobby"), layout, slot, slots);
-                    return Ok(new { ok = true, message = air.Layout == "full" ? $"{Arg("lobby")} is on stream." : $"On stream: {string.Join(", ", air.Slots.Select(x => x ?? "empty"))}." });
+                    return Ok(new { ok = true, message = air.Layout switch
+                    {
+                        "full" => $"{air.Slots.FirstOrDefault() ?? Arg("lobby")} is on stream.",
+                        "slate" => "On stream: Be right back.",
+                        "intermission" => "On stream: Intermission.",
+                        "break" => $"On stream: sponsor break with {air.Slots.FirstOrDefault()}.",
+                        _ => air.Slots.Any(x => x != null) ? $"On stream: {string.Join(", ", air.Slots.Select(x => x ?? "empty"))}." : "Nothing on stream.",
+                    } });
                 }
                 case ("POST", "/app/admin/watch"):
                 {
@@ -545,10 +589,8 @@ namespace TournamentTracker.App.Broadcast
                             return Ok(new { ok = true, message = "Disconnected from OBS." });
                         case "build":
                             if (!_obs.Connected) return Ok(new { ok = false, message = "Connect to OBS first." });
-                            await _obs.BuildAsync().ConfigureAwait(false);
-                            await _obs.EnsureSwooshAsync().ConfigureAwait(false);
-                            if (_desk != null && _desk.OnAir.Layout != "none") await _obs.ApplyAsync(_desk.OnAir).ConfigureAwait(false);
-                            return Ok(new { ok = true, message = "The TT scenes are up to date." });
+                            try { return Ok(await RebuildAsync().ConfigureAwait(false)); }
+                            catch (Exception e) { return Ok(new { ok = false, message = "Rebuilding the TT scenes didn't work: " + e.Message }); }
                         default:
                         {
                             int? port = int.TryParse(Arg("port"), out var pt) ? pt : (int?)null;
@@ -803,13 +845,21 @@ namespace TournamentTracker.App.Broadcast
                     if (Arg("scope").Length > 0) _desk.StandingsScope = Arg("scope") is "overall" or "round" ? Arg("scope") : "lobby";
                     if (Arg("show").Length > 0) _broadcast?.Settings.Set("standings", Arg("show") == "true");
                     return Ok(new { ok = true, message = Arg("show") == "true" ? "Standings on stream." : Arg("show") == "false" ? "Standings off stream." : $"Standings: {(_desk.StandingsScope == "overall" ? "whole tournament" : _desk.StandingsScope == "round" ? "the round, every lobby" : "the lobby on stream")}." });
+                case ("GET", "/app/admin/gamereplays"):
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    return Ok(new { games = _desk.Replays.List() });
+                case ("GET", "/app/admin/gamereplay"):
+                {
+                    var file = _desk?.Replays.File(HttpRequest.Query(query, "id"));
+                    return file == null ? Text(404, "text/plain", "Not found") : (200, "application/octet-stream", file);
+                }
                 case ("POST", "/app/admin/multiview"):
                 {
                     if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
                     var pick = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("lobbies", out var pl) && pl.ValueKind == JsonValueKind.Array
                         ? pl.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString() ?? "").ToList() : new List<string>();
                     if (pick.Count == 0) return Ok(new { ok = false, message = "Pick one or more lobbies first." });
-                    var air = _desk.ShowPicked(pick);
+                    var air = _desk.ShowPicked(pick, "button", Arg("layout").Length > 0 ? Arg("layout") : null);
                     string how = air.Layout switch { "full" => "Full screen", "2up" => "2-up", "4up" => "Quad", "grid" => "Grid", _ => air.Layout };
                     return Ok(new { ok = true, message = $"On stream ({how}): {string.Join(", ", air.Slots.Where(x => x != null))}." });
                 }
