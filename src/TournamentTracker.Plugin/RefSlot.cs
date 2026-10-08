@@ -33,14 +33,21 @@ namespace TournamentTracker.Plugin
         public static bool HandingOutTasks;
 
         /// <summary>As the game starts: the referee becomes a ghost, with no body left behind.</summary>
+        /// <remarks>
+        /// No "exiled" (or kill) message: sent outside a meeting it got the host kicked from the room
+        /// at the start of every game. Instead the host, who keeps everyone's player record, marks the
+        /// referee dead there (it reaches every player with the next update, so meetings, kills and the
+        /// win check all treat them as dead), and the host's own game makes them a ghost. No ghost role
+        /// is sent either (that would be a second role message for them).
+        /// </remarks>
         public static void MakeGhost()
         {
             var referee = Referee();
             if (referee == null || referee.Data == null || referee.Data.IsDead) return;
-            var writer = AmongUsClient.Instance.StartRpcImmediately(referee.NetId, (byte)RpcCalls.Exiled, SendOption.Reliable, -1);
-            AmongUsClient.Instance.FinishRpcImmediately(writer);
-            referee.Exiled();
-            TournamentPlugin.Logger.Info($"Referee ghost: {referee.Data.PlayerName} is now a ghost.");
+            referee.Die(DeathReason.Exile, false);
+            referee.Data.IsDead = true;
+            referee.Data.SetDirtyBit(uint.MaxValue);
+            TournamentPlugin.Logger.Info($"Referee ghost: {referee.Data.PlayerName} is now a ghost (marked dead in the player record, no exile sent).");
         }
     }
 
