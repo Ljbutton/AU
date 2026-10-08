@@ -56,6 +56,67 @@ namespace TournamentTracker.App.Broadcast
         private readonly Dictionary<string, Card> _downCards = new Dictionary<string, Card>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, (string Game, int Round)> _playing = new Dictionary<string, (string, int)>(StringComparer.OrdinalIgnoreCase);
         private readonly List<Interruption> _interruptions = new List<Interruption>();
+        // Auto switch reacts once per outage (each time a lobby goes down), and an outage is "handled" once auto switch moved off it, or the caster put the lobby on while down
+        // (or pressed Keep). A switch by hand always wins until the lobby comes back and drops again.
+        // An outage is known by when it started (the lobby's DownSince).
+        private readonly Dictionary<string, DateTime> _handled = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        private OnAir? _seenAir;
+
+        /// <summary>What auto switch last did, for the Live desk's banner (with Undo), or null.</summary>
+        public AutoSwitchNote? AutoSwitched { get; private set; }
+
+        public sealed class AutoSwitchNote
+        {
+            public string Lobby { get; set; } = "";
+            public string Why { get; set; } = "";
+            public string To { get; set; } = "";
+            public DateTime At { get; set; }
+            public OnAir Previous { get; set; } = new OnAir();
+            public string Text => $"Auto switch: {Lobby}: {Why} → {To}";
+        }
+
+        /// <summary>Down, in an outage auto switch hasn't dealt with yet (and the caster hasn't chosen to keep it).</summary>
+        private bool FreshlyDown(string lobby)
+        {
+            if (!IsDown(lobby) || Health.Status(lobby).DownSince is not { } since) return false;
+            lock (_lock) return !_handled.TryGetValue(lobby, out var h) || h != since;
+        }
+
+        private void Handled(string lobby)
+        {
+            if (Health.Lobbies.Contains(lobby, StringComparer.OrdinalIgnoreCase) && Health.Status(lobby).DownSince is { } since)
+                lock (_lock) _handled[lobby] = since;
+        }
+
+        /// <summary>"LJ is down: no data for 244s." for each lobby in the list that's down (for the caster's switch), or "".</summary>
+        public string DownNote(IEnumerable<string?> lobbies) =>
+            string.Concat(lobbies.Where(l => l != null && IsDown(l)).Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(l => $" {l} is down: {string.Join(", ", Health.Status(l!).Problems)}."));
+
+        /// <summary>
+        /// Undo on the auto switch banner: back to what was on, and auto switch leaves that lobby alone
+        /// until it comes back and drops again. Null when there's nothing to undo.
+        /// </summary>
+        public OnAir? UndoAutoSwitch()
+        {
+            var note = AutoSwitched;
+            if (note == null) return null;
+            AutoSwitched = null;
+            var p = note.Previous;
+            foreach (var l in p.Slots.Where(x => x != null)) Handled(l!);
+            var lobbies = p.Slots.Where(x => x != null).Select(x => x!).ToList();
+            var back = p.Layout switch
+            {
+                "grid" => ShowGrid("button", lobbies),
+                "2up" or "4up" => Show("", p.Layout, null, p.Slots.Select(x => x ?? "").ToList(), "button"),
+                _ when lobbies.Count > 0 => Show(lobbies[0], p.Layout is "break" ? "break" : "full", null, null, "button"),
+                _ => OnAir,
+            };
+            lock (_lock) _seenAir = back;
+            return back;
+        }
+
+        public void DismissAutoSwitch() => AutoSwitched = null;
         private int _interruptionSeq;
 
         /// <summary>
@@ -260,29 +321,42 @@ namespace TournamentTracker.App.Broadcast
             {
                 lock (_lock) if (_downCards.TryGetValue(lobby, out var dc)) { dc.Expires = now; _downCards.Remove(lobby); }
                 SystemCard(lobby, "lobbyBack", "high", $"{lobby} is back.", 60, 60);
+                if (AutoSwitched?.Lobby.Equals(lobby, StringComparison.OrdinalIgnoreCase) == true) AutoSwitched = null;
             }
+            if (AutoSwitched is { } note && (now - note.At).TotalMinutes > 10) AutoSwitched = null;
 
             var air = OnAir;
+            // The caster (or anything but auto switch) put a lobby on while it's down: their choice wins
+            // for this outage.
+            bool fresh;
+            lock (_lock) { fresh = !ReferenceEquals(air, _seenAir); _seenAir = air; }
+            if (fresh && air.By != "health")
+                foreach (var l in air.Slots.Where(x => x != null && IsDown(x)))
+                    if (Health.Status(l!).DownSince is { } since && since <= air.Since) Handled(l!);   // already down when chosen
+
             bool changed = false;
             string? moved = null;
+            string? from = null;
             if (s.AutoSwitch)
             {
                 switch (air.Layout)
                 {
-                    case "full" or "break" when air.Slots.FirstOrDefault() is { } on && IsDown(on):
+                    case "full" or "break" when air.Slots.FirstOrDefault() is { } on && FreshlyDown(on):
+                        from = on;
                         moved = AwayFrom(on);
                         changed = true;
                         break;
                     case "2up" or "4up":
                     {
                         var live = air.Slots.Where(x => x != null).Select(x => x!).ToList();
-                        if (live.Count > 0 && live.All(IsDown)) { moved = AwayFrom(live[0]); changed = true; break; }
+                        if (live.Count > 0 && live.All(IsDown) && live.Any(FreshlyDown)) { from = live.First(FreshlyDown); moved = AwayFrom(live[0]); changed = true; break; }
                         // A tile down for a while: the next lobby takes its place.
                         var slots = air.Slots.ToList();
                         bool swap = false;
                         for (int i = 0; i < slots.Count; i++)
                         {
-                            if (slots[i] is not { } l || !DownLong(l)) continue;
+                            if (slots[i] is not { } l || !DownLong(l) || !FreshlyDown(l)) continue;
+                            Handled(l);
                             slots[i] = Board.Ranking().Where(r => r.Online && !IsDown(r.Lobby) && r.Phase != "menu" && !slots.Contains(r.Lobby, StringComparer.OrdinalIgnoreCase)).Select(r => r.Lobby).FirstOrDefault();
                             swap = true;
                         }
@@ -290,14 +364,25 @@ namespace TournamentTracker.App.Broadcast
                         break;
                     }
                     case "grid":
-                        if (air.Slots.Any(x => x != null) && GridLobbies().All(IsDown)) { moved = AwayFrom(null); changed = true; }
+                    {
+                        var grid = GridLobbies().Concat(air.Slots.Where(x => x != null).Select(x => x!)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                        if (air.Slots.Any(x => x != null) && grid.All(IsDown) && grid.Any(FreshlyDown)) { from = grid.First(FreshlyDown); moved = AwayFrom(null); changed = true; }
                         break;
+                    }
                     case "slate" when air.By == "health":
                         // Something to show again: the top lobby if it's worth it, else the grid.
                         if (Board.Ranking().Any(r => r.Online && !IsDown(r.Lobby) && r.Phase != "menu")) { AwayFrom(null); changed = true; }
                         break;
                 }
             }
+            if (from != null && moved != null)
+            {
+                // Once per outage: every lobby that was on and is down now counts as dealt with.
+                foreach (var l in air.Slots.Where(x => x != null && IsDown(x))) Handled(l!);
+                Handled(from);
+                AutoSwitched = new AutoSwitchNote { Lobby = from, Why = string.Join(", ", Health.Status(from).Problems), To = moved, At = now, Previous = air };
+            }
+            if (changed) lock (_lock) _seenAir = OnAir;
             foreach (var lobby in wentDown)
             {
                 var st = Health.Status(lobby);

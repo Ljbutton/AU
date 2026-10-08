@@ -1126,6 +1126,7 @@ namespace TournamentTracker.App.Broadcast
                     Problem = _file?.Problem,
                     AutoGrid,
                     Health = HealthState(),
+                    AutoSwitched = AutoSwitched is { } asw ? new { asw.Lobby, asw.Text, At = asw.At.ToString("o") } : null,
                     Intermission = new { On = _onAir.Layout == "intermission", Offer = IntermissionOffer, Auto = AutoIntermission, Live = LiveDuringIntermission, NextRoundAt = NextRoundAt?.ToString("o"), Montage = QueuedMontage?.Title },
                     WinScope, Wins = new { Impostors = Wins().Impostors, Crew = Wins().Crew },
                     Break = Break is { } br ? new { Sponsor = br.Sponsor.Name, Left = Math.Max(0, (int)Math.Ceiling((br.Until - now).TotalSeconds)), br.Lobby } : null,

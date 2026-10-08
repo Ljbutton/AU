@@ -226,6 +226,84 @@ public class LobbyHealthTests : IDisposable
         Assert.Equal("intermission", _desk.OnAir.Layout);                                             // between games: intermission, not the slate
     }
 
+    private int HealthSwitches() => _switched.Count(a => a.By == "health");
+    private void Ticks(int n, params string[] sending) { for (int i = 0; i < n; i++) { _clock.Advance(1); foreach (var l in sending) Snap(l); _desk.Tick(); } }
+
+    [Fact]
+    public void A_lobby_the_caster_puts_on_while_its_already_down_stays_on()
+    {
+        Snap("LJ");
+        Ticks(15);                                                        // LJ goes red with nothing on stream
+        Assert.True(_desk.IsDown("LJ"));
+        foreach (var layout in new[] { "full", "2up", "4up" })
+        {
+            _desk.Show("LJ", layout);
+            Ticks(65);
+            Assert.Equal(layout, _desk.OnAir.Layout);                     // the caster's choice wins, every tick
+            Assert.Equal("LJ", _desk.OnAir.Slots[0]);
+        }
+        Assert.Contains("LJ is down: ", _desk.DownNote(_desk.OnAir.Slots));               // still said, on the switch
+        Assert.Contains("no data for", _desk.DownNote(_desk.OnAir.Slots));
+        _desk.ShowGrid("button", new[] { "LJ" });
+        Ticks(65);
+        Assert.Equal("grid", _desk.OnAir.Layout);                         // not sent off to intermission
+        Assert.Equal(0, HealthSwitches());
+        Assert.Null(_desk.AutoSwitched);
+    }
+
+    [Fact]
+    public void A_lobby_that_drops_while_on_stream_is_left_once_and_not_again_until_a_fresh_outage()
+    {
+        Snap("LJ");
+        _desk.Show("LJ");
+        Ticks(12);                                                        // drops on stream
+        Assert.Equal(1, HealthSwitches());
+        Assert.NotEqual("full", _desk.OnAir.Layout);
+        var note = _desk.AutoSwitched!;
+        Assert.Equal("LJ", note.Lobby);
+        Assert.StartsWith("Auto switch: LJ: ", note.Text);
+        Assert.Contains("no data for", note.Text);
+        Assert.Contains("→", note.Text);
+        Assert.Equal("LJ", note.Previous.Slots[0]);
+        var desk = JsonSerializer.SerializeToElement(_desk.State(), Camel).GetProperty("autoSwitched");
+        Assert.Equal(note.Text, desk.GetProperty("text").GetString());
+
+        // The caster puts it back by hand: it stays, the same outage never moves it again.
+        _desk.Show("LJ");
+        Ticks(70);
+        Assert.Equal(("full", "LJ"), (_desk.OnAir.Layout, _desk.OnAir.Slots[0]));
+        Assert.Equal(1, HealthSwitches());
+
+        // It comes back (the banner goes), then drops again: a fresh outage, moved once more.
+        Snap("LJ"); Video("LJ", "ok");
+        Ticks(5, "LJ");
+        Assert.False(_desk.IsDown("LJ"));
+        Assert.Null(_desk.AutoSwitched);
+        Ticks(12);
+        Assert.Equal(2, HealthSwitches());
+        Assert.NotEqual("full", _desk.OnAir.Layout);
+        Ticks(60);
+        Assert.Equal(2, HealthSwitches());                                // and only once
+    }
+
+    [Fact]
+    public void Undo_puts_back_what_the_caster_had_and_keeps_it_there()
+    {
+        Snap("LJ"); Snap("MAL");
+        _desk.Show("", "2up", null, new[] { "LJ", "MAL" });
+        Ticks(12);                                                        // both drop: auto switch moves off them
+        Assert.Equal(1, HealthSwitches());
+        Assert.Equal("LJ", _desk.AutoSwitched!.Lobby);
+        var back = _desk.UndoAutoSwitch()!;
+        Assert.Equal(("2up", "button"), (back.Layout, back.By));
+        Assert.Equal(new string?[] { "LJ", "MAL" }, back.Slots.ToArray());
+        Assert.Null(_desk.AutoSwitched);
+        Ticks(70);
+        Assert.Equal("2up", _desk.OnAir.Layout);
+        Assert.Equal(1, HealthSwitches());
+        Assert.Null(_desk.UndoAutoSwitch());                             // nothing more to undo
+    }
+
     [Fact]
     public void A_dropped_lobby_keeps_its_grid_tile_for_a_while_then_the_rest_close_up()
     {

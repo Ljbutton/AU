@@ -507,7 +507,9 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
 .onair.live .oa-tag::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;background:#fff;margin-right:8px;vertical-align:4px;animation:hlb 1.2s infinite}
 .oa-what{font:700 38px/1 var(--hand);letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .oa-sub{color:var(--muted);font-size:13px;margin-top:3px;min-height:1em}
-.oa-sub.bad{color:#ff5a50;font-weight:600}
+.oa-sub.bad,#oa-sub.bad{color:#ff5a50;font-weight:600}
+.oa-auto{display:inline-block;margin-left:10px;padding:1px 7px;border:1px solid var(--good);color:var(--good);font:700 10.5px/1.4 var(--round);letter-spacing:.12em;text-transform:uppercase;vertical-align:1px}
+button.b.sw-onoff:not(.on){background:transparent;color:var(--muted);border-color:var(--line)}
 .oa-audio,.oa-time{display:grid;justify-items:end;gap:2px}
 .oa-audio span,.oa-time span{font:600 10.5px/1 "Segoe UI",sans-serif;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
 .oa-audio b{font:700 24px/1 var(--hand);letter-spacing:.05em;text-transform:uppercase}
@@ -647,7 +649,7 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
   <div class="desk-top" data-page="live">
     <div class="onair none" id="onair" aria-live="polite">
       <div class="oa-tag" id="oa-tag">OFF AIR</div>
-      <div class="oa-main"><div class="oa-what" id="oa-what">Nothing on stream</div><div class="oa-sub" id="oa-sub"></div></div>
+      <div class="oa-main"><div class="oa-what" id="oa-what">Nothing on stream</div><div class="oa-sub"><span id="oa-sub"></span><span class="oa-auto" id="oa-auto" hidden title="Lobby health: when a lobby on stream drops, Red Alert switches away from it once">Auto switch ON</span></div></div>
       <div class="oa-audio" id="oa-audio" title="Whose lobby voice the stream hears"><span>Audio</span><b id="oa-heard">—</b></div>
       <div class="oa-time" title="How long this shot has been on (resets on every switch)"><span>Shot</span><b id="oa-timer">0:00</b></div>
     </div>
@@ -691,7 +693,7 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
   </div>
   <div class="card hl-card" id="hl-card" hidden data-page="health">
     <div class="row" style="justify-content:space-between"><div><b>Lobby health</b> <span class="muted" id="hl-line"></span></div>
-      <div class="row"><button class="b" id="hl-auto" title="Switch away from a lobby on stream that drops, even when you switch by hand">Auto switch</button><button class="b" id="hl-slate" title="Every lobby down: the be-right-back screen (off: intermission)">BRB screen</button><button class="b" id="hl-open" title="Thresholds and timings (health.json)">Thresholds</button></div></div>
+      <div class="row"><button class="b sw-onoff" id="hl-auto" title="When a lobby on stream drops, switch away from it once (a lobby you put on yourself while it's down stays on)">Auto switch: OFF</button><button class="b" id="hl-slate" title="Every lobby down: the be-right-back screen (off: intermission)">BRB screen</button><button class="b" id="hl-open" title="Thresholds and timings (health.json)">Thresholds</button></div></div>
     <div class="hl-list" id="hl-list"></div>
     <div class="hl-int" id="hl-int"></div>
   </div>
@@ -972,6 +974,8 @@ async function show(lobby, layout, slot) {
   if (layout === 'grid' && !lobby) { stageAll(); STAGE_LAYOUT = 'grid'; renderStage(); return; }
   if (!lobby) return;
   const i = PICK.indexOf(lobby);
+  const sick = i < 0 && DESK && DESK.health && (DESK.health.lobbies || []).find(x => x.lobby === lobby && x.level === 'red');
+  if (sick) toast(`${lobby} is down: ${sick.problems.join(', ')}. It still goes on when you Send.`);
   if (layout === 'full' || i < 0) { if (i >= 0) PICK.splice(i, 1); else PICK.push(lobby); }
   STAGE_LAYOUT = layout === 'full' ? STAGE_LAYOUT : layout;
   if (!PICK.length) STAGE_LAYOUT = null;
@@ -1035,6 +1039,7 @@ function renderOnAir() {
   const prob = OBS && OBS.connected && OBS.switchProblem;
   const subNow = prob ? prob : waiting ? `Waiting for OBS to show ${OBS.switchingTo}…` : OBS && OBS.connected && air.layout !== 'none' && air.layout !== 'replay' && !air.scene ? 'Not confirmed by OBS yet' : sub;
   $('oa-sub').textContent = subNow; $('oa-sub').classList.toggle('bad', !!prob);
+  $('oa-auto').hidden = !(d.health && d.health.settings && d.health.settings.autoSwitch);
   const o = LVOICE && LVOICE.obs;
   const heard = !o ? '—' : o.muteAll ? 'Muted' : o.on === false ? 'Voice off' : o.heard || 'None';
   $('oa-heard').textContent = heard; $('oa-heard').className = o && o.muteAll ? 'muted' : '';
@@ -1046,6 +1051,12 @@ function renderOnAir() {
 function renderWarnings() {
   const w = [], o = OBS;
   if (o && o.connected && o.switchProblem) w.push(['bad', 'OBS didn\'t switch', o.switchProblem, '']);
+  // What auto switch just did, and Undo (back to what you had; it leaves that lobby alone until it comes back and drops again).
+  const asw = DESK && DESK.autoSwitched;
+  if (asw) w.push(['bad', 'Auto switch', asw.text, `<button class="b primary" data-asw="undo" title="Put back what you had; auto switch leaves ${esc(asw.lobby)} alone until it comes back and drops again">Undo / keep ${esc(asw.lobby)}</button><button class="b" data-asw="dismiss">OK</button>`]);
+  // A lobby on stream that's down (you chose it, or auto switch is off): say so.
+  const downOn = DESK ? DESK.onAir.slots.filter(Boolean).map(l => (DESK.health && DESK.health.lobbies || []).find(x => x.lobby === l && x.level === 'red')).filter(Boolean) : [];
+  for (const x of downOn) w.push(['', `${x.lobby} is down`, `${x.lobby} is down: ${x.problems.join(', ')}. It's on stream because you chose it.`, '']);
   // A lobby on stream with no picture in OBS: viewers see nothing there.
   if (o && o.connected && o.missing) for (const [l, why] of Object.entries(o.missing))
     w.push(['bad', `${l} isn't in OBS`, `${l} isn't in OBS: ${why}`, '<button class="b" data-fix="rebuild" title="Rebuild the TT scenes and its source">Fix</button>']);
@@ -1058,6 +1069,8 @@ function renderWarnings() {
   if ($('desk-warn').innerHTML !== html) $('desk-warn').innerHTML = html;
 }
 document.addEventListener('click', async e => {
+  const a = e.target.closest('[data-asw]');
+  if (a) { const r = await api('POST', '/app/admin/autoswitch', { action: a.dataset.asw }); if (a.dataset.asw === 'undo') toast(r.message); loadDesk(); return; }
   const g = e.target.closest('[data-gopage]'); if (g) { go(g.dataset.gopage); return; }
   const f = e.target.closest('[data-fix]'); if (!f) return;
   f.disabled = true;
@@ -1215,6 +1228,7 @@ function renderHealth(d) {
   const h = d.health; if (!h) return;
   $('hl-card').hidden = !h.lobbies.length && !h.interrupted.length && !d.simulating;
   $('hl-auto').classList.toggle('on', !!h.settings.autoSwitch);
+  $('hl-auto').textContent = h.settings.autoSwitch ? 'Auto switch: ON' : 'Auto switch: OFF';
   $('hl-slate').classList.toggle('on', !!h.settings.slate);
   const red = h.lobbies.filter(x => x.level === 'red').length, yellow = h.lobbies.filter(x => x.level === 'yellow').length;
   $('hl-line').textContent = h.lobbies.length ? (red || yellow ? `${red ? red + ' down' : ''}${red && yellow ? ' · ' : ''}${yellow ? yellow + ' degraded' : ''}` : 'all good') : 'no lobbies yet';
