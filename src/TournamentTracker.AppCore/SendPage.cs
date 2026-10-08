@@ -29,8 +29,11 @@ footer{color:var(--muted);font-size:13px;display:flex;gap:14px}
 #voice .st{font-weight:600}
 #drop{display:none;padding:9px 16px;background:#5a1f24;color:#fff;font-weight:600}
 #drop.on{display:block}
+#gone{display:none;padding:16px;background:#8a1520;color:#fff;font-weight:700;font-size:18px;text-align:center}
+#gone.on{display:block}
 body.dropped{grid-template-rows:auto auto 1fr auto auto}
 </style></head><body>
+<div id=""gone"">Live game data isn't reaching The Button. If The Button restarted (an update), click <u>Open again</u> in The Button (Home → Send my game to the caster), then close this tab. The video still goes out.</div>
 <div id=""drop"">Disconnected from caster, reconnecting… Keep playing: nothing is lost, it's all sent when the link is back.</div>
 <header id=""howto"">Sending your game to the caster. Below, press the share button and pick <b>Entire screen</b>. Then leave this tab open while you play.</header>
 <iframe id=""v"" allow=""camera;microphone;display-capture;autoplay;fullscreen;clipboard-write""></iframe>
@@ -49,13 +52,26 @@ const PROTOCOL=1;   // the broadcast feed's version (FeedProtocol.Version, docs/
 const q=p=>p+(p.includes('?')?'&':'?')+'token='+encodeURIComponent(token);
 const v=document.getElementById('v');
 let pushUrl=null,since=null,sent=0,lastOk=0,lobby=null,twitch=null;
+// Reaching The Button: a 401 means it restarted with a new link (an old version), anything else that it's
+// closed or busy. Never silent: the footer says so after 5 s, and the caster is told (health: data 'lost').
+let feedFailSince=0,buttonGone=false;
+async function getJson(path){
+  const r=await fetch(q(path),{cache:'no-store'});
+  if(r.status===401||r.status===403){buttonGone=true;throw new Error('The Button restarted');}
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  return r.json();
+}
+function feedOk(){feedFailSince=0;buttonGone=false;}
+function feedFailed(){if(!feedFailSince)feedFailSince=Date.now();}
+const feedLost=()=>buttonGone||(feedFailSince&&Date.now()-feedFailSince>5000);
 async function info(){
   try{
-    const r=await (await fetch(q('/app/sendinfo'),{cache:'no-store'})).json();
+    const r=await getJson('/app/sendinfo');
+    feedOk();
     twitch=r.twitch||null;
     if(r.pushUrl&&r.pushUrl!==pushUrl){pushUrl=r.pushUrl;v.src=pushUrl;publishVoice();}
     document.getElementById('link').textContent=pushUrl?'Video link ready.':'Waiting for Among Us with ""Send my game to the caster"" on.';
-  }catch(e){}
+  }catch(e){feedFailed();}
 }
 function send(items){ if(v.contentWindow) v.contentWindow.postMessage({sendData:{tt:items},type:'pcs'},'*'); }
 // Part 22: every message from Among Us is kept until the caster says it arrived, and sent again (with its
@@ -79,7 +95,8 @@ function resend(){
 }
 async function pump(){
   try{
-    const d=await (await fetch(q('/app/sendfeed?since='+(since??0)),{cache:'no-store'})).json();
+    const d=await getJson('/app/sendfeed?since='+(since??0));
+    feedOk();
     if(d.last<0)return;
     if(since===null||d.last<since){since=d.last;return;}   // start from now (and again if Among Us restarted)
     since=d.last;
@@ -90,14 +107,16 @@ async function pump(){
       send(d.items);
       sent+=d.items.length;lastOk=Date.now();
     }
-  }catch(e){}
+  }catch(e){feedFailed();}
   resend();
+  const lost=feedLost();
+  document.getElementById('gone').classList.toggle('on',!!lost);
   // The banner: only after the caster has been connected, when something has waited over 5 seconds.
   const waiting=queue.length&&Date.now()-queue[0].first>5000;
   const down=everAcked&&waiting;
   document.getElementById('drop').classList.toggle('on',down);document.body.classList.toggle('dropped',down);
   const el=document.getElementById('data');
-  el.textContent=!lastOk?'':down?`Live data: ${queue.length} waiting to send`:everAcked?`Live data: ${sent} sent`:`Live data: ${sent} sent · waiting for the caster to connect`;el.className=lastOk&&!down&&Date.now()-lastOk<5000?'ok':down?'bad':'';
+  el.textContent=lost?'Live data: not reaching The Button':!lastOk?'':down?`Live data: ${queue.length} waiting to send`:everAcked?`Live data: ${sent} sent`:`Live data: ${sent} sent · waiting for the caster to connect`;el.className=lost?'bad':lastOk&&!down&&Date.now()-lastOk<5000?'ok':down?'bad':'';
 }
 function ack(a){
   // {run of the mod: last message the caster has}
@@ -117,7 +136,7 @@ function gotStats(st){
   if(f>frames||kbps>0){stillFor=0;video='ok';}else if(++stillFor>=2)video='lost';
   frames=f;
 }
-function health(){ if(lobby) send([{v:PROTOCOL,type:'health',lobby,t:Date.now(),video,queued:queue.length},{v:PROTOCOL,type:'host',lobby,t:Date.now(),twitch}]); }
+function health(){ if(lobby) send([{v:PROTOCOL,type:'health',lobby,t:Date.now(),video,data:feedLost()?'lost':'ok',queued:queue.length},{v:PROTOCOL,type:'host',lobby,t:Date.now(),twitch}]); }
 setInterval(()=>{askStats();health();},2000);
 // The caster switches this lobby's spectator view (lit map, vision, ""!"", eye): only ""spec …"" commands are taken.
 addEventListener('message',e=>{

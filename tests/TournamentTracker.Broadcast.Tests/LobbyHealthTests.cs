@@ -304,6 +304,68 @@ public class LobbyHealthTests : IDisposable
         Assert.Null(_desk.UndoAutoSwitch());                             // nothing more to undo
     }
 
+    private void Page(string lobby, string video, string? data = null) =>
+        _desk.Apply(JsonSerializer.Serialize(new { type = "health", lobby, t = Ms(_clock.Now), video, data }));
+
+    [Fact]
+    public void A_send_page_that_never_got_game_data_says_so_in_plain_words()
+    {
+        // Health reports only (the page lost The Button before any game data): no overflowed number.
+        Page("LJ", "unknown");
+        _clock.Advance(1);
+        var st = _desk.Health.Status("LJ");
+        Assert.Equal("red", st.Level);
+        Assert.Contains("never sent game data", st.Problems);
+        Assert.DoesNotContain(st.Problems, p => p.Contains("-"));
+        Assert.Null(st.DataAge);
+        Assert.Null(_desk.Health.DataAge("LJ"));
+
+        // Video going out, but no game data: the host's page lost The Button.
+        Page("LJ", "ok");
+        var why = Assert.Single(_desk.Health.Status("LJ").Problems);
+        Assert.Equal("video OK, but no game data (the host's send page lost The Button: they should click Open again)", why);
+
+        // Data that stopped (not never): the page says it lost The Button.
+        Snap("MAL");
+        for (int i = 0; i < 12; i++) { _clock.Advance(1); Page("MAL", "unknown", "lost"); }
+        Assert.Contains(_desk.Health.Status("MAL").Problems, p => p.StartsWith("video OK, but no game data"));
+        // And plain silence still reads as before.
+        Snap("KAI");
+        _clock.Advance(12);
+        Assert.Contains("no data for 12s", _desk.Health.Status("KAI").Problems);
+    }
+
+    [Fact]
+    public void A_game_is_only_interrupted_when_the_host_doesnt_come_back_and_cleared_if_it_carries_on()
+    {
+        Send("LJ", "event", "gameStart", new { });
+        Snap("LJ");
+        // Data stops: red at 10 s, but not interrupted within the next minute.
+        for (int i = 0; i < 65; i++) { _clock.Advance(1); Page("LJ", "ok"); _desk.Tick(); }
+        Assert.True(_desk.IsDown("LJ"));
+        Assert.Empty(_desk.Interruptions);
+        Assert.DoesNotContain(Cards(), c => c.GetProperty("rule").GetString() == "interrupted");
+
+        // Still nothing after the red threshold plus a minute: interrupted.
+        for (int i = 0; i < 10; i++) { _clock.Advance(1); _desk.Tick(); }
+        var it = Assert.Single(_desk.Interruptions);
+        Assert.Equal("LJ-1", it.Game);
+        Assert.Contains("didn't come back", it.Why);
+        Assert.Contains(Cards(), c => c.GetProperty("rule").GetString() == "interrupted");
+
+        // The host's page reconnects and the same game carries on: the mark and its card go.
+        Snap("LJ");
+        _desk.Tick();
+        Assert.Empty(_desk.Interruptions);
+        Assert.DoesNotContain(Cards(), c => c.GetProperty("rule").GetString() == "interrupted");
+        Assert.Contains(Cards(), c => c.GetProperty("text").GetString()!.Contains("LJ-1 carries on"));
+        // A "restarted mid-game" that turns out to be the same game carrying on is taken back too.
+        Snap("LJ", "lobby");
+        Assert.Single(_desk.Interruptions);
+        Snap("LJ");
+        Assert.Empty(_desk.Interruptions);
+    }
+
     [Fact]
     public void A_dropped_lobby_keeps_its_grid_tile_for_a_while_then_the_rest_close_up()
     {

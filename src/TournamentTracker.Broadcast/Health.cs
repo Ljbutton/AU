@@ -23,6 +23,8 @@ namespace TournamentTracker.App.Broadcast
         public bool AutoSwitch { get; set; } = true;
         /// <summary>A lobby down this long leaves the grid (the rest close up); until then its tile says RECONNECTING.</summary>
         public double ReflowAfterSeconds { get; set; } = 45;
+        /// <summary>A game whose lobby sends no data for the red threshold plus this long (the host didn't come back) is marked interrupted.</summary>
+        public double InterruptAfterSeconds { get; set; } = 60;
         /// <summary>Nothing left to show: the "be right back" slate (or intermission between games).</summary>
         public bool Slate { get; set; } = true;
         /// <summary>Data this much older than now (sent again after a drop) still counts for stats, not as live.</summary>
@@ -82,6 +84,8 @@ namespace TournamentTracker.App.Broadcast
             public double? LastDelayMs;
             public readonly List<(DateTime At, double Ms)> Delays = new List<(DateTime, double)>();
             public string Video = "unknown";
+            /// <summary>What the send page says about the game data reaching it from The Button ("ok", "lost").</summary>
+            public string DataLink = "ok";
             public DateTime VideoAt, VideoBadSince;
             public bool VoiceOn;
             public DateTime LastLoud, VoiceAt;
@@ -129,12 +133,13 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>The referee's send page says whether its screen share is sending video ("ok", "lost", "unknown").</summary>
-        public void Video(string lobby, string state)
+        public void Video(string lobby, string state, string? data = null)
         {
             var now = _clock();
             lock (_lock)
             {
                 var t = Get(lobby);
+                if (data != null) t.DataLink = data;
                 if (state == "lost" && t.Video != "lost") t.VideoBadSince = now;
                 t.Video = state;
                 t.VideoAt = now;
@@ -160,9 +165,11 @@ namespace TournamentTracker.App.Broadcast
         public void Forget(Func<string, bool> which) { lock (_lock) foreach (var k in _lobbies.Keys.Where(which).ToList()) _lobbies.Remove(k); }
 
         /// <summary>The lobby's last data arrived this long ago (null: never).</summary>
-        public double? DataAge(string lobby) { lock (_lock) return _lobbies.TryGetValue(lobby, out var t) ? (_clock() - t.LastData).TotalSeconds : null; }
+        public double? DataAge(string lobby) { lock (_lock) return _lobbies.TryGetValue(lobby, out var t) && t.LastData != default ? (_clock() - t.LastData).TotalSeconds : null; }
 
         public List<string> Lobbies { get { lock (_lock) return _lobbies.Keys.ToList(); } }
+
+        private static long Secs(double age) => (long)Math.Min(age, 999999);
 
         public HealthStatus Status(string lobby)
         {
@@ -172,16 +179,23 @@ namespace TournamentTracker.App.Broadcast
             {
                 var st = new HealthStatus { Lobby = lobby };
                 if (!_lobbies.TryGetValue(lobby, out var t)) { st.Level = "red"; st.Problems.Add("never connected"); return st; }
-                double age = (now - t.LastData).TotalSeconds;
-                st.DataAge = Math.Round(age, 1);
+                // Heard from (the send page's health reports) but never any game data: no age to speak of.
+                bool never = t.LastData == default;
+                double age = never ? double.PositiveInfinity : (now - t.LastData).TotalSeconds;
+                st.DataAge = never ? null : Math.Round(age, 1);
                 int level = 0;
                 void Bad(int l, string why) { level = Math.Max(level, l); st.Problems.Add(why); }
-                if (age >= s.DataRedSeconds) Bad(2, $"no data for {(int)age}s");
-                else if (age >= s.DataYellowSeconds) Bad(1, $"no data for {(int)age}s");
-
                 // Video: only what the referee's page last said, and only while it's still talking to us.
                 bool videoFresh = (now - t.VideoAt).TotalSeconds < Math.Max(10, s.DataRedSeconds);
                 st.Video = videoFresh ? t.Video : "unknown";
+                if (age >= s.DataRedSeconds)
+                {
+                    // The page still sends video but no game data: it has lost The Button (restarted, say).
+                    if (videoFresh && (t.Video == "ok" || t.DataLink == "lost"))
+                        Bad(2, "video OK, but no game data (the host's send page lost The Button: they should click Open again)");
+                    else Bad(2, never ? "never sent game data" : $"no data for {Secs(age)}s");
+                }
+                else if (age >= s.DataYellowSeconds) Bad(1, $"no data for {Secs(age)}s");
                 if (videoFresh && t.Video == "lost" && (now - t.VideoBadSince).TotalSeconds >= s.VideoRedSeconds) Bad(2, "video lost");
 
                 bool voiceFresh = (now - t.VoiceAt).TotalSeconds < Math.Max(10, s.DataRedSeconds);

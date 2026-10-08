@@ -179,6 +179,34 @@ public class AppTests : IDisposable
     }
 
     [Fact]
+    public async Task The_send_page_keeps_working_after_The_Button_restarts()
+    {
+        var env = new AppEnvironment
+        {
+            SettingsFile = Path.Combine(_dir.Path, "app", "app.json"), SteamRoot = Path.Combine(_dir.Path, "none"),
+            EpicManifests = Path.Combine(_dir.Path, "none"), Fallbacks = Array.Empty<string>(), Downloads = Path.Combine(_dir.Path, "Downloads"),
+        };
+        string token; int port;
+        using (var first = new AppServer(env, new HttpClient(new FakeHttp()))) { token = first.Token; port = first.Port; }
+        // Restarted (an update): the same link, so the open "Send my game to the caster" tab still reaches it.
+        using var again = new AppServer(env, new HttpClient(new FakeHttp()));
+        Assert.Equal(token, again.Token);
+        Assert.Equal(port, again.Port);
+        using var page = new HttpClient();
+        var feed = await page.GetAsync($"http://127.0.0.1:{port}/app/sendfeed?since=0&token={Uri.EscapeDataString(token)}");
+        Assert.Equal(HttpStatusCode.OK, feed.StatusCode);
+        // A link from an older Button (another token) is refused, and the page says so instead of going quiet.
+        var old = await page.GetAsync($"http://127.0.0.1:{port}/app/sendfeed?since=0&token=old");
+        Assert.Equal(HttpStatusCode.Unauthorized, old.StatusCode);
+        string html = SendPage.Html;
+        Assert.Contains("r.status===401", html);
+        Assert.Contains("Live data: not reaching The Button", html);
+        Assert.Contains("click <u>Open again</u> in The Button", html);
+        Assert.Contains("data:feedLost()?'lost':'ok'", html);          // and the caster is told
+        Assert.DoesNotContain("}catch(e){}\n  resend();", html);     // pump no longer swallows the error
+    }
+
+    [Fact]
     public async Task A_32_bit_loader_is_repaired_by_itself()
     {
         string game = Game(Path.Combine(_dir.Path, "Steam", "steamapps", "common", "Among Us"), 0x8664);

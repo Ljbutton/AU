@@ -246,7 +246,8 @@ namespace TournamentTracker.App.Broadcast
                 }
                 if (type == "health")
                 {
-                    if (lobby.Length > 0 && item.TryGetProperty("video", out var vs) && vs.ValueKind == JsonValueKind.String) Health.Video(lobby, vs.GetString() ?? "unknown");
+                    string? dataLink = item.TryGetProperty("data", out var dl) && dl.ValueKind == JsonValueKind.String ? dl.GetString() : null;
+                    if (lobby.Length > 0 && item.TryGetProperty("video", out var vs) && vs.ValueKind == JsonValueKind.String) Health.Video(lobby, vs.GetString() ?? "unknown", dataLink);
                     return;
                 }
                 bool resent = item.TryGetProperty("re", out var re) && re.ValueKind is JsonValueKind.True or JsonValueKind.Number;

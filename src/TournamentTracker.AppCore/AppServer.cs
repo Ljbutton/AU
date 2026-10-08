@@ -51,6 +51,13 @@ namespace TournamentTracker.App
         /// <summary>The host's Twitch channel: shown on the tournament stream with their lobby (sent with their game).</summary>
         public string? Twitch { get; set; }
 
+        /// <summary>
+        /// The Button's own token and port, kept across restarts (an update, say), so an open "Send my game
+        /// to the caster" tab keeps reaching it. Made the first time.
+        /// </summary>
+        public string? AppToken { get; set; }
+        public int AppPort { get; set; }
+
         public static AppSettings Load(string file)
         {
             try { if (File.Exists(file)) return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(file)) ?? new AppSettings(); }
@@ -194,12 +201,19 @@ namespace TournamentTracker.App
                 var found = Candidates().FirstOrDefault();
                 if (found != null) { _settings.GamePath = found.Path; TrySave(); }
             }
-            var bytes = new byte[18];
-            using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(bytes);
-            Token = Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_');
-            _listener = new TcpListener(IPAddress.Loopback, 0);
-            _listener.Start();
+            // The same token and port as last time when possible, so the send page (open in the browser)
+            // keeps working after The Button restarts.
+            if (string.IsNullOrEmpty(_settings.AppToken) || _settings.AppToken!.Length < 16)
+            {
+                var bytes = new byte[18];
+                using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(bytes);
+                _settings.AppToken = Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_');
+            }
+            Token = _settings.AppToken!;
+            _listener = Listen(_settings.AppPort);
             Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
+            if (_settings.AppPort != Port) _settings.AppPort = Port;
+            TrySave();
             Task.Run(AcceptLoop);
             StartOrganizer();
             // The bot stays online while The Button is open; the mod reaches Discord through it.
@@ -210,6 +224,20 @@ namespace TournamentTracker.App
         public DiscordBridge Bridge => _bridge;
 
         public string? GamePath => _settings.GamePath;
+
+        /// <summary>The port used last time if it's free, else any.</summary>
+        private static TcpListener Listen(int port)
+        {
+            if (port > 0 && port < 65536)
+            {
+                var l = new TcpListener(IPAddress.Loopback, port);
+                try { l.Start(); return l; }
+                catch (SocketException) { }
+            }
+            var any = new TcpListener(IPAddress.Loopback, 0);
+            any.Start();
+            return any;
+        }
 
         private List<GameInstall> Candidates() => GameLocator.Find(_env.SteamRoot, _env.EpicManifests, _env.Fallbacks);
 

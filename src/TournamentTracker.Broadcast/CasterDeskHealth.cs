@@ -223,6 +223,9 @@ namespace TournamentTracker.App.Broadcast
             string? kind = m.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? k.GetString() : null;
             string game = m.TryGetProperty("game", out var g) && g.ValueKind == JsonValueKind.String ? g.GetString() ?? "" : "";
             int round = m.TryGetProperty("round", out var r) && r.ValueKind == JsonValueKind.Number ? r.GetInt32() : 0;
+            // The same game carrying on (data back after a drop): it wasn't interrupted after all.
+            bool live = type == "event" ? kind != "gameEnd" : type == "snap" && m.TryGetProperty("phase", out var lp) && lp.GetString() is "ingame" or "meeting";
+            if (live && game.Length > 0) Resumed(lobby, game, round);
             (string Game, int Round)? was;
             lock (_lock) was = _playing.TryGetValue(lobby, out var p) ? p : null;
             if (type == "event" && kind == "gameStart")
@@ -257,6 +260,38 @@ namespace TournamentTracker.App.Broadcast
             card.Interruption = it.Id;
             it.CardId = card.Id;
             Interrupted?.Invoke(it);
+        }
+
+        /// <summary>A game marked interrupted (and not decided yet) is being played again: take the mark off and follow it.</summary>
+        private void Resumed(string lobby, string game, int round)
+        {
+            Interruption? it;
+            lock (_lock)
+            {
+                it = _interruptions.FirstOrDefault(x => x.Decision == null && x.Game == game && x.Lobby.Equals(lobby, StringComparison.OrdinalIgnoreCase));
+                if (it == null) return;
+                _interruptions.Remove(it);
+                if (it.CardId != null && _cards.FirstOrDefault(c => c.Id == it.CardId) is { } card) card.Expires = _clock();
+                _playing[lobby] = (game, it.Round > 0 ? it.Round : round);
+            }
+            SystemCard(lobby, "lobbyBack", "high", $"{game} carries on: it isn't interrupted after all.", 60, 60);
+        }
+
+        /// <summary>
+        /// A game whose lobby has sent no data for the red threshold and then the grace time (the host
+        /// didn't come back): interrupted. Data back for the same game takes it off again (Resumed).
+        /// </summary>
+        private void CheckSilentGames()
+        {
+            List<(string Lobby, string Game, int Round)> playing;
+            lock (_lock) playing = _playing.Select(kv => (kv.Key, kv.Value.Game, kv.Value.Round)).ToList();
+            foreach (var (lobby, game, round) in playing)
+            {
+                var age = Health.DataAge(lobby);
+                if (age == null || age < HealthConfig.DataRedSeconds + HealthConfig.InterruptAfterSeconds) continue;
+                lock (_lock) _playing.Remove(lobby);
+                Interrupt(lobby, game, round, $"no game data for {(int)age}s and the host didn't come back", _clock());
+            }
         }
 
         /// <summary>Games kept out of the standings: interrupted and not counted.</summary>
@@ -325,6 +360,7 @@ namespace TournamentTracker.App.Broadcast
             }
             if (AutoSwitched is { } note && (now - note.At).TotalMinutes > 10) AutoSwitched = null;
 
+            CheckSilentGames();
             var air = OnAir;
             // The caster (or anything but auto switch) put a lobby on while it's down: their choice wins
             // for this outage.
