@@ -44,7 +44,7 @@ body.dropped{grid-template-rows:auto auto 1fr auto auto}
   <label class=""src""><input type=""checkbox"" id=""mic""> Include my microphone</label>
   <label class=""src""><input type=""checkbox"" id=""von""> Send lobby voice</label>
 </div>
-<footer><span id=""link"">Connecting to Among Us…</span><span id=""data""></span></footer>
+<footer><span id=""link"">Connecting to Among Us…</span><span id=""data""></span><span id=""cam""></span></footer>
 <script src=""https://unpkg.com/@vdoninja/sdk/vdoninja-sdk.min.js""></script>
 <script>
 const token=new URLSearchParams(location.search).get('token')||'';
@@ -70,6 +70,10 @@ async function info(){
     feedOk();
     twitch=r.twitch||null;
     if(r.pushUrl&&r.pushUrl!==pushUrl){pushUrl=r.pushUrl;v.src=pushUrl;publishVoice();}
+    const wantCam=!!(r.cam&&pushUrl);
+    if(wantCam!==camOn){camOn=wantCam;if(!camOn)stopCam();}
+    if(camOn)publishCam();
+    const ce=document.getElementById('cam');ce.textContent=!camOn?'':camProblem||(camVdo?`Player camera: sending (${camFrames} pictures)`:'Player camera: starting…');ce.className=camProblem?'bad':camVdo?'ok':'';
     document.getElementById('link').textContent=pushUrl?'Video link ready.':'Waiting for Among Us with ""Send my game to the caster"" on.';
   }catch(e){feedFailed();}
 }
@@ -241,6 +245,69 @@ document.getElementById('lv').oninput=e=>save({voiceLevel:e.target.value/100});
 document.getElementById('lg').oninput=e=>save({gameLevel:e.target.value/100});
 document.getElementById('mic').onchange=e=>save({mic:String(e.target.checked)});
 document.getElementById('von').onchange=e=>{ if(!e.target.checked&&vdo){ try{vdo.disconnect();}catch(x){} vdo=null; } save({on:String(e.target.checked)}); };
+// ---- The player camera ----------------------------------------------------------------------------
+// Red Alert can turn on a second picture from your game that follows one player up close (you don't
+// pick who, the caster does). A worker gets each picture from The Button (workers aren't slowed down
+// while this tab is in the background) and it goes to the caster as its own stream. Nothing shows here.
+let camOn=false,camVdo=null,camPublishing=null,camWorker=null,camWriter=null,camCanvas=null,camRetryAt=0,camProblem='',camFrames=0;
+const CAM_WORKER=`let on=false,after=0,base='',token='';
+onmessage=e=>{const d=e.data;if(d.base){base=d.base;token=d.token;}if('on' in d){const was=on;on=d.on;if(on&&!was)loop();}};
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+async function loop(){
+  while(on){
+    try{
+      const r=await fetch(base+'/app/cam?token='+encodeURIComponent(token)+'&after='+after,{cache:'no-store'});
+      if(r.status===200){
+        const b=await r.arrayBuffer();
+        after=Number(new DataView(b).getBigInt64(0,true));
+        postMessage(await createImageBitmap(new Blob([b.slice(8)],{type:'image/jpeg'})));
+      }else if(r.status!==204)await wait(1000);
+    }catch(err){await wait(1000);}
+  }
+}`;
+function camStream(){
+  if(window.MediaStreamTrackGenerator&&window.VideoFrame){
+    const gen=new MediaStreamTrackGenerator({kind:'video'});camWriter=gen.writable.getWriter();camCanvas=null;
+    return new MediaStream([gen]);
+  }
+  camWriter=null;camCanvas=document.createElement('canvas');camCanvas.width=1280;camCanvas.height=720;
+  return camCanvas.captureStream(30);
+}
+function gotCam(e){
+  const bmp=e.data;camFrames++;
+  try{
+    if(camWriter){const f=new VideoFrame(bmp,{timestamp:Math.round(performance.now()*1000)});camWriter.write(f).catch(()=>{});}
+    else if(camCanvas)camCanvas.getContext('2d').drawImage(bmp,0,0,camCanvas.width,camCanvas.height);
+  }catch(x){}
+  bmp.close();
+}
+function publishCam(){
+  if(!pushUrl||!camOn||camVdo||camPublishing||Date.now()<camRetryAt)return;
+  const u=new URL(pushUrl),id=u.searchParams.get('push'),pw=u.searchParams.get('password');
+  if(!id||!pw)return;
+  camPublishing=(async()=>{
+    try{
+      if(!window.VDONinjaSDK) throw new Error('the VDO.Ninja SDK did not load');
+      if(!camWorker){
+        camWorker=new Worker(URL.createObjectURL(new Blob([CAM_WORKER],{type:'text/javascript'})));
+        camWorker.onmessage=gotCam;camWorker.postMessage({base:location.origin,token});
+      }
+      const stream=camStream();
+      const sdk=new VDONinjaSDK({password:pw});
+      await sdk.connect();
+      await sdk.publish(stream,{streamID:id+'c',label:'Player camera'});
+      camVdo=sdk;camProblem='';
+      camWorker.postMessage({on:true});
+      try{ sdk.addEventListener&&sdk.addEventListener('disconnected',()=>{ camVdo=null; camProblem='Player camera dropped: reconnecting…'; }); }catch(x){}
+    }catch(e){ camProblem='Player camera not sent: '+e.message+' (trying again)'; camVdo=null; camRetryAt=Date.now()+15000; }
+    camPublishing=null;
+  })();
+}
+function stopCam(){
+  if(camWorker)camWorker.postMessage({on:false});
+  if(camVdo){try{camVdo.disconnect();}catch(x){}camVdo=null;}
+  camWriter=null;camCanvas=null;camProblem='';
+}
 // Browsers start audio only after a click on the page.
 addEventListener('pointerdown',()=>{ if(ctx&&ctx.state!=='running') ctx.resume(); },{capture:true});
 info();setInterval(info,5000);setInterval(pump,500);voiceTick();setInterval(voiceTick,1000);

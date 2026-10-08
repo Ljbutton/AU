@@ -514,6 +514,7 @@ namespace TournamentTracker
             _gateway?.Dispose();
             _overlay?.Dispose();
             _control?.Dispose();
+            Cam.Dispose();
         }
     }
 }

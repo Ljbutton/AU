@@ -56,7 +56,7 @@ namespace TournamentTracker
             if (_settings.ControlPort < 0) return;
             try
             {
-                _control = new ControlServer(_settings.ControlPort, _dataDir, () => _statusJson, ActivitySince, RunCommandForApp, _log, FeedSince) { Names = SetDisplayNames };
+                _control = new ControlServer(_settings.ControlPort, _dataDir, () => _statusJson, ActivitySince, RunCommandForApp, _log, FeedSince) { Names = SetDisplayNames, Cam = Cam };
                 RefreshStatus();
                 _log.Info($"App connection ready on port {_control.Port}");
             }
@@ -173,7 +173,7 @@ namespace TournamentTracker
                 Rotation = RotationOn,
                 RefSlot = RefSlotKey != null,
                 Overlay = new { On = _overlay != null, Url = _overlay?.Url },
-                Feed = new { Available = FeedAvailable, On = _feedOn && FeedAvailable, PushUrl = _feedOn && FeedAvailable ? FeedPushUrl : null },
+                Feed = new { Available = FeedAvailable, On = _feedOn && FeedAvailable, PushUrl = _feedOn && FeedAvailable ? FeedPushUrl : null, Cam = _feedOn && FeedAvailable && Spectator.Cam },
                 Lead = IsLead,
                 Shared = Shared != null,
                 LastGame = last == null ? null : new { last.Name, last.Winner, last.Voided, last.Counted },

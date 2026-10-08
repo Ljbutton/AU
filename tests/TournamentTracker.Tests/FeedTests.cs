@@ -386,6 +386,29 @@ public class FeedTests : IDisposable
     }
 
     [Fact]
+    public void The_player_camera_is_off_until_turned_on_then_follows_the_pick_or_the_hunt()
+    {
+        Start();
+        Assert.Null(_s.CamPlayer());                           // off by default: nothing drawn
+        _s.RunCommand("spec cam auto");
+        Assert.True(_s.Spectator.Cam);
+        Assert.Equal((byte)2, _s.CamPlayer());                 // nothing going on: the first crewmate alive
+        _clock.Advance(11);
+        _s.FeedTick(Frame(move: p => { p[0].X = 50; p[0].Y = 1; }));   // Alice closing in on Finn, alone
+        Assert.Equal((byte)0, _s.CamPlayer());                 // the hunting impostor
+        _s.RunCommand("spec cam 4");
+        Assert.Equal((byte)4, _s.CamPlayer());                 // the caster's pick wins
+        _s.Kill(1, 4);
+        Assert.Equal((byte)4, _s.CamPlayer());                 // kept a moment after they die, to see it
+        _clock.Advance(5);
+        Assert.NotEqual((byte)4, _s.CamPlayer());
+        _s.RunCommand("spec cam off");
+        Assert.Null(_s.CamPlayer());
+        var spec = Read().Last(e => e.GetProperty("type").GetString() == "snap").GetProperty("spec");
+        Assert.True(spec.TryGetProperty("cam", out _));
+    }
+
+    [Fact]
     public void Seeing_a_kill_or_a_vent_tells_the_caster_once()
     {
         Start();

@@ -70,15 +70,21 @@ namespace TournamentTracker.Plugin
             CentreSoon(1f);
         }
 
-        // ---- Moved to the middle of the map ------------------------------------------------------
+        // ---- Out of sight, watching the middle of the map ----------------------------------------
+        // The referee's ghost is parked off the edge of the map, where no player (dead ones see
+        // ghosts, mod or not) ever looks, and isn't drawn on the host's own screen either. The
+        // host's camera is held over the middle of the map instead of following the ghost; the
+        // arrow keys (or WASD) move it, Home brings it back.
 
         private static float _centreAt = -1;
         private static bool _wasMeeting;
+        private static Vector2? _view;
+        private static bool _camHeld;
 
-        /// <summary>Moves the referee to the middle of the map once nothing is in the way (the intro, a meeting, Airship's spawn pick).</summary>
+        /// <summary>Moves the referee out of sight once nothing is in the way (the intro, a meeting, Airship's spawn pick).</summary>
         public static void CentreSoon(float delay) => _centreAt = Time.unscaledTime + delay;
 
-        /// <summary>Every frame: the referee goes to the middle of the map as the game starts and after each meeting.</summary>
+        /// <summary>Every frame: the referee is parked out of sight as the game starts and after each meeting.</summary>
         public static void Update()
         {
             if (!Game.IsHost || TournamentPlugin.Session?.RefSlotKey == null || ShipStatus.Instance == null
@@ -86,11 +92,14 @@ namespace TournamentTracker.Plugin
             {
                 _centreAt = -1;
                 _wasMeeting = false;
+                _view = null;
                 RoomName(true);
+                HoldCamera(false);
                 return;
             }
             bool meeting = MeetingHud.Instance != null || ExileController.Instance != null;
             KeepHud(meeting);
+            KeepOutOfSight(meeting);
             if (_wasMeeting && !meeting) CentreSoon(0.5f);
             _wasMeeting = meeting;
             if (_centreAt < 0 || Time.unscaledTime < _centreAt) return;
@@ -102,10 +111,67 @@ namespace TournamentTracker.Plugin
                 return;
             }
             _centreAt = -1;
-            var at = MapCentre();
-            referee.NetTransform.SnapTo(at);
+            var centre = MapCentre(out var bounds);
+            var hideout = new Vector2(centre.x, bounds.min.y - 40f);
+            referee.NetTransform.SnapTo(hideout);
+            referee.moveable = false;
+            _view ??= centre;
             GhostZoom.ZoomOut();
-            TournamentPlugin.Logger.Info($"Referee ghost: moved to the middle of the map ({at.x:0.0}, {at.y:0.0}).");
+            TournamentPlugin.Logger.Info($"Referee ghost: parked out of sight ({hideout.x:0.0}, {hideout.y:0.0}); the camera watches the middle of the map ({centre.x:0.0}, {centre.y:0.0}).");
+        }
+
+        /// <summary>Every frame: the ghost not drawn here, the camera held over the map (moved with the keys).</summary>
+        private static void KeepOutOfSight(bool meeting)
+        {
+            var local = PlayerControl.LocalPlayer;
+            bool referee = LocalIsRefereeGhost();
+            if (referee && local != null)
+            {
+                if (local.Visible) local.Visible = false;
+                if (local.moveable && _view != null) local.moveable = false;
+            }
+            if (!referee || meeting || _view == null || !HudManager.InstanceExists) { HoldCamera(false); return; }
+            var camera = Camera.main;
+            if (camera == null) return;
+            var view = _view.Value;
+            if (!Typing())
+            {
+                float x = 0, y = 0;
+                if (Input.GetKey(KeyCode.LeftArrow) || Input.GetKey(KeyCode.A)) x -= 1;
+                if (Input.GetKey(KeyCode.RightArrow) || Input.GetKey(KeyCode.D)) x += 1;
+                if (Input.GetKey(KeyCode.DownArrow) || Input.GetKey(KeyCode.S)) y -= 1;
+                if (Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.W)) y += 1;
+                float speed = camera.orthographicSize * 1.1f * Time.unscaledDeltaTime;
+                view += new Vector2(x, y) * speed;
+                if (Input.GetKeyDown(KeyCode.Home)) view = MapCentre(out _);
+            }
+            _view = view;
+            HoldCamera(true);
+            var t = camera.transform;
+            if (Math.Abs(t.position.x - view.x) > 1e-3f || Math.Abs(t.position.y - view.y) > 1e-3f)
+                t.position = new Vector3(view.x, view.y, t.position.z);
+        }
+
+        /// <summary>The camera stops following the (parked) ghost while held.</summary>
+        private static void HoldCamera(bool hold)
+        {
+            if (hold == _camHeld) return;
+            if (!HudManager.InstanceExists) { _camHeld = false; return; }
+            var cam = HudManager.Instance.PlayerCam;
+            if (cam == null) return;
+            cam.Locked = hold;
+            _camHeld = hold;
+        }
+
+        /// <summary>The host is typing in the chat (the keys are letters then, not camera moves).</summary>
+        private static bool Typing()
+        {
+            try
+            {
+                var chat = HudManager.Instance.Chat;
+                return chat != null && chat.IsOpenOrOpening;
+            }
+            catch (Exception) { return false; }
         }
 
         private static float _nextChat;
@@ -199,7 +265,7 @@ namespace TournamentTracker.Plugin
         }
 
         /// <summary>The middle of the map: the centre of all its rooms together (the meeting table if it has none).</summary>
-        private static Vector2 MapCentre()
+        private static Vector2 MapCentre(out Bounds bounds)
         {
             var ship = ShipStatus.Instance;
             Bounds? all = null;
@@ -210,6 +276,7 @@ namespace TournamentTracker.Plugin
                 if (all is Bounds a) { a.Encapsulate(b); all = a; }
                 else all = b;
             }
+            bounds = all ?? new Bounds(ship.MeetingSpawnCenter, new Vector3(40, 30, 0));
             return all is Bounds m ? (Vector2)m.center : ship.MeetingSpawnCenter;
         }
 

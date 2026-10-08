@@ -40,6 +40,22 @@ namespace TournamentTracker.App
             catch (Exception) { return null; }   // Among Us isn't running (or the mod isn't loaded)
         }
 
+        /// <summary>The player camera's newest picture after number <paramref name="after"/> (its number in the first 8 bytes), or null for none.</summary>
+        public async Task<byte[]?> PlayerCamAsync(string gameDir, long after)
+        {
+            var c = Connection(gameDir);
+            if (c == null) return null;
+            try
+            {
+                var request = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{c.Value.Port}/api/pov?after={after}");
+                request.Headers.Add("X-TT-Token", c.Value.Token);
+                using var response = await _http.SendAsync(request).ConfigureAwait(false);
+                if (response.StatusCode != System.Net.HttpStatusCode.OK) return null;
+                return await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+            }
+            catch (Exception) { return null; }
+        }
+
         public Task<string?> StatusAsync(string gameDir) => SendAsync(gameDir, HttpMethod.Get, "api/status");
         public Task<string?> ActivityAsync(string gameDir, long since) => SendAsync(gameDir, HttpMethod.Get, "api/activity?since=" + since);
         public Task<string?> NamesAsync(string gameDir, string namesJson) => SendAsync(gameDir, HttpMethod.Post, "api/names", "{\"names\":" + namesJson + "}");

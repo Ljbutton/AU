@@ -33,6 +33,8 @@ namespace TournamentTracker.Control
         private readonly Func<long, string>? _feed;
         /// <summary>POST /api/names {"names":{key:name}}: the caster's roster names for this lobby.</summary>
         public Action<IDictionary<string, string>>? Names { get; set; }
+        /// <summary>GET /api/pov?after=N: the player camera's newest picture (its number in front), for The Button's send page.</summary>
+        public PlayerCam.PlayerCamFeed? Cam { get; set; }
         private readonly ILog _log;
 
         public int Port { get; }
@@ -110,6 +112,14 @@ namespace TournamentTracker.Control
                         reply = _activity(long.TryParse(HttpRequest.Query(query, "since"), out var since) ? since : 0);
                     else if (method == "GET" && route == "/api/feed" && _feed != null)
                         reply = _feed(long.TryParse(HttpRequest.Query(query, "since"), out var from) ? from : 0);
+                    else if (method == "GET" && route == "/api/pov" && Cam != null)
+                    {
+                        Cam.Asked();
+                        var (seq, jpeg) = await Cam.NextAsync(long.TryParse(HttpRequest.Query(query, "after"), out var after) ? after : 0, TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
+                        if (jpeg == null) await HttpRequest.WriteAsync(stream, 204, "application/octet-stream", Array.Empty<byte>()).ConfigureAwait(false);
+                        else await HttpRequest.WriteAsync(stream, 200, "application/octet-stream", PlayerCam.PlayerCamFeed.Frame(seq, jpeg)).ConfigureAwait(false);
+                        return;
+                    }
                     else if (method == "POST" && route == "/api/names" && Names != null)
                     {
                         var names = new Dictionary<string, string>();

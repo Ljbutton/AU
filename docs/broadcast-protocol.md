@@ -126,4 +126,12 @@ host's PC drops before the game is posted.
 | `ttack` | `{src: lastSeq}` | stops sending those again |
 
 Spectator commands: `spec lit|report|eye on|off`, `spec vision off|focus|rings`,
-`spec focus auto|<player id>`, `spec dim 0.22`.
+`spec focus auto|<player id>`, `spec dim 0.22`, `spec cam on|off|auto|<player id>` (the player
+camera).
+
+The player camera is a second VDO.Ninja stream from the host's send page, with the game
+stream's id plus `c` and the same password (the lobby voice is the id plus `v`). The send page
+publishes it while the mod's status says `feed.cam`; its pictures come from the mod
+(`GET /api/pov?after=N` on the mod's connection, relayed by The Button's `GET /app/cam`) as
+8 bytes of picture number (little-endian) then a JPEG. The snapshot's `spec` says `cam` (on),
+`camPick` (the caster's pick, or null) and `camOn` (who it follows now).

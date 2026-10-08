@@ -351,13 +351,24 @@ namespace TournamentTracker.App
                 case ("GET", "/app/sendinfo"):
                 {
                     string? push = null;
+                    bool cam = false;
                     if (GamePath != null)
                     {
                         string? status = await _mod.StatusAsync(GamePath).ConfigureAwait(false);
-                        if (status != null && JsonDocument.Parse(status).RootElement.TryGetProperty("feed", out var feed)
-                            && feed.TryGetProperty("pushUrl", out var pu) && pu.ValueKind == JsonValueKind.String) push = pu.GetString();
+                        if (status != null && JsonDocument.Parse(status).RootElement.TryGetProperty("feed", out var feed))
+                        {
+                            if (feed.TryGetProperty("pushUrl", out var pu) && pu.ValueKind == JsonValueKind.String) push = pu.GetString();
+                            cam = feed.TryGetProperty("cam", out var c) && c.ValueKind == JsonValueKind.True;
+                        }
                     }
-                    return Ok(new { pushUrl = push != null && push.StartsWith(TournamentSession.VdoNinja, StringComparison.Ordinal) ? push : null, twitch = _settings.Twitch });
+                    return Ok(new { pushUrl = push != null && push.StartsWith(TournamentSession.VdoNinja, StringComparison.Ordinal) ? push : null, twitch = _settings.Twitch, cam });
+                }
+                case ("GET", "/app/cam"):
+                {
+                    // The player camera's next picture, for the send page (which sends it to the caster).
+                    byte[]? frame = GamePath == null ? null
+                        : await _mod.PlayerCamAsync(GamePath, long.TryParse(HttpRequest.Query(query, "after"), out var after) ? after : 0).ConfigureAwait(false);
+                    return frame == null ? (204, "application/octet-stream", Array.Empty<byte>()) : (200, "application/octet-stream", frame);
                 }
                 case ("GET", "/app/voice/pcm"):
                     // The mix of Discord's and Among Us's sound since the last call, for the send page (never played here).
@@ -395,6 +406,7 @@ namespace TournamentTracker.App
                     if (!AppUpdateAvailable) return Ok(new { ok = false, message = "The Button is up to date." });
                     _ = Task.Run(UpdateAppAsync);
                     return Ok(new { ok = true, message = "Downloading the new version of The Button…" });
+                case ("POST", "/app/updateall"): return Ok(UpdateAll());
                 case ("POST", "/app/restart"):
                     if (_appReady == null) return Ok(new { ok = false, message = "No update is waiting." });
                     _ = Task.Run(async () => { await Task.Delay(300).ConfigureAwait(false); _env.Restart(); });
@@ -461,6 +473,7 @@ namespace TournamentTracker.App
                     Auto = _settings.AutoUpdateMod,
                     Installing = _installing,
                     InstallResult = _installResult,
+                    Pending = _modWanted,
                 },
                 Setup = SetupView(),
                 Admin = _organizer == null ? null : new { _organizer.Tournament },
@@ -561,7 +574,28 @@ namespace TournamentTracker.App
 
         private bool ModUpdateAvailable(ModState mod) => _latest != null && mod.Installed && Newer(_latest.Tag, mod.InstalledVersion);
 
-        /// <summary>A new version of the mod is out: install it by itself once Among Us is closed (unless switched off).</summary>
+        /// <summary>Update was pressed while Among Us was running: the mod updates as soon as it's closed.</summary>
+        private volatile bool _modWanted;
+
+        /// <summary>
+        /// Settings' one Update button: whatever is out, The Button and the mod. The mod's files are in
+        /// use while Among Us runs, so then it waits for Among Us to close.
+        /// </summary>
+        private object UpdateAll()
+        {
+            var mod = ModInstaller.State(GamePath);
+            bool app = AppUpdateAvailable, modNew = ModUpdateAvailable(mod) && mod.LoaderMatchesGame;
+            if (!app && !modNew) return new { ok = false, message = "Everything is up to date." };
+            if (app) _ = Task.Run(UpdateAppAsync);
+            string modMessage = "";
+            if (modNew)
+            {
+                if (ModInstaller.GameRunning()) { _modWanted = true; modMessage = "The mod updates as soon as Among Us is closed."; }
+                else { StartInstall(); modMessage = "Updating the mod…"; }
+            }
+            return new { ok = true, message = (app ? "Downloading the new version of The Button (restart it when it's ready). " : "") + modMessage };
+        }
+
         /// <summary>BepInEx's console window as set here (hidden by default): put back after installs, repairs and BepInEx's first run.</summary>
         private void KeepConsoleSetting(ModState mod)
         {
@@ -570,8 +604,16 @@ namespace TournamentTracker.App
             catch (Exception) { /* tried again on the next refresh */ }
         }
 
+        /// <summary>A new version of the mod is out: install it by itself once Among Us is closed (unless switched off, and Update wasn't pressed).</summary>
         private void AutoUpdateMod(ModState mod)
         {
+            if (!ModUpdateAvailable(mod)) _modWanted = false;
+            if (_modWanted && mod.LoaderMatchesGame && GamePath != null && _installing.Length == 0 && !ModInstaller.GameRunning())
+            {
+                _modWanted = false;
+                StartInstall();
+                return;
+            }
             if (!_settings.AutoUpdateMod || !ModUpdateAvailable(mod) || !mod.LoaderMatchesGame || GamePath == null || _installing.Length > 0) return;
             if (DateTime.UtcNow < _nextAutoModUpdate || ModInstaller.GameRunning()) return;
             _nextAutoModUpdate = DateTime.UtcNow + AutoRepairRetry;

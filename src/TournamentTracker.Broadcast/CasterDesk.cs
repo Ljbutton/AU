@@ -44,7 +44,7 @@ namespace TournamentTracker.App.Broadcast
     /// <summary>What's on stream: one lobby full screen, two side by side, or four.</summary>
     public sealed class OnAir
     {
-        /// <summary>"full", "2up", "4up", "grid", "break", "intermission", "slate" (be right back), "replay" or "none".</summary>
+        /// <summary>"full", "2up", "4up", "grid", "break", "cam" (a lobby's player camera), "intermission", "slate" (be right back), "replay" or "none".</summary>
         public string Layout { get; set; } = "none";
         public List<string?> Slots { get; set; } = new List<string?>();
         /// <summary>Who set it: "button" (a click here) or "obs" (switched in OBS).</summary>
@@ -55,7 +55,7 @@ namespace TournamentTracker.App.Broadcast
         public List<Box>? Boxes { get; set; }
         public DateTime Since { get; set; }
 
-        public static int SlotsFor(string layout) => layout == "4up" ? 4 : layout == "2up" ? 2 : layout is "full" or "grid" or "break" ? 1 : 0;
+        public static int SlotsFor(string layout) => layout == "4up" ? 4 : layout == "2up" ? 2 : layout is "full" or "grid" or "break" or "cam" ? 1 : 0;
 
         /// <summary>"LIVE (full)", "LIVE (2-up, slot 1)", "LIVE (quad, slot 2)", "REPLAY", or null when not on.</summary>
         public string? Label(string lobby)
@@ -69,6 +69,7 @@ namespace TournamentTracker.App.Broadcast
                 "4up" => $"LIVE (quad, slot {i + 1})",
                 "grid" => $"LIVE (grid, tile {i + 1})",
                 "break" => "LIVE (sponsor break)",
+                "cam" => "LIVE (player cam)",
                 "intermission" => null,
                 "slate" => null,
                 "replay" => "REPLAY",

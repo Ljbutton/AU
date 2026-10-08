@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.36**, a beta.
+The current release is **v0.1.37**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -347,8 +347,13 @@ whole map (for refereeing and streaming). The same switch turns it off; the choi
 The mod sends each player's role and task list once, as the game itself does, and never sends an
 "exiled" message outside a meeting (that got the host kicked from the room): the referee is marked
 dead in the player record the host keeps, and the host's own game makes them a ghost. As the
-game starts, and after every meeting, the referee is moved to the middle of the map, zoomed all
-the way out, with the chat still there and no room name at the top. Their task bar is smaller
+game starts, and after every meeting, the referee's ghost is parked off the edge of the map, where
+no player (not even a dead one) ever sees it, and isn't drawn on the host's own screen either. The
+host's camera stays over the middle of the map, zoomed all the way out; the **arrow keys** (or
+**WASD**) move it and **Home** brings it back. No room name shows at the top. The last few chat
+messages are always on screen, small, in the bottom-left corner (the **mini chat**): it goes
+away in meetings and turns see-through while a player walks behind it; the chat button still
+opens the full chat to type. Their task bar is smaller
 and always shows the real progress, whatever the lobby's task bar setting. The host turns down any kill on the
 referee. In meetings the referee's card is taken off the list. That happens on the host's screen and on every player's game that has the
 mod; there the referee isn't drawn on the map either. A game without the mod lists them as a dead
@@ -372,7 +377,8 @@ stream.
   next to The Button on the same PC.
 * **The side menu** has a page per job: **Live desk** (lobby buttons, layouts, what's happening
   and the lobbies), **Lobby health**, **Montages**, **Graphics**, **Standings**, **Sponsors**,
-  **Twitch**, **OBS**, **Lobby voice** and **Players**. A dot beside an item shows what needs a
+  **Twitch**, **OBS**, **Lobby voice**, **Players** and **Settings** (player camera, Stream Deck,
+  updates). A dot beside an item shows what needs a
   look; the number on Live desk is new plays since you last looked there (it clears when you
   open it). The replay keys work on every page; 1-9 and N on the Live desk. Each card's
   explanation is behind its small **?**.
@@ -422,10 +428,25 @@ stream.
 * **It was called TT Broadcast** (v0.1.0). Installing Red Alert replaces it (its shortcuts and
   program folder go) and its settings come over the first time Red Alert opens; a TT Broadcast
   that updates itself becomes Red Alert where it is.
-* **Updates:** from v0.3.0 Red Alert never updates itself, so nothing changes in the middle of
-  a stream. For a new version, download **`Install-RedAlert.bat`** (or `RedAlert.exe`) from the
-  newest Red Alert release when you choose. Hosts never need to reinstall anything for a
-  broadcast change.
+* **Updates (Settings):** Red Alert never updates by itself, so nothing changes in the middle of
+  a stream. **Settings → Updates** says when a new version is out (it looks every 30 minutes, or
+  **Check now**); **Update** downloads it and **Restart Red Alert** starts it. Hosts never need
+  to reinstall anything for a broadcast change.
+* **Player camera (Settings):** a second picture from each host's game that follows one player
+  up close, sharp at 720p and 30 frames a second, sent with the host's game. Turn on **Player
+  cameras** in Settings; each lobby card then has **🎥 Player cam** (puts it on stream) and who it
+  follows: a player you pick, or by itself (an impostor closing in on someone alone, else whoever
+  is busy; a pick is kept a few seconds after they die, to see it). Red Alert adds a **TT Player
+  Cam** scene to OBS: the camera full screen, the lobby's whole map small in the bottom right.
+  It's drawn on the host's PC off screen: the host never sees it and can't change it. It costs
+  each host a little more upload (about one more video stream).
+* **Stream Deck (Settings):** a link per action for the Stream Deck's **Website** action (tick
+  **GET request in background**): a lobby full screen (**lobby/1**, **lobby/2**…), next and
+  previous lobby, where the action is, quad, grid, the player camera (by itself, next and
+  previous player, or a colour: **cam/red**, **cam/blue**…), back to the whole map, and mute all
+  lobby voice. The links work while Red Alert is open on this PC; **New key** makes new ones.
+  8 keys fit lobby next/previous, action, quad, player cam, next/previous player and the whole
+  map.
 * **OBS setup check** (OBS page, when OBS connects): the scene collection and profile names
   (steps to rename them), a leftover empty "Scene" (**Delete it**), Desktop Audio reaching the
   stream (**Mute Desktop Audio**; the Live desk warns while it's on), what replays need (the
@@ -778,7 +799,8 @@ message shows when the referee is speaking.
 While you host, the first bot sits in your voice channel, muted, and follows you when you
 move. When you leave voice or stop hosting, it leaves too. It only looks at which people are
 sending sound; it never records or plays anything. On your screen (and so on stream), a linked
-player's meeting card lights up in their colour while they talk, and in the lobby a speaker in
+player's meeting card lights up in their colour while they talk, with a speaker on the outline's
+corner, and in the lobby a speaker in
 their colour shows by their name. Players' own games don't change. Turn it off with `ShowTalking = false` under
 `[AutoMute]`.
 
