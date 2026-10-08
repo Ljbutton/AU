@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.29**, a beta.
+The current release is **v0.1.30**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -618,6 +618,10 @@ the caster's PC and off stream.
   game is posted: the copy runs up to where the host stopped sending. **Lobby health → Game
   replays** lists them with **Watch**; interrupted games have a Watch button too. It's the same
   replay viewer as The Button's and shows the impostors: keep it off stream.
+* **Auto switch** (Lobby health, shown ON/OFF, and "Auto switch ON" by the On stream indicator) moves
+  off a lobby that drops while it's on stream, once per outage, and the Live desk says what it did
+  with **Undo / keep**. A lobby you put on yourself while it's down stays on (with a note) until it
+  comes back and drops again.
 * **Lobby drops:** the **Lobby health** card shows each lobby green (all good), yellow
   (degraded: no data for 3 s, sound silent for 2 min while sending voice, a voice problem, data
   2 s later than usual) or red (down: no data for 10 s, video lost for 3 s, data more than 8 s
