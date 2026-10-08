@@ -14,7 +14,7 @@ namespace TournamentTracker.Plugin
 
         public static LobbySettings Read()
         {
-            var o = GameOptionsManager.Instance?.CurrentGameOptions;
+            var o = Game.Options();
             var s = new LobbySettings();
             if (o == null) return s;
             s.Impostors = Try("impostors", () => o.GetInt(Int32OptionNames.NumImpostors));
@@ -52,7 +52,7 @@ namespace TournamentTracker.Plugin
         /// <summary>Puts back whatever differs from <paramref name="want"/> and sends it to everyone. Returns what changed.</summary>
         public static List<string> Enforce(LobbySettings want)
         {
-            var o = GameOptionsManager.Instance?.CurrentGameOptions;
+            var o = Game.Options();
             if (o == null) return new List<string>();
             var changed = want.Differences(Read());
             if (changed.Count == 0) return changed;

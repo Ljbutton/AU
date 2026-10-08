@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using AmongUs.GameOptions;
 using TournamentTracker.Broadcast;
 using TournamentTracker.Voice;
@@ -24,7 +25,7 @@ namespace TournamentTracker.Plugin
         public static FeedFrame Frame(VoicePhase phase)
         {
             var frame = new FeedFrame { Phase = phase, Camera = Camera() };
-            var options = GameOptionsManager.Instance?.CurrentGameOptions;
+            var options = Game.Options();
             if (options != null)
             {
                 try { frame.KillCooldown = options.GetFloat(FloatOptionNames.KillCooldown); } catch (Exception) { }
@@ -32,21 +33,18 @@ namespace TournamentTracker.Plugin
             }
             if (phase != VoicePhase.Tasks && phase != VoicePhase.Meeting) return frame;
 
-            var all = PlayerControl.AllPlayerControls;
-            for (int i = 0; i < all.Count; i++)
+            foreach (var p in TournamentTracker.Plugin.Frame.Players)
             {
-                var pc = all[i];
-                if (pc == null || pc.Data == null) continue;
-                var pos = pc.GetTruePosition();
+                var pos = p.Pc.GetTruePosition();
                 frame.Players.Add(new FeedPlayer
                 {
-                    Id = pc.PlayerId,
+                    Id = p.Id,
                     X = pos.x,
                     Y = pos.y,
-                    Dead = pc.Data.IsDead,
-                    InVent = pc.inVent,
-                    Disconnected = pc.Data.Disconnected,
-                    Room = RoomAt(pos),
+                    Dead = p.Dead,
+                    InVent = p.InVent,
+                    Disconnected = p.Disconnected,
+                    Room = RoomOf(p.Id, pos),
                 });
             }
             ReadSabotages(frame);
@@ -72,14 +70,48 @@ namespace TournamentTracker.Plugin
             return new FeedCamera { X = p.x, Y = p.y, HalfHeight = half, HalfWidth = half * cam.aspect };
         }
 
+        // The map's rooms, read once per map: each room's area and its box (checked first, in plain
+        // .NET, so the game's own point-in-area test only runs for the rooms the point could be in).
+        private sealed class Room { public Collider2D Area = null!; public string Name = ""; public float MinX, MinY, MaxX, MaxY; }
+        private static readonly List<Room> Rooms = new List<Room>();
+        private static ShipStatus? _roomsOf;
+
+        // Each player's room from the last tick, kept while they stay put.
+        private static readonly Dictionary<byte, (float X, float Y, string? Room)> LastRoom = new Dictionary<byte, (float, float, string?)>();
+        private const float SameSpot = 0.05f;
+
+        private static string? RoomOf(byte id, Vector2 at)
+        {
+            if (LastRoom.TryGetValue(id, out var last) && MathF.Abs(last.X - at.x) < SameSpot && MathF.Abs(last.Y - at.y) < SameSpot && ReferenceEquals(_roomsOf, ShipStatus.Instance))
+                return last.Room;
+            string? room = RoomAt(at);
+            LastRoom[id] = (at.x, at.y, room);
+            return room;
+        }
+
         private static string? RoomAt(Vector2 point)
         {
             var ship = ShipStatus.Instance;
             if (ship == null || _roomFailed) return null;
             try
             {
-                foreach (var room in ship.AllRooms)
-                    if (room != null && room.roomArea != null && room.roomArea.OverlapPoint(point)) return room.RoomId.ToString();
+                if (!ReferenceEquals(_roomsOf, ship) || _roomsOf == null)
+                {
+                    Rooms.Clear();
+                    LastRoom.Clear();
+                    _roomsOf = ship;
+                    foreach (var room in ship.AllRooms)
+                    {
+                        if (room == null || room.roomArea == null) continue;
+                        var b = room.roomArea.bounds;
+                        Rooms.Add(new Room { Area = room.roomArea, Name = room.RoomId.ToString(), MinX = b.min.x, MinY = b.min.y, MaxX = b.max.x, MaxY = b.max.y });
+                    }
+                }
+                foreach (var room in Rooms)
+                {
+                    if (point.x < room.MinX || point.x > room.MaxX || point.y < room.MinY || point.y > room.MaxY) continue;
+                    if (room.Area != null && room.Area.OverlapPoint(point)) return room.Name;
+                }
             }
             catch (Exception e)
             {

@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.32**, a beta.
+The current release is **v0.1.33**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -347,8 +347,9 @@ whole map (for refereeing and streaming). The same switch turns it off; the choi
 The mod sends each player's role and task list once, as the game itself does, and never sends an
 "exiled" message outside a meeting (that got the host kicked from the room): the referee is marked
 dead in the player record the host keeps, and the host's own game makes them a ghost. As the
-game starts, and after every meeting, the referee is moved to the middle of the map, zoomed out,
-with the chat still there and no room name at the top. The host turns down any kill on the
+game starts, and after every meeting, the referee is moved to the middle of the map, zoomed all
+the way out, with the chat still there and no room name at the top. Their task bar is smaller
+and always shows the real progress, whatever the lobby's task bar setting. The host turns down any kill on the
 referee. In meetings the referee's card is taken off the list. That happens on the host's screen and on every player's game that has the
 mod; there the referee isn't drawn on the map either. A game without the mod lists them as a dead
 player.
@@ -882,6 +883,14 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | AutoMute | `LinkMenu` | true | The bot posts the live status with a colour menu for linking |
 | AutoMute | `RefereeUserIds` | | Who else can talk in referee mode, comma separated |
 | Scoring | *(see below)* | | Every point value on the tournament sheet |
+| Debug | `FrameProfiler` | false | Log the mod's slow frames (see below) |
+
+**Frame profiler.** To find hitches, press **F10** in the game (or set `FrameProfiler = true`
+under `[Debug]`). Press **F10** again to stop. While it's on, any frame where the mod takes more
+than 8 ms is written to `BepInEx/LogOutput.log`, at most once a second. Each line breaks the time
+down by part (vision, checks, nameplates, the caster feed and so on) and counts the garbage
+collections since the last line. Every 10 seconds a summary line gives each part's average and
+worst time. Nothing shows in the game.
 
 ## Scoring
 

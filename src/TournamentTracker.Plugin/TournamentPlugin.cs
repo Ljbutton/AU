@@ -15,7 +15,7 @@ namespace TournamentTracker.Plugin
     public sealed class TournamentPlugin : BasePlugin
     {
         public const string Id = "com.ljbutton.tournamenttracker";
-        public const string Version = "0.1.32";
+        public const string Version = "0.1.33";
 
         internal static TournamentSession Session = null!;
         internal static ILog Logger = NullLog.Instance;
@@ -26,6 +26,8 @@ namespace TournamentTracker.Plugin
         {
             _config = Config;
             Logger = new DelegateLog(m => Log.LogInfo(m), m => Log.LogWarning(m), m => Log.LogError(m));
+            FrameProfiler.Enabled = Config.Bind("Debug", "FrameProfiler", false,
+                "Log frames where the mod takes over 8 ms, with a breakdown, to LogOutput.log. F10 switches it on and off in the game.").Value;
             StartSession();
 
             // Patch class by class: if a game update renames one method, only that stat
@@ -63,6 +65,7 @@ namespace TournamentTracker.Plugin
             var setup = SetupCode.Load(DataDir, Logger);
             var session = new TournamentSession(settings, DataDir, Logger, setup: setup);
             session.RestartRequested += () => Driver.RestartRequested = true;
+            session.Work.Start();          // JSON for the feed, overlay and status off the game's main thread
             Session = session;
             Logger.Info(setup != null ? $"Using setup code: {setup.Describe()}" : "No setup code; using the settings file.");
         }

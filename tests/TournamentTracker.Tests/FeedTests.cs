@@ -328,6 +328,22 @@ public class FeedTests : IDisposable
     }
 
     [Fact]
+    public void With_the_JSON_made_in_the_background_the_feed_is_the_same_and_in_order()
+    {
+        _s.Work.Start();
+        Start();
+        _s.Kill(0, 3);
+        _clock.Advance(1.1);
+        _s.FeedTick(Frame());
+        Assert.True(_s.Work.Flush(TimeSpan.FromSeconds(5)));
+        var items = Read();
+        Assert.Contains(items, e => e.GetProperty("type").GetString() == "snap");
+        Assert.Contains(items, e => e.GetProperty("type").GetString() == "event" && e.GetProperty("kind").GetString() == "kill");
+        var seqs = items.Select(e => e.GetProperty("seq").GetInt64()).ToList();
+        Assert.Equal(Enumerable.Range(1, seqs.Count).Select(i => (long)i), seqs);       // numbered in the order made
+    }
+
+    [Fact]
     public void Spectator_view_settings_switch_from_commands_and_show_in_the_snapshot()
     {
         Start();

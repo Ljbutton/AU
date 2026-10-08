@@ -77,7 +77,7 @@ namespace TournamentTracker.Plugin.Patches
             if (!RefSlot.HandingOutTasks || __instance == null || TournamentPlugin.Session?.RefSlotKey == null) return;
             try
             {
-                if (RefSlot.RefereeId() == __instance.PlayerId) __0 = new Il2CppStructArray<byte>(0);
+                if (RefSlot.RefereeId(fresh: true) == __instance.PlayerId) __0 = new Il2CppStructArray<byte>(0);
             }
             catch (Exception e) { TournamentPlugin.Logger.Error("Referee tasks hook failed: " + e); }
         }
@@ -93,7 +93,7 @@ namespace TournamentTracker.Plugin.Patches
             if (!Game.IsHost || __instance == null || __0 == null || TournamentPlugin.Session?.RefSlotKey == null) return true;
             try
             {
-                if (RefSlot.RefereeId() != __0.PlayerId) return true;
+                if (RefSlot.RefereeId(fresh: true) != __0.PlayerId) return true;
                 TournamentPlugin.Logger.Warn($"Referee ghost: turned down {__instance.Data?.PlayerName}'s kill on the referee (dead here: {__0.Data?.IsDead}).");
                 __instance.RpcMurderPlayer(__0, false);
                 return false;
@@ -116,7 +116,7 @@ namespace TournamentTracker.Plugin.Patches
             if (!__1 || !Game.IsHost || __instance == null || __0 == null || TournamentPlugin.Session?.RefSlotKey == null) return true;
             try
             {
-                if (RefSlot.RefereeId() != __0.PlayerId) return true;
+                if (RefSlot.RefereeId(fresh: true) != __0.PlayerId) return true;
                 TournamentPlugin.Logger.Warn($"Referee ghost: stopped a kill on the referee by {__instance.Data?.PlayerName} before it was sent.");
                 __instance.RpcMurderPlayer(__0, false);
                 return false;
@@ -137,7 +137,7 @@ namespace TournamentTracker.Plugin.Patches
             if (!Game.IsHost || __0 == null || TournamentPlugin.Session?.RefSlotKey == null) return true;
             try
             {
-                if (RefSlot.RefereeId() != __0.PlayerId) return true;
+                if (RefSlot.RefereeId(fresh: true) != __0.PlayerId) return true;
                 TournamentPlugin.Logger.Warn($"Referee ghost: a kill on the referee by {__instance?.Data?.PlayerName} reached the host's game; not played here.");
                 return false;
             }
@@ -146,6 +146,24 @@ namespace TournamentTracker.Plugin.Patches
                 TournamentPlugin.Logger.Error("Referee kill hook failed: " + e);
                 return true;
             }
+        }
+    }
+
+    // Referee ghost: the chat stays (the game hides it for a player whose role isn't a ghost role,
+    // which the referee's isn't).
+    [HarmonyPatch(typeof(ChatController), nameof(ChatController.SetVisible))]
+    internal static class RefereeChatPatch
+    {
+        public static bool Prefix(ChatController __instance, bool __0)
+        {
+            if (__0 || __instance == null) return true;
+            try
+            {
+                if (!RefSlot.LocalIsRefereeGhost()) return true;
+                __instance.SetVisible(true);
+                return false;
+            }
+            catch (Exception) { return true; }
         }
     }
 

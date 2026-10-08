@@ -63,8 +63,13 @@ namespace TournamentTracker
             var now = _clock();
             if (now < _nextOverlay) return;
             _nextOverlay = now.AddSeconds(0.5);
-            _overlay.SafeJson = JsonSerializer.Serialize(OverlayState(phase, players, map, full: false), OverlayJson);
-            _overlay.FullJson = JsonSerializer.Serialize(OverlayState(phase, players, map, full: true), OverlayJson);
+            var overlay = _overlay;
+            object safe = OverlayState(phase, players, map, full: false), full = OverlayState(phase, players, map, full: true);
+            Work.Post(() =>
+            {
+                overlay.SafeJson = JsonSerializer.Serialize(safe, OverlayJson);
+                overlay.FullJson = JsonSerializer.Serialize(full, OverlayJson);
+            });
         }
 
         /// <summary>What the overlay shows. Public for tests.</summary>

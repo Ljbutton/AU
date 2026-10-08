@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using AmongUs.GameOptions;
 using InnerNet;
@@ -91,23 +92,44 @@ namespace TournamentTracker.Plugin
             };
         }
 
+        // The map's long tasks, read once per map.
+        private static readonly HashSet<byte> LongTasks = new HashSet<byte>();
+        private static ShipStatus? _longTasksOf;
+
         /// <summary>A player's task, by its type ID, is one of the map's long tasks.</summary>
         private static bool IsLongTask(byte typeId)
         {
             var ship = ShipStatus.Instance;
-            var longTasks = ship != null ? ship.LongTasks : null;
-            if (longTasks == null) return false;
-            for (int i = 0; i < longTasks.Length; i++)
-                if (longTasks[i] != null && longTasks[i].Index == typeId) return true;
-            return false;
+            if (ship == null) return false;
+            if (!ReferenceEquals(_longTasksOf, ship))
+            {
+                _longTasksOf = ship;
+                LongTasks.Clear();
+                var longTasks = ship.LongTasks;
+                if (longTasks != null)
+                    for (int i = 0; i < longTasks.Length; i++)
+                        if (longTasks[i] != null) LongTasks.Add((byte)longTasks[i].Index);
+            }
+            return LongTasks.Contains(typeId);
         }
 
-        public static PlayerControl? Player(byte playerId)
+        public static PlayerControl? Player(byte playerId) => Frame.Control(playerId);
+
+        /// <summary>
+        /// The game's current options, or null when there are none yet. The getter itself throws
+        /// (a NullReferenceException inside the game) before the game has any, e.g. in the menus.
+        /// </summary>
+        public static IGameOptions? Options()
         {
-            var all = PlayerControl.AllPlayerControls;
-            for (int i = 0; i < all.Count; i++)
-                if (all[i] != null && all[i].PlayerId == playerId) return all[i];
-            return null;
+            try
+            {
+                var manager = GameOptionsManager.Instance;
+                return manager == null ? null : manager.CurrentGameOptions;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         public static string LobbyCode()
@@ -118,7 +140,7 @@ namespace TournamentTracker.Plugin
 
         public static string MapName()
         {
-            var options = GameOptionsManager.Instance?.CurrentGameOptions;
+            var options = Options();
             return options == null ? "Unknown map" : Maps.Name(options.MapId);
         }
 

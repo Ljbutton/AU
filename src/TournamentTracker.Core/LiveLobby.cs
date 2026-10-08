@@ -24,6 +24,11 @@ namespace TournamentTracker
         private string _statusDesiredJson = "";
         private WebhookMessage? _statusDesired;
         private string _statusSentJson = "";
+        /// <summary>
+        /// What Discord last turned down (HTTP 400): the colour menu when the menu was the problem, else
+        /// the whole message. A status that would be sent the same way again isn't sent.
+        /// </summary>
+        private string? _statusRejected;
         private bool _statusFlushQueued;
         private bool _statusClosed = true;
         private DateTime _statusNextSend;
@@ -51,7 +56,11 @@ namespace TournamentTracker
         private bool LiveStatusOn => (_settings.LiveStatus && !string.IsNullOrWhiteSpace(StatusWebhook)) || (_statusChosen != null && _settings.AutoMute.IsConfigured);
 
         /// <summary>Called a few times a second with the current phase and players.</summary>
-        public void VoiceTick(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, string lobbyCode = "", string map = "")
+        /// <param name="publish">
+        /// False: leave the live status, overlay, live data and the app's status for <see cref="PublishTick"/>
+        /// (the mod does that on a later frame, so one frame doesn't do everything).
+        /// </param>
+        public void VoiceTick(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, string lobbyCode = "", string map = "", bool publish = true)
         {
             bool changed = phase != _phase || lobbyCode != _lobbyCode || players.Count != Players.Count;
             Players = players;
@@ -77,11 +86,26 @@ namespace TournamentTracker
                 Reply("Referee mode ended because the game started.", false);
             }
             AutoMute?.Update(phase, playing, spectators);
-            UpdateStatus(phase, players, lobbyCode, map, spectators?.Count ?? 0);
-            UpdateOverlay(phase, players, map);
-            PublishLive(phase, players, lobbyCode, map);
-            RefreshStatus(force: changed);
+            _tickSpectators = spectators?.Count ?? 0;
+            _tickChanged |= changed;
             _lastPhase = phase;
+            if (publish) PublishTick();
+        }
+
+        private int _tickSpectators;
+        private bool _tickChanged;
+
+        /// <summary>The live status, overlay, live data and the app's status, from the last <see cref="VoiceTick"/>.</summary>
+        public void PublishTick()
+        {
+            bool changed = _tickChanged;
+            _tickChanged = false;
+            var phase = _phase;
+            var players = Players;
+            UpdateStatus(phase, players, _lobbyCode, _map, _tickSpectators);
+            UpdateOverlay(phase, players, _map);
+            PublishLive(phase, players, _lobbyCode, _map);
+            RefreshStatus(force: changed);
         }
 
         /// <summary>
@@ -229,7 +253,7 @@ namespace TournamentTracker
             SetStatus(StatusFormatter.Build(new StatusInfo { Phase = VoicePhase.Menu, Label = LobbyLabel() }));
         }
 
-        private void SetStatus(WebhookMessage message)
+        private void SetStatus(WebhookMessage message) => Work.Post(() =>
         {
             string json = JsonSerializer.Serialize(message, WebhookMessage.JsonOptions);
             lock (_postLock)
@@ -239,7 +263,7 @@ namespace TournamentTracker
                 _statusDesired = message;
             }
             ScheduleStatusFlush();
-        }
+        });
 
         /// <summary>
         /// Sends the newest status through the same queue as the reports, so ordering holds.
@@ -271,7 +295,13 @@ namespace TournamentTracker
                         json = _statusDesiredJson;
                         id = _statusMessageId;
                         if (message == null || (json == _statusSentJson && !repost)) return;
+                        if (_statusRejected != null && (_statusRejected == json || _statusRejected == MenuShape(message)))
+                        {
+                            _statusSentJson = json;      // it would fail the same way: wait for a change that matters
+                            return;
+                        }
                     }
+                    DiscordResult? refused = null;
 
                     try
                     {
@@ -315,12 +345,14 @@ namespace TournamentTracker
                             {
                                 var edit = await _rest.EditEmbedsAsync(token!, channel, id, message).ConfigureAwait(false);
                                 if (edit.Status == 404) id = null;
+                                else if (edit.Status == 400) refused = edit;
                                 else if (!edit.Ok) _log.Warn("Could not update the live status: " + edit);
                             }
-                            if (id == null)
+                            if (id == null && refused == null)
                             {
                                 var created = await _rest.PostEmbedsAsync(token!, channel, message).ConfigureAwait(false);
                                 if (created.Ok) id = DiscordRest.MessageIdOf(created);
+                                else if (created.Status == 400) refused = created;
                                 else if (created.Status == 403 || created.Status == 401)
                                 {
                                     // The bot can't post there: back to the webhook, without the menu.
@@ -336,7 +368,7 @@ namespace TournamentTracker
                                 else _log.Warn("Could not post the live status: " + created);
                             }
                         }
-                        if (!byBot && url.Length > 0)
+                        if (!byBot && url.Length > 0 && refused == null)
                         {
                             var plain = message.Components == null ? message : new WebhookMessage { Username = message.Username, Content = message.Content, Embeds = message.Embeds, AllowedMentions = message.AllowedMentions };
                             if (repost && id != null)
@@ -348,12 +380,14 @@ namespace TournamentTracker
                             {
                                 var edit = await _rest.EditWebhookMessageAsync(url, id, plain).ConfigureAwait(false);
                                 if (edit.Status == 404) id = null;      // someone deleted it; post a new one
+                                else if (edit.Status == 400) refused = edit;
                                 else if (!edit.Ok) _log.Warn("Could not update the live status: " + edit);
                             }
-                            if (id == null)
+                            if (id == null && refused == null)
                             {
                                 var created = await _rest.ExecuteWebhookAsync(url, plain).ConfigureAwait(false);
                                 if (created.Ok) id = DiscordRest.MessageIdOf(created);
+                                else if (created.Status == 400) refused = created;
                                 else _log.Warn("Could not post the live status: " + created);
                             }
                         }
@@ -366,6 +400,16 @@ namespace TournamentTracker
                         {
                             _statusMessageId = id;
                             _statusSentJson = json;
+                            if (refused != null)
+                            {
+                                // Turned down as it was: sending it again would fail the same way.
+                                bool menu = (refused.Body ?? "").IndexOf("COMPONENT", StringComparison.OrdinalIgnoreCase) >= 0;
+                                string rejected = menu ? MenuShape(message) ?? json : json;
+                                if (_statusRejected != rejected)
+                                    _log.Warn("Discord turned down the live status (" + refused + "). It isn't sent again until it changes.");
+                                _statusRejected = rejected;
+                            }
+                            else _statusRejected = null;
                             _statusNextSend = DateTime.UtcNow + StatusMinInterval;
                         }
                     }
@@ -377,5 +421,9 @@ namespace TournamentTracker
                 }, TaskScheduler.Default).Unwrap();
             }
         }
+
+        /// <summary>The colour menu of a status message, as sent (null: no menu).</summary>
+        private static string? MenuShape(WebhookMessage message) =>
+            message.Components == null ? null : "menu:" + JsonSerializer.Serialize(message.Components, WebhookMessage.JsonOptions);
     }
 }
