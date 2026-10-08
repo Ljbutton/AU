@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.38**, a beta.
+The current release is **v0.1.39**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -353,7 +353,9 @@ host's camera stays over the middle of the map, zoomed all the way out; the **ar
 **WASD**) move it and **Home** brings it back. No room name shows at the top. In meetings the
 newest chat messages show along the bottom edge of the screen, below the name plates (the **mini
 chat**), so the chat doesn't have to be opened to follow the vote; it isn't shown during play.
-The chat button still opens the full chat to type. Their task bar is smaller
+The chat button still opens the full chat to type. Every kill plays the kill sound on the referee's game (the game
+itself only plays it for the killer and the victim), so the host, and the stream's whole-map
+view, hear it. Their task bar is smaller
 and always shows the real progress, whatever the lobby's task bar setting. The host turns down any kill on the
 referee. In meetings the referee's card is taken off the list. That happens on the host's screen and on every player's game that has the
 mod; there the referee isn't drawn on the map either. A game without the mod lists them as a dead
