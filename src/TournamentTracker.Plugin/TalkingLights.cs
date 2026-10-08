@@ -7,20 +7,20 @@ namespace TournamentTracker.Plugin
 {
     /// <summary>
     /// On the host's screen (and so on stream): who is talking on Discord, for players linked to
-    /// it. In meetings their card lights up green; in the lobby a speaker shows by their name.
+    /// it. In meetings their card lights up in their colour; in the lobby a speaker in their
+    /// colour shows by their name.
     /// The bot sits muted in the host's voice channel to see it (it never records anyone).
     /// Only drawn in this one game; nothing is sent to the players.
     /// </summary>
     internal static class TalkingLights
     {
         private const float Check = 0.1f, Fade = 0.15f;
-        private static readonly Color Green = new Color(0.35f, 1f, 0.45f, 1f);
 
         private static float _next;
         private static Sprite? _ring, _speaker;
         private static readonly Dictionary<IntPtr, Light> Cards = new Dictionary<IntPtr, Light>();
         private static readonly Dictionary<byte, Light> Icons = new Dictionary<byte, Light>();
-        private static readonly Dictionary<string, string> KeyByName = new Dictionary<string, string>();
+        private static readonly Dictionary<string, (string Key, Color Colour)> KeyByName = new Dictionary<string, (string, Color)>();
         private static MeetingHud? _meeting;
 
         private sealed class Light
@@ -29,6 +29,7 @@ namespace TournamentTracker.Plugin
             public SpriteRenderer Sprite = null!;
             public float Alpha = -1;
             public bool On;
+            public Color Colour = Color.white;
             public Transform? Follow;
             public Vector3 Offset;
         }
@@ -65,19 +66,21 @@ namespace TournamentTracker.Plugin
                 if (p.Data == null) continue;
                 string real = p.Data.PlayerName ?? "";
                 string key = PlayerSnapshot.MakeKey(p.Data.FriendCode, real);
-                KeyByName[real] = key;
-                if (session.DisplayName(key) is string shown) KeyByName[shown] = key;
+                var colour = ColourOf(p.Data);
+                KeyByName[real] = (key, colour);
+                if (session.DisplayName(key) is string shown) KeyByName[shown] = (key, colour);
             }
             foreach (var area in meeting.playerStates)
             {
                 if (area == null || area.NameText == null) continue;
-                bool talking = KeyByName.TryGetValue(area.NameText.text ?? "", out var key) && session.IsTalking(key)
+                bool talking = KeyByName.TryGetValue(area.NameText.text ?? "", out var who) && session.IsTalking(who.Key)
                     && area.gameObject.activeInHierarchy && area.transform.localScale != Vector3.zero;
                 if (!Cards.TryGetValue(area.Pointer, out var light) || light.Go == null)
                 {
                     if (!talking) continue;
                     light = Cards[area.Pointer] = CardLight(area);
                 }
+                if (talking) light.Colour = who.Colour;
                 light.On = talking;
             }
         }
@@ -89,7 +92,7 @@ namespace TournamentTracker.Plugin
             go.transform.SetParent(area.transform, false);
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = Ring();
-            sr.color = new Color(Green.r, Green.g, Green.b, 0);
+            sr.color = new Color(1, 1, 1, 0);
             // The card's size and drawing order, from its own pictures.
             Bounds? box = null;
             int layer = 0, order = 0;
@@ -126,6 +129,7 @@ namespace TournamentTracker.Plugin
                     if (!talking) continue;
                     light = Icons[p.Id] = IconLight(p);
                 }
+                if (talking) light.Colour = ColourOf(p.Data);
                 light.On = talking;
                 Place(p, light);
             }
@@ -141,7 +145,7 @@ namespace TournamentTracker.Plugin
             if (local != null) go.layer = local.gameObject.layer;
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = Speaker();
-            sr.color = new Color(Green.r, Green.g, Green.b, 0);
+            sr.color = new Color(1, 1, 1, 0);
             return new Light { Go = go, Sprite = sr, Follow = p.Pc.transform };
         }
 
@@ -177,7 +181,7 @@ namespace TournamentTracker.Plugin
                 if (a != light.Alpha)
                 {
                     light.Alpha = a;
-                    light.Sprite.color = new Color(Green.r, Green.g, Green.b, a);
+                    light.Sprite.color = new Color(light.Colour.r, light.Colour.g, light.Colour.b, a);
                     bool show = a > 0.01f;
                     if (light.Go.activeSelf != show) light.Go.SetActive(show);
                 }
@@ -187,6 +191,24 @@ namespace TournamentTracker.Plugin
                     light.Go.transform.position = new Vector3(f.x + light.Offset.x, f.y + light.Offset.y, f.z + light.Offset.z);
                 }
             }
+        }
+
+        /// <summary>
+        /// The player's own colour, made lighter for the darkest ones (black, brown…) so the glow still
+        /// shows against the dark meeting screen.
+        /// </summary>
+        private static Color ColourOf(NetworkedPlayerInfo? data)
+        {
+            int id = data != null && data.DefaultOutfit != null ? data.DefaultOutfit.ColorId : -1;
+            var colors = Palette.PlayerColors;
+            Color c = id >= 0 && id < colors.Length ? (Color)colors[id] : Color.white;
+            float light = 0.299f * c.r + 0.587f * c.g + 0.114f * c.b;
+            if (light < 0.3f)
+            {
+                float k = (0.3f - light) / 0.3f * 0.45f;
+                c = new Color(c.r + (1 - c.r) * k, c.g + (1 - c.g) * k, c.b + (1 - c.b) * k, 1);
+            }
+            return c;
         }
 
         private static void ClearCards()

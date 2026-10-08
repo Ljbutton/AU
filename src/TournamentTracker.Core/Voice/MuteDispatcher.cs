@@ -122,6 +122,13 @@ namespace TournamentTracker.Voice
 
         private bool IsApplied(string userId, VoiceState state) => _applied.TryGetValue(userId, out var a) && a == state;
 
+        /// <summary>The change mutes or deafens someone who isn't yet.</summary>
+        private bool TakesAway(string userId, VoiceState state)
+        {
+            _applied.TryGetValue(userId, out var a);
+            return (state.Mute && !a.Mute) || (state.Deaf && !a.Deaf);
+        }
+
         private bool TryTake(out string userId, out VoiceState state)
         {
             lock (_lock)
@@ -132,18 +139,24 @@ namespace TournamentTracker.Voice
                     if (!_queue.Contains(blocked)) _queue.Add(blocked);
                 }
 
-                for (int i = 0; i < _queue.Count; i++)
-                {
-                    string id = _queue[i];
-                    if (_inFlight.Contains(id)) continue;
-                    _queue.RemoveAt(i--);
-                    var desired = _desired[id];
-                    if (IsApplied(id, desired)) continue;
-                    _inFlight.Add(id);
-                    userId = id;
-                    state = desired;
-                    return true;
-                }
+                // Taking voice away goes first: at a meeting the dead are muted before the living are
+                // let go, and when it ends the living are muted before the dead get their voice back.
+                // Discord only lets each bot change so many people a second, and whoever is last waits,
+                // so a dead player mustn't be the one still talking while the others are sorted out.
+                for (int pass = 0; pass < 2; pass++)
+                    for (int i = 0; i < _queue.Count; i++)
+                    {
+                        string id = _queue[i];
+                        if (_inFlight.Contains(id)) continue;
+                        var desired = _desired[id];
+                        if (IsApplied(id, desired)) { _queue.RemoveAt(i--); continue; }
+                        if (pass == 0 && !TakesAway(id, desired)) continue;
+                        _queue.RemoveAt(i);
+                        _inFlight.Add(id);
+                        userId = id;
+                        state = desired;
+                        return true;
+                    }
             }
             userId = "";
             state = default;
