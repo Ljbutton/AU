@@ -27,6 +27,12 @@ namespace TournamentTracker.App.Broadcast
         public Dictionary<string, string> Scenes { get; set; } = new Dictionary<string, string> { ["full"] = "TT Full", ["2up"] = "TT 2-up", ["4up"] = "TT Quad", ["grid"] = "TT Grid", ["break"] = "TT Sponsor Break", ["intermission"] = "TT Intermission", ["slate"] = "TT Be Right Back" };
         /// <summary>Each lobby's VDO.Ninja source is called this plus the lobby name.</summary>
         public string SourcePrefix { get; set; } = "TT Lobby ";
+        /// <summary>
+        /// The bitrate OBS asks each host's VDO.Ninja video for (kbps; 0 = VDO.Ninja's own, about 2500).
+        /// Higher keeps the picture sharp when a replay zooms in. Only OBS's own copy asks for it, not
+        /// the small previews, so the host's upload isn't spent on those.
+        /// </summary>
+        public int VideoKbps { get; set; } = 8000;
         /// <summary>Space between the pictures in 2-up and quad, in canvas pixels.</summary>
         public int Gap { get; set; } = 8;
         /// <summary>Whose game sound plays: "slot1" (the full-screen lobby, or slot 1) or "none".</summary>
@@ -96,6 +102,11 @@ namespace TournamentTracker.App.Broadcast
     /// </summary>
     public sealed partial class ObsDirector : IAsyncDisposable
     {
+        /// <summary>A host's VDO.Ninja link as OBS opens it: asking for <see cref="ObsSettings.VideoKbps"/>.</summary>
+        internal string WithBitrate(string url) =>
+            Settings.VideoKbps > 0 && url.Contains("vdo.ninja", StringComparison.OrdinalIgnoreCase) && !url.Contains("videobitrate=", StringComparison.OrdinalIgnoreCase)
+                ? url + "&videobitrate=" + Settings.VideoKbps : url;
+
         private readonly string? _path;
         private readonly CasterDesk _desk;
         private readonly Func<IReadOnlyList<(string Lobby, string Url)>> _feeds;
@@ -305,8 +316,9 @@ namespace TournamentTracker.App.Broadcast
                 var inputs = (await obs.RequestAsync("GetInputList").ConfigureAwait(false)).GetProperty("inputs").EnumerateArray()
                     .Select(i => i.GetProperty("inputName").GetString() ?? "").ToHashSet();
                 bool changed = false;
-                foreach (var (lobby, url) in _feeds())
+                foreach (var (lobby, feedUrl) in _feeds())
                 {
+                    string url = WithBitrate(feedUrl);
                     // Simulation's lobbies only while it runs (a late tick mustn't build them again after it stopped).
                     if (!_desk.Simulating && CasterDesk.IsSimLobby(lobby)) continue;
                     if (!now && _sourceProblems.TryGetValue(lobby, out var failed) && DateTime.UtcNow < failed.RetryAt) continue;

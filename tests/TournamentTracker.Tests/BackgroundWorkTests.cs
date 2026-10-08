@@ -67,4 +67,18 @@ public class BackgroundWorkTests
         for (int frame = 0; frame < 9; frame++) steps.Add(stagger.Next(frame * 0.2));
         Assert.Equal(new[] { 0, 1, 2, 0, 1, 2, 0, 1, 2 }, steps);
     }
+
+    [Fact]
+    public void A_voice_packet_says_who_sent_it()
+    {
+        var rtp = new byte[20];
+        rtp[0] = 0x80; rtp[1] = 120;                        // RTP version 2, Opus
+        rtp[8] = 0x01; rtp[9] = 0x02; rtp[10] = 0x03; rtp[11] = 0x04;
+        Assert.Equal(0x01020304u, TournamentTracker.Discord.VoiceListener.RtpSsrc(rtp));
+        rtp[1] = 0x80 | 120;                                // the marker bit
+        Assert.Equal(0x01020304u, TournamentTracker.Discord.VoiceListener.RtpSsrc(rtp));
+        rtp[1] = 201;                                       // a control (RTCP) packet
+        Assert.Null(TournamentTracker.Discord.VoiceListener.RtpSsrc(rtp));
+        Assert.Null(TournamentTracker.Discord.VoiceListener.RtpSsrc(new byte[] { 0, 1, 0, 70 }));   // IP discovery, too short
+    }
 }

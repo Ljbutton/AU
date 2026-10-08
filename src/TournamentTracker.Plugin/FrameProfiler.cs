@@ -20,7 +20,7 @@ namespace TournamentTracker.Plugin
         public enum Part
         {
             Nameplates, OverlayUpdate, OverlayCheck, OverlayLate, OverlayDim, OverlayRings, OverlayAnimate,
-            Zoom, Referee, Pump, Replay, Players, Voice, FeedRead, FeedTick, Publish, Theatre,
+            Zoom, Referee, Talking, Pump, Replay, Players, Voice, FeedRead, FeedTick, Publish, Theatre,
         }
 
         private static readonly int Count = Enum.GetValues(typeof(Part)).Length;

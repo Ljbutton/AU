@@ -29,7 +29,7 @@ namespace TournamentTracker.App
     public sealed class DiscordBridge : IDisposable
     {
         /// <summary>The events the mod uses: who's in voice, slash commands, channel messages.</summary>
-        private static readonly HashSet<string> Passed = new HashSet<string> { "READY", "GUILD_CREATE", "VOICE_STATE_UPDATE", "MESSAGE_CREATE", "INTERACTION_CREATE" };
+        private static readonly HashSet<string> Passed = new HashSet<string> { "READY", "GUILD_CREATE", "VOICE_STATE_UPDATE", "MESSAGE_CREATE", "INTERACTION_CREATE", VoicePresenceState.TalkingEvent };
         private static readonly Regex MemberUrl = new Regex(@"/guilds/(\d+)/members/(\d+)$");
         private const int Kept = 1000;
 
@@ -48,6 +48,8 @@ namespace TournamentTracker.App
         private long _seq;
         private string? _botName;
         private BotConfig? _modWants;
+        /// <summary>The voice channel the mod wants the bot in, to see who's talking (the host's).</summary>
+        private string? _voiceWanted;
         private DateTime _modSeen = DateTime.MinValue;
         private string? _wroteTo;
         /// <summary>Who The Button has server-muted or deafened (and with which bot), to put right when it closes.</summary>
@@ -130,7 +132,9 @@ namespace TournamentTracker.App
             IBotGateway? old = null, started = null;
             lock (_lock)
             {
-                if (want == _config) return;
+                // Out of voice once the mod stops asking (Among Us closed, or no longer hosting).
+                string? voice = DateTime.UtcNow - _modSeen < ModGone ? _voiceWanted : null;
+                if (want == _config) { _gateway?.JoinVoice(voice); return; }
                 old = _gateway;
                 _gateway = null;
                 _config = want;
@@ -148,6 +152,9 @@ namespace TournamentTracker.App
             }
             old?.Dispose();
             started?.Start();
+            string? wanted;
+            lock (_lock) wanted = DateTime.UtcNow - _modSeen < ModGone ? _voiceWanted : null;
+            started?.JoinVoice(wanted);
         }
 
         private void Heard(string epoch, string type, JsonElement data)
@@ -235,6 +242,7 @@ namespace TournamentTracker.App
         private async Task<Answer> GatewayAsync(byte[] body)
         {
             BotConfig? wants = null;
+            string? voice = null;
             long since = 0;
             string epoch = "";
             try
@@ -244,9 +252,10 @@ namespace TournamentTracker.App
                 if (t.Length > 0 && g.Length > 0) wants = new BotConfig(t, g, j.TryGetProperty("listen", out var l) && l.ValueKind == JsonValueKind.True);
                 since = j.TryGetProperty("since", out var s) && s.TryGetInt64(out var n) ? n : 0;
                 epoch = j.TryGetProperty("epoch", out var e) ? e.GetString() ?? "" : "";
+                voice = j.TryGetProperty("voice", out var v) && v.ValueKind == JsonValueKind.String && v.GetString() is { Length: > 0 } vc ? vc : null;
             }
             catch (Exception) { return Answer.Json(400, new { message = "Bad request" }); }
-            lock (_lock) { _modWants = wants; _modSeen = DateTime.UtcNow; }
+            lock (_lock) { _modWants = wants; _modSeen = DateTime.UtcNow; _voiceWanted = voice; }
             Reconcile();
 
             var until = DateTime.UtcNow + Wait;

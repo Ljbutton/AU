@@ -11,6 +11,8 @@ namespace TournamentTracker.App.Broadcast
         public bool On { get; set; } = true;
         /// <summary>How much of each lobby OBS keeps in memory (Source Record's replay buffer).</summary>
         public int BufferSeconds { get; set; } = 30;
+        /// <summary>The bitrate each lobby's replay buffer is kept at (kbps): high, since replays zoom in.</summary>
+        public int Kbps { get; set; } = 15000;
         /// <summary>A clip runs from this long before the play…</summary>
         public double PreSeconds { get; set; } = 8;
         /// <summary>…to this long after it.</summary>

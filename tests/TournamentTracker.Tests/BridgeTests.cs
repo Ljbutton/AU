@@ -18,6 +18,8 @@ public sealed class FakeBot : IBotGateway
     public bool Started { get; private set; }
     public bool Disposed { get; private set; }
     public void Start() => Started = true;
+    public List<string?> Voice { get; } = new();
+    public void JoinVoice(string? channelId) { lock (Voice) if (Voice.Count == 0 || Voice[^1] != channelId) Voice.Add(channelId); }
     public void Fire(string type, string json)
     {
         var d = JsonDocument.Parse(json).RootElement.Clone();
@@ -152,6 +154,31 @@ public class BridgeTests : IDisposable
         Assert.Equal("!lobbies", messages.Single().Content);
         Assert.True(JsonSerializer.SerializeToElement(bridge.Status()).GetProperty("Game").GetBoolean());
         Assert.Equal(1, ready);
+    }
+
+    [Fact]
+    public async Task The_bot_joins_the_voice_channel_the_mod_asks_for_and_says_who_is_talking()
+    {
+        using var bridge = await Bridge();
+        bridge.Reconcile();
+        Bot.Fire("READY", "{\"user\":{\"id\":\"900\",\"username\":\"TT Bot\"},\"application\":{\"id\":\"901\"}}");
+        using var mod = new ButtonGateway(_modDir, "bot-token", "100", true, NullLog.Instance);
+        mod.Start();
+        await Wait.Until(() => Task.FromResult(mod.Connected));
+
+        // The host is in voice channel 50: the mod asks, and The Button puts the bot there at once.
+        mod.WantVoice("50");
+        await Wait.Until(() => Task.FromResult(Bot.Voice.LastOrDefault() == "50"));
+
+        // Talking starts and stops reach the mod.
+        Bot.Fire(VoicePresenceState.TalkingEvent, "{\"user_id\":\"200\",\"talking\":true}");
+        await Wait.Until(() => Task.FromResult(mod.State.IsTalking("200")));
+        Bot.Fire(VoicePresenceState.TalkingEvent, "{\"user_id\":\"200\",\"talking\":false}");
+        await Wait.Until(() => Task.FromResult(!mod.State.IsTalking("200")));
+
+        // The host leaves voice (or stops hosting): the bot leaves too.
+        mod.WantVoice(null);
+        await Wait.Until(() => Task.FromResult(Bot.Voice.Count >= 2 && Bot.Voice.Last() == null));
     }
 
     [Fact]

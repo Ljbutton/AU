@@ -88,6 +88,8 @@ namespace TournamentTracker
                 Reply("Referee mode ended because the game started.", false);
             }
             AutoMute?.Update(phase, playing, spectators);
+            TalkingVoiceChannel = TalkingChannel(phase, players);
+            _gateway?.WantVoice(TalkingVoiceChannel);
             _tickSpectators = spectators?.Count ?? 0;
             _tickChanged |= changed;
             _lastPhase = phase;
@@ -144,6 +146,33 @@ namespace TournamentTracker
                 .OrderByDescending(g => g.Count())
                 .Select(g => g.Key)
                 .FirstOrDefault();
+        }
+
+        // ---- Who's talking ---------------------------------------------------------------------
+
+        /// <summary>
+        /// Where the bot listens for who's talking: the host's voice channel while they host (the bot
+        /// follows them when they move, and leaves when they leave voice or stop hosting).
+        /// </summary>
+        private string? TalkingChannel(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players)
+        {
+            if (!_settings.AutoMute.ShowTalking || phase == VoicePhase.Menu || Presence == null || !Presence.Connected) return null;
+            var host = players.FirstOrDefault(p => p.IsHost);
+            string? hostId = host == null ? null : Links.Find(host.Key)?.DiscordUserId;
+            if (string.IsNullOrEmpty(hostId)) return null;
+            return Presence.Members.FirstOrDefault(m => m.UserId == hostId)?.ChannelId;
+        }
+
+        /// <summary>The voice channel the bot is asked to sit in (null: out of voice). Public for tests.</summary>
+        public string? TalkingVoiceChannel { get; private set; }
+
+        /// <summary>This player (their key) is linked to Discord and talking right now.</summary>
+        public bool IsTalking(string playerKey)
+        {
+            var state = Presence as VoicePresenceState ?? _gateway?.State;
+            if (state == null || !_settings.AutoMute.ShowTalking) return false;
+            string? id = Links.Find(playerKey)?.DiscordUserId;
+            return !string.IsNullOrEmpty(id) && state.IsTalking(id!);
         }
 
         private List<string> Spectators(string channel, IReadOnlyList<PlayerSnapshot> players)

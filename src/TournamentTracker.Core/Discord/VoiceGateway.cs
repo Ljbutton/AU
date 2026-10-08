@@ -39,6 +39,22 @@ namespace TournamentTracker.Discord
         private readonly string _guildId;
         private readonly object _lock = new object();
         private readonly Dictionary<string, VoiceMember> _members = new Dictionary<string, VoiceMember>();
+        private readonly HashSet<string> _talking = new HashSet<string>();
+
+        /// <summary>The bot's own event (from The Button's voice listener): someone started or stopped talking.</summary>
+        public const string TalkingEvent = "TT_TALKING";
+
+        /// <summary>This person (a Discord user ID) is talking in the voice channel the bot listens in.</summary>
+        public bool IsTalking(string userId)
+        {
+            lock (_lock) return _talking.Contains(userId);
+        }
+
+        /// <summary>Everyone talking right now.</summary>
+        public IReadOnlyCollection<string> Talking
+        {
+            get { lock (_lock) return _talking.ToList(); }
+        }
 
         public VoicePresenceState(string guildId)
         {
@@ -96,6 +112,7 @@ namespace TournamentTracker.Discord
                     lock (_lock)
                     {
                         _members.Clear();
+                        _talking.Clear();
                         if (data.TryGetProperty("voice_states", out var states))
                         {
                             foreach (var vs in states.EnumerateArray())
@@ -114,6 +131,15 @@ namespace TournamentTracker.Discord
                     MessageCreated?.Invoke(ChannelMessage.Parse(data));
                     break;
 
+                case TalkingEvent:
+                    if (Str(data, "user_id") is string talker)
+                        lock (_lock)
+                        {
+                            if (data.TryGetProperty("talking", out var t) && t.ValueKind == JsonValueKind.True) _talking.Add(talker);
+                            else _talking.Remove(talker);
+                        }
+                    break;
+
                 case "VOICE_STATE_UPDATE":
                     if (Str(data, "guild_id") != _guildId) return;
                     string? who = Str(data, "user_id");
@@ -121,7 +147,7 @@ namespace TournamentTracker.Discord
                     string? now = Str(data, "channel_id");
                     lock (_lock)
                     {
-                        if (now == null) _members.Remove(who);
+                        if (now == null) { _members.Remove(who); _talking.Remove(who); }
                         else _members[who] = Build(who, now, data.TryGetProperty("member", out var mem) ? mem : (JsonElement?)null, _members.GetValueOrDefault(who));
                     }
                     break;
@@ -162,6 +188,8 @@ namespace TournamentTracker.Discord
         VoicePresenceState State { get; }
         event Action<string, JsonElement>? Dispatched;
         void Start();
+        /// <summary>Puts the bot in this voice channel (null: out of voice), to see who's talking.</summary>
+        void JoinVoice(string? channelId);
     }
 
     /// <summary>
@@ -182,6 +210,11 @@ namespace TournamentTracker.Discord
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private Task? _run;
         private int? _sequence;
+        private readonly string _guildId;
+        private Func<object, Task>? _send;
+        private readonly object _voiceLock = new object();
+        private string? _voiceWanted, _voiceSession, _voiceToken, _voiceEndpoint, _voiceIn;
+        private VoiceListener? _listener;
 
         public VoiceGateway(string token, string guildId, ILog log, string url = DefaultUrl, bool listenToMessages = false)
         {
@@ -189,6 +222,7 @@ namespace TournamentTracker.Discord
             _token = token;
             _url = new Uri(url);
             _log = log;
+            _guildId = guildId;
             State = new VoicePresenceState(guildId);
         }
 
@@ -200,6 +234,67 @@ namespace TournamentTracker.Discord
         public IReadOnlyList<VoiceMember> Members => State.Members;
 
         public void Start() => _run ??= Task.Run(() => RunAsync(_cts.Token));
+
+        // ---- In a voice channel, to see who's talking ------------------------------------------
+
+        /// <summary>Puts the bot in this voice channel, muted (null: out of voice). Kept across reconnects.</summary>
+        public void JoinVoice(string? channelId)
+        {
+            Func<object, Task>? send;
+            lock (_voiceLock)
+            {
+                if (channelId == _voiceWanted) return;
+                _voiceWanted = channelId;
+                send = _send;
+                if (channelId == null) StopListening();
+            }
+            if (send != null) _ = SendVoiceState(send, channelId);
+        }
+
+        private Task SendVoiceState(Func<object, Task> send, string? channelId) =>
+            send(new { op = 4, d = new { guild_id = _guildId, channel_id = channelId, self_mute = true, self_deaf = false } });
+
+        /// <summary>The bot's own voice state and voice server: once both are known, listen there.</summary>
+        private void VoiceEvent(string type, JsonElement d)
+        {
+            lock (_voiceLock)
+            {
+                if (type == "VOICE_STATE_UPDATE")
+                {
+                    if (d.TryGetProperty("user_id", out var u) && u.GetString() != State.BotUserId) return;
+                    if (d.TryGetProperty("guild_id", out var g) && g.GetString() != _guildId) return;
+                    _voiceSession = d.TryGetProperty("session_id", out var s) ? s.GetString() : null;
+                    string? channel = d.TryGetProperty("channel_id", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() : null;
+                    if (channel != _voiceIn) StopListening();
+                    _voiceIn = channel;
+                    if (channel == null) return;
+                }
+                else if (type == "VOICE_SERVER_UPDATE")
+                {
+                    if (d.TryGetProperty("guild_id", out var g) && g.GetString() != _guildId) return;
+                    _voiceToken = d.TryGetProperty("token", out var t) ? t.GetString() : null;
+                    _voiceEndpoint = d.TryGetProperty("endpoint", out var e) && e.ValueKind == JsonValueKind.String ? e.GetString() : null;
+                    StopListening();          // a new server: connect again
+                }
+                if (_listener != null || _voiceIn == null || _voiceSession == null || _voiceToken == null || _voiceEndpoint == null || State.BotUserId == null) return;
+                var listener = new VoiceListener(_voiceEndpoint, _guildId, State.BotUserId, _voiceSession, _voiceToken, _log);
+                listener.Talking += (user, talking) =>
+                {
+                    var data = JsonSerializer.SerializeToElement(new { user_id = user, talking });
+                    State.Dispatch(VoicePresenceState.TalkingEvent, data);
+                    Dispatched?.Invoke(VoicePresenceState.TalkingEvent, data);
+                };
+                _listener = listener;
+                listener.Start();
+            }
+        }
+
+        private void StopListening()
+        {
+            var old = _listener;
+            _listener = null;
+            if (old != null) Task.Run(old.Dispose);
+        }
 
         private async Task RunAsync(CancellationToken ct)
         {
@@ -307,7 +402,14 @@ namespace TournamentTracker.Discord
                         case 0:
                             string type = root.GetProperty("t").GetString() ?? "";
                             State.Dispatch(type, root.GetProperty("d"));
-                            if (type == "READY") State.Connected = true;
+                            if (type == "VOICE_STATE_UPDATE" || type == "VOICE_SERVER_UPDATE") VoiceEvent(type, root.GetProperty("d"));
+                            if (type == "READY")
+                            {
+                                State.Connected = true;
+                                string? wanted;
+                                lock (_voiceLock) { _send = Send; wanted = _voiceWanted; StopListening(); _voiceIn = null; }
+                                if (wanted != null) await SendVoiceState(Send, wanted).ConfigureAwait(false);
+                            }
                             Dispatched?.Invoke(type, root.GetProperty("d").Clone());
                             break;
                     }
@@ -315,6 +417,7 @@ namespace TournamentTracker.Discord
             }
             finally
             {
+                lock (_voiceLock) _send = null;
                 connection.Cancel();
                 if (heartbeat != null) { try { await heartbeat.ConfigureAwait(false); } catch (OperationCanceledException) { } }
                 var closeStatus = socket.CloseStatus;
@@ -351,6 +454,7 @@ namespace TournamentTracker.Discord
 
         public void Dispose()
         {
+            lock (_voiceLock) StopListening();
             _cts.Cancel();
             try { _run?.Wait(TimeSpan.FromSeconds(2)); }
             catch (AggregateException) { }
