@@ -249,7 +249,7 @@ public sealed class FakeObs : IAsyncDisposable
             case "GetProfileList": return new { currentProfileName = Profile, profiles = new[] { Profile } };
             case "GetSourceFilterKindList": return new { sourceFilterKinds = SourceRecordInstalled ? FilterKinds.ToList() : FilterKinds.Where(k => k != "source_record_filter").ToList() };
             case "GetProfileParameter":
-                return S(d, "parameterName") switch { "DelayEnable" => new { parameterValue = DelayEnable ? "true" : "false" }, "DelaySec" => new { parameterValue = DelaySec.ToString() }, _ => new { parameterValue = (string?)null } };
+                return S(d, "parameterName") switch { "DelayEnable" => new { parameterValue = (string?)(DelayEnable ? "true" : "false") }, "DelaySec" => new { parameterValue = (string?)DelaySec.ToString() }, _ => new { parameterValue = (string?)null } };
             case "SetProfileParameter":
                 if (S(d, "parameterName") == "DelayEnable") DelayEnable = S(d, "parameterValue") == "true";
                 if (S(d, "parameterName") == "DelaySec") DelaySec = int.Parse(S(d, "parameterValue"));

@@ -202,7 +202,7 @@ public class CasterDeskTests : IDisposable
             desk.Sponsors.Begin("grid:1", new Sponsor { Name = "S", Placements = { "grid" } }, "grid");
             Assert.NotEmpty(desk.Archive.Games);
             Assert.True(Directory.GetFiles(Path.Combine(dir, "broadcast-games")).Length > 0);
-            Assert.NotEmpty(desk.Health.Lobbies.Where(CasterDesk.IsSimLobby));
+            Assert.Contains(desk.Health.Lobbies, CasterDesk.IsSimLobby);
             Assert.NotEmpty(desk.Games);
             int switches = switched.Count;
 
@@ -213,7 +213,7 @@ public class CasterDeskTests : IDisposable
             Assert.DoesNotContain("SIM-", all);
             Assert.False(desk.Simulating);
             Assert.Equal(new[] { "LJ" }, state.GetProperty("lobbies").EnumerateArray().Select(l => l.GetProperty("lobby").GetString()));
-            Assert.Empty(desk.Archive.Games.Where(g => CasterDesk.IsSimLobby(g.Lobby)));
+            Assert.DoesNotContain(desk.Archive.Games, g => CasterDesk.IsSimLobby(g.Lobby));
             Assert.Empty(Directory.GetFiles(Path.Combine(dir, "broadcast-games")));
             Assert.Empty(desk.Games);
             Assert.Empty(desk.Roster.Extra);

@@ -193,7 +193,7 @@ public class TwitchTests : IDisposable
             Snap("LJ", "ingame", People(8, 2, 3, 4, 5));
             _desk.Show("LJ");
             Send("LJ", "event", "meeting", new { caller = Who(6) }, "LJ-" + seed);
-            await _tw.TickAsync();
+            await _tw!.TickAsync();
             var poll = _tw.Poll!;
             if (poll.Options[0].Value is "jake#1" or "maria#1") first++; else notFirst++;
             Assert.DoesNotContain(poll.Options, o => o.Title.Contains("mpostor"));
@@ -230,7 +230,7 @@ public class TwitchTests : IDisposable
         var state = JsonSerializer.SerializeToElement(_tw.State(), Camel);
         // Find the rewards' ids from what test mode made.
         var rewardIds = typeof(TwitchDirector).GetField("_rewards", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(_tw) as Dictionary<string, string>;
-        string replayId = rewardIds!.Single(x => x.Value == "replay").Key, shoutId = rewardIds.Single(x => x.Value == "shoutout").Key;
+        string replayId = rewardIds!.Single(x => x.Value == "replay").Key, shoutId = rewardIds!.Single(x => x.Value == "shoutout").Key;
         void Redeem(string id, string reward, string input) => _tw.Handle("channel.channel_points_custom_reward_redemption.add",
             JsonSerializer.SerializeToElement(new { id, user_login = "viewer", user_name = "Viewer", user_input = input, reward = new { id = reward } }));
 

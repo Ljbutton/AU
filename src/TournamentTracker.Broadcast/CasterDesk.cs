@@ -903,8 +903,8 @@ namespace TournamentTracker.App.Broadcast
             return (layout is "full" or "2up" or "4up" or "grid" ? layout : LayoutFor(pick.Count)) switch
             {
                 "full" => Show(pick[0], "full", null, null, by),
-                "2up" => Show("", "2up", null, Fill(2), by),
-                "4up" => Show("", "4up", null, Fill(4), by),
+                "2up" => Show("", "2up", null, Fill(2)!, by),     // empty slots are null: Show takes them
+                "4up" => Show("", "4up", null, Fill(4)!, by),
                 _ => ShowGrid(by, pick),
             };
         }

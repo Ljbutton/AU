@@ -48,9 +48,9 @@ jobs:
     if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
 
@@ -103,13 +103,13 @@ jobs:
 
       # BepInEx's build server often drops downloads, so keep the files once we have them.
       - name: Cache BepInEx be.735 (win-x86)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: bepinex.zip
           key: bepinex-be735-win-x86
 
       - name: Cache BepInEx be.735 (win-x64)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: bepinex-x64.zip
           key: bepinex-be735-win-x64
@@ -167,7 +167,7 @@ jobs:
           echo "BROADCAST_VERSION=$version" >> "$GITHUB_ENV"
           ls -la dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: ${{ env.NAME }}
           path: |
