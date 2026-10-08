@@ -45,6 +45,9 @@ namespace TournamentTracker.App.Broadcast
         public List<string> InputNames { get; private set; } = new List<string>();
         private readonly Dictionary<string, (bool Muted, double Db, int Offset)> _voiceSet = new Dictionary<string, (bool, double, int)>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _voiceInputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Voice source → lobby (a source can have moved to a fresh name, "TT Voice LJ 2").</summary>
+        private readonly Dictionary<string, string> _voiceLobby = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private string VoiceLobby(string name) => _voiceLobby.TryGetValue(name, out var l) ? l : name.StartsWith(VoicePrefix, StringComparison.Ordinal) ? name.Substring(VoicePrefix.Length) : name;
         private string _duckWas = "\u0000";
         private OnAir? _voiceAir;
 
@@ -73,40 +76,41 @@ namespace TournamentTracker.App.Broadcast
                 var have = (await obs.RequestAsync("GetSceneList").ConfigureAwait(false)).GetProperty("scenes").EnumerateArray().Select(x => x.GetProperty("sceneName").GetString()).ToHashSet();
                 string duck = Settings.Voice.DuckUnder.Trim();
                 bool duckChanged = duck != _duckWas;
+                var inScenes = scenes.Where(have.Contains).ToList();
                 foreach (var (lobby, url) in feeds)
                 {
-                    string name = VoicePrefix + lobby;
-                    bool fresh = false;
-                    if (!inputs.Contains(name))
-                    {
-                        // Tiny and see-through: only its sound matters. Stays connected when muted, so switching is instant.
-                        await obs.RequestAsync("CreateInput", new
+                    if (!_desk.Simulating && CasterDesk.IsSimLobby(lobby)) continue;
+                    string root = VoicePrefix + lobby, current = Live(root);
+                    bool fresh = !Usable(current, inputs);
+                    bool known = _voiceInputs.Contains(current);
+                    // Tiny and see-through: only its sound matters. Stays connected when muted, so switching is instant.
+                    // In every scene, always active: a hidden source would go silent; muting decides who's heard.
+                    var (name, ids, _) = await EnsureInputAsync(obs, root, current, inScenes, inputs, "browser_source",
+                        new { url, width = 64, height = 64, reroute_audio = true, shutdown = false, restart_when_active = false },
+                        enabled: true,
+                        existing: known ? null : async n =>
                         {
-                            sceneName = Settings.Scenes["full"], inputName = name, inputKind = "browser_source",
-                            inputSettings = new { url, width = 64, height = 64, reroute_audio = true, shutdown = false, restart_when_active = false },
-                            sceneItemEnabled = true,
+                            var cur = await obs.RequestAsync("GetInputSettings", new { inputName = n }).ConfigureAwait(false);
+                            string? was = cur.TryGetProperty("inputSettings", out var st) && st.TryGetProperty("url", out var u) ? u.GetString() : null;
+                            if (was != url) await obs.RequestAsync("SetInputSettings", new { inputName = n, inputSettings = new { url } }).ConfigureAwait(false);
                         }).ConfigureAwait(false);
-                        await obs.RequestAsync("SetInputMute", new { inputName = name, inputMuted = true }).ConfigureAwait(false);
-                        inputs.Add(name);
+                    if (name != current)
+                    {
+                        Renamed(root, name);
+                        _voiceInputs.Remove(current);
+                        _voiceSet.Remove(current);
                         fresh = true;
                     }
-                    else if (!_voiceInputs.Contains(name))
-                    {
-                        var current = await obs.RequestAsync("GetInputSettings", new { inputName = name }).ConfigureAwait(false);
-                        string? was = current.TryGetProperty("inputSettings", out var s) && s.TryGetProperty("url", out var u) ? u.GetString() : null;
-                        if (was != url) await obs.RequestAsync("SetInputSettings", new { inputName = name, inputSettings = new { url } }).ConfigureAwait(false);
-                    }
-                    // In every scene, always active: a hidden source would go silent; muting decides who's heard.
-                    foreach (var scene in scenes.Where(have.Contains))
+                    if (fresh) await obs.RequestAsync("SetInputMute", new { inputName = name, inputMuted = true }).ConfigureAwait(false);
+                    // At the bottom, out of the way of the pictures and graphics.
+                    foreach (var scene in inScenes)
                     {
                         var items = await ItemsAsync(obs, scene).ConfigureAwait(false);
-                        var item = items.FirstOrDefault(i => i.Source == name);
-                        int id = item?.Id ?? (await obs.RequestAsync("CreateSceneItem", new { sceneName = scene, sourceName = name, sceneItemEnabled = true }).ConfigureAwait(false)).GetProperty("sceneItemId").GetInt32();
-                        // At the bottom, out of the way of the pictures and graphics.
-                        if (item == null || items.IndexOf(item) != 0) await obs.RequestAsync("SetSceneItemIndex", new { sceneName = scene, sceneItemId = id, sceneItemIndex = 0 }).ConfigureAwait(false);
+                        if (items.FindIndex(i => i.Id == ids[scene]) != 0) await obs.RequestAsync("SetSceneItemIndex", new { sceneName = scene, sceneItemId = ids[scene], sceneItemIndex = 0 }).ConfigureAwait(false);
                     }
                     if (fresh || duckChanged || !_voiceInputs.Contains(name)) await DuckAsync(obs, name, duck).ConfigureAwait(false);
                     _voiceInputs.Add(name);
+                    _voiceLobby[name] = lobby;
                 }
                 _duckWas = duck;
                 VoiceProblem = null;
@@ -182,7 +186,7 @@ namespace TournamentTracker.App.Broadcast
             string? loud = LoudVoice(air);
             foreach (var name in _voiceInputs.ToList())
             {
-                string lobby = name.Substring(VoicePrefix.Length);
+                string lobby = VoiceLobby(name);
                 var want = (Muted: !string.Equals(lobby, loud, StringComparison.OrdinalIgnoreCase),
                             Db: Settings.Voice.Volume.TryGetValue(lobby, out var db) ? db : 0,
                             Offset: Settings.Voice.Offset.TryGetValue(lobby, out var ms) ? ms : 0);
@@ -217,9 +221,9 @@ namespace TournamentTracker.App.Broadcast
             Volume = Settings.Voice.Volume, Offset = Settings.Voice.Offset,
             Heard = LoudVoice(_voiceAir ?? _desk.OnAir),
             // What each lobby's voice source in OBS is putting out (muted ones still show their level).
-            Levels = _voiceInputs.ToDictionary(n => n.Substring(VoicePrefix.Length), n => Level(n), StringComparer.OrdinalIgnoreCase),
+            Levels = _voiceInputs.GroupBy(VoiceLobby, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => Level(g.First()), StringComparer.OrdinalIgnoreCase),
             Hotkey = MuteHotkey,
-            Sources = _voiceInputs.Select(n => n.Substring(VoicePrefix.Length)).OrderBy(x => x).ToList(),
+            Sources = _voiceInputs.Select(VoiceLobby).OrderBy(x => x).ToList(),
             Problem = VoiceProblem,
             Inputs = InputNames,
         };

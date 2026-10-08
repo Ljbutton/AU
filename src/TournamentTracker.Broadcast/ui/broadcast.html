@@ -9,6 +9,9 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent
 .el{position:absolute;transition:opacity .45s ease,left .6s cubic-bezier(.22,.8,.24,1),top .6s cubic-bezier(.22,.8,.24,1),right .6s cubic-bezier(.22,.8,.24,1),bottom .6s cubic-bezier(.22,.8,.24,1),font-size .6s cubic-bezier(.22,.8,.24,1)}
 /* New pieces fade and slide in (on the inner box: the outer one may be centred with a transform). */
 .el.enter>*{animation:elin .55s cubic-bezier(.22,.8,.24,1)}
+.el.instant{transition:none}.el.instant>*{animation:none}
+.codehide{width:100%;height:100%;display:grid;place-items:center;background:var(--panel);backdrop-filter:blur(14px);border:2px solid var(--danger);border-radius:6px;box-shadow:0 0 0 9999px transparent}
+.codehide span{font:700 1em/1 var(--head),sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--text)}
 @keyframes elin{from{opacity:0;transform:translateY(.5em)}}
 @media (prefers-reduced-motion:reduce){.el{transition:opacity .3s}.el.enter>*{animation:none}}
 .hide{opacity:0!important;pointer-events:none}
@@ -226,6 +229,18 @@ let S = null;
 // ---- Elements ----------------------------------------------------------------------------------
 // Each draws into its slot (where that lobby's picture is on the canvas). k scales with the slot.
 const ELEMENTS = {
+  // Among Us shows the room code on the lobby screen: covered whenever a lobby on stream is in its lobby
+  // or menu (or hasn't said where it is yet), so viewers can't join. No fade: it's there from the first frame.
+  hideRoomCode(slot, l) {
+    if (l && l.phase !== 'lobby' && l.phase !== 'menu') return;
+    const b = S.codeBox || { x: 0.34, y: 0.84, w: 0.32, h: 0.14 };
+    // The game picture inside the slot (OBS fits it in, keeping 16:9).
+    const pw = Math.min(slot.w, slot.h * 16 / 9), ph = pw * 9 / 16, px = slot.x + (slot.w - pw) / 2, py = slot.y + (slot.h - ph) / 2;
+    const w = b.w * pw, h = b.h * ph;
+    put(`code-${slot.slot}`, `<div class="codehide"><span>Room code hidden</span></div>`,
+      { left: px + b.x * pw + 'px', top: py + b.y * ph + 'px', width: w + 'px', height: h + 'px', fontSize: Math.max(12, h * 0.32) + 'px' });
+    const el = shown[`code-${slot.slot}`]; el.classList.remove('enter'); el.classList.add('instant');
+  },
   lobbyLabels(slot, l, k) {
     if (!l) return;
     put(`label-${slot.slot}`, `<div class="label">${l.number != null ? `<span class="num">#${l.number}</span>` : ''}${l.twitch ? `${TWI}<span class="tn">${esc(l.twitch)}</span>` : esc(slot.lobby)}${l.reconnecting ? '<span class="ph rc">RECONNECTING</span>' : `<span class="ph ${l.phase}">${PH[l.phase] || l.phase}</span>`}</div>`,

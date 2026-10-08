@@ -61,23 +61,17 @@ namespace TournamentTracker.App.Broadcast
                 await _busy.WaitAsync().ConfigureAwait(false);
                 try
                 {
-                    var inputs = (await obs.RequestAsync("GetInputList").ConfigureAwait(false)).GetProperty("inputs").EnumerateArray().Select(i => i.GetProperty("inputName").GetString()).ToHashSet();
+                    var inputs = await InputNamesAsync(obs).ConfigureAwait(false);
                     var settings = new { local_file = file, is_local_file = true, looping = false, restart_on_activate = false, close_when_inactive = false, clear_on_media_end = true, hw_decode = true };
-                    var scenes = Settings.Scenes.Values.Concat(new[] { Settings.Replay.Scene }).ToList();
                     var have = (await obs.RequestAsync("GetSceneList").ConfigureAwait(false)).GetProperty("scenes").EnumerateArray().Select(x => x.GetProperty("sceneName").GetString()).ToHashSet();
-                    if (inputs.Contains(SwooshSource)) await obs.RequestAsync("SetInputSettings", new { inputName = SwooshSource, inputSettings = settings }).ConfigureAwait(false);
-                    foreach (var scene in scenes.Where(have.Contains))
+                    var scenes = Settings.Scenes.Values.Concat(new[] { Settings.Replay.Scene }).Where(have.Contains).ToList();
+                    var (name, ids, _) = await EnsureInputAsync(obs, SwooshSource, Live(SwooshSource), scenes, inputs, "ffmpeg_source", settings, enabled: true,
+                        existing: n => obs.RequestAsync("SetInputSettings", new { inputName = n, inputSettings = settings })).ConfigureAwait(false);
+                    if (name != Live(SwooshSource)) Renamed(SwooshSource, name);
+                    foreach (var scene in scenes)
                     {
-                        if (!inputs.Contains(SwooshSource))
-                        {
-                            await obs.RequestAsync("CreateInput", new { sceneName = scene, inputName = SwooshSource, inputKind = "ffmpeg_source", inputSettings = settings, sceneItemEnabled = true }).ConfigureAwait(false);
-                            inputs.Add(SwooshSource);
-                        }
-                        var items = await ItemsAsync(obs, scene).ConfigureAwait(false);
-                        var mine = items.FirstOrDefault(i => i.Source == SwooshSource);
-                        int id = mine?.Id ?? (await obs.RequestAsync("CreateSceneItem", new { sceneName = scene, sourceName = SwooshSource, sceneItemEnabled = true }).ConfigureAwait(false)).GetProperty("sceneItemId").GetInt32();
-                        int count = mine == null ? items.Count + 1 : items.Count;
-                        await obs.RequestAsync("SetSceneItemIndex", new { sceneName = scene, sceneItemId = id, sceneItemIndex = count - 1 }).ConfigureAwait(false);
+                        int count = (await ItemsAsync(obs, scene).ConfigureAwait(false)).Count;
+                        await obs.RequestAsync("SetSceneItemIndex", new { sceneName = scene, sceneItemId = ids[scene], sceneItemIndex = count - 1 }).ConfigureAwait(false);
                     }
                     // The Stinger transition, when the caster made one.
                     _stinger = false;
@@ -119,7 +113,7 @@ namespace TournamentTracker.App.Broadcast
             if (sceneChange && _stinger) return true;
             try
             {
-                await obs.RequestAsync("TriggerMediaInputAction", new { inputName = SwooshSource, mediaAction = "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART" }).ConfigureAwait(false);
+                await obs.RequestAsync("TriggerMediaInputAction", new { inputName = Live(SwooshSource), mediaAction = "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART" }).ConfigureAwait(false);
                 await Task.Delay(Math.Max(0, s.TransitionPointMs)).ConfigureAwait(false);
             }
             catch (ObsException) { }

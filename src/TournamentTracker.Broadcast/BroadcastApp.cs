@@ -37,6 +37,16 @@ namespace TournamentTracker.App.Broadcast
         public double GraphicSeconds { get; set; } = 8;
         /// <summary>After a game, put the lobby's table up by itself (the old way) instead of asking on the Live desk.</summary>
         public bool AfterGameAuto { get; set; }
+        /// <summary>Where Among Us shows the room code on the lobby screen, as a share of the game picture (covered by "Room code hidden").</summary>
+        public CodeBox RoomCodeBox { get; set; } = new CodeBox();
+
+        public sealed class CodeBox
+        {
+            public double X { get; set; } = 0.34;
+            public double Y { get; set; } = 0.84;
+            public double W { get; set; } = 0.32;
+            public double H { get; set; } = 0.14;
+        }
 
         public static Dictionary<string, bool> DefaultElements() => new Dictionary<string, bool>
         {
@@ -54,6 +64,7 @@ namespace TournamentTracker.App.Broadcast
             ["alerts"] = true,            // Part 18: banners for plays in lobbies that aren't on screen
             ["winCounter"] = true,        // Part 20: impostor wins v crewmate wins, in the corner
             ["playerCards"] = true,       // Part 21: a player's card as a lower third
+            ["hideRoomCode"] = true,      // a "Room code hidden" box over the room code while a lobby on stream is in its lobby or menu
         };
 
         public static readonly Dictionary<string, string> ElementNames = new Dictionary<string, string>
@@ -72,6 +83,7 @@ namespace TournamentTracker.App.Broadcast
             ["alerts"] = "Off-screen alerts",
             ["winCounter"] = "Win counter",
             ["playerCards"] = "Player cards",
+            ["hideRoomCode"] = "Hide room code",
         };
 
         private static readonly JsonSerializerOptions Json = new JsonSerializerOptions
@@ -85,6 +97,7 @@ namespace TournamentTracker.App.Broadcast
         {
             var s = JsonSerializer.Deserialize<BroadcastSettings>(json, Json) ?? new BroadcastSettings();
             s.Theme ??= new BroadcastTheme();
+            s.RoomCodeBox ??= new CodeBox();
             var el = new Dictionary<string, bool>(s.Elements ?? new Dictionary<string, bool>(), StringComparer.OrdinalIgnoreCase);
             foreach (var kv in DefaultElements()) if (!el.ContainsKey(kv.Key)) el[kv.Key] = kv.Value;
             s.Elements = el;
@@ -302,6 +315,7 @@ namespace TournamentTracker.App.Broadcast
                 theme = s.Theme,
                 logo = string.IsNullOrEmpty(s.Theme.Logo) ? null : s.Theme.Logo.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? s.Theme.Logo : "/broadcast/logo",
                 elements = s.Elements,
+                codeBox = s.RoomCodeBox,
                 lobbies,
                 // One big graphic at a time (the graphics queue): which, and where.
                 big = big == null ? null : new { kind = big.Kind, lobby = big.Lobby, id = big.Id },

@@ -51,6 +51,16 @@ public sealed class FakeObs : IAsyncDisposable
     public bool DelayEnable; public int DelaySec;
     public readonly HashSet<string> FilterKinds = new() { "source_record_filter", "compressor_filter" };
     public JsonElement TransitionSettings;
+    /// <summary>
+    /// Removed inputs OBS keeps alive in the background: still in GetInputList, but OBS won't put
+    /// them in a scene ("Tried to add a removed source to a scene") or make a new one by that name.
+    /// </summary>
+    public readonly HashSet<string> Zombies = new();
+    /// <summary>RemoveInput leaves the input a zombie (as a real OBS can, while something still holds it).</summary>
+    public bool KeepRemoved;
+    public int RefusedSceneItems;
+    /// <summary>Requests that fail (OBS answering with an error).</summary>
+    public readonly HashSet<string> Fail = new();
 
     public FakeObs()
     {
@@ -150,6 +160,7 @@ public sealed class FakeObs : IAsyncDisposable
 
     private object? Handle(string type, JsonElement d)
     {
+        if (Fail.Contains(type)) throw new Exception("OBS is busy.");
         switch (type)
         {
             case "GetVideoSettings": return new { baseWidth = 1920, baseHeight = 1080, outputWidth = 1920, outputHeight = 1080 };
@@ -157,10 +168,11 @@ public sealed class FakeObs : IAsyncDisposable
             case "CreateScene":
                 if (Scenes.ContainsKey(S(d, "sceneName"))) throw new Exception("exists");
                 Scenes[S(d, "sceneName")] = new(); return null;
-            case "GetInputList": return new { inputs = Inputs.Keys.Select(k => new { inputName = k, inputKind = Kinds.GetValueOrDefault(k, "browser_source") }).ToList() };
+            case "GetInputList": return new { inputs = Inputs.Keys.Concat(Zombies).Select(k => new { inputName = k, inputKind = Kinds.GetValueOrDefault(k, "browser_source") }).ToList() };
             case "CreateInput":
             {
                 string name = S(d, "inputName");
+                if (Zombies.Contains(name)) throw new Exception("A source already exists by that input name.");
                 Inputs[name] = JsonSerializer.Deserialize<Dictionary<string, object?>>(d.GetProperty("inputSettings").GetRawText())!;
                 var item = new Item { Id = _nextId++, Source = name, Enabled = d.GetProperty("sceneItemEnabled").GetBoolean(), W = 1920, H = 1080 };
                 Scenes[S(d, "sceneName")].Add(item);
@@ -173,6 +185,7 @@ public sealed class FakeObs : IAsyncDisposable
                 return null;
             case "CreateSceneItem":
             {
+                if (Zombies.Contains(S(d, "sourceName"))) { RefusedSceneItems++; throw new Exception("Tried to add a removed source to a scene."); }
                 var item = new Item { Id = _nextId++, Source = S(d, "sourceName"), Enabled = d.GetProperty("sceneItemEnabled").GetBoolean(), W = 1920, H = 1080 };
                 Scenes[S(d, "sceneName")].Add(item);
                 return new { sceneItemId = item.Id };
@@ -248,6 +261,7 @@ public sealed class FakeObs : IAsyncDisposable
                 string name = S(d, "inputName");
                 if (!Inputs.Remove(name)) throw new Exception("No such input.");
                 foreach (var sc in Scenes.Values) sc.RemoveAll(i => i.Source == name);
+                if (KeepRemoved) Zombies.Add(name);
                 return null;
             }
             case "SetSceneItemIndex":
@@ -544,12 +558,14 @@ public class ObsTests : IAsyncLifetime
     public async Task Stopping_simulation_removes_its_sources_from_OBS_and_leaves_the_scene_alone()
     {
         _feeds.Add(("SIM-1", "http://127.0.0.1:8767/sim?lobby=SIM-1"));
+        _desk.Simulate(true);
         await Connect();
         _desk.Show("LJ");
         await Until(() => _desk.OnAir.Scene == "TT Full");
         lock (_obs) { _obs.Inputs["TT Lobby OLD"] = new() { ["url"] = "http://localhost:8767/sim?lobby=OLD" }; }   // an older version's stand-in
         Assert.Contains("TT Lobby SIM-1", _obs.Inputs.Keys);
         _feeds.RemoveAll(f => f.Lobby == "SIM-1");
+        _desk.Simulate(false);
         int gone = await _director.ForgetSimAsync(CasterDesk.IsSimLobby);
         Assert.Equal(2, gone);
         Assert.DoesNotContain(_obs.Inputs.Keys, k => k.Contains("SIM-") || k.Contains("OLD"));

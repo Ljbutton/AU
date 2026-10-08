@@ -37,27 +37,18 @@ namespace TournamentTracker.App.Broadcast
             await _busy.WaitAsync().ConfigureAwait(false);
             try
             {
-                var inputs = (await obs.RequestAsync("GetInputList").ConfigureAwait(false)).GetProperty("inputs").EnumerateArray().Select(i => i.GetProperty("inputName").GetString()).ToHashSet();
-                var scenes = Settings.Scenes.Values.Concat(new[] { Settings.Replay.Scene }).ToList();
+                var inputs = await InputNamesAsync(obs).ConfigureAwait(false);
                 var have = (await obs.RequestAsync("GetSceneList").ConfigureAwait(false)).GetProperty("scenes").EnumerateArray().Select(x => x.GetProperty("sceneName").GetString()).ToHashSet();
-                foreach (var scene in scenes.Where(have.Contains))
+                var scenes = Settings.Scenes.Values.Concat(new[] { Settings.Replay.Scene }).Where(have.Contains).ToList();
+                var (name, ids, _) = await EnsureInputAsync(obs, BroadcastSource, Live(BroadcastSource), scenes, inputs, "browser_source",
+                    new { url = BroadcastUrl, width = (int)Width, height = (int)Height, shutdown = false, restart_when_active = false, reroute_audio = true },
+                    enabled: true).ConfigureAwait(false);
+                if (name != Live(BroadcastSource)) Renamed(BroadcastSource, name);
+                foreach (var scene in scenes)
                 {
-                    if (!inputs.Contains(BroadcastSource))
-                    {
-                        await obs.RequestAsync("CreateInput", new
-                        {
-                            sceneName = scene, inputName = BroadcastSource, inputKind = "browser_source",
-                            inputSettings = new { url = BroadcastUrl, width = (int)Width, height = (int)Height, shutdown = false, restart_when_active = false, reroute_audio = true },
-                            sceneItemEnabled = true,
-                        }).ConfigureAwait(false);
-                        inputs.Add(BroadcastSource);
-                    }
-                    var items = await ItemsAsync(obs, scene).ConfigureAwait(false);
-                    var mine = items.FirstOrDefault(i => i.Source == BroadcastSource);
-                    int id = mine?.Id ?? (await obs.RequestAsync("CreateSceneItem", new { sceneName = scene, sourceName = BroadcastSource, sceneItemEnabled = true }).ConfigureAwait(false)).GetProperty("sceneItemId").GetInt32();
-                    int count = mine == null ? items.Count + 1 : items.Count;
+                    int count = (await ItemsAsync(obs, scene).ConfigureAwait(false)).Count;
                     // OBS lists the bottom layer first: the top is the last index.
-                    await obs.RequestAsync("SetSceneItemIndex", new { sceneName = scene, sceneItemId = id, sceneItemIndex = count - 1 }).ConfigureAwait(false);
+                    await obs.RequestAsync("SetSceneItemIndex", new { sceneName = scene, sceneItemId = ids[scene], sceneItemIndex = count - 1 }).ConfigureAwait(false);
                 }
             }
             catch (Exception e) { Problem = "OBS graphics layer: " + e.Message; }
@@ -112,26 +103,20 @@ namespace TournamentTracker.App.Broadcast
             {
                 var scenes = (await obs.RequestAsync("GetSceneList").ConfigureAwait(false)).GetProperty("scenes").EnumerateArray().Select(s => s.GetProperty("sceneName").GetString()).ToHashSet();
                 if (!scenes.Contains(r.Scene)) await obs.RequestAsync("CreateScene", new { sceneName = r.Scene }).ConfigureAwait(false);
-                var inputs = (await obs.RequestAsync("GetInputList").ConfigureAwait(false)).GetProperty("inputs").EnumerateArray().Select(i => i.GetProperty("inputName").GetString()).ToHashSet();
-                if (!inputs.Contains(r.ClipSource))
-                    await obs.RequestAsync("CreateInput", new
-                    {
-                        sceneName = r.Scene, inputName = r.ClipSource, inputKind = "ffmpeg_source",
-                        inputSettings = new { is_local_file = true, local_file = "", looping = false, restart_on_activate = false, close_when_inactive = false, clear_on_media_end = false, hw_decode = true },
-                        sceneItemEnabled = true,
-                    }).ConfigureAwait(false);
-                if (TagUrl != null && !inputs.Contains(r.TagSource))
-                    await obs.RequestAsync("CreateInput", new
-                    {
-                        sceneName = r.Scene, inputName = r.TagSource, inputKind = "browser_source",
-                        inputSettings = new { url = TagUrl, width = (int)Width, height = (int)Height, shutdown = false, restart_when_active = false },
-                        sceneItemEnabled = true,
-                    }).ConfigureAwait(false);
-                var items = await ItemsAsync(obs, r.Scene).ConfigureAwait(false);
-                _clipItem = items.FirstOrDefault(i => i.Source == r.ClipSource)?.Id;
-                if (_clipItem == null) _clipItem = (await obs.RequestAsync("CreateSceneItem", new { sceneName = r.Scene, sourceName = r.ClipSource, sceneItemEnabled = true }).ConfigureAwait(false)).GetProperty("sceneItemId").GetInt32();
-                if (TagUrl != null && !items.Any(i => i.Source == r.TagSource))
-                    await obs.RequestAsync("CreateSceneItem", new { sceneName = r.Scene, sourceName = r.TagSource, sceneItemEnabled = true }).ConfigureAwait(false);
+                var inputs = await InputNamesAsync(obs).ConfigureAwait(false);
+                var scene = new[] { r.Scene };
+                var (clip, ids, _) = await EnsureInputAsync(obs, r.ClipSource, Live(r.ClipSource), scene, inputs, "ffmpeg_source",
+                    new { is_local_file = true, local_file = "", looping = false, restart_on_activate = false, close_when_inactive = false, clear_on_media_end = false, hw_decode = true },
+                    enabled: true).ConfigureAwait(false);
+                if (clip != Live(r.ClipSource)) Renamed(r.ClipSource, clip);
+                _clipItem = ids[r.Scene];
+                if (TagUrl != null)
+                {
+                    var (tag, _, _) = await EnsureInputAsync(obs, r.TagSource, Live(r.TagSource), scene, inputs, "browser_source",
+                        new { url = TagUrl, width = (int)Width, height = (int)Height, shutdown = false, restart_when_active = false },
+                        enabled: true).ConfigureAwait(false);
+                    if (tag != Live(r.TagSource)) Renamed(r.TagSource, tag);
+                }
             }
             catch (Exception e) { ReplayProblem = "Replays: " + e.Message; }
             finally { _busy.Release(); }
@@ -176,7 +161,7 @@ namespace TournamentTracker.App.Broadcast
         {
             var obs = _obs ?? throw new InvalidOperationException("Not connected to OBS.");
             if (_clipItem == null) await EnsureReplaySceneAsync().ConfigureAwait(false);
-            await obs.RequestAsync("SetInputSettings", new { inputName = Settings.Replay.ClipSource, inputSettings = new { local_file = file, is_local_file = true } }).ConfigureAwait(false);
+            await obs.RequestAsync("SetInputSettings", new { inputName = Live(Settings.Replay.ClipSource), inputSettings = new { local_file = file, is_local_file = true } }).ConfigureAwait(false);
             for (int i = 0; i < 40; i++)
             {
                 var st = await MediaStatusAsync().ConfigureAwait(false);
@@ -190,18 +175,18 @@ namespace TournamentTracker.App.Broadcast
         public async Task<(string State, double Duration, double Cursor)> MediaStatusAsync()
         {
             var obs = _obs ?? throw new InvalidOperationException("Not connected to OBS.");
-            var st = await obs.RequestAsync("GetMediaInputStatus", new { inputName = Settings.Replay.ClipSource }).ConfigureAwait(false);
+            var st = await obs.RequestAsync("GetMediaInputStatus", new { inputName = Live(Settings.Replay.ClipSource) }).ConfigureAwait(false);
             double Ms(string p) => st.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.Number ? x.GetDouble() / 1000 : 0;
             return (st.TryGetProperty("mediaState", out var s) ? s.GetString() ?? "" : "", Ms("mediaDuration"), Ms("mediaCursor"));
         }
 
         public Task MediaAsync(string action) =>
             (_obs ?? throw new InvalidOperationException("Not connected to OBS.")).RequestAsync("TriggerMediaInputAction",
-                new { inputName = Settings.Replay.ClipSource, mediaAction = "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_" + action.ToUpperInvariant() });
+                new { inputName = Live(Settings.Replay.ClipSource), mediaAction = "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_" + action.ToUpperInvariant() });
 
         public Task SeekAsync(double seconds) =>
             (_obs ?? throw new InvalidOperationException("Not connected to OBS.")).RequestAsync("SetMediaInputCursor",
-                new { inputName = Settings.Replay.ClipSource, mediaCursor = Math.Max(0, Math.Round(seconds * 1000)) });
+                new { inputName = Live(Settings.Replay.ClipSource), mediaCursor = Math.Max(0, Math.Round(seconds * 1000)) });
 
         /// <summary>Puts the replay scene on stream (our own switch, not mistaken for a manual one).</summary>
         public async Task ShowReplaySceneAsync()

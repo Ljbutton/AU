@@ -347,7 +347,34 @@ namespace TournamentTracker.App.Broadcast
         private static (int, string, byte[]) Text(int status, string type, string text) => (status, type, Encoding.UTF8.GetBytes(text));
         private static (int, string, byte[]) Ok(object value) => Text(200, "application/json", JsonSerializer.Serialize(value, Json));
 
+        /// <summary>Rebuild TT scenes (and the Live desk's Fix): every scene and source again, failed lobbies tried now.</summary>
+        internal async Task<object> RebuildAsync()
+        {
+            var obs = _obs!;
+            await obs.BuildAsync().ConfigureAwait(false);
+            await obs.EnsureReplaySceneAsync().ConfigureAwait(false);
+            await obs.EnsureBroadcastAsync().ConfigureAwait(false);
+            await obs.EnsureSwooshAsync().ConfigureAwait(false);
+            await obs.EnsureVoiceAsync().ConfigureAwait(false);
+            if (_desk != null && _desk.OnAir.Layout != "none") await obs.ApplyAsync(_desk.OnAir).ConfigureAwait(false);
+            var problems = obs.SourceProblems;
+            if (problems.Count > 0)
+                return new { ok = false, message = "Not in OBS: " + string.Join("; ", problems.Select(p => $"{p.Key} ({p.Value})")) };
+            var other = new[] { obs.Problem, obs.ReplayProblem, obs.SwooshProblem, obs.VoiceProblem }.FirstOrDefault(p => p != null && !p.StartsWith("Install", StringComparison.Ordinal) && !p.StartsWith("No swoosh", StringComparison.Ordinal));
+            return other != null ? new { ok = false, message = "The TT scenes are rebuilt, but: " + other } : (object)new { ok = true, message = "The TT scenes are up to date." };
+        }
+
+        /// <summary>Every request, answered: an action that throws says what went wrong instead of leaving its button silent.</summary>
         internal async Task<(int Status, string Type, byte[] Body)> Route(string method, string path, Dictionary<string, string> headers, string body)
+        {
+            try { return await RouteCore(method, path, headers, body).ConfigureAwait(false); }
+            catch (Exception e) when (path.StartsWith("/app/", StringComparison.Ordinal))
+            {
+                return Ok(new { ok = false, message = "That didn't work: " + e.Message });
+            }
+        }
+
+        private async Task<(int Status, string Type, byte[] Body)> RouteCore(string method, string path, Dictionary<string, string> headers, string body)
         {
             // Only this computer, by name: stops a web page reaching us through DNS tricks.
             headers.TryGetValue("host", out var host);
@@ -545,10 +572,8 @@ namespace TournamentTracker.App.Broadcast
                             return Ok(new { ok = true, message = "Disconnected from OBS." });
                         case "build":
                             if (!_obs.Connected) return Ok(new { ok = false, message = "Connect to OBS first." });
-                            await _obs.BuildAsync().ConfigureAwait(false);
-                            await _obs.EnsureSwooshAsync().ConfigureAwait(false);
-                            if (_desk != null && _desk.OnAir.Layout != "none") await _obs.ApplyAsync(_desk.OnAir).ConfigureAwait(false);
-                            return Ok(new { ok = true, message = "The TT scenes are up to date." });
+                            try { return Ok(await RebuildAsync().ConfigureAwait(false)); }
+                            catch (Exception e) { return Ok(new { ok = false, message = "Rebuilding the TT scenes didn't work: " + e.Message }); }
                         default:
                         {
                             int? port = int.TryParse(Arg("port"), out var pt) ? pt : (int?)null;

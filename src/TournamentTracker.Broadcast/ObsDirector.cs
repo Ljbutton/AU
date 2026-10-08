@@ -39,6 +39,8 @@ namespace TournamentTracker.App.Broadcast
         public VoiceSettings Voice { get; set; } = new VoiceSettings();
         /// <summary>Lobby → OBS source, as built. The Button keeps this up to date.</summary>
         public Dictionary<string, string> Sources { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Red Alert's own sources that had to move to a fresh name ("TT Broadcast" → "TT Broadcast 2") because OBS kept a removed one.</summary>
+        public Dictionary<string, string> Renamed { get; set; } = new Dictionary<string, string>();
 
         private static readonly JsonSerializerOptions Json = new JsonSerializerOptions
         {
@@ -53,6 +55,7 @@ namespace TournamentTracker.App.Broadcast
                 {
                     var s = JsonSerializer.Deserialize<ObsSettings>(File.ReadAllText(path), Json) ?? new ObsSettings();
                     s.Sources = new Dictionary<string, string>(s.Sources ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
+                    s.Renamed ??= new Dictionary<string, string>();
                     s.Replay ??= new ReplaySettings();
                     s.Swoosh ??= new SwooshSettings();
                     s.Voice ??= new VoiceSettings();
@@ -286,11 +289,12 @@ namespace TournamentTracker.App.Broadcast
                     await obs.RequestAsync("CreateScene", new { sceneName = scene }).ConfigureAwait(false);
             }
             finally { _busy.Release(); }
-            await AddSourcesAsync().ConfigureAwait(false);
+            await AddSourcesAsync(now: true).ConfigureAwait(false);
         }
 
         /// <summary>A VDO.Ninja source for each lobby that has video, in every TT scene (hidden until it's on).</summary>
-        private async Task AddSourcesAsync()
+        /// <param name="now">Try lobbies that failed lately too (Rebuild), not only when their wait is over.</param>
+        private async Task AddSourcesAsync(bool now = false)
         {
             var obs = _obs;
             if (obs == null) return;
@@ -303,38 +307,33 @@ namespace TournamentTracker.App.Broadcast
                 bool changed = false;
                 foreach (var (lobby, url) in _feeds())
                 {
-                    string name = Settings.SourcePrefix + lobby;
-                    if (!inputs.Contains(name))
+                    // Simulation's lobbies only while it runs (a late tick mustn't build them again after it stopped).
+                    if (!_desk.Simulating && CasterDesk.IsSimLobby(lobby)) continue;
+                    if (!now && _sourceProblems.TryGetValue(lobby, out var failed) && DateTime.UtcNow < failed.RetryAt) continue;
+                    try
                     {
-                        await obs.RequestAsync("CreateInput", new
-                        {
-                            sceneName = Settings.Scenes["full"],
-                            inputName = name,
-                            inputKind = "browser_source",
-                            // Stays connected while hidden, so switching is instant. "Control audio via OBS" on.
-                            inputSettings = new { url, width = 1920, height = 1080, reroute_audio = true, shutdown = false, restart_when_active = false, fps_custom = false },
-                            sceneItemEnabled = false,
-                        }).ConfigureAwait(false);
-                        inputs.Add(name);
-                        changed = true;
+                        string root = Settings.SourcePrefix + lobby;
+                        string current = Settings.Sources.TryGetValue(lobby, out var m) && m.Length > 0 ? m : root;
+                        // Stays connected while hidden, so switching is instant. "Control audio via OBS" on.
+                        var (name, _, added) = await EnsureInputAsync(obs, root, current, Settings.Scenes.Values, inputs, "browser_source",
+                            new { url, width = 1920, height = 1080, reroute_audio = true, shutdown = false, restart_when_active = false, fps_custom = false },
+                            enabled: false,
+                            existing: async n =>
+                            {
+                                var cur = await obs.RequestAsync("GetInputSettings", new { inputName = n }).ConfigureAwait(false);
+                                string? was = cur.TryGetProperty("inputSettings", out var st) && st.TryGetProperty("url", out var u) ? u.GetString() : null;
+                                if (was != url) await obs.RequestAsync("SetInputSettings", new { inputName = n, inputSettings = new { url } }).ConfigureAwait(false);
+                            }).ConfigureAwait(false);
+                        if (added) newSources = true;
+                        if (!Settings.Sources.TryGetValue(lobby, out var mapped) || mapped != name) { Settings.Sources[lobby] = name; changed = true; newSources = true; }
+                        _sourceProblems.TryRemove(lobby, out _);
+                        await EnsureReplayFilterAsync(obs, lobby, name).ConfigureAwait(false);
                     }
-                    else
+                    catch (Exception e)
                     {
-                        var current = await obs.RequestAsync("GetInputSettings", new { inputName = name }).ConfigureAwait(false);
-                        string? was = current.TryGetProperty("inputSettings", out var s) && s.TryGetProperty("url", out var u) ? u.GetString() : null;
-                        if (was != url) await obs.RequestAsync("SetInputSettings", new { inputName = name, inputSettings = new { url } }).ConfigureAwait(false);
+                        // One lobby's trouble doesn't hold up the others; it's tried again later (or by Rebuild).
+                        _sourceProblems[lobby] = (e.Message, DateTime.UtcNow + SourceRetry);
                     }
-                    foreach (var scene in Settings.Scenes.Values)
-                    {
-                        var items = await ItemsAsync(obs, scene).ConfigureAwait(false);
-                        if (!items.Any(i => i.Source == name))
-                        {
-                            await obs.RequestAsync("CreateSceneItem", new { sceneName = scene, sourceName = name, sceneItemEnabled = false }).ConfigureAwait(false);
-                            newSources = true;
-                        }
-                    }
-                    if (!Settings.Sources.TryGetValue(lobby, out var mapped) || mapped != name) { Settings.Sources[lobby] = name; changed = true; }
-                    await EnsureReplayFilterAsync(obs, lobby, name).ConfigureAwait(false);
                 }
                 if (changed) Save();
             }
@@ -447,6 +446,7 @@ namespace TournamentTracker.App.Broadcast
 
         private string? LobbyOf(string source)
         {
+            if (_dead.Contains(source)) return null;
             foreach (var (lobby, name) in Settings.Sources) if (name == source) return lobby;
             return source.StartsWith(Settings.SourcePrefix, StringComparison.Ordinal) ? source.Substring(Settings.SourcePrefix.Length) : null;
         }
@@ -573,6 +573,10 @@ namespace TournamentTracker.App.Broadcast
             CheckedAt = CheckedAt?.ToString("o"),
             DesktopAudioOn = Connected ? DesktopAudioOn : new List<string>(),
             SourceRecord, ReplayProblem,
+            // Lobbies on stream whose picture isn't in OBS, and why (the Live desk warns, with Fix).
+            Missing = Connected ? _desk.OnAir.Slots.Where(l => l != null).Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(l => (Lobby: l!, Why: SourceIssue(l!))).Where(x => x.Why != null).ToDictionary(x => x.Lobby, x => x.Why!) : new Dictionary<string, string>(),
+            SourceProblems,
         };
 
         public async ValueTask DisposeAsync()
