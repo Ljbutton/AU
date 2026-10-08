@@ -19,14 +19,31 @@ namespace TournamentTracker.Plugin
     {
         private static PlayerControl? Referee()
         {
-            var session = TournamentPlugin.Session;
-            if (session?.RefSlotKey == null) return null;
-            var id = session.RefSlotPlayerId(Game.Players());
+            var id = RefereeId(fresh: true);
             return id.HasValue ? Game.Player(id.Value) : null;
         }
 
-        /// <summary>The referee's player ID this game, if the slot is on (their role is decided in RoleChoice).</summary>
-        public static byte? RefereeId() => Referee()?.PlayerId;
+        private static byte? _refId;
+        private static string? _refKey;
+        private static float _refAt = -1;
+
+        /// <summary>
+        /// The referee's player ID this game, if the slot is on (their role is decided in RoleChoice).
+        /// Looked up by their key (friend code and name), at most twice a second unless <paramref name="fresh"/>.
+        /// </summary>
+        public static byte? RefereeId(bool fresh = false)
+        {
+            var key = TournamentPlugin.Session?.RefSlotKey;
+            if (key == null) return null;
+            float now = Time.unscaledTime;
+            if (!fresh && now < _refAt && key == _refKey) return _refId;
+            _refAt = now + 0.5f;
+            _refKey = key;
+            _refId = null;
+            foreach (var p in Frame.Players)
+                if (p.Data != null && PlayerSnapshot.MakeKey(p.Data.FriendCode, p.Data.PlayerName ?? "") == key) { _refId = p.Id; break; }
+            return _refId;
+        }
 
         /// <summary>
         /// While the game hands out tasks (ShipStatus.Begin): the referee's one task message carries
@@ -180,8 +197,13 @@ namespace TournamentTracker.Plugin
         }
 
         /// <summary>The referee's card off the meeting list (shrunk to nothing, last place); the cards after it move up to fill the gap.</summary>
+        private static MeetingHud? _hiddenIn;
+        private static PlayerVoteArea? _hidden;
+
         private static void HideCard(MeetingHud meeting)
         {
+            // Already hidden in this meeting: nothing to do (checked every frame, so kept cheap).
+            if (ReferenceEquals(_hiddenIn, meeting) && _hidden != null && _hidden.transform.localScale == Vector3.zero) return;
             if (GameData.Instance == null || (Game.IsHost && TournamentPlugin.Session?.RefSlotKey == null)) return;
             // Who the referee is, then their card by the name on it (their game name, or on the host's
             // screen the roster name the nameplates may show instead).
@@ -220,6 +242,8 @@ namespace TournamentTracker.Plugin
                 area.transform.localPosition = places[next++];
             }
             referee.transform.localPosition = places[places.Count - 1];
+            _hiddenIn = meeting;
+            _hidden = referee;
             TournamentPlugin.Logger.Info("Referee ghost: taken off the meeting list.");
         }
     }

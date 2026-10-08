@@ -128,7 +128,8 @@ namespace TournamentTracker
             if (!force && now < _nextStatusJson) return;
             _nextStatusJson = now.AddSeconds(0.5);
             var last = LastGame;
-            _statusJson = JsonSerializer.Serialize(new
+            // Gathered here; turned into JSON off the game's main thread.
+            var status = new
             {
                 Version = Version,
                 Mode = _settings.Mode.ToString(),
@@ -178,7 +179,8 @@ namespace TournamentTracker
                 LastGame = last == null ? null : new { last.Name, last.Winner, last.Voided, last.Counted },
                 Points = PointsForApp(),
                 Notices = NoticesForApp(),
-            }, ApiJson);
+            };
+            Work.Post(() => _statusJson = JsonSerializer.Serialize(status, ApiJson));
         }
 
         /// <summary>"deafened", "muted", "open", or null when automute isn't handling them.</summary>

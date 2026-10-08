@@ -50,6 +50,12 @@ namespace TournamentTracker
             var replay = _replay;
             _replay = null;
             if (replay == null || replay.Frames == 0) return;
+            // Packed, saved and posted off the game's main thread (it's the biggest file a game makes).
+            Work.Post(() => SaveReplay(replay, game));
+        }
+
+        private void SaveReplay(ReplayRecorder replay, GameRecord game)
+        {
             byte[] file = replay.Build(game);
             string name = ReplayRecorder.FileNameFor(game);
             TrySave(() =>

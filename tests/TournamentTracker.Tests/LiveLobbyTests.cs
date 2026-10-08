@@ -447,6 +447,54 @@ public class LiveLobbyTests : IDisposable
         JsonDocument.Parse(r.Body).RootElement.GetProperty("embeds")[0].GetProperty("description").GetString()!;
 
     [Fact]
+    public void The_colour_menu_has_each_colour_once()
+    {
+        // Two players reading as the same colour (one's outfit not loaded yet): Discord turns down a
+        // menu with the same value twice (COMPONENT_OPTION_VALUE_DUPLICATED).
+        var players = new[]
+        {
+            new StatusPlayer { Player = new PlayerSnapshot { PlayerId = 1, Name = "Alice", Key = "a", ColorId = 0 } },
+            new StatusPlayer { Player = new PlayerSnapshot { PlayerId = 2, Name = "Bob", Key = "b", ColorId = 0 } },
+            new StatusPlayer { Player = new PlayerSnapshot { PlayerId = 3, Name = "Carl", Key = "c", ColorId = 2 } },
+        }.ToList();
+        var msg = StatusFormatter.Build(new StatusInfo { Phase = VoicePhase.Lobby, LinkMenuId = "tt-link:x", Players = players });
+        var json = JsonDocument.Parse(JsonSerializer.Serialize(msg, WebhookMessage.JsonOptions)).RootElement;
+        var options = json.GetProperty("components")[0].GetProperty("components")[0].GetProperty("options").EnumerateArray().ToList();
+        Assert.Equal(new[] { "0", "2" }, options.Select(o => o.GetProperty("value").GetString()));
+        Assert.Equal("Alice", options[0].GetProperty("description").GetString());      // the one picking Red links to
+    }
+
+    [Fact]
+    public async Task A_status_Discord_turned_down_is_not_sent_again_the_same_way()
+    {
+        int posts = 0;
+        _http.Default = r =>
+        {
+            if (r.Method == HttpMethod.Get && r.RequestUri!.AbsoluteUri == Webhook) return FakeHttp.Json(HttpStatusCode.OK, """{"channel_id":"777"}""");
+            if (r.Method == HttpMethod.Post)
+            {
+                Interlocked.Increment(ref posts);
+                return FakeHttp.Json(HttpStatusCode.BadRequest, """{"code":50035,"errors":{"components":{"0":{"components":{"0":{"options":{"_errors":[{"code":"COMPONENT_OPTION_VALUE_DUPLICATED","message":"dup"}]}}}}}},"message":"Invalid Form Body"}""");
+            }
+            return FakeHttp.Json(HttpStatusCode.OK, "{}");
+        };
+        var s = Session(c => { c.LiveStatus = true; c.AutoMute.AutoLinkByName = false; });
+        s.VoiceTick(VoicePhase.Lobby, _lobby, "ABCDEF", "Polus");
+        await s.PendingPosts;
+        Assert.Equal(1, posts);
+
+        // The embed changes (the game started) but the menu, the part Discord refused, doesn't: not sent.
+        s.VoiceTick(VoicePhase.Tasks, _lobby, "ABCDEF", "Polus");
+        await s.PendingPosts;
+        Assert.Equal(1, posts);
+
+        // A different menu (someone left) is worth trying again.
+        s.VoiceTick(VoicePhase.Tasks, _lobby.Take(_lobby.Count - 1).ToList(), "ABCDEF", "Polus");
+        await s.PendingPosts;
+        Assert.Equal(2, posts);
+    }
+
+    [Fact]
     public async Task With_a_bot_the_status_has_a_colour_menu_that_links_whoever_picks()
     {
         _http.Default = r =>

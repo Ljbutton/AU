@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TournamentTracker.Broadcast;
 using TournamentTracker.Voice;
 using UnityEngine;
 
@@ -15,7 +16,13 @@ namespace TournamentTracker.Plugin
         private const float TickSeconds = 0.2f;
         private const float PublicChatGap = 3.1f;   // the game's own chat cooldown
 
-        private static float _nextTick;
+        /// <summary>
+        /// The tick (every 0.2 s) in three steps on three frames in a row: players and voice; the
+        /// caster feed; the live status, overlay, live data and app status (their JSON is made off
+        /// the main thread).
+        /// </summary>
+        private static readonly TickStagger Ticks = new TickStagger(TickSeconds, 3);
+        private static VoicePhase _tickPhase = VoicePhase.Menu;
         private static float _nextPublicChat;
         private static VoicePhase _lastPhase = VoicePhase.Menu;
         private static readonly Queue<string> PublicQueue = new Queue<string>();
@@ -37,38 +44,40 @@ namespace TournamentTracker.Plugin
         public static void LateUpdate()
         {
             if (ReplayTheater.Active) return;
-            try { SpectatorOverlay.LateUpdate(); }
+            try { using (FrameProfiler.Time(FrameProfiler.Part.OverlayLate)) SpectatorOverlay.LateUpdate(); }
             catch (Exception e) { if (!_loggedOverlay) TournamentPlugin.Logger.Error("Spectator view failed: " + e); _loggedOverlay = true; }
         }
 
         public static void Update()
         {
+            FrameProfiler.BeginFrame();
             if (RestartRequested)
             {
                 RestartRequested = false;
                 Restart();
             }
-            try { ReplayTheater.Update(); }
+            try { using (FrameProfiler.Time(FrameProfiler.Part.Theatre)) ReplayTheater.Update(); }
             catch (Exception e) { if (!_loggedTheater) TournamentPlugin.Logger.Error("Replay theatre failed: " + e); _loggedTheater = true; }
             if (ReplayTheater.Active) return;
-            try { Nameplates.Update(); }
+            try { using (FrameProfiler.Time(FrameProfiler.Part.Nameplates)) Nameplates.Update(); }
             catch (Exception e) { if (!_loggedOverlay) TournamentPlugin.Logger.Error("Nameplates failed: " + e); _loggedOverlay = true; }
-            try { SpectatorOverlay.Update(); }
+            try { using (FrameProfiler.Time(FrameProfiler.Part.OverlayUpdate)) SpectatorOverlay.Update(); }
             catch (Exception e) { if (!_loggedOverlay) TournamentPlugin.Logger.Error("Spectator view failed: " + e); _loggedOverlay = true; }
-            try { GhostZoom.Update(); }
+            try { using (FrameProfiler.Time(FrameProfiler.Part.Zoom)) GhostZoom.Update(); }
             catch (Exception e) { if (!_loggedError) TournamentPlugin.Logger.Error("Zoom failed: " + e); _loggedError = true; }
-            try { RefSlot.Update(); RefereeHider.Update(); }
+            try { using (FrameProfiler.Time(FrameProfiler.Part.Referee)) { RefSlot.Update(); RefereeHider.Update(); } }
             catch (Exception e) { if (!_loggedReferee) TournamentPlugin.Logger.Error("Referee ghost failed: " + e); _loggedReferee = true; }
 
             var session = TournamentPlugin.Session;
             if (session == null) return;
             try
             {
-                foreach (var reply in session.Pump())
-                {
-                    if (reply.Public && Game.Phase() == VoicePhase.Lobby) PublicQueue.Enqueue(reply.Text);
-                    else Game.LocalChat(reply.Text);
-                }
+                using (FrameProfiler.Time(FrameProfiler.Part.Pump))
+                    foreach (var reply in session.Pump())
+                    {
+                        if (reply.Public && Game.Phase() == VoicePhase.Lobby) PublicQueue.Enqueue(reply.Text);
+                        else Game.LocalChat(reply.Text);
+                    }
                 if (PublicQueue.Count > 0 && Time.unscaledTime >= _nextPublicChat)
                 {
                     if (!Game.PublicChat(PublicQueue.Peek())) Game.LocalChat(PublicQueue.Peek());
@@ -82,12 +91,15 @@ namespace TournamentTracker.Plugin
                     Game.LocalChat("Everyone unmuted; automute is OFF. Type !automute on to resume.");
                 }
 
-                try { ReplayCapture.Update(); }
+                try { using (FrameProfiler.Time(FrameProfiler.Part.Replay)) ReplayCapture.Update(); }
                 catch (Exception e) { if (!_loggedReplay) TournamentPlugin.Logger.Error("Replay recording failed: " + e); _loggedReplay = true; }
 
-                if (Time.unscaledTime < _nextTick) return;
-                _nextTick = Time.unscaledTime + TickSeconds;
-                Tick(session);
+                switch (Ticks.Next(Time.unscaledTime))
+                {
+                    case 0: Tick(session); break;
+                    case 1: FeedStep(session); break;
+                    case 2: using (FrameProfiler.Time(FrameProfiler.Part.Publish)) session.PublishTick(); break;
+                }
             }
             catch (Exception e)
             {
@@ -99,7 +111,10 @@ namespace TournamentTracker.Plugin
         private static void Tick(TournamentSession session)
         {
             var phase = Game.Phase();
-            var players = phase == VoicePhase.Menu ? new List<PlayerSnapshot>() : Game.Players();
+            List<PlayerSnapshot> players;
+            using (FrameProfiler.Time(FrameProfiler.Part.Players))
+                players = phase == VoicePhase.Menu ? new List<PlayerSnapshot>() : Game.Players();
+            _tickPhase = phase;
 
             if (phase == VoicePhase.Lobby || phase == VoicePhase.Menu) _roundOver = false;
             if (phase == VoicePhase.Lobby && Game.IsHost && Time.unscaledTime >= _nextLockCheck)
@@ -121,11 +136,24 @@ namespace TournamentTracker.Plugin
             if ((phase == VoicePhase.Lobby || phase == VoicePhase.Menu) && session.Tracker.InGame)
                 session.GameAbandoned(players);
 
-            if (phase == VoicePhase.Menu) session.VoiceTick(phase, players);
-            else session.VoiceTick(phase, players, Game.LobbyCode(), Game.MapName());
+            using (FrameProfiler.Time(FrameProfiler.Part.Voice))
+            {
+                // The status, overlay and live data follow two frames later (step 2).
+                if (phase == VoicePhase.Menu) session.VoiceTick(phase, players, publish: false);
+                else session.VoiceTick(phase, players, Game.LobbyCode(), Game.MapName(), publish: false);
+            }
             _lastPhase = phase;
+        }
 
-            try { session.FeedTick(FeedReader.Frame(phase)); }
+        /// <summary>The tick's second step, on the next frame: the caster feed.</summary>
+        private static void FeedStep(TournamentSession session)
+        {
+            try
+            {
+                FeedFrame frame;
+                using (FrameProfiler.Time(FrameProfiler.Part.FeedRead)) frame = FeedReader.Frame(_tickPhase);
+                using (FrameProfiler.Time(FrameProfiler.Part.FeedTick)) session.FeedTick(frame);
+            }
             catch (Exception e) { if (!_loggedFeed) TournamentPlugin.Logger.Error("Caster feed failed: " + e); _loggedFeed = true; }
         }
 

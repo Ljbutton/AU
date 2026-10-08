@@ -96,7 +96,7 @@ namespace TournamentTracker.Plugin
                 try
                 {
                     var replay = ReplayPlayback.Load(File.ReadAllBytes(_files[i].FullName));
-                    int here = GameOptionsManager.Instance?.CurrentGameOptions?.MapId ?? -1;
+                    int here = Game.Options()?.MapId ?? -1;
                     if (replay.MapId >= 0 && here >= 0 && replay.MapId != here)
                     {
                         string map = replay.MapId < MapNames.Length ? MapNames[replay.MapId] : replay.Map;

@@ -119,7 +119,10 @@ namespace TournamentTracker.Discord
         /// </summary>
         private static List<object> LinkMenu(StatusInfo s)
         {
-            var options = s.Players.OrderBy(p => p.Player.ColorId).Take(24).Select(p =>
+            // One option per colour: Discord turns down a menu with two options of the same value
+            // (two players read as the same colour, e.g. while one's outfit hasn't loaded). The first
+            // is kept, the same player picking that colour links to.
+            var options = s.Players.OrderBy(p => p.Player.ColorId).GroupBy(p => p.Player.ColorId).Select(g => g.First()).Take(24).Select(p =>
             {
                 string name = p.Player.Name.Length > 60 ? p.Player.Name.Substring(0, 60) : p.Player.Name;
                 var option = new Dictionary<string, object>

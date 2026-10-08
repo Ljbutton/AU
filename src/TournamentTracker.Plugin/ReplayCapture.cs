@@ -17,15 +17,10 @@ namespace TournamentTracker.Plugin
             if (session == null || !session.RecordingReplay || Time.unscaledTime < _next) return;
             _next = Time.unscaledTime + (float)ReplayRecorder.Interval;
 
-            var positions = new List<ReplayPosition>();
-            var all = PlayerControl.AllPlayerControls;
-            for (int i = 0; i < all.Count; i++)
-            {
-                var pc = all[i];
-                if (pc == null || pc.Data == null) continue;
-                var pos = pc.transform.position;
-                positions.Add(new ReplayPosition(pc.PlayerId, pos.x, pos.y, pc.Data.IsDead, pc.inVent, pc.Data.Disconnected));
-            }
+            var players = Frame.Players;
+            var positions = new List<ReplayPosition>(players.Count);
+            foreach (var p in players)
+                positions.Add(new ReplayPosition(p.Id, p.Pos.x, p.Pos.y, p.Dead, p.InVent, p.Disconnected));
             session.RecordPositions(positions);
         }
 
@@ -69,7 +64,7 @@ namespace TournamentTracker.Plugin
             try
             {
                 var map = session.ReplayMapInUse;
-                int mapId = GameOptionsManager.Instance?.CurrentGameOptions?.MapId ?? -1;
+                int mapId = Game.Options()?.MapId ?? -1;
                 if (map != null) map.Background = MapPhoto.For(mapId, map);
             }
             catch (Exception e) { TournamentPlugin.Logger.Warn("Replay: no map picture (" + e.Message + ")."); }
@@ -86,7 +81,7 @@ namespace TournamentTracker.Plugin
                 if (o == null) continue;
                 outfits[all[i].PlayerId] = new ReplayOutfit { Hat = o.HatId ?? "", Skin = o.SkinId ?? "", Visor = o.VisorId ?? "", Pet = o.PetId ?? "", NamePlate = o.NamePlateId ?? "" };
             }
-            int mapId = GameOptionsManager.Instance?.CurrentGameOptions?.MapId ?? -1;
+            int mapId = Game.Options()?.MapId ?? -1;
             session.ReplayDetails(mapId, outfits);
         }
 

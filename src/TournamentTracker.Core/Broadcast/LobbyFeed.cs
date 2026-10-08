@@ -87,13 +87,17 @@ namespace TournamentTracker
             if (kind == null) msg.Remove("kind");
             if (data != null) foreach (var kv in data) msg[kv.Key] = kv.Value;
             msg["src"] = FeedSource;
-            lock (_feedLock)
+            // Numbered and turned into JSON off the game's main thread, in the order given.
+            Work.Post(() =>
             {
-                msg["seq"] = _feedSeq + 1;
-                string json = JsonSerializer.Serialize(msg, FeedJson);
-                _feed.Add((++_feedSeq, json));
-                if (_feed.Count > FeedKeep) _feed.RemoveRange(0, _feed.Count - FeedKeep);
-            }
+                lock (_feedLock)
+                {
+                    msg["seq"] = _feedSeq + 1;
+                    string json = JsonSerializer.Serialize(msg, FeedJson);
+                    _feed.Add((++_feedSeq, json));
+                    if (_feed.Count > FeedKeep) _feed.RemoveRange(0, _feed.Count - FeedKeep);
+                }
+            });
         }
 
         private void Event(string kind, Dictionary<string, object?> data) => Emit("event", kind, data);

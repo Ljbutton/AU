@@ -31,7 +31,10 @@ namespace TournamentTracker
             _settings.PublishLive && _settings.Mode == TrackerMode.Tournament && Shared != null && _settings.AutoMute.BotTokens.Count > 0;
 
         /// <summary>The live data as the organiser's view reads it. Public for tests.</summary>
-        public string LiveJson(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, string lobbyCode, string map)
+        public string LiveJson(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, string lobbyCode, string map) =>
+            JsonSerializer.Serialize(LiveData(phase, players, lobbyCode, map));
+
+        private Dictionary<string, object?> LiveData(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, string lobbyCode, string map)
         {
             var game = Tracker.Current;
             bool playing = phase == VoicePhase.Tasks || phase == VoicePhase.Meeting;
@@ -65,7 +68,7 @@ namespace TournamentTracker
                 ["f"] = game == null ? new List<object>() : game.Timeline.TakeLast(8)
                     .Select(e => (object)new[] { TimeSpan.FromSeconds(e.AtSeconds).ToString(@"m\:ss"), e.Kind, e.Text.Length > 140 ? e.Text.Substring(0, 140) : e.Text }).ToList(),
             };
-            return JsonSerializer.Serialize(data);
+            return data;
         }
 
         private void PublishLive(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, string lobbyCode, string map)
@@ -74,15 +77,19 @@ namespace TournamentTracker
             var now = _clock();
             if (now < _liveNextBuild) return;
             _liveNextBuild = now.AddSeconds(1);
-            string json = LiveJson(phase, players, lobbyCode, map);
-            lock (_liveLock)
+            var data = LiveData(phase, players, lobbyCode, map);
+            Work.Post(() =>
             {
-                bool heartbeat = now - _liveLastSent > LiveHeartbeat;
-                if (json == _liveDesired && !heartbeat) return;
-                _liveDesired = json;
-                if (heartbeat) _liveSent = "";
-            }
-            SendLive();
+                string json = JsonSerializer.Serialize(data);
+                lock (_liveLock)
+                {
+                    bool heartbeat = now - _liveLastSent > LiveHeartbeat;
+                    if (json == _liveDesired && !heartbeat) return;
+                    _liveDesired = json;
+                    if (heartbeat) _liveSent = "";
+                }
+                SendLive();
+            });
         }
 
         /// <summary>After a game: move the live message below the game's results so it's easy to find.</summary>

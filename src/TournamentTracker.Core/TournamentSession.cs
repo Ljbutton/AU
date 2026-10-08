@@ -61,6 +61,7 @@ namespace TournamentTracker
             }
             _settings = settings;
             _log = log;
+            Work = new BackgroundWork(log);
             _clock = clock ?? (() => DateTime.UtcNow);
             _dataDir = dataDir;
             string slug = settings.EffectiveTournamentId;
@@ -494,8 +495,12 @@ namespace TournamentTracker
         }
 
         /// <summary>Gives everyone their voice back and waits briefly for Discord, for when the game closes.</summary>
+        /// <summary>JSON work kept off the game's main thread (inline until <see cref="BackgroundWork.Start"/>).</summary>
+        public BackgroundWork Work { get; }
+
         public async Task ShutdownAsync(TimeSpan timeout)
         {
+            Work.Flush(timeout);
             AutoMute?.ReleaseAll();
             if (_dispatcher != null) await _dispatcher.WaitIdleAsync(timeout).ConfigureAwait(false);
             CloseStatus();
@@ -504,6 +509,7 @@ namespace TournamentTracker
 
         public void Dispose()
         {
+            Work.Dispose();
             _dispatcher?.Dispose();
             _gateway?.Dispose();
             _overlay?.Dispose();

@@ -25,13 +25,46 @@ namespace TournamentTracker
             if (_points != null && now < _nextPoints) return _points;
             _nextPoints = now + PointsInterval;
 
-            var local = LocalGameFiles();
+            var local = LocalGameFilesRead();
             string key = $"{Combined?.GameRecords.Count}|{Combined?.GetHashCode()}|{Round}|{LobbyLabel()}|{Links.Version}|{local.Count}|{(local.Count > 0 ? local.Max(f => f.LastWriteTimeUtc).Ticks : 0)}";
             if (_points != null && key == _pointsKey) return _points;
             _pointsKey = key;
             try { _points = BuildPoints(local); }
             catch (Exception e) { _log.Warn("Couldn't build the points view: " + e.Message); }
             return _points;
+        }
+
+        // This PC's game files, listed and read off the game's main thread (every few seconds, with
+        // the points view): what the last look found, each file with its game.
+        private volatile List<(FileInfo File, GameRecord? Game)> _localGames = new List<(FileInfo, GameRecord?)>();
+        private readonly Dictionary<string, (DateTime Written, GameRecord? Game)> _localGameCache = new Dictionary<string, (DateTime, GameRecord?)>();
+        private int _localGamesQueued;
+
+        /// <summary>The game files as last read (and another look queued). Inline (tests, tools): read now.</summary>
+        private List<FileInfo> LocalGameFilesRead()
+        {
+            if (System.Threading.Interlocked.Exchange(ref _localGamesQueued, 1) == 0)
+                Work.Post(() =>
+                {
+                    try
+                    {
+                        var list = new List<(FileInfo, GameRecord?)>();
+                        lock (_localGameCache)
+                            foreach (var f in LocalGameFiles())
+                            {
+                                if (!_localGameCache.TryGetValue(f.FullName, out var known) || known.Written != f.LastWriteTimeUtc)
+                                {
+                                    GameRecord? g = null;
+                                    try { g = JsonSerializer.Deserialize<GameRecord>(File.ReadAllText(f.FullName)); } catch (Exception) { }
+                                    _localGameCache[f.FullName] = known = (f.LastWriteTimeUtc, g);
+                                }
+                                list.Add((f, known.Game));
+                            }
+                        _localGames = list;
+                    }
+                    finally { System.Threading.Interlocked.Exchange(ref _localGamesQueued, 0); }
+                });
+            return _localGames.Select(x => x.File).ToList();
         }
 
         private List<FileInfo> LocalGameFiles()
@@ -54,7 +87,7 @@ namespace TournamentTracker
         private object BuildPoints(List<FileInfo> files)
         {
             bool combined = Combined != null;
-            IReadOnlyList<GameRecord> games = Combined?.GameRecords ?? LocalGames(files);
+            IReadOnlyList<GameRecord> games = Combined?.GameRecords ?? _localGames.Where(x => x.Game != null).Select(x => x.Game!).ToList();
             var counted = games.Where(g => g.Counted).ToList();
             var sections = new List<object>();
             string lobby = LobbyLabel();
