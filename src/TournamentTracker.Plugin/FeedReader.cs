@@ -33,7 +33,7 @@ namespace TournamentTracker.Plugin
             }
             if (phase != VoicePhase.Tasks && phase != VoicePhase.Meeting) return frame;
 
-            foreach (var p in Frame.Players)
+            foreach (var p in TournamentTracker.Plugin.Frame.Players)
             {
                 var pos = p.Pc.GetTruePosition();
                 frame.Players.Add(new FeedPlayer

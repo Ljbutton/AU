@@ -149,6 +149,24 @@ namespace TournamentTracker.Plugin.Patches
         }
     }
 
+    // Referee ghost: the chat stays (the game hides it for a player whose role isn't a ghost role,
+    // which the referee's isn't).
+    [HarmonyPatch(typeof(ChatController), nameof(ChatController.SetVisible))]
+    internal static class RefereeChatPatch
+    {
+        public static bool Prefix(ChatController __instance, bool __0)
+        {
+            if (__0 || __instance == null) return true;
+            try
+            {
+                if (!RefSlot.LocalIsRefereeGhost()) return true;
+                __instance.SetVisible(true);
+                return false;
+            }
+            catch (Exception) { return true; }
+        }
+    }
+
     [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.MurderPlayer))]
     internal static class KillPatch
     {

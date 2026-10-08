@@ -117,14 +117,74 @@ namespace TournamentTracker.Plugin
         /// </summary>
         private static void KeepHud(bool meeting)
         {
-            var local = PlayerControl.LocalPlayer;
-            bool referee = local != null && local.Data != null && local.Data.IsDead && RefereeId() == local.PlayerId;
-            if (!referee || !HudManager.InstanceExists) { RoomName(true); return; }
+            bool referee = LocalIsRefereeGhost();
+            if (!referee || !HudManager.InstanceExists) { RoomName(true); TaskBar(false); return; }
             RoomName(false);
+            if (!meeting) TaskBar(true);
             if (meeting || Time.unscaledTime < _nextChat) return;
-            _nextChat = Time.unscaledTime + 1f;
+            _nextChat = Time.unscaledTime + 0.5f;
             var chat = HudManager.Instance.Chat;
-            if (chat != null && !chat.gameObject.activeSelf) chat.SetVisible(true);
+            if (chat == null) return;
+            if (!chat.gameObject.activeSelf) chat.gameObject.SetActive(true);
+            if (chat.chatButton != null && !chat.chatButton.gameObject.activeSelf) chat.SetVisible(true);
+        }
+
+        /// <summary>This game's player is the referee ghost (the host, dead, in the referee slot).</summary>
+        public static bool LocalIsRefereeGhost()
+        {
+            var local = PlayerControl.LocalPlayer;
+            if (local == null || !Game.IsHost || AmongUsClient.Instance == null || AmongUsClient.Instance.GameState != InnerNetClient.GameStates.Started) return false;
+            var me = Frame.Get(local.PlayerId);
+            return me != null && me.Dead && RefereeId() == local.PlayerId;
+        }
+
+        // ---- The task bar on the referee's screen ------------------------------------------------
+        // Smaller (it's in the way on the stream), and filled from the real task count every frame,
+        // whatever the lobby's task bar setting (the game only fills it in meetings, or never, for some).
+
+        private const float BarScale = 0.6f;
+        private static ProgressTracker? _bar;
+        private static MeshRenderer? _barFill;
+        private static Vector3 _barScale;
+        private static float _barValue, _barLook;
+
+        private static void TaskBar(bool referee)
+        {
+            if (!referee)
+            {
+                if (_bar != null) _bar.transform.localScale = _barScale;
+                _bar = null;
+                _barFill = null;
+                return;
+            }
+            if (_bar == null)
+            {
+                if (Time.unscaledTime < _barLook) return;
+                _barLook = Time.unscaledTime + 1f;
+                var found = UnityEngine.Object.FindObjectsOfType<ProgressTracker>(true);
+                if (found == null || found.Length == 0) return;
+                _bar = found[0];
+                _barScale = _bar.transform.localScale;
+                _bar.transform.localScale = _barScale * BarScale;
+                _barFill = _bar.GetComponentInChildren<MeshRenderer>(true);
+                _barValue = 0;
+            }
+            if (!_bar.gameObject.activeSelf) _bar.gameObject.SetActive(true);
+            if (_barFill == null) return;
+            if (!_barFill.enabled) _barFill.enabled = true;
+            var data = GameData.Instance;
+            if (data == null || data.TotalTasks <= 0) return;
+            // One section per crewmate doing tasks (not the impostors, the gone, or the referee).
+            int buckets = 0;
+            byte? referee = RefereeId();
+            foreach (var p in Frame.Players)
+                if (!p.Impostor && !p.Disconnected && p.Id != referee) buckets++;
+            if (buckets == 0) return;
+            float target = (float)data.CompletedTasks / data.TotalTasks * buckets;
+            _barValue += (target - _barValue) * Math.Min(1f, Time.deltaTime * 2f);
+            var material = _barFill.material;
+            material.SetFloat("_Buckets", buckets);
+            material.SetFloat("_FullBuckets", _barValue);
         }
 
         private static void RoomName(bool show)
@@ -257,8 +317,8 @@ namespace TournamentTracker.Plugin
     {
         private const float Normal = 3f;
         private const float Farthest = 15f;
-        /// <summary>How far out the referee starts each game: most of the map in view.</summary>
-        private const float Wide = 11f;
+        /// <summary>How far out the referee starts each game: all the way.</summary>
+        private const float Wide = Farthest;
         private static float _size = Normal;
         private static bool _wide;
 
