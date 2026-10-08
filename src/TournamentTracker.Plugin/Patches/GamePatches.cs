@@ -167,6 +167,32 @@ namespace TournamentTracker.Plugin.Patches
         }
     }
 
+    // Player camera sound: where the referee "stands" for the game's sound is where the
+    // followed player is, while their camera is on stream (see CamAudio).
+    [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.GetTruePosition))]
+    internal static class CamAudioPositionPatch
+    {
+        public static void Postfix(PlayerControl __instance, ref UnityEngine.Vector2 __result)
+        {
+            var ears = CamAudio.Listener;
+            if (ears == null || ears == __instance || !__instance.AmOwner) return;
+            try { __result = ears.GetTruePosition(); }
+            catch (Exception) { }
+        }
+    }
+
+    // ...and their own footsteps play (the game only plays the local player's).
+    [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.PlayStepSound))]
+    internal static class CamAudioFootstepPatch
+    {
+        public static bool Prefix(PlayerControl __instance)
+        {
+            if (__instance == null || CamAudio.Listener != __instance) return true;
+            CamAudio.Footstep(__instance);
+            return false;
+        }
+    }
+
     // The referee's mini chat: every message this game shows in its chat.
     [HarmonyPatch(typeof(ChatController), nameof(ChatController.AddChat))]
     internal static class MiniChatPatch

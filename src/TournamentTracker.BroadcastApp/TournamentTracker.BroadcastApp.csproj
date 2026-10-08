@@ -14,7 +14,7 @@
     <AssemblyName>RedAlert</AssemblyName>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Product>Red Alert</Product>
-    <Version>0.3.7</Version>
+    <Version>0.3.8</Version>
     <ApplicationIcon>RedAlert.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>

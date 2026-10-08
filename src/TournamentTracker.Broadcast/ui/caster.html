@@ -1294,8 +1294,13 @@ function specSend(lobby, command) {
   toast(`${lobby}: ${command.replace(/^spec /, '')}`);
 }
 // Commands Red Alert itself wants sent to a host (the Stream Deck, the player camera): only this page can.
-function specQuiet(lobby, command) { const f = RECV[lobby]; if (f && f.contentWindow) f.contentWindow.postMessage({ sendData: { ttc: command }, type: 'rpcs' }, '*'); }
+function specQuiet(lobby, command) {
+  const f = RECV[lobby];
+  if (f && f.contentWindow) f.contentWindow.postMessage({ sendData: { ttc: command }, type: 'rpcs' }, '*');
+  else if (/^SIM-/.test(lobby)) fetch('/app/admin/spec', { method: 'POST', headers: { 'X-App-Token': TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ lobby, command }) }).catch(() => { });
+}
 let camKeepAt = 0;
+const AUDIO_SENT = {};
 setInterval(async () => {
   if (!S || !S.admin) return;
   try { for (const x of await api('GET', '/app/admin/specout')) specQuiet(x.lobby, x.command); } catch (e) { }
@@ -1303,6 +1308,15 @@ setInterval(async () => {
   if (S.cam && S.cam.on && DESK && Date.now() > camKeepAt) {
     camKeepAt = Date.now() + 10000;
     for (const l of DESK.lobbies || []) if (l.online && l.spec && l.spec.cam === false) specQuiet(l.lobby, 'spec cam on');
+  }
+  // The host's game sound follows what's on stream: the followed player's ears while their camera is up, else the whole map's.
+  if (DESK && DESK.onAir) {
+    const camOn = DESK.onAir.layout === 'cam' ? DESK.onAir.slots[0] : null;
+    for (const l of DESK.lobbies || []) {
+      if (!l.online || !l.spec || l.spec.audio == null) continue;          // an older host: no camera sound
+      const want = l.lobby === camOn ? 'cam' : 'wide';
+      if (l.spec.audio !== want && Date.now() - (AUDIO_SENT[l.lobby] || 0) > 2000) { AUDIO_SENT[l.lobby] = Date.now(); specQuiet(l.lobby, 'spec audio ' + want); }
+    }
   }
 }, 500);
 // The host's ghost view (the picture sent to you): what's drawn on it. Only on that one game, never sent to players.
