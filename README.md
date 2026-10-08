@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.35**, a beta.
+The current release is **v0.1.36**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -739,7 +739,10 @@ Voice switches a moment after the game does, so nobody gets cut off mid-word:
 | Game ends → everyone unmuted | 3 s | `DelayGameEnd` |
 | Meeting called → alive players unmuted | 0 s, so nobody misses the start of the discussion | `DelayMeetingStart` |
 
-A death applies at once, and **Unmute all** (Home) / **F9** never wait.
+A death applies at once, and **Unmute all** (Home) / **F9** never wait. Muting always goes out
+before unmuting: when a meeting starts the dead are muted first, and when it ends the living are
+muted before the dead get their voice back, so nobody who should be quiet is still talking while
+the bot works through everyone else.
 
 #### Referee mode
 
@@ -755,8 +758,8 @@ message shows when the referee is speaking.
 While you host, the first bot sits in your voice channel, muted, and follows you when you
 move. When you leave voice or stop hosting, it leaves too. It only looks at which people are
 sending sound; it never records or plays anything. On your screen (and so on stream), a linked
-player's meeting card lights up green while they talk, and in the lobby a green speaker shows
-by their name. Players' own games don't change. Turn it off with `ShowTalking = false` under
+player's meeting card lights up in their colour while they talk, and in the lobby a speaker in
+their colour shows by their name. Players' own games don't change. Turn it off with `ShowTalking = false` under
 `[AutoMute]`.
 
 #### Spectators

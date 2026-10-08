@@ -95,6 +95,31 @@ public class AutoMuteTests : IDisposable
     }
 
     [Fact]
+    public async Task Muting_goes_before_unmuting_so_the_dead_are_quiet_from_the_start_of_a_meeting()
+    {
+        // One bot, so requests go one at a time (as Discord's rate limit makes them).
+        var api = new FakeVoiceApi();
+        using var one = new MuteDispatcher(api, new[] { "only" }, NullLog.Instance);
+        one.SetDesired("100", new VoiceState(true, true));         // during tasks: alive deafened
+        one.SetDesired("103", new VoiceState(true, true));
+        one.SetDesired("102", new VoiceState(true, false));
+        one.SetDesired("102", VoiceState.Open);                     // dead: talk freely
+        Assert.True(await one.WaitIdleAsync(TimeSpan.FromSeconds(3)));
+        int before = api.Calls.Count;
+
+        api.Latency = TimeSpan.FromMilliseconds(150);
+        one.SetDesired("999", new VoiceState(true, false));         // keeps the bot busy while the meeting starts
+        await Task.Delay(30);
+        one.SetDesired("100", VoiceState.Open);                     // the meeting: alive let go…
+        one.SetDesired("103", VoiceState.Open);
+        one.SetDesired("102", new VoiceState(true, false));         // …and the dead muted, asked for last
+        Assert.True(await one.WaitIdleAsync(TimeSpan.FromSeconds(5)));
+
+        var order = api.Calls.Skip(before).Select(c => c.User).ToList();
+        Assert.Equal(new[] { "999", "102", "100", "103" }, order);
+    }
+
+    [Fact]
     public async Task Repeated_ticks_do_not_resend()
     {
         Enter(VoicePhase.Tasks, _players);
