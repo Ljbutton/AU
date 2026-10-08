@@ -150,16 +150,28 @@ namespace TournamentTracker.Plugin
         private static void HideCard(MeetingHud meeting)
         {
             if (GameData.Instance == null || (Game.IsHost && TournamentPlugin.Session?.RefSlotKey == null)) return;
-            byte? hostKnows = Game.IsHost ? RefSlot.RefereeId() : null;
-            if (Game.IsHost && hostKnows == null) return;
+            // Who the referee is, then their card by the name on it (their game name, or on the host's
+            // screen the roster name the nameplates may show instead).
+            NetworkedPlayerInfo? data = null;
+            if (Game.IsHost)
+            {
+                var id = RefSlot.RefereeId();
+                if (id.HasValue) data = GameData.Instance.GetPlayerById(id.Value);
+            }
+            else
+                foreach (var p in GameData.Instance.AllPlayers)
+                    if (RefSlot.IsReferee(p)) { data = p; break; }
+            if (data == null) return;
+            var names = new HashSet<string>(StringComparer.Ordinal) { data.PlayerName ?? "" };
+            var shown = Game.IsHost ? TournamentPlugin.Session?.DisplayName(PlayerSnapshot.MakeKey(data.FriendCode, data.PlayerName ?? "")) : null;
+            if (shown != null) names.Add(shown);
             var areas = new List<PlayerVoteArea>();
             PlayerVoteArea? referee = null;
             foreach (var area in meeting.playerStates)
             {
                 if (area == null) continue;
                 areas.Add(area);
-                if (!area.gameObject.activeSelf) continue;
-                if (hostKnows.HasValue ? area.TargetPlayerId == hostKnows.Value : RefSlot.IsReferee(GameData.Instance.GetPlayerById(area.TargetPlayerId))) referee = area;
+                if (area.gameObject.activeSelf && area.NameText != null && names.Contains(area.NameText.text ?? "")) referee = area;
             }
             if (referee == null) return;
             // The places in reading order (top row first, left to right); everyone but the referee takes them in turn.
