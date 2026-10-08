@@ -69,9 +69,11 @@ namespace TournamentTracker.Plugin
             {
                 _centreAt = -1;
                 _wasMeeting = false;
+                RoomName(true);
                 return;
             }
             bool meeting = MeetingHud.Instance != null || ExileController.Instance != null;
+            KeepHud(meeting);
             if (_wasMeeting && !meeting) CentreSoon(0.5f);
             _wasMeeting = meeting;
             if (_centreAt < 0 || Time.unscaledTime < _centreAt) return;
@@ -85,7 +87,38 @@ namespace TournamentTracker.Plugin
             _centreAt = -1;
             var at = MapCentre();
             referee.NetTransform.SnapTo(at);
+            GhostZoom.ZoomOut();
             TournamentPlugin.Logger.Info($"Referee ghost: moved to the middle of the map ({at.x:0.0}, {at.y:0.0}).");
+        }
+
+        private static float _nextChat;
+        private static bool _roomHidden;
+
+        /// <summary>
+        /// The referee's own screen: the chat stays there (the game hides it for a player whose role
+        /// isn't a ghost role, which the referee's isn't), and no room name ("Storage") at the top.
+        /// </summary>
+        private static void KeepHud(bool meeting)
+        {
+            var local = PlayerControl.LocalPlayer;
+            bool referee = local != null && local.Data != null && local.Data.IsDead && RefereeId() == local.PlayerId;
+            if (!referee || !HudManager.InstanceExists) { RoomName(true); return; }
+            RoomName(false);
+            if (meeting || Time.unscaledTime < _nextChat) return;
+            _nextChat = Time.unscaledTime + 1f;
+            var chat = HudManager.Instance.Chat;
+            if (chat != null && !chat.gameObject.activeSelf) chat.SetVisible(true);
+        }
+
+        private static void RoomName(bool show)
+        {
+            if (show && !_roomHidden) return;
+            if (!HudManager.InstanceExists) { _roomHidden = false; return; }
+            var tracker = HudManager.Instance.roomTracker;
+            if (tracker == null) return;
+            if (!show && tracker.gameObject.activeSelf) tracker.gameObject.SetActive(false);
+            else if (show) tracker.gameObject.SetActive(true);
+            _roomHidden = !show;
         }
 
         /// <summary>The middle of the map: the centre of all its rooms together (the meeting table if it has none).</summary>
@@ -146,7 +179,7 @@ namespace TournamentTracker.Plugin
             }
         }
 
-        /// <summary>The referee's card off the meeting list; the cards after it move up to fill the gap.</summary>
+        /// <summary>The referee's card off the meeting list (shrunk to nothing, last place); the cards after it move up to fill the gap.</summary>
         private static void HideCard(MeetingHud meeting)
         {
             if (GameData.Instance == null || (Game.IsHost && TournamentPlugin.Session?.RefSlotKey == null)) return;
@@ -171,19 +204,22 @@ namespace TournamentTracker.Plugin
             {
                 if (area == null) continue;
                 areas.Add(area);
-                if (area.gameObject.activeSelf && area.NameText != null && names.Contains(area.NameText.text ?? "")) referee = area;
+                if (area.gameObject.activeSelf && area.transform.localScale != Vector3.zero && area.NameText != null && names.Contains(area.NameText.text ?? "")) referee = area;
             }
             if (referee == null) return;
             // The places in reading order (top row first, left to right); everyone but the referee takes them in turn.
             var order = areas.OrderByDescending(a => Mathf.Round(a.transform.localPosition.y * 100)).ThenBy(a => a.transform.localPosition.x).ToList();
             var places = order.Select(a => a.transform.localPosition).ToList();
-            referee.gameObject.SetActive(false);
+            // Shrunk to nothing rather than switched off: the game still goes through every card when it
+            // shows the votes, and a switched-off one stopped it part way (no votes shown at all).
+            referee.transform.localScale = Vector3.zero;
             int next = 0;
             foreach (var area in order)
             {
                 if (area == referee || !area.gameObject.activeSelf) continue;
                 area.transform.localPosition = places[next++];
             }
+            referee.transform.localPosition = places[places.Count - 1];
             TournamentPlugin.Logger.Info("Referee ghost: taken off the meeting list.");
         }
     }
@@ -197,7 +233,13 @@ namespace TournamentTracker.Plugin
     {
         private const float Normal = 3f;
         private const float Farthest = 15f;
-        private static bool _zoomed;
+        /// <summary>How far out the referee starts each game: most of the map in view.</summary>
+        private const float Wide = 11f;
+        private static float _size = Normal;
+        private static bool _wide;
+
+        /// <summary>The referee ghost: zoomed out as they arrive in the middle of the map.</summary>
+        public static void ZoomOut() => _wide = true;
 
         public static void Update()
         {
@@ -208,18 +250,19 @@ namespace TournamentTracker.Plugin
                          && AmongUsClient.Instance.GameState == InnerNetClient.GameStates.Started;
             if (!ghost)
             {
-                if (_zoomed) camera.orthographicSize = Normal;
-                _zoomed = false;
+                if (_size != Normal) camera.orthographicSize = Normal;
+                _size = Normal;
+                _wide = false;
                 return;
             }
+            if (_wide) { _size = Wide; _wide = false; }
 
             float step = Input.mouseScrollDelta.y;
             if (Input.GetKeyDown(KeyCode.Equals) || Input.GetKeyDown(KeyCode.KeypadPlus)) step += 1;
             if (Input.GetKeyDown(KeyCode.Minus) || Input.GetKeyDown(KeyCode.KeypadMinus)) step -= 1;
-            if (step == 0) return;
-            float size = Mathf.Clamp(camera.orthographicSize - step, Normal, Farthest);
-            camera.orthographicSize = size;
-            _zoomed = size > Normal;
+            if (step != 0) _size = Mathf.Clamp(_size - step, Normal, Farthest);
+            // Kept (the game puts the camera back after a meeting).
+            if (_size != Normal && Mathf.Abs(camera.orthographicSize - _size) > 0.01f) camera.orthographicSize = _size;
         }
     }
 }

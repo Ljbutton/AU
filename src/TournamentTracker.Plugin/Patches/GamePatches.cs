@@ -106,22 +106,46 @@ namespace TournamentTracker.Plugin.Patches
         }
     }
 
-    // Referee ghost slot: a vote for the referee (from a game that still lists them) counts as a skip.
-    [HarmonyPatch(typeof(MeetingHud), nameof(MeetingHud.CastVote))]
-    internal static class RefereeNoVotePatch
+    // Second and third fences, in case the kill comes some other way: the host never sends a
+    // successful kill on the referee, and its own game never plays one.
+    [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.RpcMurderPlayer))]
+    internal static class RefereeNoKillSentPatch
     {
-        private const byte Skip = 253;      // the game's "skipped" vote
-
-        public static void Prefix(byte __0, ref byte __1)
+        public static bool Prefix(PlayerControl __instance, PlayerControl __0, bool __1)
         {
-            if (!Game.IsHost || TournamentPlugin.Session?.RefSlotKey == null) return;
+            if (!__1 || !Game.IsHost || __instance == null || __0 == null || TournamentPlugin.Session?.RefSlotKey == null) return true;
             try
             {
-                if (RefSlot.RefereeId() != __1) return;
-                TournamentPlugin.Logger.Warn($"Referee ghost: a vote for the referee (from player {__0}) counts as a skip.");
-                __1 = Skip;
+                if (RefSlot.RefereeId() != __0.PlayerId) return true;
+                TournamentPlugin.Logger.Warn($"Referee ghost: stopped a kill on the referee by {__instance.Data?.PlayerName} before it was sent.");
+                __instance.RpcMurderPlayer(__0, false);
+                return false;
             }
-            catch (Exception e) { TournamentPlugin.Logger.Error("Referee vote hook failed: " + e); }
+            catch (Exception e)
+            {
+                TournamentPlugin.Logger.Error("Referee kill hook failed: " + e);
+                return true;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.MurderPlayer))]
+    internal static class RefereeNoDeathPatch
+    {
+        public static bool Prefix(PlayerControl __instance, PlayerControl __0)
+        {
+            if (!Game.IsHost || __0 == null || TournamentPlugin.Session?.RefSlotKey == null) return true;
+            try
+            {
+                if (RefSlot.RefereeId() != __0.PlayerId) return true;
+                TournamentPlugin.Logger.Warn($"Referee ghost: a kill on the referee by {__instance?.Data?.PlayerName} reached the host's game; not played here.");
+                return false;
+            }
+            catch (Exception e)
+            {
+                TournamentPlugin.Logger.Error("Referee kill hook failed: " + e);
+                return true;
+            }
         }
     }
 
