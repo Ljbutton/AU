@@ -71,7 +71,9 @@ namespace TournamentTracker
             TrackKnownDeaths(phase, players);
 
             var channel = GameVoiceChannel(players);
-            var spectators = channel == null ? null : Spectators(channel, players);
+            // Not hosting (in the menus, or a player in someone else's lobby, even with the mod): the
+            // people in voice aren't this game's spectators, and their voice is the host's to set.
+            var spectators = channel == null || phase == VoicePhase.Menu ? null : Spectators(channel, players);
             // The referee ghost is never muted: take them out of the players and the spectators.
             string? referee = RefSlotKey == null ? null : Links.Find(RefSlotKey)?.DiscordUserId;
             if (referee != null) spectators?.Remove(referee);

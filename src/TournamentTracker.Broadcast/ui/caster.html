@@ -1283,7 +1283,6 @@ function specRow(l) {
   return `<div class="spec" data-specrow="${esc(l.lobby)}"><span class="sh" title="What the referee ghost's screen (the picture sent to you) shows. Only drawn on that one game, never sent to the players.">Host view${sp.on ? '' : ' (host isn\'t the referee ghost)'}</span>
     <button data-spec="lit" class="${sp.lit ? 'on' : ''}" title="Lights the whole map and shows every player (impostors in vents stay hidden). Key ${keyName('specLit')}">💡 Lit map</button>
     <button data-spec="vision" class="${sp.vision !== 'off' ? 'on' : ''}" title="Click to cycle: off → every crewmate's real vision (the rest dimmed) → every player's vision outline. Key ${keyName('specVision')}">◐ ${VISION[sp.vision] || sp.vision}</button>
-    <button data-spec="report" class="${sp.report ? 'on' : ''}" title="A ! over anyone close enough to report a body. Key ${keyName('specReport')}">❗ Can report</button>
     <button data-spec="eye" class="${sp.eye ? 'on' : ''}" title="A small eye by a crewmate's name while an impostor is in their sight. Key ${keyName('specEye')}">👁 Sees impostor</button>
     ${sp.vision === 'focus' ? `<select data-specfocus title="Whose vision is shown: every crewmate's, or just one."><option value="auto">Whose vision: every crewmate</option>${crew.map(p => `<option value="${p.id}"${sp.focus === p.id ? ' selected' : ''}>${esc(p.colour)} · ${esc(realName(l.lobby, p.id, p.name))}</option>`).join('')}</select>` : ''}
   </div>`;
@@ -1777,7 +1776,7 @@ $('roster-open').addEventListener('click', e => { e.preventDefault(); api('POST'
 
 // ---- Replay controls -------------------------------------------------------------------------
 let RP = null, rpSync = 0, keyWait = null;
-const RP_NAMES = { grid: 'Grid on / off', intermission: 'Intermission on / off', alertsPause: 'Pause off-screen alerts', playerCard: 'Card: top notification\'s player', voiceMute: 'Mute all lobby voice', specLit: 'View: lit map', specVision: 'View: vision mode', specReport: 'View: "!"', specEye: 'View: eye', playPause: 'Play / pause', back: 'Back 1 s', forward: 'Forward 1 s', frameBack: 'Back a frame', frameForward: 'Forward a frame', restart: 'Restart', zoomIn: 'Zoom in', zoomOut: 'Zoom out', panLeft: 'Pan left', panRight: 'Pan right', panUp: 'Pan up', panDown: 'Pan down', follow: 'Follow players', live: 'Back to live' };
+const RP_NAMES = { grid: 'Grid on / off', intermission: 'Intermission on / off', alertsPause: 'Pause off-screen alerts', playerCard: 'Card: top notification\'s player', voiceMute: 'Mute all lobby voice', specLit: 'View: lit map', specVision: 'View: vision mode', specEye: 'View: eye', playPause: 'Play / pause', back: 'Back 1 s', forward: 'Forward 1 s', frameBack: 'Back a frame', frameForward: 'Forward a frame', restart: 'Restart', zoomIn: 'Zoom in', zoomOut: 'Zoom out', panLeft: 'Pan left', panRight: 'Pan right', panUp: 'Pan up', panDown: 'Pan down', follow: 'Follow players', live: 'Back to live' };
 const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
 function rpCursor() { const n = RP && RP.now; if (!n) return 0; return Math.min(n.duration || 0, n.cursor + (n.playing ? (performance.now() - rpSync) / 1000 : 0)); }
 function renderReplay() {
@@ -1846,7 +1845,7 @@ document.addEventListener('keydown', e => {
     const lobby = DESK && DESK.onAir.slots.find(x => x);
     if (!lobby) return toast('Put a lobby on stream first.');
     e.preventDefault();
-    specSend(lobby, 'spec ' + { specLit: 'lit', specVision: 'vision', specReport: 'report', specEye: 'eye' }[name]);
+    specSend(lobby, 'spec ' + { specLit: 'lit', specVision: 'vision', specEye: 'eye' }[name]);
     return;
   }
   if (!RP.now) return;
