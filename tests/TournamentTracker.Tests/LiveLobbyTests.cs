@@ -404,6 +404,48 @@ public class LiveLobbyTests : IDisposable
         Assert.Equal(calls, _voice.Calls.Count);
     }
 
+    [Fact]
+    public void The_bot_listens_in_the_hosts_voice_channel_while_they_host_and_shows_who_is_talking()
+    {
+        var s = Session(c => c.AutoMute.AutoLinkByName = false);
+        _lobby[0].IsHost = true;
+        s.Links.Link(_lobby[0].Key, "Alice", "100", "alice");
+        s.Links.Link(_lobby[2].Key, "Carl", "102", "carl");
+        InVoice("vc", ("100", "alice"), ("102", "carl"));
+
+        s.VoiceTick(VoicePhase.Lobby, _lobby);
+        Assert.Equal("vc", s.TalkingVoiceChannel);                 // where the host is
+
+        _presence.Dispatch(VoicePresenceState.TalkingEvent, JsonDocument.Parse("""{"user_id":"102","talking":true}""").RootElement);
+        Assert.True(s.IsTalking(_lobby[2].Key));
+        Assert.False(s.IsTalking(_lobby[0].Key));
+        Assert.False(s.IsTalking(_lobby[3].Key));                  // not linked
+
+        // The host moves channel: the bot follows. They leave voice, or stop hosting: out of voice.
+        _presence.Dispatch("VOICE_STATE_UPDATE", JsonDocument.Parse("""{"guild_id":"g1","user_id":"100","channel_id":"vc2"}""").RootElement);
+        s.VoiceTick(VoicePhase.Lobby, _lobby);
+        Assert.Equal("vc2", s.TalkingVoiceChannel);
+        s.VoiceTick(VoicePhase.Menu, new List<PlayerSnapshot>());
+        Assert.Null(s.TalkingVoiceChannel);
+        s.VoiceTick(VoicePhase.Lobby, _lobby);
+        _presence.Dispatch("VOICE_STATE_UPDATE", JsonDocument.Parse("""{"guild_id":"g1","user_id":"100","channel_id":null}""").RootElement);
+        s.VoiceTick(VoicePhase.Lobby, _lobby);
+        Assert.Null(s.TalkingVoiceChannel);
+    }
+
+    [Fact]
+    public void Talking_can_be_turned_off()
+    {
+        var s = Session(c => { c.AutoMute.AutoLinkByName = false; c.AutoMute.ShowTalking = false; });
+        _lobby[0].IsHost = true;
+        s.Links.Link(_lobby[0].Key, "Alice", "100", "alice");
+        InVoice("vc", ("100", "alice"));
+        s.VoiceTick(VoicePhase.Lobby, _lobby);
+        Assert.Null(s.TalkingVoiceChannel);
+        _presence.Dispatch(VoicePresenceState.TalkingEvent, JsonDocument.Parse("""{"user_id":"100","talking":true}""").RootElement);
+        Assert.False(s.IsTalking(_lobby[0].Key));
+    }
+
     // ---- Referee mode ----
 
     [Fact]

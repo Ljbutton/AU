@@ -359,7 +359,7 @@ public class ObsTests : IAsyncLifetime
             Assert.Equal(new[] { "TT Lobby LJ", "TT Lobby MAL", "TT Lobby Soggy" }, _obs.Scenes[scene].Select(i => i.Source).Where(x => x.StartsWith("TT Lobby ")).OrderBy(x => x));
         Assert.Equal("TT Swoosh", _obs.Scenes["TT Full"].Last().Source);        // the swoosh plays on top
         Assert.Empty(_obs.Scenes["Starting soon"]);
-        Assert.Equal("https://vdo.ninja/?view=a&password=x&cleanoutput", _obs.Inputs["TT Lobby LJ"]["url"]!.ToString());
+        Assert.Equal("https://vdo.ninja/?view=a&password=x&cleanoutput&videobitrate=8000", _obs.Inputs["TT Lobby LJ"]["url"]!.ToString());
         Assert.Equal("True", _obs.Inputs["TT Lobby LJ"]["reroute_audio"]!.ToString());
         Assert.All(_obs.Scenes["TT Full"].Where(i => i.Source.StartsWith("TT Lobby ")), i => Assert.False(i.Enabled));     // hidden until put on
 

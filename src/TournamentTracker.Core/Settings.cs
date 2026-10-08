@@ -162,6 +162,12 @@ namespace TournamentTracker
         /// <summary>The bot posts the live status with a "pick your colour" menu that links whoever picks.</summary>
         public bool LinkMenu { get; set; } = true;
 
+        /// <summary>
+        /// The bot sits (muted) in the host's voice channel to see who's talking, and the host's game
+        /// lights up linked players while they talk (in the lobby and in meetings).
+        /// </summary>
+        public bool ShowTalking { get; set; } = true;
+
         public bool IsConfigured => Enabled && BotTokens.Count > 0 && GuildId.Length > 0;
     }
 

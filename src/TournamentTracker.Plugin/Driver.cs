@@ -33,6 +33,7 @@ namespace TournamentTracker.Plugin
         private static bool _loggedFeed;
         private static bool _loggedOverlay;
         private static bool _loggedReferee;
+        private static bool _loggedTalking;
 
         /// <summary>Set once a game has ended, until the lobby returns, so the start fallback can't reopen it.</summary>
         private static bool _roundOver;
@@ -67,6 +68,8 @@ namespace TournamentTracker.Plugin
             catch (Exception e) { if (!_loggedError) TournamentPlugin.Logger.Error("Zoom failed: " + e); _loggedError = true; }
             try { using (FrameProfiler.Time(FrameProfiler.Part.Referee)) { RefSlot.Update(); RefereeHider.Update(); } }
             catch (Exception e) { if (!_loggedReferee) TournamentPlugin.Logger.Error("Referee ghost failed: " + e); _loggedReferee = true; }
+            try { using (FrameProfiler.Time(FrameProfiler.Part.Talking)) TalkingLights.Update(); }
+            catch (Exception e) { if (!_loggedTalking) TournamentPlugin.Logger.Error("Who's talking failed: " + e); _loggedTalking = true; }
 
             var session = TournamentPlugin.Session;
             if (session == null) return;

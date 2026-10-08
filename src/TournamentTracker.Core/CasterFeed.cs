@@ -28,7 +28,8 @@ namespace TournamentTracker
             {
                 EnsureFeedId();
                 string label = LobbyLabel();
-                return $"{VdoNinja}?push={_feedId}&password={_feedKey}&screenshare&label={Uri.EscapeDataString(label.Length > 0 ? label : "Lobby")}";
+                // Full HD at up to 60 fps, so the caster's replays can zoom in and stay sharp.
+                return $"{VdoNinja}?push={_feedId}&password={_feedKey}&screenshare&quality=0&maxframerate=60&label={Uri.EscapeDataString(label.Length > 0 ? label : "Lobby")}";
             }
         }
 

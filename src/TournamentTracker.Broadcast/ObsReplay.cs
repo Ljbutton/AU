@@ -74,6 +74,9 @@ namespace TournamentTracker.App.Broadcast
                     path = ClipFolder,
                     rec_format = Settings.Replay.Format,
                     replay_filename_formatting = $"TT {SafeName(lobby)} %CCYY-%MM-%DD %hh-%mm-%ss",
+                    // Kept sharp enough to zoom into for a replay (Source Record's own default is much lower).
+                    rate_control = "CBR",
+                    bitrate = Settings.Replay.Kbps,
                 };
                 if (!has)
                     await obs.RequestAsync("CreateSourceFilter", new { sourceName = source, filterName = Settings.Replay.FilterName, filterKind = SourceRecordKind, filterSettings = settings }).ConfigureAwait(false);

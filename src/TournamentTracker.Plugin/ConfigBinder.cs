@@ -87,6 +87,8 @@ namespace TournamentTracker.Plugin
                 "In the lobby, link a player automatically when their in-game name matches exactly one person's Discord name in the voice channel.").Value;
             m.LinkMenu = config.Bind("AutoMute", "LinkMenu", m.LinkMenu,
                 "The bot posts the live status itself, with a menu where players pick their colour to link. Off: a plain webhook message.").Value;
+            m.ShowTalking = config.Bind("AutoMute", "ShowTalking", m.ShowTalking,
+                "The bot sits muted in the host's voice channel and the host's game lights up whoever is talking (lobby and meetings).").Value;
 
             // Defaults follow the "Point Sheet Template" tab of Tournament_Points.xlsx.
             // Penalties are negative numbers; halves are fine.

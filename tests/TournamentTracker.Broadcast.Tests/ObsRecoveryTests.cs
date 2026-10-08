@@ -67,7 +67,7 @@ public class ObsRecoveryTests : IAsyncLifetime
         await _director.BuildAsync();
 
         Assert.Equal("TT Lobby LJ 2", _director.Settings.Sources["LJ"]);
-        Assert.Equal("https://vdo.ninja/?view=a&password=x", _obs.Inputs["TT Lobby LJ 2"]["url"]!.ToString());
+        Assert.Equal("https://vdo.ninja/?view=a&password=x&videobitrate=8000", _obs.Inputs["TT Lobby LJ 2"]["url"]!.ToString());
         foreach (var scene in TtScenes) Assert.Contains(_obs.Scenes[scene], i => i.Source == "TT Lobby LJ 2");
         Assert.Empty(_director.SourceProblems);
         Assert.Equal("TT Lobby LJ 2", ObsSettings.Load(SettingsPath).Sources["LJ"]);        // remembered
@@ -185,8 +185,8 @@ public class ObsRecoveryTests : IAsyncLifetime
         Assert.DoesNotContain(_obs.Inputs.Keys, k => k.EndsWith(" Kai") || k.EndsWith(" Soggy"));
         Assert.Contains("TT Lobby Real", _obs.Inputs.Keys);
         // Real lobbies with those names get real sources.
-        Assert.Equal("https://vdo.ninja/?view=a&password=x", _obs.Inputs[_director.Settings.Sources["LJ"]]["url"]!.ToString());
-        Assert.Equal("https://vdo.ninja/?view=b&password=x", _obs.Inputs[_director.Settings.Sources["MAL"]]["url"]!.ToString());
+        Assert.Equal("https://vdo.ninja/?view=a&password=x&videobitrate=8000", _obs.Inputs[_director.Settings.Sources["LJ"]]["url"]!.ToString());
+        Assert.Equal("https://vdo.ninja/?view=b&password=x&videobitrate=8000", _obs.Inputs[_director.Settings.Sources["MAL"]]["url"]!.ToString());
     }
 
     [Fact]

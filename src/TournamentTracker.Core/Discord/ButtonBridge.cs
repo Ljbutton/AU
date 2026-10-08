@@ -149,6 +149,19 @@ namespace TournamentTracker.Discord
         private long _since;
         private string _epoch = "";
         private string? _readyFor;
+        private volatile string? _voice;
+        private CancellationTokenSource? _poll;
+
+        /// <summary>
+        /// The voice channel the bot should sit in, to see who's talking (null: out of voice). Sent to
+        /// The Button straight away (the request waiting for news is cut short).
+        /// </summary>
+        public void WantVoice(string? channelId)
+        {
+            if (channelId == _voice) return;
+            _voice = channelId;
+            try { _poll?.Cancel(); } catch (ObjectDisposedException) { }
+        }
 
         /// <summary>How long The Button holds a request open waiting for news.</summary>
         public static readonly TimeSpan Wait = TimeSpan.FromSeconds(20);
@@ -181,8 +194,11 @@ namespace TournamentTracker.Discord
             while (!ct.IsCancellationRequested)
             {
                 bool ok = false;
-                try { ok = await PollAsync(ct).ConfigureAwait(false); }
+                using var poll = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                _poll = poll;
+                try { ok = await PollAsync(poll.Token).ConfigureAwait(false); }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+                catch (OperationCanceledException) { continue; }       // cut short to say where the bot should be
                 catch (Exception e) { _log.Warn("The Button didn't answer: " + e.Message); }
                 if (!ok)
                 {
@@ -200,7 +216,7 @@ namespace TournamentTracker.Discord
             if (link == null) return false;
             using var request = new HttpRequestMessage(HttpMethod.Post, link.Base + "gateway")
             {
-                Content = new StringContent(JsonSerializer.Serialize(new { token = _token, guild = _guildId, listen = _listen, since = _since, epoch = _epoch }), Encoding.UTF8, "application/json"),
+                Content = new StringContent(JsonSerializer.Serialize(new { token = _token, guild = _guildId, listen = _listen, since = _since, epoch = _epoch, voice = _voice }), Encoding.UTF8, "application/json"),
             };
             request.Headers.TryAddWithoutValidation(ButtonBridge.TokenHeader, link.Token);
             HttpResponseMessage response;

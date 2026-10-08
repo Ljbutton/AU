@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.34**, a beta.
+The current release is **v0.1.35**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -711,9 +711,11 @@ message** on The Button's Home posts a fresh copy.
 
 1. Create an application at <https://discord.com/developers/applications>. Under **Bot**,
    reset the token and copy it. The bot needs no privileged intents.
-2. Invite the bot with the View Channels, Mute Members and Deafen Members permissions and
+2. Invite the bot with the View Channels, Connect, Mute Members and Deafen Members permissions and
    its slash commands:
-   `https://discord.com/oauth2/authorize?client_id=YOUR_APP_ID&scope=bot+applications.commands&permissions=12583936`
+   `https://discord.com/oauth2/authorize?client_id=YOUR_APP_ID&scope=bot+applications.commands&permissions=13632512`
+   (Connect is for *Who's talking*; a bot invited before needs it in the voice channels, which
+   most servers already give everyone.)
 3. Turn on Developer Mode in Discord, right-click your server → **Copy Server ID**.
 4. In the config, set `[AutoMute] Enabled = true`, `BotTokens = <token>` and `GuildId = <server id>`.
 
@@ -747,6 +749,15 @@ spectators) is muted, but can still hear, except you and anyone in `RefereeUserI
 by hand, and it ends by itself when a game starts, so a forgotten toggle can't silence a
 meeting. You need to be linked to Discord yourself to be the one talking. The live status
 message shows when the referee is speaking.
+
+#### Who's talking
+
+While you host, the first bot sits in your voice channel, muted, and follows you when you
+move. When you leave voice or stop hosting, it leaves too. It only looks at which people are
+sending sound; it never records or plays anything. On your screen (and so on stream), a linked
+player's meeting card lights up green while they talk, and in the lobby a green speaker shows
+by their name. Players' own games don't change. Turn it off with `ShowTalking = false` under
+`[AutoMute]`.
 
 #### Spectators
 

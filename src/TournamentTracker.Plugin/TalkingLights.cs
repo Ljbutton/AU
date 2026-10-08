@@ -1,0 +1,261 @@
+using System;
+using System.Collections.Generic;
+using InnerNet;
+using UnityEngine;
+
+namespace TournamentTracker.Plugin
+{
+    /// <summary>
+    /// On the host's screen (and so on stream): who is talking on Discord, for players linked to
+    /// it. In meetings their card lights up green; in the lobby a speaker shows by their name.
+    /// The bot sits muted in the host's voice channel to see it (it never records anyone).
+    /// Only drawn in this one game; nothing is sent to the players.
+    /// </summary>
+    internal static class TalkingLights
+    {
+        private const float Check = 0.1f, Fade = 0.15f;
+        private static readonly Color Green = new Color(0.35f, 1f, 0.45f, 1f);
+
+        private static float _next;
+        private static Sprite? _ring, _speaker;
+        private static readonly Dictionary<IntPtr, Light> Cards = new Dictionary<IntPtr, Light>();
+        private static readonly Dictionary<byte, Light> Icons = new Dictionary<byte, Light>();
+        private static readonly Dictionary<string, string> KeyByName = new Dictionary<string, string>();
+        private static MeetingHud? _meeting;
+
+        private sealed class Light
+        {
+            public GameObject Go = null!;
+            public SpriteRenderer Sprite = null!;
+            public float Alpha = -1;
+            public bool On;
+            public Transform? Follow;
+            public Vector3 Offset;
+        }
+
+        public static void Update()
+        {
+            var session = TournamentPlugin.Session;
+            var client = AmongUsClient.Instance;
+            bool hosting = session != null && Game.IsHost && client != null;
+            var meeting = hosting ? MeetingHud.Instance : null;
+            bool lobby = hosting && client!.GameState == InnerNetClient.GameStates.Joined;
+            if (meeting != _meeting) { ClearCards(); _meeting = meeting; }
+            if (!lobby) ClearIcons();
+
+            if (hosting && Time.unscaledTime >= _next && (meeting != null || lobby))
+            {
+                _next = Time.unscaledTime + Check;
+                if (meeting != null) CheckCards(session!, meeting);
+                if (lobby) CheckIcons(session!);
+            }
+            Animate(Cards.Values);
+            Animate(Icons.Values);
+        }
+
+        // ---- Meetings: the talking player's card lights up ---------------------------------------
+
+        private static void CheckCards(TournamentSession session, MeetingHud meeting)
+        {
+            if (meeting.playerStates == null) return;
+            // Names on the cards → players (their game name, or the roster name the referee's nameplates show).
+            KeyByName.Clear();
+            foreach (var p in Frame.Players)
+            {
+                if (p.Data == null) continue;
+                string real = p.Data.PlayerName ?? "";
+                string key = PlayerSnapshot.MakeKey(p.Data.FriendCode, real);
+                KeyByName[real] = key;
+                if (session.DisplayName(key) is string shown) KeyByName[shown] = key;
+            }
+            foreach (var area in meeting.playerStates)
+            {
+                if (area == null || area.NameText == null) continue;
+                bool talking = KeyByName.TryGetValue(area.NameText.text ?? "", out var key) && session.IsTalking(key)
+                    && area.gameObject.activeInHierarchy && area.transform.localScale != Vector3.zero;
+                if (!Cards.TryGetValue(area.Pointer, out var light) || light.Go == null)
+                {
+                    if (!talking) continue;
+                    light = Cards[area.Pointer] = CardLight(area);
+                }
+                light.On = talking;
+            }
+        }
+
+        /// <summary>A green ring around a meeting card, sized to the card.</summary>
+        private static Light CardLight(PlayerVoteArea area)
+        {
+            var go = new GameObject("TT Talking");
+            go.transform.SetParent(area.transform, false);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = Ring();
+            sr.color = new Color(Green.r, Green.g, Green.b, 0);
+            // The card's size and drawing order, from its own pictures.
+            Bounds? box = null;
+            int layer = 0, order = 0;
+            foreach (var r in area.GetComponentsInChildren<SpriteRenderer>(true))
+            {
+                if (r == null || r == sr || r.sprite == null) continue;
+                if (box is Bounds b) { b.Encapsulate(r.bounds); box = b; } else box = r.bounds;
+                layer = r.sortingLayerID;
+                order = Math.Max(order, r.sortingOrder);
+            }
+            sr.sortingLayerID = layer;
+            sr.sortingOrder = order + 1;
+            var size = box?.size ?? new Vector3(2.7f, 0.65f, 0);
+            var centre = box?.center ?? area.transform.position;
+            var parent = area.transform.lossyScale;
+            float px = Math.Abs(parent.x) < 1e-4f ? 1 : parent.x, py = Math.Abs(parent.y) < 1e-4f ? 1 : parent.y;
+            // The ring sprite is 1 unit wide and 0.3 high.
+            go.transform.localScale = new Vector3(size.x * 1.04f / px, size.y * 1.12f / 0.3f / py, 1);
+            go.transform.position = new Vector3(centre.x, centre.y, area.transform.position.z - 0.05f);
+            return new Light { Go = go, Sprite = sr };
+        }
+
+        // ---- The lobby: a speaker by the talking player's name -----------------------------------
+
+        private static void CheckIcons(TournamentSession session)
+        {
+            foreach (var p in Frame.Players)
+            {
+                if (p.Data == null) continue;
+                string key = PlayerSnapshot.MakeKey(p.Data.FriendCode, p.Data.PlayerName ?? "");
+                bool talking = session.IsTalking(key) && !p.Disconnected;
+                if (!Icons.TryGetValue(p.Id, out var light) || light.Go == null)
+                {
+                    if (!talking) continue;
+                    light = Icons[p.Id] = IconLight(p);
+                }
+                light.On = talking;
+                Place(p, light);
+            }
+            foreach (var (id, light) in Icons)
+                if (Frame.Get(id) == null) light.On = false;
+        }
+
+        private static Light IconLight(Frame.Player p)
+        {
+            var go = new GameObject("TT Talking " + p.Id);
+            UnityEngine.Object.DontDestroyOnLoad(go);
+            var local = PlayerControl.LocalPlayer;
+            if (local != null) go.layer = local.gameObject.layer;
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = Speaker();
+            sr.color = new Color(Green.r, Green.g, Green.b, 0);
+            return new Light { Go = go, Sprite = sr, Follow = p.Pc.transform };
+        }
+
+        /// <summary>Just left of the player's name (measured ten times a second; followed every frame).</summary>
+        private static void Place(Frame.Player p, Light light)
+        {
+            float x = -0.75f, y = 0.62f;
+            try
+            {
+                var name = p.Pc.cosmetics != null ? p.Pc.cosmetics.nameText : null;
+                if (name != null)
+                {
+                    var np = name.transform.position;
+                    x = np.x - name.preferredWidth * name.transform.lossyScale.x / 2 - 0.22f - p.Pos.x;
+                    y = np.y - p.Pos.y;
+                }
+            }
+            catch (Exception) { }
+            light.Offset = new Vector3(x, y, -0.5f);
+        }
+
+        // ---- Fading in and out ---------------------------------------------------------------------
+
+        private static void Animate(IEnumerable<Light> lights)
+        {
+            float step = Time.unscaledDeltaTime / Fade;
+            foreach (var light in lights)
+            {
+                if (light.Go == null) continue;
+                float target = light.On ? 0.95f : 0f;
+                float a = Math.Max(light.Alpha, 0f);
+                a = Math.Abs(target - a) <= step ? target : a + Math.Sign(target - a) * step;
+                if (a != light.Alpha)
+                {
+                    light.Alpha = a;
+                    light.Sprite.color = new Color(Green.r, Green.g, Green.b, a);
+                    bool show = a > 0.01f;
+                    if (light.Go.activeSelf != show) light.Go.SetActive(show);
+                }
+                if (light.Follow != null && light.Alpha > 0.01f)
+                {
+                    var f = light.Follow.position;
+                    light.Go.transform.position = new Vector3(f.x + light.Offset.x, f.y + light.Offset.y, f.z + light.Offset.z);
+                }
+            }
+        }
+
+        private static void ClearCards()
+        {
+            foreach (var light in Cards.Values) if (light.Go != null) UnityEngine.Object.Destroy(light.Go);
+            Cards.Clear();
+        }
+
+        private static void ClearIcons()
+        {
+            if (Icons.Count == 0) return;
+            foreach (var light in Icons.Values) if (light.Go != null) UnityEngine.Object.Destroy(light.Go);
+            Icons.Clear();
+        }
+
+        // ---- The pictures, drawn once ----------------------------------------------------------------
+
+        /// <summary>A rounded green outline with a soft glow, 1 unit wide and 0.3 high, empty inside.</summary>
+        private static Sprite Ring()
+        {
+            if (_ring != null) return _ring;
+            const int w = 200, h = 60;
+            float radius = 14, edge = 3.5f, glow = 6;
+            var px = new Color32[w * h];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    // Distance to the rounded rectangle's outline, inset by the glow.
+                    float qx = Math.Abs(x + 0.5f - w / 2f) - (w / 2f - glow - radius);
+                    float qy = Math.Abs(y + 0.5f - h / 2f) - (h / 2f - glow - radius);
+                    float outside = (float)Math.Sqrt(Math.Max(qx, 0) * Math.Max(qx, 0) + Math.Max(qy, 0) * Math.Max(qy, 0)) + Math.Min(Math.Max(qx, qy), 0) - radius;
+                    float d = Math.Abs(outside);
+                    float a = d <= edge / 2 ? 1f : Math.Max(0, 1 - (d - edge / 2) / glow) * 0.45f;
+                    px[y * w + x] = new Color32(255, 255, 255, (byte)(a * 255));
+                }
+            _ring = Make(px, w, h, w);
+            return _ring;
+        }
+
+        /// <summary>A small speaker with two sound waves.</summary>
+        private static Sprite Speaker()
+        {
+            if (_speaker != null) return _speaker;
+            const int s = 48;
+            var px = new Color32[s * s];
+            for (int y = 0; y < s; y++)
+                for (int x = 0; x < s; x++)
+                {
+                    float fx = x + 0.5f, fy = y + 0.5f - s / 2f;
+                    bool box = fx >= 4 && fx <= 13 && Math.Abs(fy) <= 6;
+                    bool cone = fx > 13 && fx <= 24 && Math.Abs(fy) <= 6 + (fx - 13) * 0.9f;
+                    float r = (float)Math.Sqrt((fx - 22) * (fx - 22) + fy * fy);
+                    bool front = fx > 26 && Math.Abs(fy) < (fx - 22) * 1.1f;
+                    bool wave = front && (Math.Abs(r - 10) < 1.8f || Math.Abs(r - 17) < 1.8f);
+                    px[y * s + x] = box || cone || wave ? new Color32(255, 255, 255, 255) : new Color32(0, 0, 0, 0);
+                }
+            _speaker = Make(px, s, s, 110);
+            return _speaker;
+        }
+
+        private static Sprite Make(Color32[] px, int w, int h, float ppu)
+        {
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+            tex.SetPixels32(px);
+            tex.Apply();
+            tex.hideFlags = HideFlags.HideAndDontSave;
+            var sprite = Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), ppu);
+            sprite.hideFlags = HideFlags.HideAndDontSave;
+            return sprite;
+        }
+    }
+}
