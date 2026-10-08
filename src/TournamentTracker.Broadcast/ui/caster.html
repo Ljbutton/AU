@@ -428,6 +428,12 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .inter-card .tag{background:var(--red);color:#fff}
 .roster-card summary b,.tw-grid h3{font:700 20px/1 var(--hand);letter-spacing:.06em;text-transform:uppercase}
 .lock-card{border-top:2px solid var(--red)}
+/* Next on stream: picked lobbies wait here until Send. */
+.stage-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding:8px 10px;border:1px dashed var(--line);border-radius:8px}
+.stage-bar.on{border-style:solid;border-color:var(--red);background:rgba(225,6,0,.08)}
+.stage-line{flex:1;min-width:0;font-size:13.5px;color:var(--muted)}
+.stage-bar.on .stage-line{color:var(--fg,#fff);font-weight:600}
+[data-layout].pick{outline:2px dashed var(--red);outline-offset:1px}
 /* Multiview picker: a live picture per lobby sending its game; click to pick (numbered in order), Send puts them on. */
 .mv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:10px}
 .mv-grid:empty::before{content:"Lobbies show here as their hosts turn on Send my game to the caster.";color:var(--muted);font-size:13px}
@@ -662,13 +668,14 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
       <div class="air-slots" id="air-slots"></div>
       <div class="air-pick" id="air-pick" hidden></div>
       <div class="lay-grp"><span class="lay-h">Views</span><button class="b" data-layout="full">Full</button><button class="b" data-layout="2up">2-Up</button><button class="b" data-layout="4up">Quad</button><button class="b" data-layout="grid" title="Every lobby at once (key G)">Grid</button><button class="b" id="desk-autogrid" title="Grid by itself whenever no lobby is mid-game">Auto grid</button></div>
+      <div class="stage-bar" id="stage-bar"><span class="lay-h">Next</span><span class="stage-line" id="stage-line">Click lobbies (cards, lobby list, tiles or 1–9), then Send.</span><button class="b" id="stage-clear" hidden>Clear</button><button class="b primary" id="stage-send" disabled title="Put the picked lobbies on stream (Enter)">Send</button></div>
       <div class="lay-grp brk"><span class="lay-h">Breaks</span><button class="b" data-layout="slate" title="Technical difficulties: be right back (standings and storylines take turns)">Be right back</button><button class="b" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" id="desk-autointer" title="Intermission by itself when every lobby is between games, and back when one starts">Auto intermission</button></div>
     </div>
   </div>
   <div class="card mv-card" id="mv-card" data-page="live">
     <div class="row" style="justify-content:space-between"><div><b>Multiview</b> <span class="muted" id="mv-line">Click the lobbies you want on stream, then Send.</span></div>
       <div class="row"><button class="b" id="mv-clear">Clear</button><button class="b primary" id="mv-send" disabled>Send</button></div></div>
-    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Click the lobbies you want on stream (they're numbered in the order you pick), then Send. 1 lobby goes full screen, 2 side by side, 4 in the quad, 3 or 5 and more in the grid.</p>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Click the lobbies you want on stream (they're numbered in the order you pick), then Send. 1 lobby goes full screen, 2 side by side, 3 or 4 in the quad, 5 and more in the grid. Clicking a lobby anywhere on the Live desk picks it the same way; nothing changes on stream until Send.</p>
     <div class="mv-grid" id="mv-grid"></div>
   </div>
   <div class="card cast-card" id="cast-card" hidden data-page="live">
@@ -930,10 +937,57 @@ addEventListener('message', e => {
     if (ack && Object.keys(ack).length && e.source) e.source.postMessage({ sendData: { ttack: ack }, type: 'rpcs' }, '*');
   }).catch(() => { });
 });
+// Nothing goes on stream from a click: lobbies are picked (numbered in order) and wait under Next
+// until Send. The layout follows how many are picked (1 full, 2 2-up, 3–4 quad, more grid) unless a
+// view button chose one. Breaks (Be right back, Intermission, a sponsor break) go on at once.
+let STAGE_LAYOUT = null, PICK = [];
 async function show(lobby, layout, slot) {
-  const r = await api('POST', '/app/admin/show', { lobby, layout: layout || 'full', slot: slot ? String(slot) : '' });
-  toast(r.message); loadDesk();
+  layout = layout || 'full';
+  if (['intermission', 'slate', 'break'].includes(layout)) {
+    const r = await api('POST', '/app/admin/show', { lobby, layout, slot: slot ? String(slot) : '' });
+    toast(r.message); loadDesk(); return;
+  }
+  if (layout === 'grid' && !lobby) { stageAll(); STAGE_LAYOUT = 'grid'; renderStage(); return; }
+  if (!lobby) return;
+  const i = PICK.indexOf(lobby);
+  if (layout === 'full' || i < 0) { if (i >= 0) PICK.splice(i, 1); else PICK.push(lobby); }
+  STAGE_LAYOUT = layout === 'full' ? STAGE_LAYOUT : layout;
+  if (!PICK.length) STAGE_LAYOUT = null;
+  renderStage();
 }
+const onlineLobbies = () => DESK ? DESK.lobbies.filter(l => l.online).map(l => l.lobby) : [];
+function stageAll() { PICK = onlineLobbies(); }
+const STAGE_NAME = { full: 'Full screen', '2up': '2-up', '4up': 'Quad', grid: 'Grid' };
+const SLOTS = { full: 1, '2up': 2, '4up': 4 };
+function stageLayout() { return STAGE_LAYOUT || (PICK.length <= 1 ? 'full' : PICK.length === 2 ? '2up' : PICK.length <= 4 ? '4up' : 'grid'); }
+function renderStage() {
+  const lay = stageLayout(), n = SLOTS[lay];
+  const left = n && PICK.length > n ? PICK.slice(n) : [];
+  $('stage-bar').classList.toggle('on', PICK.length > 0);
+  $('stage-send').disabled = !PICK.length;
+  $('stage-clear').hidden = !PICK.length;
+  $('stage-send').textContent = PICK.length ? `Send · ${STAGE_NAME[lay]}` : 'Send';
+  $('stage-line').textContent = PICK.length
+    ? PICK.map((l, i) => `${i + 1} ${l}`).join(' · ') + ` → ${STAGE_NAME[lay]}${left.length ? ` (${left.join(', ')} left out)` : ''}`
+    : 'Click lobbies (cards, lobby list, tiles or 1–9), then Send.';
+  document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('pick', PICK.length > 0 && b.dataset.layout === lay));
+  if (typeof renderPicker === 'function') renderPicker();
+}
+async function sendStage() {
+  if (!PICK.length) return;
+  const r = await api('POST', '/app/admin/multiview', { lobbies: PICK, layout: STAGE_LAYOUT || '' });
+  toast(r.message);
+  if (r.ok) { PICK = []; STAGE_LAYOUT = null; }
+  renderStage(); loadDesk();
+}
+function clearStage() { PICK = []; STAGE_LAYOUT = null; renderStage(); }
+$('stage-send').addEventListener('click', sendStage);
+$('stage-clear').addEventListener('click', clearStage);
+document.addEventListener('keydown', e => {
+  if (PAGE !== 'live' || /INPUT|TEXTAREA|SELECT|BUTTON/.test(document.activeElement.tagName)) return;
+  if (e.key === 'Enter' && PICK.length) { e.preventDefault(); sendStage(); }
+  else if (e.key === 'Escape' && PICK.length) { e.preventDefault(); clearStage(); }
+});
 // Replay button on a card: save one now, or play it once saved.
 function replayButton(c) {
   const st = c.clip && c.clip.state;
@@ -1230,18 +1284,28 @@ $('desk-history').addEventListener('click', e => {
   const w = e.target.closest('[data-watch]'); if (!w) return;
   api('POST', '/app/admin/watch', { id: w.dataset.watch }).then(r => { toast(r.message); loadDesk(); });
 });
+// A view button chooses the layout for the next Send (breaks go on at once). With nothing picked
+// it starts from what's on stream (Grid: every lobby sending).
 document.querySelectorAll('[data-layout]').forEach(b => b.addEventListener('click', () => {
-  const first = DESK && DESK.onAir.slots.find(x => x) || (DESK && DESK.lobbies[0] && DESK.lobbies[0].lobby) || '';
-  show(first, b.dataset.layout, 1);
+  const lay = b.dataset.layout;
+  if (['intermission', 'slate', 'break'].includes(lay)) { show('', lay); return; }
+  if (!PICK.length) {
+    if (lay === 'grid') stageAll();
+    else PICK = DESK ? DESK.onAir.slots.filter(Boolean) : [];
+    if (!PICK.length) PICK = onlineLobbies().slice(0, SLOTS[lay] || 99);
+  }
+  STAGE_LAYOUT = lay;
+  renderStage();
 }));
 // Clicking a lobby on stream (e.g. a grid tile) takes it full screen.
 $('air-slots').addEventListener('click', e => { const t = e.target.closest('[data-tile]'); if (t) show(t.dataset.tile, 'full'); });
 $('desk-autogrid').addEventListener('click', async () => { const r = await api('POST', '/app/admin/autogrid', { on: String(!(DESK && DESK.autoGrid)) }); toast(r.message); loadDesk(); });
 $('air-pick').addEventListener('change', async e => {
   const sel = e.target.closest('[data-slot]'); if (!sel || !DESK) return;
-  const slots = [...$('air-pick').querySelectorAll('[data-slot]')].map(x => x.value);
-  const r = await api('POST', '/app/admin/show', { lobby: '', layout: DESK.onAir.layout, slots });
-  toast(r.message); loadDesk();
+  // Rearranging slots is picked like anything else: it goes on with Send.
+  PICK = [...$('air-pick').querySelectorAll('[data-slot]')].map(x => x.value).filter(Boolean);
+  STAGE_LAYOUT = PICK.length ? DESK.onAir.layout : null;
+  renderStage();
 });
 let OBS = null;
 function renderObs() {
@@ -1733,8 +1797,7 @@ document.addEventListener('keydown', e => {
   if (!name) return;
   if (name === 'grid') {
     e.preventDefault();
-    if (DESK && DESK.onAir.layout === 'grid') { const top = DESK.lobbies.find(l => l.online); if (top) show(top.lobby, 'full'); }
-    else show('', 'grid');
+    show('', 'grid');
     return;
   }
   if (name === 'alertsPause') { e.preventDefault(); api('POST', '/app/admin/broadcast', { action: 'alerts' }).then(r => { toast(r.message); loadDesk(); }); return; }
@@ -1768,11 +1831,9 @@ setInterval(() => { if (S && S.admin && ($('caster').classList.contains('on') ||
 setInterval(() => { if (RP && RP.now && $('caster').classList.contains('on')) loadDesk(); }, 250);
 
 // ---- Multiview picker: pick lobbies by their picture, then Send ---------------------------------
-let PREVIEWS = [], TWH = {}, PICK = [], mvKey = '';
-const LAYOUT_FOR = n => n === 1 ? 'Full screen' : n === 2 ? '2-up' : n === 4 ? 'Quad' : 'Grid';
+let PREVIEWS = [], TWH = {}, mvKey = '';
 function renderPicker() {
   const grid = $('mv-grid');
-  PICK = PICK.filter(l => PREVIEWS.some(p => p.lobby === l));
   const key = PREVIEWS.map(p => p.lobby + '|' + p.url).join(';');
   if (key !== mvKey) {
     mvKey = key;
@@ -1784,7 +1845,7 @@ function renderPicker() {
       if (!el) {
         el = document.createElement('button'); el.className = 'mv'; el.dataset.lobby = p.lobby; el.dataset.url = p.url; el.type = 'button';
         el.innerHTML = `<div class="pv"><iframe src="${esc(p.url)}" allow="autoplay" tabindex="-1" title="${esc(p.lobby)}"></iframe></div><div class="nm"><span>${esc(p.lobby)}</span><small></small></div><span class="no" hidden></span><span class="air" hidden>ON AIR</span><span class="lno">${p.no || ''}</span><span class="exc" hidden></span>`;
-        el.onclick = () => { const i = PICK.indexOf(p.lobby); if (i >= 0) PICK.splice(i, 1); else PICK.push(p.lobby); renderPicker(); };
+        el.onclick = () => show(p.lobby, 'full');
       }
       grid.appendChild(el);
     }
@@ -1803,11 +1864,11 @@ function renderPicker() {
     const w = el.querySelector('.pv').clientWidth; if (w) f.style.transform = `scale(${w / 1920})`;
   });
   $('mv-send').disabled = !PICK.length;
-  $('mv-send').textContent = PICK.length ? `Send · ${LAYOUT_FOR(PICK.length)}` : 'Send';
-  $('mv-line').textContent = PICK.length ? `${PICK.join(', ')} → ${LAYOUT_FOR(PICK.length)}` : 'Pick lobbies, then Send.';
+  $('mv-send').textContent = PICK.length ? `Send · ${STAGE_NAME[stageLayout()]}` : 'Send';
+  $('mv-line').textContent = PICK.length ? `${PICK.join(', ')} → ${STAGE_NAME[stageLayout()]}` : 'Pick lobbies, then Send.';
 }
-$('mv-send').addEventListener('click', async () => { const r = await api('POST', '/app/admin/multiview', { lobbies: PICK }); toast(r.message); if (r.ok) PICK = []; loadDesk(); });
-$('mv-clear').addEventListener('click', () => { PICK = []; renderPicker(); });
+$('mv-send').addEventListener('click', sendStage);
+$('mv-clear').addEventListener('click', clearStage);
 addEventListener('resize', () => renderPicker());
 
 // ---- Help behind "?": each card's explanation opens on demand ---------------------------------

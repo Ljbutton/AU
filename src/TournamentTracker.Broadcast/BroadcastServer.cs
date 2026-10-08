@@ -534,7 +534,14 @@ namespace TournamentTracker.App.Broadcast
                     List<string>? slots = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("slots", out var ss) && ss.ValueKind == JsonValueKind.Array
                         ? ss.EnumerateArray().Select(x => x.ValueKind == JsonValueKind.String ? x.GetString() ?? "" : "").ToList() : null;
                     var air = _desk.Show(Arg("lobby"), layout, slot, slots);
-                    return Ok(new { ok = true, message = air.Layout == "full" ? $"{Arg("lobby")} is on stream." : $"On stream: {string.Join(", ", air.Slots.Select(x => x ?? "empty"))}." });
+                    return Ok(new { ok = true, message = air.Layout switch
+                    {
+                        "full" => $"{air.Slots.FirstOrDefault() ?? Arg("lobby")} is on stream.",
+                        "slate" => "On stream: Be right back.",
+                        "intermission" => "On stream: Intermission.",
+                        "break" => $"On stream: sponsor break with {air.Slots.FirstOrDefault()}.",
+                        _ => air.Slots.Any(x => x != null) ? $"On stream: {string.Join(", ", air.Slots.Select(x => x ?? "empty"))}." : "Nothing on stream.",
+                    } });
                 }
                 case ("POST", "/app/admin/watch"):
                 {
@@ -834,7 +841,7 @@ namespace TournamentTracker.App.Broadcast
                     var pick = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("lobbies", out var pl) && pl.ValueKind == JsonValueKind.Array
                         ? pl.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString() ?? "").ToList() : new List<string>();
                     if (pick.Count == 0) return Ok(new { ok = false, message = "Pick one or more lobbies first." });
-                    var air = _desk.ShowPicked(pick);
+                    var air = _desk.ShowPicked(pick, "button", Arg("layout").Length > 0 ? Arg("layout") : null);
                     string how = air.Layout switch { "full" => "Full screen", "2up" => "2-up", "4up" => "Quad", "grid" => "Grid", _ => air.Layout };
                     return Ok(new { ok = true, message = $"On stream ({how}): {string.Join(", ", air.Slots.Where(x => x != null))}." });
                 }
