@@ -32,6 +32,7 @@ namespace TournamentTracker.App.Voice
             _frames = frames;
         }
 
+        [System.Runtime.Versioning.SupportedOSPlatformGuard("windows10.0.19041")]
         public static bool Supported => OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041);
 
         public void Start()
@@ -61,6 +62,7 @@ namespace TournamentTracker.App.Voice
             return best?.Id;
         }
 
+        [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.19041")]
         private void Run()
         {
             while (!_stop)
@@ -85,6 +87,7 @@ namespace TournamentTracker.App.Voice
 
         // ---- Application loopback --------------------------------------------------------------
 
+        [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.19041")]
         private void Capture(int pid)
         {
             var client = Activate(pid);
@@ -142,6 +145,7 @@ namespace TournamentTracker.App.Voice
         private const string ProcessLoopbackDevice = "VAD\\Process_Loopback";
 
         /// <summary>An audio client for one process tree, through ActivateAudioInterfaceAsync.</summary>
+        [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.19041")]
         private static IAudioClient Activate(int pid)
         {
             // AUDIOCLIENT_ACTIVATION_PARAMS: type = process loopback, the process, include its tree.

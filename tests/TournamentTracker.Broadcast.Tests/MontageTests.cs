@@ -205,7 +205,7 @@ public class MontageTests : IDisposable
             Assert.Equal(new[] { clip.Id }, rebuilt.ClipIds);
             Assert.Contains("for good", montages.DeleteArchived(archived.Id));
             Assert.False(File.Exists(archived.File));
-            Assert.Empty(montages.Archive.Where(a => a.Id == archived.Id));
+            Assert.DoesNotContain(montages.Archive, a => a.Id == archived.Id);
             // The game montage stays after playing.
             await montages.PlayAsync(game.Id);
             // Simulated games are never proof of delivery: nothing goes in the sponsor log.

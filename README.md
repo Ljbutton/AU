@@ -719,6 +719,26 @@ message** on The Button's Home posts a fresh copy.
 3. Turn on Developer Mode in Discord, right-click your server → **Copy Server ID**.
 4. In the config, set `[AutoMute] Enabled = true`, `BotTokens = <token>` and `GuildId = <server id>`.
 
+#### What the bots need (least privilege)
+
+The bots never need Administrator. Give each bot's role no server-wide permissions and allow only
+these, on the channels where they're used (channel → Edit Channel → Permissions → add the bot's role):
+
+| Where | Allow | Why |
+| --- | --- | --- |
+| Each lobby voice channel | View Channel, Connect, Mute Members, Deafen Members, Send Messages | Automute; *Who's talking* (Connect); the "voice may be recorded" note in the channel's chat |
+| Live status channel | View Channel, Send Messages, Embed Links, Use External Emojis | The lobby message with its colour menu and crewmate heads |
+| Private results channel | View Channel, Send Messages, Embed Links, Attach Files, Read Message History, Add Reactions | Game files and standings (it reads back earlier games), referee commands |
+
+Also in the Developer Portal: **Message Content Intent** on, for referee commands in the results channel.
+Not needed: Administrator, Manage Server/Roles/Channels/Messages/Webhooks, Move Members, Kick, Ban,
+Speak. The webhooks for stats and status are made by the organiser, not the bot, and slash commands
+come with the `applications.commands` scope.
+
+The simplest invite with just these (server-wide, no Administrator) is
+`https://discord.com/oauth2/authorize?client_id=YOUR_APP_ID&scope=bot+applications.commands&permissions=14011456`.
+For the strictest setup, invite with `permissions=0` and add the channel permissions above.
+
 Discord rate-limits member edits for each bot. With 10–15 linked players, one bot can take a
 few seconds to mute everyone. To make that faster, invite two or three bots and list every
 token, comma separated. The work is spread across all of them.
