@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using AmongUs.GameOptions;
 using Hazel;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
@@ -48,6 +50,141 @@ namespace TournamentTracker.Plugin
             referee.Data.IsDead = true;
             referee.Data.SetDirtyBit(uint.MaxValue);
             TournamentPlugin.Logger.Info($"Referee ghost: {referee.Data.PlayerName} is now a ghost (marked dead in the player record, no exile sent).");
+            CentreSoon(1f);
+        }
+
+        // ---- Moved to the middle of the map ------------------------------------------------------
+
+        private static float _centreAt = -1;
+        private static bool _wasMeeting;
+
+        /// <summary>Moves the referee to the middle of the map once nothing is in the way (the intro, a meeting, Airship's spawn pick).</summary>
+        public static void CentreSoon(float delay) => _centreAt = Time.unscaledTime + delay;
+
+        /// <summary>Every frame: the referee goes to the middle of the map as the game starts and after each meeting.</summary>
+        public static void Update()
+        {
+            if (!Game.IsHost || TournamentPlugin.Session?.RefSlotKey == null || ShipStatus.Instance == null
+                || AmongUsClient.Instance == null || AmongUsClient.Instance.GameState != InnerNetClient.GameStates.Started)
+            {
+                _centreAt = -1;
+                _wasMeeting = false;
+                return;
+            }
+            bool meeting = MeetingHud.Instance != null || ExileController.Instance != null;
+            if (_wasMeeting && !meeting) CentreSoon(0.5f);
+            _wasMeeting = meeting;
+            if (_centreAt < 0 || Time.unscaledTime < _centreAt) return;
+            var referee = Referee();
+            if (referee == null || !referee.AmOwner || referee.Data == null) { _centreAt = -1; return; }
+            if (!referee.Data.IsDead || meeting || Minigame.Instance != null || UnityEngine.Object.FindObjectOfType<IntroCutscene>() != null)
+            {
+                _centreAt = Time.unscaledTime + 0.5f;
+                return;
+            }
+            _centreAt = -1;
+            var at = MapCentre();
+            referee.NetTransform.SnapTo(at);
+            TournamentPlugin.Logger.Info($"Referee ghost: moved to the middle of the map ({at.x:0.0}, {at.y:0.0}).");
+        }
+
+        /// <summary>The middle of the map: the centre of all its rooms together (the meeting table if it has none).</summary>
+        private static Vector2 MapCentre()
+        {
+            var ship = ShipStatus.Instance;
+            Bounds? all = null;
+            foreach (var room in ship.AllRooms)
+            {
+                if (room == null || room.roomArea == null) continue;
+                var b = room.roomArea.bounds;
+                if (all is Bounds a) { a.Encapsulate(b); all = a; }
+                else all = b;
+            }
+            return all is Bounds m ? (Vector2)m.center : ship.MeetingSpawnCenter;
+        }
+
+        // ---- Kept out of the game -----------------------------------------------------------------
+
+        /// <summary>
+        /// Whether this is the referee ghost. The host knows; another player's game (with the mod)
+        /// tells by what only the referee has: dead, yet still a plain crewmate or impostor role
+        /// (everyone else who dies gets a ghost role) and no tasks.
+        /// </summary>
+        public static bool IsReferee(NetworkedPlayerInfo? data)
+        {
+            if (data == null || data.Disconnected) return false;
+            if (Game.IsHost) return TournamentPlugin.Session?.RefSlotKey != null && RefereeId() == data.PlayerId;
+            if (!data.IsDead || data.Role == null) return false;
+            var role = data.Role.Role;
+            if (role == RoleTypes.CrewmateGhost || role == RoleTypes.ImpostorGhost || role == RoleTypes.GuardianAngel) return false;
+            return data.Tasks == null || data.Tasks.Count == 0;
+        }
+    }
+
+    /// <summary>
+    /// The referee ghost kept out of sight, on this game only: in meetings their card is taken off
+    /// the list (the others close up), and on another player's game (with the mod) they aren't
+    /// drawn on the map. A player's game without the mod lists them as a dead player.
+    /// </summary>
+    internal static class RefereeHider
+    {
+        private static float _next;
+
+        public static void Update()
+        {
+            var meeting = MeetingHud.Instance;
+            if (meeting != null && meeting.playerStates != null) HideCard(meeting);
+            if (Time.unscaledTime < _next) return;
+            _next = Time.unscaledTime + 0.25f;
+            if (Game.IsHost || AmongUsClient.Instance == null || AmongUsClient.Instance.GameState != InnerNetClient.GameStates.Started) return;
+            var all = PlayerControl.AllPlayerControls;
+            for (int i = 0; i < all.Count; i++)
+            {
+                var pc = all[i];
+                if (pc == null || pc.AmOwner || !RefSlot.IsReferee(pc.Data)) continue;
+                if (pc.Visible) pc.Visible = false;
+            }
+        }
+
+        /// <summary>The referee's card off the meeting list; the cards after it move up to fill the gap.</summary>
+        private static void HideCard(MeetingHud meeting)
+        {
+            if (GameData.Instance == null || (Game.IsHost && TournamentPlugin.Session?.RefSlotKey == null)) return;
+            // Who the referee is, then their card by the name on it (their game name, or on the host's
+            // screen the roster name the nameplates may show instead).
+            NetworkedPlayerInfo? data = null;
+            if (Game.IsHost)
+            {
+                var id = RefSlot.RefereeId();
+                if (id.HasValue) data = GameData.Instance.GetPlayerById(id.Value);
+            }
+            else
+                foreach (var p in GameData.Instance.AllPlayers)
+                    if (RefSlot.IsReferee(p)) { data = p; break; }
+            if (data == null) return;
+            var names = new HashSet<string>(StringComparer.Ordinal) { data.PlayerName ?? "" };
+            var shown = Game.IsHost ? TournamentPlugin.Session?.DisplayName(PlayerSnapshot.MakeKey(data.FriendCode, data.PlayerName ?? "")) : null;
+            if (shown != null) names.Add(shown);
+            var areas = new List<PlayerVoteArea>();
+            PlayerVoteArea? referee = null;
+            foreach (var area in meeting.playerStates)
+            {
+                if (area == null) continue;
+                areas.Add(area);
+                if (area.gameObject.activeSelf && area.NameText != null && names.Contains(area.NameText.text ?? "")) referee = area;
+            }
+            if (referee == null) return;
+            // The places in reading order (top row first, left to right); everyone but the referee takes them in turn.
+            var order = areas.OrderByDescending(a => Mathf.Round(a.transform.localPosition.y * 100)).ThenBy(a => a.transform.localPosition.x).ToList();
+            var places = order.Select(a => a.transform.localPosition).ToList();
+            referee.gameObject.SetActive(false);
+            int next = 0;
+            foreach (var area in order)
+            {
+                if (area == referee || !area.gameObject.activeSelf) continue;
+                area.transform.localPosition = places[next++];
+            }
+            TournamentPlugin.Logger.Info("Referee ghost: taken off the meeting list.");
         }
     }
 

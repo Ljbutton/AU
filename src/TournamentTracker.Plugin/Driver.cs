@@ -25,12 +25,21 @@ namespace TournamentTracker.Plugin
         private static bool _loggedTheater;
         private static bool _loggedFeed;
         private static bool _loggedOverlay;
+        private static bool _loggedReferee;
 
         /// <summary>Set once a game has ended, until the lobby returns, so the start fallback can't reopen it.</summary>
         private static bool _roundOver;
 
         /// <summary>Set when !setup changed the code; the session is rebuilt on the next frame.</summary>
         public static bool RestartRequested;
+
+        /// <summary>After the camera has moved this frame: the spectator view's vision follows it.</summary>
+        public static void LateUpdate()
+        {
+            if (ReplayTheater.Active) return;
+            try { SpectatorOverlay.LateUpdate(); }
+            catch (Exception e) { if (!_loggedOverlay) TournamentPlugin.Logger.Error("Spectator view failed: " + e); _loggedOverlay = true; }
+        }
 
         public static void Update()
         {
@@ -48,6 +57,8 @@ namespace TournamentTracker.Plugin
             catch (Exception e) { if (!_loggedOverlay) TournamentPlugin.Logger.Error("Spectator view failed: " + e); _loggedOverlay = true; }
             try { GhostZoom.Update(); }
             catch (Exception e) { if (!_loggedError) TournamentPlugin.Logger.Error("Zoom failed: " + e); _loggedError = true; }
+            try { RefSlot.Update(); RefereeHider.Update(); }
+            catch (Exception e) { if (!_loggedReferee) TournamentPlugin.Logger.Error("Referee ghost failed: " + e); _loggedReferee = true; }
 
             var session = TournamentPlugin.Session;
             if (session == null) return;

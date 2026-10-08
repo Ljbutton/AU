@@ -12,6 +12,8 @@ namespace TournamentTracker.Plugin
 
         private void Update() => Driver.Update();
 
+        private void LateUpdate() => Driver.LateUpdate();
+
         private void OnApplicationQuit() => Driver.Shutdown();
     }
 }

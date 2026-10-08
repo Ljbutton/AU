@@ -12,25 +12,35 @@ namespace TournamentTracker.Plugin
     /// one game only (nothing is sent to anyone, so players never see it):
     /// <list type="bullet">
     /// <item>the whole map lit, every player shown (vents still hide impostors);</item>
-    /// <item>one crewmate's real, wall-blocked vision with the rest of the map slightly dimmed
-    /// (FOCUS), or every living player's vision outline in their colour (RINGS);</item>
+    /// <item>every living crewmate's real, wall-blocked vision with the rest of the map slightly
+    /// dimmed (or just one crewmate's, when the caster picks one), or every living player's vision
+    /// outline in their colour (RINGS);</item>
     /// <item>"!" over anyone close enough to report a body, by the game's own report check;</item>
     /// <item>a faint eye by a crewmate's name while an impostor is in their sight, flashing when
     /// they see a kill or a vent (which also tells the caster: witnessed_kill / witnessed_vent).</item>
     /// </list>
-    /// The checks run 15 times a second; fades and the bounce every frame.
+    /// The vision is drawn every frame, after the camera moves, so it stays with the players; the
+    /// other checks run 15 times a second; fades and the bounce every frame.
     /// </summary>
     internal static class SpectatorOverlay
     {
         private const float Interval = 1f / 15f;
-        private const int FocusRays = 120, RingRays = 64;
+        private const int VisionRays = 120, RingRays = 72;
         private const float Z = -0.9f;
+        /// <summary>The dim layer: a small picture of the camera's view (a little past its edges), smoothed when stretched.</summary>
+        private const int DimW = 192, DimH = 108;
+        /// <summary>How soft the edge of a crewmate's sight is, in world units.</summary>
+        private const float Soft = 0.22f;
 
         private static float _next;
+        private static bool _active;
         private static GameObject? _root;
         private static Material? _material;
-        private static Mesh? _dimMesh;
-        private static MeshRenderer? _dim;
+        private static Texture2D? _dimTex;
+        private static Color32[]? _dimPx;
+        private static float[]? _seen;
+        private static SpriteRenderer? _dim;
+        private static readonly Dictionary<byte, float> Fade = new Dictionary<byte, float>();
         private static Sprite? _eyeSprite;
         private static bool _shadowOff;
         private static int _wallMask = -1;
@@ -50,6 +60,7 @@ namespace TournamentTracker.Plugin
                 && local != null && local.Data != null && local.Data.IsDead
                 && AmongUsClient.Instance != null && AmongUsClient.Instance.GameState == InnerNetClient.GameStates.Started
                 && ShipStatus.Instance != null && MeetingHud.Instance == null && ExileController.Instance == null;
+            _active = active;
             if (!active)
             {
                 Clear();
@@ -61,6 +72,34 @@ namespace TournamentTracker.Plugin
             if (Time.unscaledTime < _next) return;
             _next = Time.unscaledTime + Interval;
             Check(session, s);
+        }
+
+        /// <summary>Every frame, after the camera has moved: the vision, so it moves with the players.</summary>
+        public static void LateUpdate()
+        {
+            var session = TournamentPlugin.Session;
+            if (!_active || session == null || ShipStatus.Instance == null) return;
+            var s = session.Spectator;
+            Root();
+            var game = session.Tracker.Current;
+            var alive = new List<PlayerControl>();
+            var all = PlayerControl.AllPlayerControls;
+            for (int i = 0; i < all.Count; i++)
+            {
+                var pc = all[i];
+                if (pc == null || pc.Data == null || pc.Data.IsDead || pc.Data.Disconnected) continue;
+                if (game != null && game.ById(pc.PlayerId) == null) continue;      // the referee
+                alive.Add(pc);
+            }
+            if (s.Vision == "focus")
+            {
+                // Every living crewmate, or just the one the caster picked.
+                var crew = alive.FindAll(p => !IsImpostor(p));
+                if (s.Focus is int picked && crew.Exists(p => p.PlayerId == picked)) crew = crew.FindAll(p => p.PlayerId == picked);
+                DrawDim(crew, s.Dim);
+            }
+            else HideDim();
+            if (s.Vision == "rings") DrawRings(alive); else HideRings();
         }
 
         // ---- Lit map --------------------------------------------------------------------------
@@ -93,12 +132,6 @@ namespace TournamentTracker.Plugin
                 if (game != null && game.ById(pc.PlayerId) == null) continue;      // the referee
                 alive.Add(pc);
             }
-
-            // Vision: focus or rings.
-            byte? focus = s.Vision == "focus" ? session.FocusPlayer() : null;
-            var focused = focus.HasValue ? alive.Find(p => p.PlayerId == focus.Value) : null;
-            if (focused != null) DrawFocus(focused, s.Dim); else HideDim();
-            if (s.Vision == "rings") DrawRings(alive); else HideRings();
 
             // "!" and the eye.
             var bodies = s.Report ? UnityEngine.Object.FindObjectsOfType<DeadBody>() : null;
@@ -175,20 +208,27 @@ namespace TournamentTracker.Plugin
             return !PhysicsHelpers.AnythingBetween(me, at, Constants.ShipAndObjectsMask, false);
         }
 
-        /// <summary>Where a player's sight reaches in each direction (walls stop it).</summary>
-        private static Vector2[] Sight(PlayerControl pc, int rays)
+        /// <summary>How far a player's sight reaches in each direction (walls stop it), from their position.</summary>
+        private static float[] Reach(PlayerControl pc, int rays, float r)
         {
             Vector2 o = pc.transform.position;
-            float r = Radius(pc);
-            var points = new Vector2[rays];
+            var reach = new float[rays];
             for (int i = 0; i < rays; i++)
             {
                 float a = Mathf.PI * 2 * i / rays;
-                var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
-                var hit = Physics2D.Raycast(o, dir, r, WallMask);
-                points[i] = o + dir * (hit.collider != null ? hit.distance : r);
+                var hit = Physics2D.Raycast(o, new Vector2(Mathf.Cos(a), Mathf.Sin(a)), r, WallMask);
+                reach[i] = hit.collider != null ? hit.distance : r;
             }
-            return points;
+            return reach;
+        }
+
+        /// <summary>Fades a player's vision in and out (0.2 s) as they come and go (a vent, a death, picked or not).</summary>
+        private static float FadeOf(byte id, bool on)
+        {
+            Fade.TryGetValue(id, out var f);
+            f = Mathf.MoveTowards(f, on ? 1f : 0f, Time.unscaledDeltaTime / 0.2f);
+            Fade[id] = f;
+            return f;
         }
 
         // ---- Drawing ----------------------------------------------------------------------------
@@ -208,44 +248,87 @@ namespace TournamentTracker.Plugin
             go.transform.SetParent(_root!.transform, false);
         }
 
-        /// <summary>Everything outside the focused player's sight a little darker: a ring from the edge of their sight outwards.</summary>
-        private static void DrawFocus(PlayerControl pc, float dim)
+        /// <summary>
+        /// Everything outside the crewmates' sight a little darker. Drawn as a small picture of the
+        /// camera's view: each pixel is lit if any of them sees it, with a soft edge, and the picture
+        /// is smoothed as it's stretched over the screen, so it looks like the game's own vision.
+        /// </summary>
+        private static void DrawDim(List<PlayerControl> crew, float dim)
         {
-            if (_dim == null)
+            var camera = Camera.main;
+            if (camera == null) { HideDim(); return; }
+            if (_dim == null || _dimTex == null)
             {
+                _dimTex = new Texture2D(DimW, DimH, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+                _dimTex.hideFlags = HideFlags.HideAndDontSave;
+                _dimPx = new Color32[DimW * DimH];
+                _seen = new float[DimW * DimH];
                 var go = new GameObject("TT Dim");
                 Layer(go);
-                _dimMesh = new Mesh();
-                go.AddComponent<MeshFilter>().mesh = _dimMesh;
-                _dim = go.AddComponent<MeshRenderer>();
+                _dim = go.AddComponent<SpriteRenderer>();
+                _dim.sprite = Sprite.Create(_dimTex, new Rect(0, 0, DimW, DimH), new Vector2(0.5f, 0.5f), DimW);
+                _dim.sprite.hideFlags = HideFlags.HideAndDontSave;
                 _dim.material = _material;
             }
-            var sight = Sight(pc, FocusRays);
-            Vector2 o = pc.transform.position;
-            int n = sight.Length;
-            var verts = new Vector3[n * 2];
-            var tris = new int[n * 6];
-            for (int i = 0; i < n; i++)
+
+            // The camera's view, 10% past each edge.
+            float halfH = camera.orthographicSize * 1.1f, halfW = halfH * camera.aspect;
+            Vector2 c = camera.transform.position;
+            float x0 = c.x - halfW, y0 = c.y - halfH, sx = halfW * 2 / DimW, sy = halfH * 2 / DimH;
+            var seen = _seen!;
+            Array.Clear(seen, 0, seen.Length);
+
+            // Fades for those no longer shown.
+            foreach (var id in new List<byte>(Fade.Keys))
+                if (!crew.Exists(p => p.PlayerId == id)) FadeOf(id, false);
+
+            foreach (var pc in crew)
             {
-                var dir = (sight[i] - o).normalized;
-                if (dir == Vector2.zero) dir = new Vector2(Mathf.Cos(Mathf.PI * 2 * i / n), Mathf.Sin(Mathf.PI * 2 * i / n));
-                verts[i] = new Vector3(sight[i].x, sight[i].y, Z);
-                var far = o + dir * 200f;
-                verts[n + i] = new Vector3(far.x, far.y, Z);
-                int j = (i + 1) % n, t = i * 6;
-                tris[t] = i; tris[t + 1] = n + i; tris[t + 2] = n + j;
-                tris[t + 3] = i; tris[t + 4] = n + j; tris[t + 5] = j;
+                float fade = FadeOf(pc.PlayerId, !pc.inVent);
+                if (fade <= 0.001f) continue;
+                Vector2 o = pc.transform.position;
+                float r = Radius(pc);
+                var reach = Reach(pc, VisionRays, r);
+                float outer = r + Soft;
+                int ix0 = Mathf.Max(0, Mathf.FloorToInt((o.x - outer - x0) / sx)), ix1 = Mathf.Min(DimW - 1, Mathf.CeilToInt((o.x + outer - x0) / sx));
+                int iy0 = Mathf.Max(0, Mathf.FloorToInt((o.y - outer - y0) / sy)), iy1 = Mathf.Min(DimH - 1, Mathf.CeilToInt((o.y + outer - y0) / sy));
+                float perRad = VisionRays / (Mathf.PI * 2);
+                for (int iy = iy0; iy <= iy1; iy++)
+                {
+                    float dy = y0 + (iy + 0.5f) * sy - o.y;
+                    int row = iy * DimW;
+                    for (int ix = ix0; ix <= ix1; ix++)
+                    {
+                        float dx = x0 + (ix + 0.5f) * sx - o.x;
+                        float d2 = dx * dx + dy * dy;
+                        if (d2 > outer * outer) continue;
+                        float d = Mathf.Sqrt(d2);
+                        float a = Mathf.Atan2(dy, dx);
+                        if (a < 0) a += Mathf.PI * 2;
+                        float f = a * perRad;
+                        int i0 = (int)f % VisionRays;
+                        float limit = Mathf.Lerp(reach[i0], reach[(i0 + 1) % VisionRays], f - Mathf.Floor(f));
+                        float v = Mathf.Clamp01((limit + Soft * 0.5f - d) / Soft) * fade;
+                        if (v > seen[row + ix]) seen[row + ix] = v;
+                    }
+                }
             }
-            _dimMesh!.Clear();
-            _dimMesh.vertices = verts;
-            _dimMesh.triangles = tris;
-            _dim.material.color = new Color(0, 0, 0, Mathf.Clamp01(dim));
+
+            var px = _dimPx!;
+            float most = Mathf.Clamp01(dim) * 255f;
+            for (int i = 0; i < px.Length; i++) px[i] = new Color32(0, 0, 0, (byte)(most * (1f - seen[i])));
+            _dimTex.SetPixels32(px);
+            _dimTex.Apply(false);
+
+            _dim.transform.position = new Vector3(c.x, c.y, Z);
+            _dim.transform.localScale = new Vector3(halfW * 2, halfH * 2 / ((float)DimH / DimW), 1);
             _dim.gameObject.SetActive(true);
         }
 
         private static void HideDim()
         {
             if (_dim != null) _dim.gameObject.SetActive(false);
+            Fade.Clear();
         }
 
         /// <summary>A thin, faint outline of each living player's sight, in their colour.</summary>
@@ -264,16 +347,24 @@ namespace TournamentTracker.Plugin
                     line.useWorldSpace = true;
                     Rings[pc.PlayerId] = line;
                 }
+                if (pc.inVent) { line.gameObject.SetActive(false); continue; }
                 var c = ColorOf(pc);
-                c.a = 0.4f;
+                c.a = 0.45f;
                 line.startColor = c;
                 line.endColor = c;
-                var sight = Sight(pc, RingRays);
-                var pts = new Vector3[sight.Length];
-                for (int i = 0; i < sight.Length; i++) pts[i] = new Vector3(sight[i].x, sight[i].y, Z - 0.01f);
+                Vector2 o = pc.transform.position;
+                var reach = Reach(pc, RingRays, Radius(pc));
+                var pts = new Vector3[RingRays];
+                for (int i = 0; i < RingRays; i++)
+                {
+                    float a = Mathf.PI * 2 * i / RingRays;
+                    // Never right on top of the player (inside a wall's edge): keeps the line from folding over.
+                    float d = Mathf.Max(reach[i], 0.15f);
+                    pts[i] = new Vector3(o.x + Mathf.Cos(a) * d, o.y + Mathf.Sin(a) * d, Z - 0.01f);
+                }
                 line.positionCount = pts.Length;
                 line.SetPositions(pts);
-                line.gameObject.SetActive(!pc.inVent);
+                line.gameObject.SetActive(true);
             }
             foreach (var (id, line) in Rings)
                 if (line != null && !alive.Exists(p => p.PlayerId == id)) line.gameObject.SetActive(false);
@@ -433,8 +524,13 @@ namespace TournamentTracker.Plugin
             if (_root == null) return;
             UnityEngine.Object.Destroy(_root);
             _root = null;
+            if (_dim != null && _dim.sprite != null) UnityEngine.Object.Destroy(_dim.sprite);
             _dim = null;
-            _dimMesh = null;
+            if (_dimTex != null) UnityEngine.Object.Destroy(_dimTex);
+            _dimTex = null;
+            _dimPx = null;
+            _seen = null;
+            Fade.Clear();
             Rings.Clear();
             Bangs.Clear();
             Eyes.Clear();
