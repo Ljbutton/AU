@@ -176,9 +176,9 @@ namespace TournamentTracker.Plugin
             if (data == null || data.TotalTasks <= 0) return;
             // One section per crewmate doing tasks (not the impostors, the gone, or the referee).
             int buckets = 0;
-            byte? referee = RefereeId();
+            byte? refId = RefereeId();
             foreach (var p in Frame.Players)
-                if (!p.Impostor && !p.Disconnected && p.Id != referee) buckets++;
+                if (!p.Impostor && !p.Disconnected && p.Id != refId) buckets++;
             if (buckets == 0) return;
             float target = (float)data.CompletedTasks / data.TotalTasks * buckets;
             _barValue += (target - _barValue) * Math.Min(1f, Time.deltaTime * 2f);
