@@ -67,9 +67,9 @@ namespace TournamentTracker.Plugin
             try { using (FrameProfiler.Time(FrameProfiler.Part.Zoom)) GhostZoom.Update(); }
             catch (Exception e) { if (!_loggedError) TournamentPlugin.Logger.Error("Zoom failed: " + e); _loggedError = true; }
             try { using (FrameProfiler.Time(FrameProfiler.Part.Referee)) { RefSlot.Update(); RefereeHider.Update(); } }
+            catch (Exception e) { if (!_loggedReferee) TournamentPlugin.Logger.Error("Referee ghost failed: " + e); _loggedReferee = true; }
             try { using (FrameProfiler.Time(FrameProfiler.Part.Talking)) TalkingLights.Update(); }
             catch (Exception e) { if (!_loggedTalking) TournamentPlugin.Logger.Error("Who's talking failed: " + e); _loggedTalking = true; }
-            catch (Exception e) { if (!_loggedReferee) TournamentPlugin.Logger.Error("Referee ghost failed: " + e); _loggedReferee = true; }
 
             var session = TournamentPlugin.Session;
             if (session == null) return;
