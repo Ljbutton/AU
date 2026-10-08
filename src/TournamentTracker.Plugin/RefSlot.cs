@@ -112,7 +112,8 @@ namespace TournamentTracker.Plugin
             }
             _centreAt = -1;
             var centre = MapCentre(out var bounds);
-            var hideout = new Vector2(centre.x, bounds.min.y - 40f);
+            // Just past the bottom of the map: further than any player's screen reaches from inside it.
+            var hideout = new Vector2(centre.x, bounds.min.y - 12f);
             referee.NetTransform.SnapTo(hideout);
             referee.moveable = false;
             _view ??= centre;

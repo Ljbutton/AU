@@ -26,8 +26,8 @@ namespace TournamentTracker.App.Broadcast
         public string MuteHotkey { get; set; } = Hotkey.DefaultMuteAll;
         /// <summary>The Stream Deck links' key (Settings → Stream Deck), kept so the buttons keep working.</summary>
         public string? DeckKey { get; set; }
-        /// <summary>Player cameras on for every lobby.</summary>
-        public bool CamOn { get; set; }
+        /// <summary>Player cameras off for every lobby (on unless turned off).</summary>
+        public bool CamOff { get; set; }
 
         public static BroadcastAppSettings Load(string file)
         {
@@ -649,7 +649,7 @@ namespace TournamentTracker.App.Broadcast
                         default:
                         {
                             string? said = await _replays.ControlAsync(action, Num("value"), Num("value2")).ConfigureAwait(false);
-                            return Ok(new { ok = said == null || action == "live", message = said ?? "" });
+                            return Ok(new { ok = said == null || action == "live" || action == "angle" && said.EndsWith(" angle.", StringComparison.Ordinal), message = said ?? "" });
                         }
                     }
                 }

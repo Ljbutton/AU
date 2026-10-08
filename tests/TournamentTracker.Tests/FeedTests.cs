@@ -386,12 +386,12 @@ public class FeedTests : IDisposable
     }
 
     [Fact]
-    public void The_player_camera_is_off_until_turned_on_then_follows_the_pick_or_the_hunt()
+    public void The_player_camera_is_on_by_default_and_follows_the_pick_or_the_hunt()
     {
         Start();
-        Assert.Null(_s.CamPlayer());                           // off by default: nothing drawn
+        Assert.True(_s.Spectator.Cam);                         // on by default (drawn only while the send page asks)
+        Assert.True(JsonSerializer.Deserialize<TournamentTracker.Broadcast.SpectatorSettings>("{\"Cam\":false}")!.Cam);   // an old saved "off" doesn't stick
         _s.RunCommand("spec cam auto");
-        Assert.True(_s.Spectator.Cam);
         Assert.Equal((byte)2, _s.CamPlayer());                 // nothing going on: the first crewmate alive
         _clock.Advance(11);
         _s.FeedTick(Frame(move: p => { p[0].X = 50; p[0].Y = 1; }));   // Alice closing in on Finn, alone

@@ -58,6 +58,15 @@ namespace TournamentTracker.App.Broadcast
         public string ClipFolder => Settings.Replay.Folder.Length > 0 ? Settings.Replay.Folder
             : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos) is { Length: > 0 } v ? v : Path.GetTempPath(), "TT Replays");
 
+        /// <summary>The lobby's player camera keeps its last few seconds too (a replay's second angle).</summary>
+        public bool HasCamReplay(string lobby) =>
+            Settings.Replay.On && Settings.CamSources.TryGetValue(lobby, out var source) && _filtered.Contains(source);
+
+        /// <summary>Saves the lobby's player camera buffer to a file now (like <see cref="SaveClipAsync"/>).</summary>
+        public Task<string> SaveCamClipAsync(string lobby) =>
+            Settings.CamSources.TryGetValue(lobby, out var source) ? SaveSourceAsync(source)
+                : throw new InvalidOperationException($"{lobby} has no player camera in OBS.");
+
         /// <summary>The Source Record filter that keeps this lobby's last few seconds, on its source.</summary>
         private async Task EnsureReplayFilterAsync(ObsClient obs, string lobby, string source)
         {
@@ -126,10 +135,13 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>Saves the lobby's buffer to a file now; answers with the file once Source Record says it's written.</summary>
-        public async Task<string> SaveClipAsync(string lobby)
+        public Task<string> SaveClipAsync(string lobby) =>
+            Settings.Sources.TryGetValue(lobby, out var source) ? SaveSourceAsync(source)
+                : throw new InvalidOperationException($"{lobby} has no source in OBS yet.");
+
+        private async Task<string> SaveSourceAsync(string source)
         {
             var obs = _obs ?? throw new InvalidOperationException("Not connected to OBS.");
-            if (!Settings.Sources.TryGetValue(lobby, out var source)) throw new InvalidOperationException($"{lobby} has no source in OBS yet.");
             var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             _saving[source] = tcs;
             try

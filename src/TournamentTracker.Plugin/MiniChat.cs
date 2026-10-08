@@ -8,23 +8,20 @@ using Object = UnityEngine.Object;
 namespace TournamentTracker.Plugin
 {
     /// <summary>
-    /// The referee's mini chat: the last few chat messages, always shown small in the bottom-left
-    /// corner of the host's screen, so the chat never has to be opened. It goes away in meetings
-    /// (the meeting screen and its own chat take the screen) and turns see-through while a
-    /// living player is behind it, so it never hides the game. The chat button still opens the
-    /// full chat to type in.
+    /// The referee's mini chat: in meetings, the newest chat messages along the bottom edge of the
+    /// host's screen, below the name plates, so the chat never has to be opened to follow the
+    /// vote. Not shown during play. The chat button still opens the full chat to type in.
     /// </summary>
     internal static class MiniChat
     {
         private const int Keep = 7;
-        private const float Width = 3.4f;
+        /// <summary>Lines shown at once (the newest), so it stays below the name plates.</summary>
+        private const int Shown = 3;
 
         private static readonly List<string> Lines = new List<string>();
         private static readonly StringBuilder Text = new StringBuilder(1024);
         private static TextMeshPro? _text;
         private static bool _dirty = true;
-        private static float _alpha = -1, _nextLook;
-        private static bool _behind;
 
         /// <summary>A message shown in this game's chat (from the AddChat hook).</summary>
         public static void Add(PlayerControl? from, string? message)
@@ -75,73 +72,74 @@ namespace TournamentTracker.Plugin
 
         public static void Update()
         {
-            var camera = Camera.main;
-            bool show = camera != null && RefSlot.LocalIsRefereeGhost() && MeetingHud.Instance == null && ExileController.Instance == null;
+            // Only in meetings (the vote is when the chat matters); never during play.
+            var meeting = MeetingHud.Instance;
+            bool show = meeting != null && RefSlot.LocalIsRefereeGhost();
             if (!show)
             {
                 if (_text != null && _text.gameObject.activeSelf) _text.gameObject.SetActive(false);
                 return;
             }
-            if (_text == null && !Make(camera!)) return;
+            // Drawn by the camera that draws the meeting screen, so it's on top of it.
+            var camera = MeetingCamera(meeting!);
+            if (camera == null) return;
+            if (_text != null && _on != camera) { Object.Destroy(_text.gameObject); _text = null; }
+            if (_text == null && !Make(camera, meeting!.gameObject.layer)) return;
             var text = _text!;
             if (!text.gameObject.activeSelf) text.gameObject.SetActive(true);
             if (_dirty)
             {
                 _dirty = false;
                 Text.Clear();
+                int from = Math.Max(0, Lines.Count - Shown);
                 if (Lines.Count == 0) Text.Append("<color=#9AA6B2>Chat shows here.</color>");
-                for (int i = 0; i < Lines.Count; i++) { if (i > 0) Text.Append('\n'); Text.Append(Lines[i]); }
+                for (int i = from; i < Lines.Count; i++) { if (i > from) Text.Append('\n'); Text.Append(Lines[i]); }
                 text.text = Text.ToString();
             }
 
-            // The bottom-left corner, the same size whatever the zoom.
-            float size = camera!.orthographicSize, scale = size / 3f;
+            // Along the bottom edge, below the name plates, the same size whatever the camera's zoom.
+            float size = camera.orthographicSize, scale = size / 3f;
             text.transform.localScale = new Vector3(scale, scale, 1);
-            float left = -size * camera.aspect + 0.25f * scale, bottom = -size + 0.3f * scale;
-            text.transform.localPosition = new Vector3(left, bottom, 5f);
-
-            // See-through while a living player is behind it (checked a few times a second).
-            if (Time.unscaledTime >= _nextLook)
-            {
-                _nextLook = Time.unscaledTime + 0.15f;
-                var origin = camera.transform.position;
-                float x0 = origin.x + left, y0 = origin.y + bottom;
-                float x1 = x0 + Width * scale, y1 = y0 + Math.Max(0.4f, text.preferredHeight) * scale;
-                byte? referee = RefSlot.RefereeId();
-                _behind = false;
-                foreach (var p in Frame.Players)
-                {
-                    if (p.Dead || p.Disconnected || p.Id == referee) continue;
-                    if (p.Pos.x >= x0 - 0.4f && p.Pos.x <= x1 + 0.4f && p.Pos.y >= y0 - 0.4f && p.Pos.y <= y1 + 0.6f) { _behind = true; break; }
-                }
-            }
-            float target = _behind ? 0.22f : 1f;
-            float a = _alpha < 0 ? target : Mathf.MoveTowards(_alpha, target, Time.unscaledDeltaTime * 4f);
-            if (a != _alpha)
-            {
-                _alpha = a;
-                text.alpha = a;
-            }
+            text.rectTransform.sizeDelta = new Vector2(3f * camera.aspect * 2f * 0.72f, 1.2f);
+            // In front of the meeting screen, but not so close the camera cuts it off.
+            float z = Math.Max(camera.nearClipPlane + 0.2f, meeting!.transform.position.z - camera.transform.position.z - 3f);
+            text.transform.localPosition = new Vector3(0, -size + 0.08f * scale, z);
         }
 
-        private static bool Make(Camera camera)
+        /// <summary>The camera that draws the meeting screen (the HUD's; the game camera if it draws both).</summary>
+        private static Camera? MeetingCamera(MeetingHud meeting)
+        {
+            if (_on != null && _onFor == meeting) return _on;
+            int bit = 1 << meeting.gameObject.layer;
+            Camera? best = null;
+            foreach (var c in Camera.allCameras)
+                if (c != null && c.orthographic && (c.cullingMask & bit) != 0 && (best == null || c.depth > best.depth)) best = c;
+            _on = best ?? Camera.main;
+            _onFor = meeting;
+            return _on;
+        }
+        private static Camera? _on;
+        private static MeetingHud? _onFor;
+
+        private static bool Make(Camera camera, int layer)
         {
             try
             {
                 var go = new GameObject("TT Mini chat");
+                go.layer = layer;
                 go.transform.SetParent(camera.transform, false);
                 _text = go.AddComponent<TextMeshPro>();
                 var font = Object.FindObjectOfType<TextMeshPro>();
                 if (font != null && font != _text) _text.font = font.font;
-                _text.alignment = TextAlignmentOptions.BottomLeft;
+                _text.alignment = TextAlignmentOptions.Bottom;
                 _text.enableWordWrapping = true;
                 _text.richText = true;
-                _text.fontSize = 1.35f;
+                _text.fontSize = 1.15f;
                 _text.color = Color.white;
                 _text.outlineWidth = 0.22f;
                 _text.outlineColor = new Color32(0, 0, 0, 255);
-                _text.rectTransform.pivot = new Vector2(0, 0);
-                _text.rectTransform.sizeDelta = new Vector2(Width, 3.2f);
+                _text.sortingOrder = 500;
+                _text.rectTransform.pivot = new Vector2(0.5f, 0);
                 _dirty = true;
                 return true;
             }
