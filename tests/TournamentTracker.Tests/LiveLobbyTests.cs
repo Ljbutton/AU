@@ -374,6 +374,36 @@ public class LiveLobbyTests : IDisposable
         await Wait.Until(() => _voice.Calls.Any(c => c.User == "900" && c.State == VoiceState.Open));
     }
 
+    [Fact]
+    public async Task A_mod_that_is_not_hosting_leaves_everyone_in_voice_to_the_host()
+    {
+        // A host with the mod joins someone else's lobby as a player: their game reports the menu
+        // phase. They give back the voice they set, once, and then never touch anyone's voice,
+        // even someone they had muted before who leaves voice and comes back mid-game.
+        var s = Session(c =>
+        {
+            c.AutoMute.MuteSpectators = true;
+            c.AutoMute.AutoLinkByName = false;
+            c.AutoMute.DelayGameStart = 0;
+            c.AutoMute.VoiceChannelId = "vc";
+        });
+        s.Links.Link(_lobby[0].Key, "Alice", "100", "alice");
+        InVoice("vc", ("100", "alice"), ("900", "viewer"));
+        s.VoiceTick(VoicePhase.Tasks, _lobby);                      // hosting: the viewer is muted
+        await Wait.Until(() => _voice.Calls.Any(c => c.User == "900" && c.State.Mute));
+
+        s.VoiceTick(VoicePhase.Menu, new List<PlayerSnapshot>());   // now a player in another lobby
+        await Wait.Until(() => _voice.Calls.Any(c => c.User == "900" && c.State == VoiceState.Open));
+        int calls = _voice.Calls.Count;
+
+        _presence.Dispatch("VOICE_STATE_UPDATE", JsonDocument.Parse("""{"guild_id":"g1","user_id":"900","channel_id":null}""").RootElement);
+        s.VoiceTick(VoicePhase.Menu, new List<PlayerSnapshot>());
+        _presence.Dispatch("VOICE_STATE_UPDATE", JsonDocument.Parse("""{"guild_id":"g1","user_id":"900","channel_id":"vc"}""").RootElement);
+        s.VoiceTick(VoicePhase.Menu, new List<PlayerSnapshot>());
+        await Task.Delay(200);
+        Assert.Equal(calls, _voice.Calls.Count);
+    }
+
     // ---- Referee mode ----
 
     [Fact]

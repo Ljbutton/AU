@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.33**, a beta.
+The current release is **v0.1.34**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -506,12 +506,12 @@ the caster's PC and off stream.
   vents stay hidden); **vision** CREWMATES shows every living crewmate's real sight together
   (wall-blocked, their vision setting, lights sabotage included, soft-edged and redrawn every
   frame) with the rest of the map a little darker (or just one crewmate's, if you pick one),
-  or OUTLINES draws every living player's sight in their colour; **"!"** pops over anyone close enough to report a
-  body (the game's own check); a faint **eye** by a crewmate's name while an impostor is in
+  or OUTLINES draws every living player's sight in their colour; impostors' names in red (in the game and in
+  meetings); a faint **eye** by a crewmate's name while an impostor is in
   their sight, flashing when they see a kill or a vent, which also makes a "Lime SAW Purple
   vent in MedBay" card. Switch each one per lobby under its row in the Caster tab (it goes to
   the host over their VDO.Ninja link), or with keys for the lobby on stream (M lit, V vision,
-  X "!", E eye; change them under Keys).
+  E eye; change them under Keys).
 * **Real names:** `roster.csv` in Red Alert's folder (name, Discord ID, in-game names,
   friend codes, pronunciation; `;` between several). Each player is matched by the Discord
   account automute links them to, then friend code, then in-game name; pick someone by hand in

@@ -67,7 +67,6 @@ namespace TournamentTracker.App.Broadcast
             // Spectator view of the lobby on stream (slot 1).
             ["specLit"] = "KeyM",
             ["specVision"] = "KeyV",
-            ["specReport"] = "KeyX",
             ["specEye"] = "KeyE",
             // Layouts.
             ["grid"] = "KeyG",

@@ -16,7 +16,6 @@ namespace TournamentTracker.Plugin
     /// <item>every living crewmate's real, wall-blocked vision with the rest of the map slightly
     /// dimmed (or just one crewmate's, when the caster picks one), or every living player's vision
     /// outline in their colour (RINGS);</item>
-    /// <item>"!" over anyone close enough to report a body, by the game's own report check;</item>
     /// <item>a faint eye by a crewmate's name while an impostor is in their sight, flashing when
     /// they see a kill or a vent (which also tells the caster: witnessed_kill / witnessed_vent).</item>
     /// </list>
@@ -78,15 +77,10 @@ namespace TournamentTracker.Plugin
         private sealed class Ring { public LineRenderer Line = null!; public Il2CppStructArray<Vector3> Points = null!; public int Version = -1; public float X = float.NaN, Y = float.NaN; public bool Shown; }
         private static readonly Dictionary<byte, Ring> Rings = new Dictionary<byte, Ring>();
 
-        // "!" and the eye.
-        private static readonly List<DeadBody> Bodies = new List<DeadBody>();
-        private static float _bodiesAt = -1;
-        private static bool _bodiesDirty = true;
-        private static readonly Dictionary<byte, Bang> Bangs = new Dictionary<byte, Bang>();
+        // The eye.
         private static readonly Dictionary<byte, Eye> Eyes = new Dictionary<byte, Eye>();
         private static readonly Dictionary<byte, bool> WasInVent = new Dictionary<byte, bool>();
 
-        private sealed class Bang { public GameObject Go = null!; public TextMeshPro Text = null!; public float Since; public bool On, Shown, Settled; }
         private sealed class Eye
         {
             public GameObject Go = null!; public SpriteRenderer Sprite = null!;
@@ -200,23 +194,15 @@ namespace TournamentTracker.Plugin
             Root();
             GatherAlive(session);
 
-            // "!" and the eye.
-            if (s.Report) Rescan();
+            // The eye.
             foreach (var pc in Alive)
             {
-                bool canReport = false;
-                if (s.Report)
-                    foreach (var body in Bodies)
-                        if (body != null && !body.Reported && CanReport(pc.Pc, body)) { canReport = true; break; }
-                SetBang(pc, canReport);
-
                 bool sees = false;
                 if (s.Eye && !pc.Impostor)
                     foreach (var other in Alive)
                         if (other.Impostor && !other.InVent && Sees(pc, other)) { sees = true; break; }
                 SetEye(pc, sees);
             }
-            foreach (var (id, bang) in Bangs) if (!IsAlive(id)) bang.On = false;
             foreach (var (id, eye) in Eyes) if (!IsAlive(id)) eye.Sees = false;
 
             // Someone saw an impostor go into a vent.
@@ -234,22 +220,9 @@ namespace TournamentTracker.Plugin
             }
         }
 
-        /// <summary>The bodies on the map: looked for again after a kill, else at most once a second.</summary>
-        private static void Rescan()
-        {
-            float now = Time.unscaledTime;
-            if (!_bodiesDirty && now < _bodiesAt) return;
-            _bodiesDirty = false;
-            _bodiesAt = now + 1f;
-            Bodies.Clear();
-            var found = UnityEngine.Object.FindObjectsOfType<DeadBody>();
-            for (int i = 0; i < found.Length; i++) if (found[i] != null) Bodies.Add(found[i]);
-        }
-
         /// <summary>A kill just happened: any crewmate with the killer in sight saw it (called from the kill hook).</summary>
         public static void OnKill(PlayerControl killer, PlayerControl victim)
         {
-            _bodiesDirty = true;
             var session = TournamentPlugin.Session;
             if (session == null || !session.IsSpectator || killer == null) return;
             var k = Frame.Get(killer.PlayerId);
@@ -278,15 +251,6 @@ namespace TournamentTracker.Plugin
             float r = Radius(viewer);
             if (dx * dx + dy * dy > r * r) return false;
             return Physics2D.Linecast(viewer.Pos, other.Pos, WallMask).collider == null;
-        }
-
-        /// <summary>The game's own report check: within the report distance, nothing in the way.</summary>
-        private static bool CanReport(PlayerControl pc, DeadBody body)
-        {
-            Vector2 me = pc.GetTruePosition(), at = body.TruePosition;
-            float dx = at.x - me.x, dy = at.y - me.y, max = pc.MaxReportDistance;
-            if (dx * dx + dy * dy > max * max) return false;
-            return !PhysicsHelpers.AnythingBetween(me, at, Constants.ShipAndObjectsMask, false);
         }
 
         /// <summary>
@@ -555,28 +519,6 @@ namespace TournamentTracker.Plugin
             return id >= 0 && id < colors.Length ? (Color)colors[id] : Color.white;
         }
 
-        private static void SetBang(Frame.Player p, bool on)
-        {
-            if (!Bangs.TryGetValue(p.Id, out var bang) || bang.Go == null)
-            {
-                if (!on) return;
-                var go = new GameObject("TT Report " + p.Id);
-                Layer(go);
-                var text = go.AddComponent<TextMeshPro>();
-                text.text = "!";
-                text.fontSize = 5f;
-                text.fontStyle = FontStyles.Bold;
-                text.alignment = TextAlignmentOptions.Center;
-                text.color = new Color(1f, 0.85f, 0.2f, 1f);
-                text.outlineWidth = 0.25f;
-                text.outlineColor = new Color32(0, 0, 0, 255);
-                bang = Bangs[p.Id] = new Bang { Go = go, Text = text, Shown = true };
-            }
-            if (on && !bang.On) { bang.Since = Time.unscaledTime; bang.Settled = false; }
-            bang.On = on;
-            bang.Go.transform.position = new Vector3(p.Pos.x, p.Pos.y + 0.95f, Z - 0.02f);
-        }
-
         private static void SetEye(Frame.Player p, bool sees)
         {
             if (!Eyes.TryGetValue(p.Id, out var eye) || eye.Go == null)
@@ -627,7 +569,7 @@ namespace TournamentTracker.Plugin
             }
         }
 
-        /// <summary>Every frame: fade the eyes (0.2 s), flash them, bounce the "!" in, follow the players.</summary>
+        /// <summary>Every frame: fade the eyes (0.2 s), flash them, follow the players.</summary>
         private static void Animate(SpectatorSettings s)
         {
             float dt = Time.unscaledDeltaTime, now = Time.unscaledTime;
@@ -650,22 +592,6 @@ namespace TournamentTracker.Plugin
                 if (!on) continue;
                 var p = Frame.Get(id);
                 if (p != null) Follow(p, eye);
-            }
-            foreach (var (id, bang) in Bangs)
-            {
-                if (bang.Go == null) continue;
-                bool on = bang.On && s.Report;
-                if (on != bang.Shown) { bang.Shown = on; bang.Go.SetActive(on); }
-                if (!on) continue;
-                float e = Math.Clamp((now - bang.Since) / 0.3f, 0f, 1f);
-                if (e < 1f)
-                {
-                    float k = e < 0.6f ? 0.3f + (1.25f - 0.3f) * (e / 0.6f) : 1.25f + (1f - 1.25f) * ((e - 0.6f) / 0.4f);
-                    bang.Go.transform.localScale = new Vector3(k, k, 1);
-                }
-                else if (!bang.Settled) { bang.Settled = true; bang.Go.transform.localScale = new Vector3(1, 1, 1); }
-                var p = Frame.Get(id);
-                if (p != null) bang.Go.transform.position = new Vector3(p.Pos.x, p.Pos.y + 0.95f, Z - 0.02f);
             }
         }
 
@@ -720,22 +646,23 @@ namespace TournamentTracker.Plugin
             DimKeyShown.Clear();
             Sights.Clear();
             Rings.Clear();
-            Bangs.Clear();
             Eyes.Clear();
             WasInVent.Clear();
-            Bodies.Clear();
-            _bodiesDirty = true;
             _spectatorAt = -1;
         }
     }
     /// <summary>
     /// On the referee's screen only: players' nameplates show their roster names (from the caster),
-    /// in the game and in meetings. Purely local text; nobody else's game changes.
+    /// and impostors' names are red, in the game and in meetings. Purely local text; nobody
+    /// else's game changes, and only while the host plays as the referee ghost (never while they play).
     /// </summary>
     internal static class Nameplates
     {
         private static float _next;
         private static bool _applied;
+        private static readonly Dictionary<string, string> ToShow = new Dictionary<string, string>();
+        private static readonly Dictionary<string, string> ToReal = new Dictionary<string, string>();
+        private static readonly HashSet<string> Impostors = new HashSet<string>();
 
         public static void Update()
         {
@@ -745,41 +672,47 @@ namespace TournamentTracker.Plugin
             bool on = session != null && Game.IsHost && session.IsSpectator;
             if (!on && !_applied) return;                           // nothing to show, nothing to put back
             var all = PlayerControl.AllPlayerControls;
+            ToShow.Clear();
+            ToReal.Clear();
+            Impostors.Clear();
             for (int i = 0; i < all.Count; i++)
             {
                 var pc = all[i];
-                if (pc == null || pc.Data == null || pc.cosmetics == null || pc.cosmetics.nameText == null) continue;
+                if (pc == null || pc.Data == null) continue;
                 string real = pc.Data.PlayerName ?? "";
-                string? shown = on ? session!.DisplayName(PlayerSnapshot.MakeKey(pc.Data.FriendCode, real)) : null;
+                string? roster = session?.DisplayName(PlayerSnapshot.MakeKey(pc.Data.FriendCode, real));
+                string? shown = on ? roster : null;
                 string want = shown ?? real;
-                if (shown == null && !_applied) continue;          // never touched: leave the game's own text alone
-                if (pc.cosmetics.nameText.text != want) pc.cosmetics.nameText.text = want;
+                bool impostor = on && pc.Data.Role != null && pc.Data.Role.IsImpostor;
+                if (impostor) { Impostors.Add(real); Impostors.Add(want); }
+                if (roster != null && roster != real) { ToShow[real] = roster; ToReal[roster] = real; }
+                var name = pc.cosmetics != null ? pc.cosmetics.nameText : null;
+                if (name == null) continue;
+                if ((shown != null || _applied) && name.text != want) name.text = want;
+                Colour(name, impostor);
             }
             // Meetings: the vote areas show names too. Matched by their text (real name ↔ roster name).
             var meeting = MeetingHud.Instance;
             if (meeting != null && meeting.playerStates != null)
             {
-                var toShow = new System.Collections.Generic.Dictionary<string, string>();
-                var toReal = new System.Collections.Generic.Dictionary<string, string>();
-                for (int i = 0; i < all.Count; i++)
-                {
-                    var pc = all[i];
-                    if (pc == null || pc.Data == null) continue;
-                    string real = pc.Data.PlayerName ?? "";
-                    string? shown = session?.DisplayName(PlayerSnapshot.MakeKey(pc.Data.FriendCode, real));
-                    if (shown == null || shown == real) continue;
-                    toShow[real] = shown;
-                    toReal[shown] = real;
-                }
                 foreach (var area in meeting.playerStates)
                 {
                     if (area == null || area.NameText == null) continue;
                     string text = area.NameText.text ?? "";
-                    if (on && toShow.TryGetValue(text, out var shown)) area.NameText.text = shown;
-                    else if (!on && toReal.TryGetValue(text, out var real)) area.NameText.text = real;
+                    if (on && ToShow.TryGetValue(text, out var shown)) area.NameText.text = text = shown;
+                    else if (!on && ToReal.TryGetValue(text, out var real)) area.NameText.text = text = real;
+                    Colour(area.NameText, on && Impostors.Contains(text));
                 }
             }
             _applied = on;
+        }
+
+        /// <summary>Red for an impostor; back to the game's white otherwise (only once it was changed).</summary>
+        private static void Colour(TMPro.TMP_Text text, bool impostor)
+        {
+            var want = impostor ? (Color)Palette.ImpostorRed : Color.white;
+            if (!impostor && !_applied) return;
+            if (text.color != want) text.color = want;
         }
     }
 }
