@@ -1276,17 +1276,16 @@ function specSend(lobby, command) {
   toast(`${lobby}: ${command.replace(/^spec /, '')}`);
 }
 // The host's ghost view (the picture sent to you): what's drawn on it. Only on that one game, never sent to players.
-const VISION = { off: 'Vision: off', focus: 'Vision: one crewmate', rings: 'Vision: everyone' };
+const VISION = { off: 'Vision: off', focus: 'Vision: crewmates', rings: 'Vision: outlines' };
 function specRow(l) {
   const sp = l.spec; if (!sp || !l.online) return '';
   const crew = (l.players || []).filter(p => !p.imp);
-  const auto = sp.focusing != null && sp.focus == null ? ' (' + esc(realName(l.lobby, sp.focusing, (crew.find(p => p.id === sp.focusing) || {}).colour || '')) + ')' : '';
   return `<div class="spec" data-specrow="${esc(l.lobby)}"><span class="sh" title="What the referee ghost's screen (the picture sent to you) shows. Only drawn on that one game, never sent to the players.">Host view${sp.on ? '' : ' (host isn\'t the referee ghost)'}</span>
     <button data-spec="lit" class="${sp.lit ? 'on' : ''}" title="Lights the whole map and shows every player (impostors in vents stay hidden). Key ${keyName('specLit')}">💡 Lit map</button>
-    <button data-spec="vision" class="${sp.vision !== 'off' ? 'on' : ''}" title="Click to cycle: off → one crewmate's real vision (the rest dimmed) → every crewmate's vision outline. Key ${keyName('specVision')}">◐ ${VISION[sp.vision] || sp.vision}</button>
+    <button data-spec="vision" class="${sp.vision !== 'off' ? 'on' : ''}" title="Click to cycle: off → every crewmate's real vision (the rest dimmed) → every player's vision outline. Key ${keyName('specVision')}">◐ ${VISION[sp.vision] || sp.vision}</button>
     <button data-spec="report" class="${sp.report ? 'on' : ''}" title="A ! over anyone close enough to report a body. Key ${keyName('specReport')}">❗ Can report</button>
     <button data-spec="eye" class="${sp.eye ? 'on' : ''}" title="A small eye by a crewmate's name while an impostor is in their sight. Key ${keyName('specEye')}">👁 Sees impostor</button>
-    ${sp.vision === 'focus' ? `<select data-specfocus title="Whose vision is shown. Auto picks whoever is in danger, else whoever did something last."><option value="auto">Whose vision: auto${auto}</option>${crew.map(p => `<option value="${p.id}"${sp.focus === p.id ? ' selected' : ''}>${esc(p.colour)} · ${esc(realName(l.lobby, p.id, p.name))}</option>`).join('')}</select>` : ''}
+    ${sp.vision === 'focus' ? `<select data-specfocus title="Whose vision is shown: every crewmate's, or just one."><option value="auto">Whose vision: every crewmate</option>${crew.map(p => `<option value="${p.id}"${sp.focus === p.id ? ' selected' : ''}>${esc(p.colour)} · ${esc(realName(l.lobby, p.id, p.name))}</option>`).join('')}</select>` : ''}
   </div>`;
 }
 // Players on a lobby card: behind a toggle, remembered per lobby (closed by default).

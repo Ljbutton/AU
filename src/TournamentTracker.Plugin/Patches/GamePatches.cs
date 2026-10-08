@@ -83,6 +83,48 @@ namespace TournamentTracker.Plugin.Patches
         }
     }
 
+    // Referee ghost slot: the host turns down any kill on the referee (an impostor whose game still
+    // shows them can try), the same way the game turns down a kill on someone already dead.
+    [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.CheckMurder))]
+    internal static class RefereeNoKillPatch
+    {
+        public static bool Prefix(PlayerControl __instance, PlayerControl __0)
+        {
+            if (!Game.IsHost || __instance == null || __0 == null || TournamentPlugin.Session?.RefSlotKey == null) return true;
+            try
+            {
+                if (RefSlot.RefereeId() != __0.PlayerId) return true;
+                TournamentPlugin.Logger.Warn($"Referee ghost: turned down {__instance.Data?.PlayerName}'s kill on the referee (dead here: {__0.Data?.IsDead}).");
+                __instance.RpcMurderPlayer(__0, false);
+                return false;
+            }
+            catch (Exception e)
+            {
+                TournamentPlugin.Logger.Error("Referee kill hook failed: " + e);
+                return true;
+            }
+        }
+    }
+
+    // Referee ghost slot: a vote for the referee (from a game that still lists them) counts as a skip.
+    [HarmonyPatch(typeof(MeetingHud), nameof(MeetingHud.CastVote))]
+    internal static class RefereeNoVotePatch
+    {
+        private const byte Skip = 253;      // the game's "skipped" vote
+
+        public static void Prefix(byte __0, ref byte __1)
+        {
+            if (!Game.IsHost || TournamentPlugin.Session?.RefSlotKey == null) return;
+            try
+            {
+                if (RefSlot.RefereeId() != __1) return;
+                TournamentPlugin.Logger.Warn($"Referee ghost: a vote for the referee (from player {__0}) counts as a skip.");
+                __1 = Skip;
+            }
+            catch (Exception e) { TournamentPlugin.Logger.Error("Referee vote hook failed: " + e); }
+        }
+    }
+
     [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.MurderPlayer))]
     internal static class KillPatch
     {

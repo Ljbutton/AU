@@ -13,15 +13,15 @@ namespace TournamentTracker.Broadcast
     {
         /// <summary>The whole map lit, every player shown (impostors in vents stay hidden in them).</summary>
         public bool Lit { get; set; } = true;
-        /// <summary>"off", "focus" (one crewmate's real vision, the rest dimmed) or "rings" (everyone's vision outline).</summary>
+        /// <summary>"off", "focus" (every living crewmate's real vision, or just the picked one's, the rest dimmed) or "rings" (everyone's vision outline).</summary>
         public string Vision { get; set; } = "focus";
         /// <summary>"!" over anyone close enough to report a body.</summary>
         public bool Report { get; set; } = true;
         /// <summary>A small eye by a crewmate's name while an impostor is in their sight.</summary>
         public bool Eye { get; set; } = true;
-        /// <summary>The crewmate whose vision is shown, or null to pick by itself.</summary>
+        /// <summary>The one crewmate whose vision is shown, or null for every crewmate's.</summary>
         public int? Focus { get; set; }
-        /// <summary>How much darker everything outside the focused vision is (0–1).</summary>
+        /// <summary>How much darker everything outside the crewmates' vision is (0–1).</summary>
         public float Dim { get; set; } = 0.22f;
     }
 }

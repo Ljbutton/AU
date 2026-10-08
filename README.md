@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.30**, a beta.
+The current release is **v0.1.31**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -346,7 +346,12 @@ always talk). The host can zoom out with the **mouse wheel** or **+ / −** to s
 whole map (for refereeing and streaming). The same switch turns it off; the choice is remembered.
 The mod sends each player's role and task list once, as the game itself does, and never sends an
 "exiled" message outside a meeting (that got the host kicked from the room): the referee is marked
-dead in the player record the host keeps, and the host's own game makes them a ghost.
+dead in the player record the host keeps, and the host's own game makes them a ghost. As the
+game starts, and after every meeting, the referee is moved to the middle of the map. The host turns
+down any kill on the referee and counts a vote for them as a skip. In meetings the referee's card
+is taken off the list. That happens on the host's screen and on every player's game that has the
+mod; there the referee isn't drawn on the map either. A game without the mod lists them as a dead
+player.
 
 ## Red Alert (the broadcaster's app)
 
@@ -497,10 +502,10 @@ the caster's PC and off stream.
   folder (default Videos\TT Replays) and keys are in the `replay` part of `obs.json`.
 * **Spectator view** (the host's own screen, while they play as the referee ghost; drawn only in
   their game, never sent to players): the whole map lit with every player shown (impostors in
-  vents stay hidden); **vision** FOCUS shows one crewmate's real sight (wall-blocked, their
-  vision setting, lights sabotage included) with the rest of the map a little darker, picked by
-  itself (a crewmate in danger, else whoever did something last) or by you, or RINGS outlines
-  every living player's sight in their colour; **"!"** pops over anyone close enough to report a
+  vents stay hidden); **vision** CREWMATES shows every living crewmate's real sight together
+  (wall-blocked, their vision setting, lights sabotage included, soft-edged and redrawn every
+  frame) with the rest of the map a little darker (or just one crewmate's, if you pick one),
+  or OUTLINES draws every living player's sight in their colour; **"!"** pops over anyone close enough to report a
   body (the game's own check); a faint **eye** by a crewmate's name while an impostor is in
   their sight, flashing when they see a kill or a vent, which also makes a "Lime SAW Purple
   vent in MedBay" card. Switch each one per lobby under its row in the Caster tab (it goes to
