@@ -551,7 +551,7 @@ namespace TournamentTracker.App.Broadcast
                         "intermission" => "On stream: Intermission.",
                         "break" => $"On stream: sponsor break with {air.Slots.FirstOrDefault()}.",
                         _ => air.Slots.Any(x => x != null) ? $"On stream: {string.Join(", ", air.Slots.Select(x => x ?? "empty"))}." : "Nothing on stream.",
-                    } });
+                    } + _desk.DownNote(air.Slots), down = _desk.DownNote(air.Slots).Trim() });
                 }
                 case ("POST", "/app/admin/watch"):
                 {
@@ -861,7 +861,16 @@ namespace TournamentTracker.App.Broadcast
                     if (pick.Count == 0) return Ok(new { ok = false, message = "Pick one or more lobbies first." });
                     var air = _desk.ShowPicked(pick, "button", Arg("layout").Length > 0 ? Arg("layout") : null);
                     string how = air.Layout switch { "full" => "Full screen", "2up" => "2-up", "4up" => "Quad", "grid" => "Grid", _ => air.Layout };
-                    return Ok(new { ok = true, message = $"On stream ({how}): {string.Join(", ", air.Slots.Where(x => x != null))}." });
+                    return Ok(new { ok = true, message = $"On stream ({how}): {string.Join(", ", air.Slots.Where(x => x != null))}." + _desk.DownNote(air.Slots), down = _desk.DownNote(air.Slots).Trim() });
+                }
+                case ("POST", "/app/admin/autoswitch"):
+                {
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    if (Arg("action") == "dismiss") { _desk.DismissAutoSwitch(); return Ok(new { ok = true, message = "OK." }); }
+                    var note = _desk.AutoSwitched;
+                    var back = _desk.UndoAutoSwitch();
+                    return back == null ? Ok(new { ok = false, message = "Nothing to undo." })
+                        : Ok(new { ok = true, message = $"Back to what you had. Auto switch leaves {note!.Lobby} alone until it comes back and drops again." });
                 }
                 case ("POST", "/app/admin/voice"):
                 {
