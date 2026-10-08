@@ -412,7 +412,9 @@ namespace TournamentTracker.App.Broadcast
             await AddSourcesAsync().ConfigureAwait(false);
             // A swoosh when what's on stream changes (a new scene, or pictures moving in this one).
             string key = AirKey(air);
-            if (key != _airKey || Scene != scene) await SwooshAsync(Scene != scene).ConfigureAwait(false);
+            // No swoosh to, from or within the player camera: game to player to player is a straight cut.
+            bool camCut = air.Layout == "cam" || Scene == Settings.Scenes.GetValueOrDefault("cam");
+            if (!camCut && (key != _airKey || Scene != scene)) await SwooshAsync(Scene != scene).ConfigureAwait(false);
             _airKey = key;
             await _busy.WaitAsync().ConfigureAwait(false);
             try
@@ -515,6 +517,7 @@ namespace TournamentTracker.App.Broadcast
                             string? was = cur.TryGetProperty("inputSettings", out var st) && st.TryGetProperty("url", out var u) ? u.GetString() : null;
                             if (was != url) await obs.RequestAsync("SetInputSettings", new { inputName = n, inputSettings = new { url } }).ConfigureAwait(false);
                         }).ConfigureAwait(false);
+                    await EnsureReplayFilterAsync(obs, "Cam " + lobby, name).ConfigureAwait(false);
                     if (added && ids.TryGetValue(scene, out var id))
                         await obs.RequestAsync("SetSceneItemIndex", new { sceneName = scene, sceneItemId = id, sceneItemIndex = 0 }).ConfigureAwait(false);
                     if (!Settings.CamSources.TryGetValue(lobby, out var mapped) || mapped != name) { Settings.CamSources[lobby] = name; changed = true; }

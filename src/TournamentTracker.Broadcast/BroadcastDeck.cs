@@ -107,7 +107,7 @@ namespace TournamentTracker.App.Broadcast
         private string CamAll(bool on)
         {
             if (_desk == null) return "Administration is locked.";
-            _settings.CamOn = on;
+            _settings.CamOff = !on;
             TrySave();
             foreach (var r in _desk.Board.Ranking()) SpecOut(r.Lobby, on ? "spec cam on" : "spec cam off");
             if (!on && _desk.OnAir.Layout == "cam") _desk.Show(_desk.OnAir.Slots.FirstOrDefault() ?? "", "full");
@@ -200,6 +200,6 @@ namespace TournamentTracker.App.Broadcast
             return new { links = list, colours = Colours };
         }
 
-        private object CamState() => new { on = _settings.CamOn, picks = _camPick.ToDictionary(kv => kv.Key, kv => kv.Value) };
+        private object CamState() => new { on = !_settings.CamOff, picks = _camPick.ToDictionary(kv => kv.Key, kv => kv.Value) };
     }
 }

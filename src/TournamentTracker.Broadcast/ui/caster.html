@@ -817,7 +817,7 @@ button.b.sw-onoff:not(.on){background:transparent;color:var(--muted);border-colo
   <div class="card" id="cam-card" data-page="settings">
     <div class="row" style="justify-content:space-between"><div><b>Player camera</b> <span class="muted" id="cam-line"></span></div>
       <label class="sw" title="Each host's game sends a second picture that follows one player up close"><input type="checkbox" id="cam-on"><i></i><span>Player cameras</span></label></div>
-    <p class="muted help" style="margin:6px 0 0;font-size:12.5px">Each host's game draws a second, close-up picture that follows one player (you pick who on the Live desk or the Stream Deck, or it follows whoever is in the action) and sends it with their game, sharp at 720p. Red Alert adds it to OBS as the <b>TT Player Cam</b> scene: the camera full screen, the whole map small in the corner. Hosts can't see it or change who it follows. It costs each host a little more upload, so leave it off if a host's internet is weak.</p>
+    <p class="muted help" style="margin:6px 0 0;font-size:12.5px">Each host's game draws a second, close-up picture that follows one player (you pick who on the Live desk or the Stream Deck, or it follows whoever is in the action) and sends it with their game, sharp at 720p. Red Alert adds it to OBS as the <b>TT Player Cam</b> scene: the camera full screen, the whole map small in the corner. Hosts can't see it or change who it follows. On by default; it costs each host about one more video stream of upload while they send their game, so turn it off if a host's internet is weak. Replays saved while it's on get a second angle (🎥 in the replay controls, key P).</p>
   </div>
   <div class="card" id="deck-card" data-page="settings">
     <div class="row" style="justify-content:space-between"><div><b>Stream Deck</b> <span class="muted">a link per button</span></div><button class="b" id="deck-new" title="New links (the old ones stop working)">New key</button></div>
@@ -852,6 +852,7 @@ button.b.sw-onoff:not(.on){background:transparent;color:var(--muted);border-colo
       <button class="b" data-rp="zoomOut" title="Zoom out">−</button><span class="mono muted" id="rp-zoom">×1.0</span><button class="b" data-rp="zoomIn" title="Zoom in">+</button>
       <button class="b" data-rp="pan" data-dx="-1" data-dy="0" title="Pan left">←</button><button class="b" data-rp="pan" data-dx="0" data-dy="-1" title="Pan up">↑</button><button class="b" data-rp="pan" data-dx="0" data-dy="1" title="Pan down">↓</button><button class="b" data-rp="pan" data-dx="1" data-dy="0" title="Pan right">→</button>
       <button class="b" data-rp="follow" id="rp-follow" title="Follow the players again">Follow</button>
+      <button class="b" data-rp="angle" id="rp-angle" hidden title="The other angle of this moment: the player camera's close-up, or the whole map (key P)">🎥 Player cam</button>
     </div>
     <div class="rp-keys" id="rp-keymap" hidden></div>
   </div>
@@ -1812,7 +1813,7 @@ $('roster-open').addEventListener('click', e => { e.preventDefault(); api('POST'
 
 // ---- Replay controls -------------------------------------------------------------------------
 let RP = null, rpSync = 0, keyWait = null;
-const RP_NAMES = { grid: 'Grid on / off', intermission: 'Intermission on / off', alertsPause: 'Pause off-screen alerts', playerCard: 'Card: top notification\'s player', voiceMute: 'Mute all lobby voice', specLit: 'View: lit map', specVision: 'View: vision mode', specEye: 'View: eye', playPause: 'Play / pause', back: 'Back 1 s', forward: 'Forward 1 s', frameBack: 'Back a frame', frameForward: 'Forward a frame', restart: 'Restart', zoomIn: 'Zoom in', zoomOut: 'Zoom out', panLeft: 'Pan left', panRight: 'Pan right', panUp: 'Pan up', panDown: 'Pan down', follow: 'Follow players', live: 'Back to live' };
+const RP_NAMES = { grid: 'Grid on / off', intermission: 'Intermission on / off', alertsPause: 'Pause off-screen alerts', playerCard: 'Card: top notification\'s player', voiceMute: 'Mute all lobby voice', specLit: 'View: lit map', specVision: 'View: vision mode', specEye: 'View: eye', playPause: 'Play / pause', back: 'Back 1 s', forward: 'Forward 1 s', frameBack: 'Back a frame', frameForward: 'Forward a frame', restart: 'Restart', zoomIn: 'Zoom in', zoomOut: 'Zoom out', panLeft: 'Pan left', panRight: 'Pan right', panUp: 'Pan up', panDown: 'Pan down', follow: 'Follow players', live: 'Back to live', angle: 'Player cam / whole map' };
 const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
 function rpCursor() { const n = RP && RP.now; if (!n) return 0; return Math.min(n.duration || 0, n.cursor + (n.playing ? (performance.now() - rpSync) / 1000 : 0)); }
 function renderReplay() {
@@ -1823,6 +1824,9 @@ function renderReplay() {
   $('rp-play').textContent = n.playing ? 'Pause' : n.ended ? 'Replay again' : 'Play';
   $('rp-zoom').textContent = '×' + (n.view ? n.view.zoom : 1).toFixed(1);
   $('rp-follow').classList.toggle('on', n.follow);
+  $('rp-angle').hidden = !n.hasCam;
+  $('rp-angle').textContent = n.angle === 'cam' ? '🗺 Whole map' : '🎥 Player cam';
+  $('rp-follow').hidden = n.angle === 'cam';
   const d = n.duration || 1;
   $('rp-len').textContent = fmt(d);
   $('rp-start').style.left = (100 * n.start / d) + '%';
@@ -1854,7 +1858,7 @@ $('rp-bar').addEventListener('click', e => {
 });
 // Keys: work on the Caster tab while a replay is up (not while typing). Change them under Keys.
 const KEY_ACTION = { playPause: ['toggle'], back: ['back'], forward: ['forward'], frameBack: ['frameBack'], frameForward: ['frameForward'], restart: ['restart'], zoomIn: ['zoomIn'], zoomOut: ['zoomOut'],
-  panLeft: ['pan', -1, 0], panRight: ['pan', 1, 0], panUp: ['pan', 0, -1], panDown: ['pan', 0, 1], follow: ['follow'], live: ['live'] };
+  panLeft: ['pan', -1, 0], panRight: ['pan', 1, 0], panUp: ['pan', 0, -1], panDown: ['pan', 0, 1], follow: ['follow'], live: ['live'], angle: ['angle'] };
 document.addEventListener('keydown', e => {
   if (!$('caster').classList.contains('on') || !RP) return;
   if (keyWait) {

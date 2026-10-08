@@ -185,12 +185,25 @@ namespace TournamentTracker.App.Broadcast
                 {
                     clip.SavedAt = _clock();
                     clip.File = await _obs.SaveClipAsync(clip.Lobby).ConfigureAwait(false);
+                    // The player camera's view of the same moment, when it's on: a second angle.
+                    if (_obs.HasCamReplay(clip.Lobby))
+                    {
+                        try
+                        {
+                            clip.CamSavedAt = _clock();
+                            clip.CamFile = await _obs.SaveCamClipAsync(clip.Lobby).ConfigureAwait(false);
+                            clip.CamPlayerId = CamFollowing(clip.Lobby);
+                        }
+                        catch (Exception) { clip.CamFile = null; clip.CamSavedAt = null; }
+                    }
                 }
                 finally { _saveOne.Release(); }
                 // The positions for the last seconds arrive about a second late.
                 await Task.Delay(1300).ConfigureAwait(false);
                 clip.Samples = _desk.Tracks.Between(clip.Lobby, clip.EventAt.AddSeconds(-clip.Pre - 2), clip.SavedAt.Value.AddSeconds(1));
                 await ThumbnailAsync(clip).ConfigureAwait(false);
+                // The camera was on someone in the play (the killer, the victim…): its close-up plays first.
+                if (clip.CamFile != null && clip.CamPlayerId is int cam && clip.Focus.Contains(cam)) clip.SwapAngle();
                 clip.State = "ready";
             }
             catch (Exception e)
@@ -206,6 +219,13 @@ namespace TournamentTracker.App.Broadcast
                 Saved?.Invoke(clip);
                 return clip;
             }
+        }
+
+        /// <summary>Who the lobby's player camera is following now, as its host last said.</summary>
+        private int? CamFollowing(string lobby)
+        {
+            var spec = _desk.Board.Lobby(lobby)?.Spec;
+            return spec is { } s && s.TryGetProperty("camOn", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt32() : (int?)null;
         }
 
         /// <summary>Simulation without OBS: a stand-in video (the lobby and the play over moving colours) made with ffmpeg.</summary>
@@ -390,10 +410,31 @@ namespace TournamentTracker.App.Broadcast
                     case "follow": lock (_lock) { _zoomBy = 1; _panX = _panY = 0; _follow = true; } await TickAsync(true).ConfigureAwait(false); return null;
                     case "wide": lock (_lock) { _follow = !_follow; } await TickAsync(true).ConfigureAwait(false); return null;
                     case "live": return await LiveAsync().ConfigureAwait(false);
+                    case "angle": return await AngleAsync(clip).ConfigureAwait(false);
                     default: return "Unknown control: " + action;
                 }
             }
             catch (Exception e) { Problem = e.Message; return e.Message; }
+        }
+
+        /// <summary>
+        /// The other angle of the replay on screen (player camera ↔ whole map), at the same moment: the
+        /// same time before the clip's end, since both were saved together. Playing or paused as before.
+        /// </summary>
+        private async Task<string?> AngleAsync(Clip clip)
+        {
+            if (clip.CamFile == null) return "This replay has no player camera angle (the camera was off).";
+            double fromEnd = (clip.Duration ?? 0) - Cursor();
+            bool playing = _playing;
+            clip.SwapAngle();
+            double duration = await _obs.LoadClipAsync(clip.File!).ConfigureAwait(false);
+            clip.Duration = duration;
+            double at = Math.Max(0, Math.Min(duration - 0.05, duration - fromEnd));
+            await _obs.SeekAsync(at).ConfigureAwait(false);
+            await _obs.MediaAsync(playing ? "play" : "pause").ConfigureAwait(false);
+            lock (_lock) { _cursor = at; _cursorAt = _clock(); _playing = playing; _zoomBy = 1; _panX = _panY = 0; }
+            await TickAsync(true).ConfigureAwait(false);
+            return clip.Angle == "cam" ? "Player camera angle." : "Whole map angle.";
         }
 
         private async Task SeekToAsync(double seconds)
@@ -488,7 +529,8 @@ namespace TournamentTracker.App.Broadcast
                     if (m != null && id != _momentCard) { _momentCard = id; _desk.ShowPlayerCard(m.Key, m.Lobby, auto: true); }
                 }
                 View view;
-                lock (_lock) view = Framing.At(clip, S, Cursor(), _played, _zoomBy, _panX, _panY, _follow);
+                // The player camera is already close up: shown whole (zoom and pan still work by hand).
+                lock (_lock) view = clip.Angle == "cam" ? new View(Math.Max(0, Math.Min(1, 0.5 + _panX)), Math.Max(0, Math.Min(1, 0.5 + _panY)), _zoomBy) : Framing.At(clip, S, Cursor(), _played, _zoomBy, _panX, _panY, _follow);
                 bool moved = Math.Abs(view.X - _lastView.X) > 0.0005 || Math.Abs(view.Y - _lastView.Y) > 0.0005 || Math.Abs(view.Zoom - _lastView.Zoom) > 0.001;
                 if (moved || force)
                 {
@@ -536,6 +578,7 @@ namespace TournamentTracker.App.Broadcast
                     Clips = _clips.AsEnumerable().Reverse().Take(30).Select(x => new
                     {
                         x.Id, x.Lobby, x.Title, x.State, x.Problem, x.CardId, x.Rule,
+                        Cam = x.CamFile != null,
                         At = x.EventAt.ToString("o"),
                         Ago = Math.Max(0, (int)(now - x.EventAt).TotalSeconds),
                     }).ToList(),
@@ -550,6 +593,8 @@ namespace TournamentTracker.App.Broadcast
                         View = new { _lastView.X, _lastView.Y, _lastView.Zoom },
                         ZoomBy = Math.Round(_zoomBy, 2),
                         Follow = _follow && _panX == 0 && _panY == 0,
+                        c.Angle,
+                        HasCam = c.CamFile != null,
                     },
                 };
             }

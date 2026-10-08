@@ -255,3 +255,80 @@ public class ReplayObsTests : IAsyncLifetime
         desk.Dispose();
     }
 }
+
+/// <summary>The player camera in OBS: its own source and scene, a replay buffer, and a second replay angle.</summary>
+public class PlayerCamReplayTests : IAsyncLifetime
+{
+    private readonly TempDir _dir = new();
+    private FakeObs _obs = null!;
+    private CasterDesk _desk = null!;
+    private ObsDirector _director = null!;
+    private ReplayManager _replays = null!;
+
+    public async Task InitializeAsync()
+    {
+        _obs = new FakeObs();
+        _desk = new CasterDesk(null, null, new PriorityConfig());
+        _director = new ObsDirector(Path.Combine(_dir.Path, ObsSettings.FileName), _desk, () => new List<(string, string)> { ("LJ", "https://vdo.ninja/?view=a&password=x&noaudio&cleanoutput") })
+        {
+            CamFeeds = () => new List<(string, string)> { ("LJ", "https://vdo.ninja/?view=ac&password=x&noaudio&cleanoutput") },
+        };
+        _director.Settings.Replay.PostSeconds = 0.2;
+        _desk.Switch = air => _director.ApplyAsync(air).Wait();
+        _replays = new ReplayManager(_desk, _director, loop: false);
+        await _director.ConnectAsync("127.0.0.1", _obs.Port, "secret");
+        Send("snap", null, new { phase = "ingame", crewAlive = 7, impAlive = 2, taskPct = 30, spec = new { cam = true, camOn = 1 } });
+        _desk.Show("LJ");
+    }
+
+    public async Task DisposeAsync()
+    {
+        _replays.Dispose();
+        await _director.DisposeAsync();
+        await _obs.DisposeAsync();
+        _desk.Dispose();
+        _dir.Dispose();
+    }
+
+    private void Send(string type, string? kind, object data)
+    {
+        var msg = JsonSerializer.SerializeToElement(data).EnumerateObject().ToDictionary(p => p.Name, p => (object?)p.Value);
+        msg["type"] = type; msg["lobby"] = "LJ"; msg["round"] = 1; msg["game"] = "LJ-1";
+        msg["t"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        if (kind != null) msg["kind"] = kind;
+        _desk.Apply(JsonSerializer.Serialize(msg));
+    }
+
+    [Fact]
+    public async Task The_camera_has_its_own_scene_and_buffer_and_a_kill_replay_opens_on_it()
+    {
+        // Only in the TT Player Cam scene, under the lobby's picture, muted, with its own replay buffer.
+        Assert.Equal("TT Cam LJ", _obs.Scenes["TT Player Cam"][0].Source);
+        Assert.DoesNotContain(_obs.Scenes["TT Full"], i => i.Source == "TT Cam LJ");
+        Assert.True(_obs.Filters.ContainsKey("TT Cam LJ|TT Replay"));
+
+        // On stream: the camera full screen, the whole map small in the corner.
+        _desk.Show("LJ", "cam");
+        Assert.Equal("TT Player Cam", _obs.Program);
+        var cam = _obs.Scenes["TT Player Cam"].Single(i => i.Source == "TT Cam LJ");
+        var map = _obs.Scenes["TT Player Cam"].Single(i => i.Source == "TT Lobby LJ");
+        Assert.True(cam.Enabled && map.Enabled);
+        Assert.True(map.W < 1920 / 3.0, $"map width {map.W}");
+
+        // The camera was on the killer: the replay opens on the close-up, and P goes to the whole map.
+        Send("event", "kill", new { killer = new { id = 1, name = "Purple", imp = true }, victim = new { id = 2, name = "Lime" }, room = "Electrical", winning = false });
+        string id = JsonSerializer.SerializeToElement(_desk.State(), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
+            .GetProperty("cards").EnumerateArray().Single(c => c.GetProperty("rule").GetString() == "kill").GetProperty("id").GetString()!;
+        var card = _desk.Find(id)!;
+        var clip = await _replays.SaveAsync(card);
+        Assert.Equal("ready", clip.State);
+        Assert.Equal("cam", clip.Angle);
+        Assert.Contains("Cam", clip.File);
+        await _replays.PlayAsync(clip.Id);
+        Assert.Equal(clip.File, _obs.MediaFile);
+        Assert.Equal("Whole map angle.", await _replays.ControlAsync("angle"));
+        Assert.Contains("Lobby", _obs.MediaFile);
+        Assert.Equal("wide", clip.Angle);
+        Assert.Equal("Player camera angle.", await _replays.ControlAsync("angle"));
+    }
+}

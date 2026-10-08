@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.37**, a beta.
+The current release is **v0.1.38**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -350,10 +350,10 @@ dead in the player record the host keeps, and the host's own game makes them a g
 game starts, and after every meeting, the referee's ghost is parked off the edge of the map, where
 no player (not even a dead one) ever sees it, and isn't drawn on the host's own screen either. The
 host's camera stays over the middle of the map, zoomed all the way out; the **arrow keys** (or
-**WASD**) move it and **Home** brings it back. No room name shows at the top. The last few chat
-messages are always on screen, small, in the bottom-left corner (the **mini chat**): it goes
-away in meetings and turns see-through while a player walks behind it; the chat button still
-opens the full chat to type. Their task bar is smaller
+**WASD**) move it and **Home** brings it back. No room name shows at the top. In meetings the
+newest chat messages show along the bottom edge of the screen, below the name plates (the **mini
+chat**), so the chat doesn't have to be opened to follow the vote; it isn't shown during play.
+The chat button still opens the full chat to type. Their task bar is smaller
 and always shows the real progress, whatever the lobby's task bar setting. The host turns down any kill on the
 referee. In meetings the referee's card is taken off the list. That happens on the host's screen and on every player's game that has the
 mod; there the referee isn't drawn on the map either. A game without the mod lists them as a dead
@@ -432,14 +432,22 @@ stream.
   a stream. **Settings → Updates** says when a new version is out (it looks every 30 minutes, or
   **Check now**); **Update** downloads it and **Restart Red Alert** starts it. Hosts never need
   to reinstall anything for a broadcast change.
-* **Player camera (Settings):** a second picture from each host's game that follows one player
-  up close, sharp at 720p and 30 frames a second, sent with the host's game. Turn on **Player
-  cameras** in Settings; each lobby card then has **🎥 Player cam** (puts it on stream) and who it
-  follows: a player you pick, or by itself (an impostor closing in on someone alone, else whoever
-  is busy; a pick is kept a few seconds after they die, to see it). Red Alert adds a **TT Player
-  Cam** scene to OBS: the camera full screen, the lobby's whole map small in the bottom right.
-  It's drawn on the host's PC off screen: the host never sees it and can't change it. It costs
-  each host a little more upload (about one more video stream).
+* **Player camera:** a second picture from each host's game that follows one player up close,
+  sharp at 720p and up to 30 frames a second, sent with the host's game. It's on by default
+  (Settings → **Player cameras** turns it off). Each lobby card has **🎥 Player cam** (puts it on
+  stream) and who it follows: a player you pick, or by itself (an impostor closing in on someone
+  alone, else whoever is busy; a pick is kept a few seconds after they die, to see it). Red Alert
+  adds a **TT Player Cam** scene to OBS: the camera full screen, the lobby's whole map small in
+  the bottom right. Switching to it, back, and from player to player is a straight cut (no
+  swoosh). How it gets to you: the host's mod draws it off screen (the host never sees it and
+  can't change it) and hands each picture to The Button, whose *Send my game to the caster* page
+  sends it as its own VDO.Ninja stream next to the game and the lobby voice; OBS's TT Cam source
+  shows that stream. It costs each host about one more video stream of upload, and only while
+  they send their game.
+* **Player camera replays:** the camera keeps its last 30 s in OBS like the lobbies, so every
+  replay saved while it was on has a second angle. A kill the camera was following opens on the
+  close-up; **🎥 Player cam / 🗺 Whole map** in the replay controls (key **P**) switches angle at
+  the same moment.
 * **Stream Deck (Settings):** a link per action for the Stream Deck's **Website** action (tick
   **GET request in background**): a lobby full screen (**lobby/1**, **lobby/2**…), next and
   previous lobby, where the action is, quad, grid, the player camera (by itself, next and

@@ -66,6 +66,8 @@ namespace TournamentTracker.App.Broadcast
             ["panDown"] = "KeyS",
             ["follow"] = "KeyF",
             ["live"] = "KeyL",
+            // The other angle: the player camera, or the whole map.
+            ["angle"] = "KeyP",
             // Spectator view of the lobby on stream (slot 1).
             ["specLit"] = "KeyM",
             ["specVision"] = "KeyV",
@@ -192,6 +194,28 @@ namespace TournamentTracker.App.Broadcast
         public List<TrackSample> Samples { get; set; } = new List<TrackSample>();
         /// <summary>"saving", "ready", or "failed".</summary>
         public string State { get; set; } = "saving";
+        /// <summary>
+        /// The other angle: the lobby's player camera at the same moment (saved with the wide clip
+        /// when the camera was on), and who it was following. <see cref="File"/>, <see cref="Duration"/>
+        /// and <see cref="SavedAt"/> are always the angle on screen; switching swaps them with these.
+        /// </summary>
+        public string? CamFile { get; set; }
+        public double? CamDuration { get; set; }
+        public DateTime? CamSavedAt { get; set; }
+        public int? CamPlayerId { get; set; }
+        /// <summary>"wide" (the host's whole-map screen, cropped to the play) or "cam" (the player camera, full frame).</summary>
+        public string Angle { get; set; } = "wide";
+
+        /// <summary>Puts the other angle on (swaps the files, lengths and save times). False if there's only one.</summary>
+        public bool SwapAngle()
+        {
+            if (CamFile == null) return false;
+            (File, CamFile) = (CamFile, File);
+            (Duration, CamDuration) = (CamDuration, Duration);
+            (SavedAt, CamSavedAt) = (CamSavedAt, SavedAt);
+            Angle = Angle == "cam" ? "wide" : "cam";
+            return true;
+        }
         public string? Problem { get; set; }
 
         /// <summary>A moment of the clip (seconds from its start) on the caster's clock.</summary>

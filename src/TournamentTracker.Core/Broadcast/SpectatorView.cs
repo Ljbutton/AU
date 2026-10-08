@@ -28,7 +28,10 @@ namespace TournamentTracker.Broadcast
         /// The player camera: a second picture, sent with the host's game, that follows one player
         /// up close (turned on from Red Alert; the host has no switch for it).
         /// </summary>
-        public bool Cam { get; set; }
+        [System.Text.Json.Serialization.JsonIgnore]
+        public bool Cam { get => !CamOff; set => CamOff = !value; }
+        /// <summary>Saved as "off" so it's on by default, also for a game saved before it existed.</summary>
+        public bool CamOff { get; set; }
         /// <summary>Who the player camera follows, or null to pick by itself (an impostor closing in, else whoever is busy).</summary>
         public int? CamPlayer { get; set; }
     }
