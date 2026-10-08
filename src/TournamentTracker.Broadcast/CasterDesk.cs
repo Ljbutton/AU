@@ -178,6 +178,7 @@ namespace TournamentTracker.App.Broadcast
             Sponsors = new SponsorBook(dataFolder, _clock) { Hold = () => Simulating };
             Alerts = new AlertQueue(_clock, dataFolder == null ? null : System.IO.Path.Combine(dataFolder, "alerts.json"));
             Graphics = new GraphicsQueue(_clock);
+            Replays = new GameReplays(dataFolder == null ? null : System.IO.Path.Combine(dataFolder, "game-replays"), clock);
             if (config != null) _config = () => config;
             else
             {
@@ -268,6 +269,12 @@ namespace TournamentTracker.App.Broadcast
                         string? problem = item.TryGetProperty("problem", out var pr) && pr.ValueKind == JsonValueKind.String ? pr.GetString() : null;
                         Health.Audio(lobby, B("on") && B("sending"), N("voiceDb"), N("gameDb"), B("on") ? problem : null);
                     }
+                    return;
+                }
+                if (type == TournamentTracker.Broadcast.FeedProtocol.Types.Replay)
+                {
+                    // Red Alert's own copy of the game's replay (kept even if the host drops out).
+                    if (lobby.Length > 0) Replays.Add(lobby, item, IsSimLobby(lobby));
                     return;
                 }
                 if (type == "track")
@@ -405,6 +412,7 @@ namespace TournamentTracker.App.Broadcast
             Alerts.Forget(sim);
             Archive.Forget(sim);
             Tables.Forget(sim);
+            Replays.Forget(sim);
             lock (_lock)
             {
                 foreach (var c in _cards.Where(c => sim(c.Lobby)).ToList()) { _cards.Remove(c); _byPlay.Remove(c.PlayKey); }
@@ -709,6 +717,8 @@ namespace TournamentTracker.App.Broadcast
 
         /// <summary>Tables, player cards and storyline notes take turns on stream.</summary>
         public GraphicsQueue Graphics { get; }
+        /// <summary>Every game's replay as the hosts send it: watchable even if a host drops out before posting it.</summary>
+        public GameReplays Replays { get; }
         /// <summary>After a game: the lobby's table goes straight into the queue (the old way) instead of asking.</summary>
         public Func<bool> AfterGameAuto { get; set; } = () => false;
         /// <summary>The after-game table is switched on in Graphics at all.</summary>

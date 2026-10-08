@@ -384,6 +384,16 @@ namespace TournamentTracker.App.Broadcast
             string query = path.Contains('?') ? path.Substring(path.IndexOf('?') + 1) : "";
             if (method == "GET" && (route == "/" || route == "/index.html"))
                 return Text(200, "text/html; charset=utf-8", Resource("ui/caster.html").Replace("__APP_TOKEN__", Token));
+            // The replay viewer (the same as The Button's): it loads a kept game with ?src=.
+            if (method == "GET" && route == "/viewer")
+                return Text(200, "text/html; charset=utf-8",
+                    "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Replay</title></head><body style=\"margin:0\">"
+                    + Resource("ui/viewer-body.html") + "</body></html>");
+            // The replay viewer (the same as The Button's): it loads a kept game with ?src=.
+            if (method == "GET" && route == "/viewer")
+                return Text(200, "text/html; charset=utf-8",
+                    "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Replay</title></head><body style=\"margin:0\">"
+                    + Resource("ui/viewer-body.html") + "</body></html>");
             var font = Regex.Match(route, @"^/fonts/([a-z0-9-]+\.woff2)$");
             if (method == "GET" && font.Success)
             {
@@ -433,7 +443,7 @@ namespace TournamentTracker.App.Broadcast
                         twitch = _twitch?.State(),
                         broadcast = _broadcast == null ? null : new { url = _caster?.Url == null ? null : _caster.Url + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem, alerts = _desk.Alerts.Settings, alertsWaiting = _desk.Alerts.Waiting, queue = _desk.Graphics.State(), afterGame = _desk.PromptState(), afterGameAuto = _broadcast.Settings.Current.AfterGameAuto, hold = _broadcast.Settings.Current.GraphicSeconds },
                         names = _caster!.DataLinks().ToDictionary(d => d.Lobby, d => _desk.NamesFor(d.Lobby)), receivers = _caster.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList(),
-                        previews = Previews(), twitchHandles = _desk.Board.Ranking().ToDictionary(r => r.Lobby, r => _desk.TwitchOf(r.Lobby)) });
+                        previews = Previews(), gameReplays = _desk.Replays.List(), twitchHandles = _desk.Board.Ranking().ToDictionary(r => r.Lobby, r => _desk.TwitchOf(r.Lobby)) });
                 case ("POST", "/app/admin/feedin"):
                     if (_desk == null) return Ok(new { ok = false });
                 {
@@ -835,6 +845,14 @@ namespace TournamentTracker.App.Broadcast
                     if (Arg("scope").Length > 0) _desk.StandingsScope = Arg("scope") is "overall" or "round" ? Arg("scope") : "lobby";
                     if (Arg("show").Length > 0) _broadcast?.Settings.Set("standings", Arg("show") == "true");
                     return Ok(new { ok = true, message = Arg("show") == "true" ? "Standings on stream." : Arg("show") == "false" ? "Standings off stream." : $"Standings: {(_desk.StandingsScope == "overall" ? "whole tournament" : _desk.StandingsScope == "round" ? "the round, every lobby" : "the lobby on stream")}." });
+                case ("GET", "/app/admin/gamereplays"):
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    return Ok(new { games = _desk.Replays.List() });
+                case ("GET", "/app/admin/gamereplay"):
+                {
+                    var file = _desk?.Replays.File(HttpRequest.Query(query, "id"));
+                    return file == null ? Text(404, "text/plain", "Not found") : (200, "application/octet-stream", file);
+                }
                 case ("POST", "/app/admin/multiview"):
                 {
                     if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });

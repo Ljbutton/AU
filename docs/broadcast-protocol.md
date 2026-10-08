@@ -37,7 +37,7 @@ Among Us + mod ──(local control port, /feed)──▶ host's Button ──(s
 | Field | Type | |
 |---|---|---|
 | `v` | int | protocol version (1) |
-| `type` | string | `event`, `snap`, `track` (from the mod); `voice`, `health`, `skip`, `host` (from the host's page) |
+| `type` | string | `event`, `snap`, `track`, `replay` (from the mod); `voice`, `health`, `skip`, `host` (from the host's page) |
 | `kind` | string | events only: see below |
 | `lobby` | string | the host's lobby label, else the lobby code |
 | `round` | int | tournament round |
@@ -92,6 +92,21 @@ The caster's tools show impostors; nothing here ever goes to players.
 
 `samples`: `[{t, p: [[id, x, y, inVent], …]}, …]`: x and y in thousandths of the host's screen
 (may be off screen), sampled 5 times a second.
+
+## The game's replay (`type: "replay"`, every 2 seconds while a game runs, and once more when it ends)
+
+Red Alert keeps its own copy of each game's replay from these, so it can be watched even if the
+host's PC drops before the game is posted.
+
+| Field | |
+|---|---|
+| `id`, `name`, `tournament`, `map`, `mapId` | the game (`id` is the replay's id, e.g. `LJ-3-20261007-191500`) |
+| `players` | `[{id, name, color, impostor}]`: the frames' columns, in this order |
+| `from` | the number of the first frame in `frames` (frames are numbered from 0 for the game) |
+| `frames` | `[[t, x, y, state, x, y, state, …], …]`: seconds into the game, then each player's map position and state (1 dead, 2 vent, 4 disconnected, 8 not seen), about 10 a second |
+| `events` | `[{t, kind, text}]`: the game's timeline since the last message |
+| `geometry` | once: `{walls, rooms, vents}` (not the map picture) |
+| `end` | in the last one: `{winner, endReason, voided, points: [{id, points}]}` |
 
 ## From the host's page
 
