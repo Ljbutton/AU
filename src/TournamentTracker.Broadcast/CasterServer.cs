@@ -101,6 +101,14 @@ namespace TournamentTracker.App
         /// Each sending lobby's voice stream (Part 11): its referee's Discord and game sound, sent by
         /// their Button as its own VDO.Ninja stream (the video's id plus "v"), no picture.
         /// </summary>
+        /// <summary>
+        /// Each lobby's player camera link, for every lobby sending its game: OBS keeps it connected, and
+        /// it shows pictures once the player camera is on (Red Alert turns it on; the host's page then sends it).
+        /// </summary>
+        public List<(string Lobby, string Url)> CamLinks() => _org.LiveLobbies()
+            .Select(l => (l.Label, Organizer.CamUrl(l.Data))).Where(x => x.Item2 != null)
+            .Select(x => (x.Label, x.Item2!)).ToList();
+
         public List<(string Lobby, string Url)> VoiceLinks() => _org.LiveLobbies()
             .Select(l => (l.Label, Organizer.VoiceUrl(l.Data))).Where(x => x.Item2 != null)
             .Select(x => (x.Label, x.Item2!)).ToList();

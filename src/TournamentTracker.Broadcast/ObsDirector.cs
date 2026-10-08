@@ -24,9 +24,13 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Connect when The Button starts (after the first successful connect).</summary>
         public bool AutoConnect { get; set; }
         /// <summary>The scenes The Button builds and switches between: full screen, 2-up, quad.</summary>
-        public Dictionary<string, string> Scenes { get; set; } = new Dictionary<string, string> { ["full"] = "TT Full", ["2up"] = "TT 2-up", ["4up"] = "TT Quad", ["grid"] = "TT Grid", ["break"] = "TT Sponsor Break", ["intermission"] = "TT Intermission", ["slate"] = "TT Be Right Back" };
+        public Dictionary<string, string> Scenes { get; set; } = new Dictionary<string, string> { ["full"] = "TT Full", ["2up"] = "TT 2-up", ["4up"] = "TT Quad", ["grid"] = "TT Grid", ["break"] = "TT Sponsor Break", ["intermission"] = "TT Intermission", ["slate"] = "TT Be Right Back", ["cam"] = "TT Player Cam" };
         /// <summary>Each lobby's VDO.Ninja source is called this plus the lobby name.</summary>
         public string SourcePrefix { get; set; } = "TT Lobby ";
+        /// <summary>Each lobby's player camera source (only in the TT Player Cam scene) is called this plus the lobby name.</summary>
+        public string CamPrefix { get; set; } = "TT Cam ";
+        /// <summary>Lobby → its player camera source in OBS, as built.</summary>
+        public Dictionary<string, string> CamSources { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         /// <summary>
         /// The bitrate OBS asks each host's VDO.Ninja video for (kbps; 0 = VDO.Ninja's own, about 2500).
         /// Higher keeps the picture sharp when a replay zooms in. Only OBS's own copy asks for it, not
@@ -61,6 +65,7 @@ namespace TournamentTracker.App.Broadcast
                 {
                     var s = JsonSerializer.Deserialize<ObsSettings>(File.ReadAllText(path), Json) ?? new ObsSettings();
                     s.Sources = new Dictionary<string, string>(s.Sources ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
+                    s.CamSources = new Dictionary<string, string>(s.CamSources ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
                     s.Renamed ??= new Dictionary<string, string>();
                     s.Replay ??= new ReplaySettings();
                     s.Swoosh ??= new SwooshSettings();
@@ -127,6 +132,8 @@ namespace TournamentTracker.App.Broadcast
         private bool _wantConnected;
 
         public ObsSettings Settings { get; private set; }
+        /// <summary>Each lobby's player camera link (only lobbies whose host sends one).</summary>
+        public Func<IReadOnlyList<(string Lobby, string Url)>>? CamFeeds { get; set; }
         public double Width { get; private set; } = 1920;
         public double Height { get; private set; } = 1080;
         public string? Problem { get; private set; }
@@ -261,6 +268,12 @@ namespace TournamentTracker.App.Broadcast
                             boxes.Add(new Box(gap + c * (bw + gap), gap + r * (bh + gap), bw, bh));
                     return boxes;
                 }
+                case "cam":
+                {
+                    // The player camera fills the screen (its own source); the lobby's whole map sits small in the bottom right.
+                    double bw = Math.Round(w * 0.27), bh = Math.Round(bw * 9 / 16), m = Math.Round(w * 0.015);
+                    return new List<Box> { new Box(w - bw - m, h - bh - m, bw, bh) };
+                }
                 case "break":
                 {
                     // The lobby on the left two thirds; the sponsor's panel (drawn by the graphics app) on the right.
@@ -347,6 +360,7 @@ namespace TournamentTracker.App.Broadcast
                         _sourceProblems[lobby] = (e.Message, DateTime.UtcNow + SourceRetry);
                     }
                 }
+                if (await AddCamSourcesAsync(obs, inputs).ConfigureAwait(false)) changed = newSources = true;
                 if (changed) Save();
             }
             finally { _busy.Release(); }
@@ -407,6 +421,26 @@ namespace TournamentTracker.App.Broadcast
                 var items = await ItemsAsync(obs, scene).ConfigureAwait(false);
                 foreach (var item in items)
                 {
+                    // The player camera scene: only the on-air lobby's camera shows, full screen, under everything.
+                    if (CamLobbyOf(item.Source) is string camLobby)
+                    {
+                        bool showCam = air.Layout == "cam" && string.Equals(camLobby, air.Slots.FirstOrDefault(), StringComparison.OrdinalIgnoreCase);
+                        if (showCam)
+                            await obs.RequestAsync("SetSceneItemTransform", new
+                            {
+                                sceneName = scene,
+                                sceneItemId = item.Id,
+                                sceneItemTransform = new
+                                {
+                                    positionX = 0.0, positionY = 0.0, alignment = 5, rotation = 0.0,
+                                    boundsType = "OBS_BOUNDS_SCALE_INNER", boundsAlignment = 0, boundsWidth = Width, boundsHeight = Height,
+                                    cropLeft = 0, cropRight = 0, cropTop = 0, cropBottom = 0,
+                                },
+                            }).ConfigureAwait(false);
+                        if (item.Enabled != showCam)
+                            await obs.RequestAsync("SetSceneItemEnabled", new { sceneName = scene, sceneItemId = item.Id, sceneItemEnabled = showCam }).ConfigureAwait(false);
+                        continue;
+                    }
                     string? lobby = LobbyOf(item.Source);
                     if (lobby == null) continue;                     // not ours: leave it alone
                     int slot = air.Slots.FindIndex(s => string.Equals(s, lobby, StringComparison.OrdinalIgnoreCase));
@@ -454,6 +488,52 @@ namespace TournamentTracker.App.Broadcast
             finally { _busy.Release(); }
             // The voice follows the picture.
             await SetVoicesAsync(air).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// A player camera source for each lobby whose host sends one, in the TT Player Cam scene only,
+        /// at the bottom (the lobby's own picture and the graphics go over it). True if any changed.
+        /// </summary>
+        private async Task<bool> AddCamSourcesAsync(ObsClient obs, HashSet<string> inputs)
+        {
+            var feeds = CamFeeds?.Invoke();
+            if (feeds == null || !Settings.Scenes.TryGetValue("cam", out var scene)) return false;
+            bool changed = false;
+            foreach (var (lobby, feedUrl) in feeds)
+            {
+                if (!_desk.Simulating && CasterDesk.IsSimLobby(lobby)) continue;
+                try
+                {
+                    string url = WithBitrate(feedUrl), root = Settings.CamPrefix + lobby;
+                    string current = Settings.CamSources.TryGetValue(lobby, out var m) && m.Length > 0 ? m : root;
+                    var (name, ids, added) = await EnsureInputAsync(obs, root, current, new[] { scene }, inputs, "browser_source",
+                        new { url, width = 1920, height = 1080, reroute_audio = true, shutdown = false, restart_when_active = false, fps_custom = false },
+                        enabled: false,
+                        existing: async n =>
+                        {
+                            var cur = await obs.RequestAsync("GetInputSettings", new { inputName = n }).ConfigureAwait(false);
+                            string? was = cur.TryGetProperty("inputSettings", out var st) && st.TryGetProperty("url", out var u) ? u.GetString() : null;
+                            if (was != url) await obs.RequestAsync("SetInputSettings", new { inputName = n, inputSettings = new { url } }).ConfigureAwait(false);
+                        }).ConfigureAwait(false);
+                    if (added && ids.TryGetValue(scene, out var id))
+                        await obs.RequestAsync("SetSceneItemIndex", new { sceneName = scene, sceneItemId = id, sceneItemIndex = 0 }).ConfigureAwait(false);
+                    if (!Settings.CamSources.TryGetValue(lobby, out var mapped) || mapped != name) { Settings.CamSources[lobby] = name; changed = true; }
+                    if (added) changed = true;
+                    try { await obs.RequestAsync("SetInputMute", new { inputName = name, inputMuted = true }).ConfigureAwait(false); } catch (ObsException) { }
+                }
+                catch (Exception e) { CamProblem = $"Player camera for {lobby}: {e.Message}"; }
+            }
+            return changed;
+        }
+
+        /// <summary>Why a player camera source couldn't be made (shown on the OBS page), or null.</summary>
+        public string? CamProblem { get; private set; }
+
+        private string? CamLobbyOf(string source)
+        {
+            if (_dead.Contains(source)) return null;
+            foreach (var (lobby, name) in Settings.CamSources) if (name == source) return lobby;
+            return source.StartsWith(Settings.CamPrefix, StringComparison.Ordinal) ? source.Substring(Settings.CamPrefix.Length) : null;
         }
 
         private string? LobbyOf(string source)
@@ -584,7 +664,7 @@ namespace TournamentTracker.App.Broadcast
             Checks = Connected ? Checks : new List<SetupCheck>(),
             CheckedAt = CheckedAt?.ToString("o"),
             DesktopAudioOn = Connected ? DesktopAudioOn : new List<string>(),
-            SourceRecord, ReplayProblem,
+            SourceRecord, ReplayProblem, CamProblem,
             // Lobbies on stream whose picture isn't in OBS, and why (the Live desk warns, with Fix).
             Missing = Connected ? _desk.OnAir.Slots.Where(l => l != null).Distinct(StringComparer.OrdinalIgnoreCase)
                 .Select(l => (Lobby: l!, Why: SourceIssue(l!))).Where(x => x.Why != null).ToDictionary(x => x.Lobby, x => x.Why!) : new Dictionary<string, string>(),

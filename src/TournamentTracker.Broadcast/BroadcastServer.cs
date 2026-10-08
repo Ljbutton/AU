@@ -24,6 +24,10 @@ namespace TournamentTracker.App.Broadcast
         public string? AdminCode { get; set; }
         /// <summary>Mute every lobby voice from any window (Red Alert doesn't need to be in front).</summary>
         public string MuteHotkey { get; set; } = Hotkey.DefaultMuteAll;
+        /// <summary>The Stream Deck links' key (Settings → Stream Deck), kept so the buttons keep working.</summary>
+        public string? DeckKey { get; set; }
+        /// <summary>Player cameras on for every lobby.</summary>
+        public bool CamOn { get; set; }
 
         public static BroadcastAppSettings Load(string file)
         {
@@ -47,6 +51,10 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Opens a folder, file or web link with Windows.</summary>
         public Action<string> Open { get; set; } = _ => { };
         public string Version { get; set; } = "";
+        /// <summary>The running RedAlert.exe, so Settings can update it. Null: no updating (tests, other platforms).</summary>
+        public string? ExePath { get; set; }
+        /// <summary>Starts the new version and closes this one.</summary>
+        public Action Restart { get; set; } = () => { };
         /// <summary>The caster pages' port (OBS points at it); 0 picks any free one (tests).</summary>
         public int CasterPort { get; set; } = CasterServer.DefaultPort;
         /// <summary>This app's own screen; 0 picks any free one. Fixed, so a producer's browser can find it later.</summary>
@@ -59,7 +67,7 @@ namespace TournamentTracker.App.Broadcast
     /// Twitch. Every /app/ call needs the per-launch token the page was given, so no website can
     /// drive it. Unlocked with the tournament's administration code.
     /// </summary>
-    public sealed class BroadcastServer : IDisposable
+    public sealed partial class BroadcastServer : IDisposable
     {
         public const int DefaultPort = 8768;
         private static readonly JsonSerializerOptions Json = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -157,7 +165,7 @@ namespace TournamentTracker.App.Broadcast
                 // The overlay, video and multiview pages follow what's on stream (unless pinned).
                 caster.Follow = () => desk.OnAir.Slots.FirstOrDefault(x => x != null);
                 desk.AirChangedInObs += _ => caster.Refresh();
-                var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(caster, desk)) { VoiceFeeds = () => VoiceFeeds(caster, desk), MuteHotkey = MuteHotkey };
+                var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(caster, desk)) { VoiceFeeds = () => VoiceFeeds(caster, desk), MuteHotkey = MuteHotkey, CamFeeds = () => caster.CamLinks() };
                 obs.ImpostorTagsOn = () => _broadcast?.Settings.Current.Elements.GetValueOrDefault("impostorTags") == true;
                 // The overlay and video page follow the lobby in the first slot; OBS (when connected) shows the whole layout.
                 desk.Switch = air =>
@@ -313,6 +321,8 @@ namespace TournamentTracker.App.Broadcast
                 App = _env.Version,
                 Admin = _organizer == null ? null : new { _organizer.Tournament },
                 HotkeyProblem,
+                Update = UpdateState(),
+                Cam = _desk == null ? null : CamState(),
             };
         }
 
@@ -389,11 +399,6 @@ namespace TournamentTracker.App.Broadcast
                 return Text(200, "text/html; charset=utf-8",
                     "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Replay</title></head><body style=\"margin:0\">"
                     + Resource("ui/viewer-body.html") + "</body></html>");
-            // The replay viewer (the same as The Button's): it loads a kept game with ?src=.
-            if (method == "GET" && route == "/viewer")
-                return Text(200, "text/html; charset=utf-8",
-                    "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Replay</title></head><body style=\"margin:0\">"
-                    + Resource("ui/viewer-body.html") + "</body></html>");
             var font = Regex.Match(route, @"^/fonts/([a-z0-9-]+\.woff2)$");
             if (method == "GET" && font.Success)
             {
@@ -406,6 +411,8 @@ namespace TournamentTracker.App.Broadcast
                 var png = ResourceBytes($"ui/crew/{crew.Groups[1].Value}.png");
                 return png.Length > 0 ? (200, "image/png", png) : Text(404, "text/plain", "Not found");
             }
+            // Stream Deck links: their own key (they can't send the app's header, and must survive restarts).
+            if (route.StartsWith("/deck/", StringComparison.Ordinal) && (method == "GET" || method == "POST")) return Deck(route, query);
             if (!route.StartsWith("/app/", StringComparison.Ordinal)) return Text(404, "text/plain", "Not found");
 
             headers.TryGetValue("x-app-token", out var token);
@@ -418,6 +425,11 @@ namespace TournamentTracker.App.Broadcast
             switch ((method, route))
             {
                 case ("GET", "/app/state"): return Ok(StateNow());
+                case ("POST", "/app/update"): return Ok(StartUpdate(Arg("check") == "true"));
+                case ("POST", "/app/restart"):
+                    if (_updateReady == null) return Ok(new { ok = false, message = "No update is waiting." });
+                    _ = Task.Run(async () => { await Task.Delay(300).ConfigureAwait(false); _env.Restart(); });
+                    return Ok(new { ok = true, message = "Restarting Red Alert…" });
                 case ("POST", "/app/admin/code"): return Ok(SetAdminCode(Arg("code")));
                 case ("GET", "/app/admin"):
                 {
@@ -755,6 +767,19 @@ namespace TournamentTracker.App.Broadcast
                     string cmd = Arg("command");
                     if (_desk == null || !cmd.StartsWith("spec ", StringComparison.Ordinal)) return Ok(new { ok = false });
                     return Ok(new { ok = _desk.SimSpec(Arg("lobby"), cmd) });
+                }
+                case ("GET", "/app/admin/specout"): return Ok(TakeSpecOut());
+                case ("GET", "/app/admin/deck"): return Ok(DeckLinks());
+                case ("POST", "/app/admin/deck"):
+                    _settings.DeckKey = null;
+                    DeckKey();
+                    return Ok(new { ok = true, message = "New Stream Deck key: copy the links again (the old ones stop working)." });
+                case ("POST", "/app/admin/cam"):
+                {
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    if (Arg("all") is "on" or "off") return Ok(new { ok = true, message = CamAll(Arg("all") == "on") });
+                    var (ok, message) = Cam(Arg("lobby"), Arg("follow"));
+                    return Ok(new { ok, message });
                 }
                 case ("POST", "/app/admin/roster"):
                 {

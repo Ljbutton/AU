@@ -167,6 +167,17 @@ namespace TournamentTracker.Plugin.Patches
         }
     }
 
+    // The referee's mini chat: every message this game shows in its chat.
+    [HarmonyPatch(typeof(ChatController), nameof(ChatController.AddChat))]
+    internal static class MiniChatPatch
+    {
+        public static void Postfix(PlayerControl __0, string __1)
+        {
+            try { MiniChat.Add(__0, __1); }
+            catch (Exception) { }
+        }
+    }
+
     [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.MurderPlayer))]
     internal static class KillPatch
     {

@@ -174,6 +174,15 @@ namespace TournamentTracker.App
             return $"{TournamentSession.VdoNinja}?view={parts[0]}&password={parts[1]}&noaudio&cleanoutput";
         }
 
+        /// <summary>A lobby's player camera link (the host's second picture, following one player). Public for tests.</summary>
+        public static string? CamUrl(JsonElement d)
+        {
+            var video = VideoUrl(d);
+            if (video == null) return null;
+            var m = System.Text.RegularExpressions.Regex.Match(video, @"view=([a-z0-9]+)&");
+            return m.Success ? video.Replace("view=" + m.Groups[1].Value + "&", "view=" + m.Groups[1].Value + "c&") : null;
+        }
+
         /// <summary>A lobby's voice stream link. Public for tests.</summary>
         public static string? VoiceUrl(JsonElement d)
         {

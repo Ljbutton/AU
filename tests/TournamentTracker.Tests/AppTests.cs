@@ -207,6 +207,27 @@ public class AppTests : IDisposable
     }
 
     [Fact]
+    public async Task One_Update_button_says_when_everything_is_up_to_date_and_the_camera_relay_answers_empty()
+    {
+        var env = new AppEnvironment
+        {
+            SettingsFile = Path.Combine(_dir.Path, "app", "app.json"), SteamRoot = Path.Combine(_dir.Path, "none"),
+            EpicManifests = Path.Combine(_dir.Path, "none"), Fallbacks = Array.Empty<string>(), Downloads = Path.Combine(_dir.Path, "Downloads"),
+        };
+        using var app = new AppServer(env, new HttpClient(new FakeHttp()));
+        using var http = new HttpClient { BaseAddress = new Uri(app.Url) };
+        http.DefaultRequestHeaders.Add("X-App-Token", app.Token);
+        var r = await http.PostAsync("app/updateall", new StringContent("{}"));
+        var said = JsonDocument.Parse(await r.Content.ReadAsStringAsync()).RootElement;
+        Assert.False(said.GetProperty("ok").GetBoolean());
+        Assert.Equal("Everything is up to date.", said.GetProperty("message").GetString());
+        Assert.False((await Get(http, "app/state")).GetProperty("mod").GetProperty("pending").GetBoolean());
+        // No game (or no camera on): the send page's camera worker gets an empty answer and asks again.
+        Assert.Equal(HttpStatusCode.NoContent, (await http.GetAsync("app/cam?after=0")).StatusCode);
+        Assert.False((await Get(http, "app/sendinfo")).GetProperty("cam").GetBoolean());
+    }
+
+    [Fact]
     public async Task A_32_bit_loader_is_repaired_by_itself()
     {
         string game = Game(Path.Combine(_dir.Path, "Steam", "steamapps", "common", "Among Us"), 0x8664);

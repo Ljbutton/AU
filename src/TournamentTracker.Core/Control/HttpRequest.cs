@@ -55,7 +55,7 @@ namespace TournamentTracker.Control
 
         public static async Task WriteAsync(NetworkStream stream, int status, string type, byte[] body)
         {
-            string reason = status switch { 200 => "OK", 401 => "Unauthorized", 404 => "Not Found", _ => "Error" };
+            string reason = status switch { 200 => "OK", 204 => "No Content", 401 => "Unauthorized", 404 => "Not Found", _ => "Error" };
             string head = $"HTTP/1.1 {status} {reason}\r\nContent-Type: {type}\r\nContent-Length: {body.Length}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
             var bytes = Encoding.ASCII.GetBytes(head);
             await stream.WriteAsync(bytes, 0, bytes.Length).ConfigureAwait(false);

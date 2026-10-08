@@ -47,7 +47,10 @@ namespace TournamentTracker.Plugin
             if (ReplayTheater.Active) return;
             try { using (FrameProfiler.Time(FrameProfiler.Part.OverlayLate)) SpectatorOverlay.LateUpdate(); }
             catch (Exception e) { if (!_loggedOverlay) TournamentPlugin.Logger.Error("Spectator view failed: " + e); _loggedOverlay = true; }
+            try { using (FrameProfiler.Time(FrameProfiler.Part.PlayerCam)) PlayerCamera.LateUpdate(); }
+            catch (Exception e) { if (!_loggedCam) TournamentPlugin.Logger.Error("Player camera failed: " + e); _loggedCam = true; }
         }
+        private static bool _loggedCam;
 
         public static void Update()
         {
@@ -66,7 +69,7 @@ namespace TournamentTracker.Plugin
             catch (Exception e) { if (!_loggedOverlay) TournamentPlugin.Logger.Error("Spectator view failed: " + e); _loggedOverlay = true; }
             try { using (FrameProfiler.Time(FrameProfiler.Part.Zoom)) GhostZoom.Update(); }
             catch (Exception e) { if (!_loggedError) TournamentPlugin.Logger.Error("Zoom failed: " + e); _loggedError = true; }
-            try { using (FrameProfiler.Time(FrameProfiler.Part.Referee)) { RefSlot.Update(); RefereeHider.Update(); } }
+            try { using (FrameProfiler.Time(FrameProfiler.Part.Referee)) { RefSlot.Update(); RefereeHider.Update(); MiniChat.Update(); } }
             catch (Exception e) { if (!_loggedReferee) TournamentPlugin.Logger.Error("Referee ghost failed: " + e); _loggedReferee = true; }
             try { using (FrameProfiler.Time(FrameProfiler.Part.Talking)) TalkingLights.Update(); }
             catch (Exception e) { if (!_loggedTalking) TournamentPlugin.Logger.Error("Who's talking failed: " + e); _loggedTalking = true; }

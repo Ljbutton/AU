@@ -532,10 +532,9 @@ details.advanced[open] summary h2::before{content:'▾ '}
       <p id="mod-repair" class="note bad" hidden></p>
       <p id="mod-progress" class="note good" hidden></p>
       <p id="mod-result" class="note" hidden></p>
-      <div class="row" style="margin-top:8px"><button class="b primary" id="mod-install">Install</button><button class="b" data-open="log">Open log</button></div>
-      <p class="muted" id="app-line" style="margin:10px 0 0"></p>
+      <p id="mod-pending" class="note warn" hidden>The mod updates as soon as Among Us is closed.</p>
       <p id="app-error" class="note bad" hidden style="margin-top:8px"></p>
-      <div class="row" style="margin-top:8px"><button class="b primary" id="app-restart" hidden>Restart to update</button><button class="b" id="app-update" hidden>Update now</button></div>
+      <div class="row" style="margin-top:8px"><button class="b primary" id="upd-go" hidden>Update</button><button class="b primary" id="app-restart" hidden>Restart The Button to finish</button><button class="b" id="mod-install" hidden>Reinstall the mod</button><button class="b" data-open="log">Open log</button></div>
       <div class="toggle" style="margin-top:10px"><div><b>Update automatically</b><span>New versions of The Button and the mod install by themselves (the mod while Among Us is closed).</span></div><button class="b" id="mod-auto"></button></div>
       <p class="muted" id="conn-line" style="margin:10px 0 0;font-size:12.5px"></p>
     </div>
@@ -943,6 +942,12 @@ function renderOrganiser() {
 $('game-change').addEventListener('click', () => { $('game-pick').hidden = false; $('game-input').value = S?.game?.path || ''; $('game-input').focus(); });
 $('game-save').addEventListener('click', async () => { const r = await api('POST', '/app/game', { path: $('game-input').value }); toast(r.message); if (r.ok) $('game-pick').hidden = true; refresh(); });
 $('mod-install').addEventListener('click', async () => { const r = await api('POST', '/app/install'); toast(r.message); refresh(); });
+// The one Update button: installs or repairs the mod, or updates whatever is out (The Button, the mod, or both).
+$('upd-go').addEventListener('click', async () => {
+  const m = S.mod || {};
+  const r = await api('POST', !m.installed || needsRepair(m) ? '/app/install' : '/app/updateall');
+  toast(r.message); refresh();
+});
 $('twitch-form').addEventListener('submit', async e => {
   e.preventDefault();
   const r = await api('POST', '/app/twitch', { name: $('twitch-name').value });
@@ -965,13 +970,10 @@ function renderSettings() {
   $('game-path').textContent = g.path || '';
   $('game-candidates').innerHTML = g.found ? '' : (g.candidates || []).map(c => `<button class="b" data-path="${esc(c.path)}">${esc(c.store)}: ${esc(c.path)}</button>`).join('');
   $('game-candidates').querySelectorAll('[data-path]').forEach(b => b.onclick = async () => { await api('POST', '/app/game', { path: b.dataset.path }); refresh(); });
-  $('mod-line').textContent = !g.found ? 'Find Among Us first.'
-    : m.installed ? `${m.gameArch ? bits(m.gameArch) + ' Among Us. ' : ''}Installed${m.installedVersion ? ' ' + m.installedVersion : ''}.${m.updateAvailable ? ` ${m.latest} is out.` : m.latest ? ' Up to date.' : ''}`
-    : 'Not installed yet.';
   $('mod-repair').hidden = !needsRepair(m);
   $('mod-repair').textContent = `The mod loader in the game folder is ${bits(m.loaderArch)}, but the newest Among Us needs the 64-bit one, so the mod can't load. Repair installs it.`;
-  $('mod-install').textContent = !m.installed ? 'Install' : needsRepair(m) ? 'Repair' : m.updateAvailable ? `Update the mod to ${m.latest}` : 'Reinstall';
-  $('mod-install').disabled = !g.found || !!m.installing;
+  $('mod-install').hidden = !g.found || !m.installed || needsRepair(m) || !!m.updateAvailable;
+  $('mod-install').disabled = !!m.installing;
   $('mod-progress').hidden = !m.installing; $('mod-progress').textContent = m.installing;
   $('mod-result').hidden = !m.installResult; $('mod-result').textContent = m.installResult;
   $('mod-result').className = 'note ' + (/^(Installed|Updated|Repaired)/.test(m.installResult) ? 'good' : 'bad');
@@ -986,7 +988,6 @@ function renderSettings() {
     refresh();
   };
   $('tour-card').hidden = !(S.status && S.status.mode === 'Tournament' && S.status.shared);
-  $('mod-install').classList.toggle('primary', !m.installed || needsRepair(m) || !!m.updateAvailable);
   $('conn-line').textContent = S.status ? `Connected to the mod in Among Us (mod ${S.status.version}).` : 'Among Us isn\'t running with the mod right now.';
   renderSetup();
   renderAppUpdate();
@@ -1003,15 +1004,26 @@ function renderAdmin() {
 }
 $('admin-lock').addEventListener('click', async () => { const r = await api('POST', '/app/admin/code', { code: '' }); toast(r.message); refresh(); });
 
+// Both versions on one line, and one button for whatever needs doing.
 function renderAppUpdate() {
-  const u = S.appUpdate || {};
-  $('app-line').textContent = `The Button ${S.app || '?'}.` + (u.ready ? ` ${u.ready} is installed: restart to use it.` : u.busy ? ' Downloading the new version…' : u.available ? ` ${u.available} is out.` : ' Up to date.');
+  const u = S.appUpdate || {}, m = S.mod || {}, g = S.game || {};
+  const appNew = !!(u.available && !u.ready && !u.busy), modNew = !!(m.installed && m.updateAvailable && !needsRepair(m));
+  const app = `The Button ${S.app || '?'}` + (u.ready ? ` (${u.ready} is ready: restart to use it)` : u.busy ? ' (downloading the new version…)' : appNew ? ` (${u.available} is out)` : '');
+  const mod = !g.found ? 'Find Among Us first to install the mod.'
+    : !m.installed ? 'The mod isn\'t installed yet.'
+    : `${m.gameArch ? bits(m.gameArch) + ' Among Us with ' : ''}the mod ${m.installedVersion || '?'}` + (modNew ? ` (${m.latest} is out)` : '');
+  const upToDate = !appNew && !u.ready && !u.busy && m.installed && !modNew && !needsRepair(m);
+  $('mod-line').textContent = !g.found || !m.installed ? `${app}. ${mod}` : `${app}, ${mod}.` + (upToDate && m.latest ? ' Everything is up to date.' : '');
+  const go = $('upd-go');
+  go.hidden = !g.found || !(!m.installed || needsRepair(m) || modNew || appNew);
+  go.textContent = !m.installed ? 'Install the mod' : needsRepair(m) ? 'Repair the mod'
+    : modNew && appNew ? `Update both to ${u.available}` : modNew ? `Update the mod to ${m.latest}` : `Update The Button to ${u.available}`;
+  go.disabled = !!m.installing || !!u.busy;
+  $('mod-pending').hidden = !(m.pending && modNew && !m.installing);
   $('app-restart').hidden = !u.ready;
-  $('app-update').hidden = !(u.available && !u.ready && !u.busy);
   $('app-error').hidden = !u.error; $('app-error').textContent = u.error || '';
 }
 $('app-restart').addEventListener('click', async () => { const r = await api('POST', '/app/restart'); toast(r.message); });
-$('app-update').addEventListener('click', async () => { const r = await api('POST', '/app/update'); toast(r.message); refresh(); });
 
 function yesNo(v) { return v ? 'On' : 'Off'; }
 const SETTINGS = [['impostors','Impostors'],['killCooldown','Kill cooldown (s)'],['killDistance','Kill distance',v => ['Short','Medium','Long'][v] ?? v],['playerSpeed','Player speed'],['crewmateVision','Crewmate vision'],['impostorVision','Impostor vision'],

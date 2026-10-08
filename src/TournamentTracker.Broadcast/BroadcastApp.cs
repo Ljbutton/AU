@@ -228,7 +228,7 @@ namespace TournamentTracker.App.Broadcast
             var (_, _, slots) = Layout(air);
             int i = slots.FindIndex(x => string.Equals(x.Lobby, g.Lobby, StringComparison.OrdinalIgnoreCase));
             if (i < 0) return false;
-            return air.Layout is "full" or "break" || slots[i].Box.W >= _desk.PlayerCardMinTile;
+            return air.Layout is "full" or "break" or "cam" || slots[i].Box.W >= _desk.PlayerCardMinTile;
         }
 
         /// <summary>Where a graphic about a lobby goes: its tile (multi-view), or the whole screen.</summary>

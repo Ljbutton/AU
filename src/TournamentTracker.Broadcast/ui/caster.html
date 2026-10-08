@@ -635,6 +635,7 @@ button.b.sw-onoff:not(.on){background:transparent;color:var(--muted);border-colo
   <button data-go="obs">OBS <span class="st dot" id="st-obs"></span></button>
   <button data-go="voice">Lobby voice <span class="st dot" id="st-voice"></span></button>
   <button data-go="players">Players</button>
+  <button data-go="settings">Settings <span class="st dot" id="st-settings"></span></button>
 </nav>
 <main>
   <div class="testbar" id="testbar" hidden role="alert"><b>TEST MODE</b><span>Simulation is running: SIM-1 to SIM-4 are fake lobbies. Stop it before going live.</span><button class="b" id="testbar-stop">Stop simulation</button></div>
@@ -813,6 +814,22 @@ button.b.sw-onoff:not(.on){background:transparent;color:var(--muted);border-colo
     <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Placements: killcam ("Kill Cam presented by" on kill replays), replay ("presented by" on every other replay), multiview (a "presented by" badge while 4 or more lobbies are on screen), montage (an opening card), standings ("Presented by" under the table), grid (empty grid tiles), break (split-screen breaks; they end by themselves, and a MUST SHOW play cuts straight back). Every appearance is logged. Verbal reads: give a sponsor "readScript" and "readEveryMinutes", "readEveryGames" or "readEveryRounds"; a reminder shows on the Live desk (only you see it), and Done logs it.</p>
     <div class="sp-list" id="sp-list"></div>
   </details>
+  <div class="card" id="cam-card" data-page="settings">
+    <div class="row" style="justify-content:space-between"><div><b>Player camera</b> <span class="muted" id="cam-line"></span></div>
+      <label class="sw" title="Each host's game sends a second picture that follows one player up close"><input type="checkbox" id="cam-on"><i></i><span>Player cameras</span></label></div>
+    <p class="muted help" style="margin:6px 0 0;font-size:12.5px">Each host's game draws a second, close-up picture that follows one player (you pick who on the Live desk or the Stream Deck, or it follows whoever is in the action) and sends it with their game, sharp at 720p. Red Alert adds it to OBS as the <b>TT Player Cam</b> scene: the camera full screen, the whole map small in the corner. Hosts can't see it or change who it follows. It costs each host a little more upload, so leave it off if a host's internet is weak.</p>
+  </div>
+  <div class="card" id="deck-card" data-page="settings">
+    <div class="row" style="justify-content:space-between"><div><b>Stream Deck</b> <span class="muted">a link per button</span></div><button class="b" id="deck-new" title="New links (the old ones stop working)">New key</button></div>
+    <p class="muted help" style="margin:6px 0 8px;font-size:12.5px">In the Stream Deck app, drag <b>Website</b> (under System) onto a key, paste a link below and tick <b>GET request in background</b> so no browser opens. Red Alert must be open on this PC. For lobby 3, change <b>lobby/1</b> to <b>lobby/3</b>; for a colour, change <b>cam/red</b> to <b>cam/blue</b> and so on.</p>
+    <div id="deck-links"></div>
+  </div>
+  <div class="card upd-card" id="upd-card" data-page="settings">
+    <div class="row" style="justify-content:space-between"><div><b>Updates</b> <span class="muted" id="upd-line"></span></div>
+      <div class="row"><button class="b" id="upd-check">Check now</button><button class="b primary" id="upd-go" hidden>Update</button><button class="b primary" id="upd-restart" hidden>Restart Red Alert</button></div></div>
+    <p class="muted help" style="margin:6px 0 0;font-size:12.5px">Red Alert never updates by itself, so nothing changes mid-broadcast. Update downloads the new version; it runs from the next start (Restart, or next time you open Red Alert).</p>
+    <p class="note bad" id="upd-error" hidden style="margin:8px 0 0"></p>
+  </div>
   <details class="card roster-card" id="roster-card" data-page="players">
     <summary><div><b>Players</b> <span class="muted" id="roster-line"></span></div><button class="b" id="roster-open" title="Open roster.csv">Edit roster</button></summary>
     <p class="note bad" id="roster-problem" hidden></p>
@@ -1023,7 +1040,7 @@ function replayButton(c) {
   return `<button class="rpb${st === 'failed' ? ' failed' : ''}" data-rsave="${c.id}" title="${esc(plain(fail) || 'Save a replay of this play')}">${st === 'failed' ? `Replay failed: ${esc(failWhy(fail))} · retry` : 'Save replay'}</button>`;
 }
 // ---- On stream: big, readable at a glance -----------------------------------------------------
-const LAYOUT_NAME = { full: 'Full', '2up': '2-Up', '4up': 'Quad', grid: 'Grid', break: 'Sponsor break', intermission: 'Intermission', slate: 'Be right back', replay: 'Replay', none: 'Nothing on stream' };
+const LAYOUT_NAME = { full: 'Full', '2up': '2-Up', '4up': 'Quad', grid: 'Grid', cam: 'Player cam', break: 'Sponsor break', intermission: 'Intermission', slate: 'Be right back', replay: 'Replay', none: 'Nothing on stream' };
 const fmtShot = s => s >= 3600 ? `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 function renderOnAir() {
   const d = DESK; if (!d) return;
@@ -1275,6 +1292,18 @@ function specSend(lobby, command) {
   api('POST', '/app/admin/spec', { lobby, command }).then(() => setTimeout(loadDesk, 1200));
   toast(`${lobby}: ${command.replace(/^spec /, '')}`);
 }
+// Commands Red Alert itself wants sent to a host (the Stream Deck, the player camera): only this page can.
+function specQuiet(lobby, command) { const f = RECV[lobby]; if (f && f.contentWindow) f.contentWindow.postMessage({ sendData: { ttc: command }, type: 'rpcs' }, '*'); }
+let camKeepAt = 0;
+setInterval(async () => {
+  if (!S || !S.admin) return;
+  try { for (const x of await api('GET', '/app/admin/specout')) specQuiet(x.lobby, x.command); } catch (e) { }
+  // Player cameras on: a lobby that isn't sending one yet (it joined later, or Among Us restarted) is asked again.
+  if (S.cam && S.cam.on && DESK && Date.now() > camKeepAt) {
+    camKeepAt = Date.now() + 10000;
+    for (const l of DESK.lobbies || []) if (l.online && l.spec && l.spec.cam === false) specQuiet(l.lobby, 'spec cam on');
+  }
+}, 500);
 // The host's ghost view (the picture sent to you): what's drawn on it. Only on that one game, never sent to players.
 const VISION = { off: 'Vision: off', focus: 'Vision: crewmates', rings: 'Vision: outlines' };
 function specRow(l) {
@@ -1284,6 +1313,7 @@ function specRow(l) {
     <button data-spec="lit" class="${sp.lit ? 'on' : ''}" title="Lights the whole map and shows every player (impostors in vents stay hidden). Key ${keyName('specLit')}">💡 Lit map</button>
     <button data-spec="vision" class="${sp.vision !== 'off' ? 'on' : ''}" title="Click to cycle: off → every crewmate's real vision (the rest dimmed) → every player's vision outline. Key ${keyName('specVision')}">◐ ${VISION[sp.vision] || sp.vision}</button>
     <button data-spec="eye" class="${sp.eye ? 'on' : ''}" title="A small eye by a crewmate's name while an impostor is in their sight. Key ${keyName('specEye')}">👁 Sees impostor</button>
+    ${S && S.cam && S.cam.on ? `<button data-cam class="${DESK && DESK.onAir && DESK.onAir.layout === 'cam' && DESK.onAir.slots[0] === l.lobby ? 'on' : ''}" title="This lobby's player camera on stream (full screen, the whole map small in the corner). The host's game follows the player you pick, up close. Stream Deck: Settings → Stream Deck.">🎥 Player cam</button><select data-camfollow title="Who the player camera follows"><option value="auto">Follows: whoever's in the action</option>${(l.players || []).map(p => `<option value="${p.id}"${S.cam.picks && S.cam.picks[l.lobby] === p.id ? ' selected' : ''}>${esc(p.colour)} · ${esc(realName(l.lobby, p.id, p.name))}${p.imp ? ' (impostor)' : ''}</option>`).join('')}</select>${sp.camOn != null ? `<span class="muted">on ${esc(camName(l, sp.camOn))}</span>` : ''}` : ''}
     ${sp.vision === 'focus' ? `<select data-specfocus title="Whose vision is shown: every crewmate's, or just one."><option value="auto">Whose vision: every crewmate</option>${crew.map(p => `<option value="${p.id}"${sp.focus === p.id ? ' selected' : ''}>${esc(p.colour)} · ${esc(realName(l.lobby, p.id, p.name))}</option>`).join('')}</select>` : ''}
   </div>`;
 }
@@ -1296,7 +1326,11 @@ function playersRow(l) {
   return `<div class="pltg-row"><button class="pltg" data-pltg="${esc(l.lobby)}" aria-expanded="${open}">${open ? '▾' : '▸'} Players (${l.people.length})</button></div>${open ? `<div class="ppl" data-pplrow>${l.people.map(p => `<button data-pcard="${esc(p.key)}" data-plobby="${esc(l.lobby)}" title="${esc(p.name)}'s player card on stream">${sw(p.color)}${esc(p.name)}</button>`).join('')}</div>` : ''}`;
 }
 const keyName = k => ((RP && RP.hotkeys && RP.hotkeys[k]) || '').replace(/^Key|^Digit/, '');
+function camName(l, id) { const p = (l.players || []).find(x => x.id === id); return p ? realName(l.lobby, p.id, p.name) : '#' + id; }
+function camGo(lobby, follow) { api('POST', '/app/admin/cam', { lobby, follow }).then(r => { if (r.ok) toast(r.message); loadDesk(); }); }
 $('desk-lobbies').addEventListener('change', e => {
+  const cf = e.target.closest('[data-camfollow]');
+  if (cf) { camGo(cf.closest('[data-specrow]').dataset.specrow, cf.value); return; }
   const sel = e.target.closest('[data-specfocus]'); if (!sel) return;
   specSend(sel.closest('[data-specrow]').dataset.specrow, 'spec focus ' + sel.value);
 });
@@ -1308,7 +1342,9 @@ $('desk-lobbies').addEventListener('click', e => {
     try { localStorage.setItem('ra.players.open', JSON.stringify([...PL_OPEN])); } catch (err) { }
     deskKey = ''; renderDesk(); return;
   }
-  if (e.target.closest('[data-specfocus]')) return;
+  if (e.target.closest('[data-specfocus]') || e.target.closest('[data-camfollow]')) return;
+  const cb = e.target.closest('[data-cam]');
+  if (cb) { const row = cb.closest('[data-specrow]'); camGo(row.dataset.specrow, row.querySelector('[data-camfollow]').value); return; }
   const sb = e.target.closest('[data-spec]');
   if (sb) { specSend(sb.closest('[data-specrow]').dataset.specrow, 'spec ' + sb.dataset.spec); return; }
   if (e.target.closest('[data-specrow]')) return;
@@ -1937,6 +1973,7 @@ const PAGES = {
   obs: ['OBS', 'The connection, the TT scenes and the swoosh.'],
   voice: ['Lobby voice', 'Each lobby\'s voice and game sound on stream.'],
   players: ['Players', 'Real names from roster.csv, and matching by hand.'],
+  settings: ['Settings', 'Player camera, Stream Deck and updates.'],
 };
 let PAGE = 'live';
 try { const saved = localStorage.getItem('ttb.page'); if (PAGES[saved]) PAGE = saved; } catch (e) { }
@@ -1988,7 +2025,41 @@ async function refresh() {
   $('caster').hidden = !S.admin;
   $('cast-card').hidden = !S.admin;
   $('app-ver').textContent = S.app ? 'v' + S.app : '';
+  renderUpdate();
+  renderCam();
+  renderDeck();
 }
+// Settings → Updates: looked for every 30 minutes, installed only when Update is pressed.
+function renderCam() {
+  const c = S.cam; $('cam-card').hidden = !c; if (!c) return;
+  $('cam-on').checked = !!c.on;
+  const sending = DESK ? (DESK.lobbies || []).filter(l => l.spec && l.spec.cam).length : 0;
+  $('cam-line').textContent = c.on ? `on · ${sending} lobb${sending === 1 ? 'y' : 'ies'} sending one` : 'off';
+}
+$('cam-on').addEventListener('change', e => api('POST', '/app/admin/cam', { all: e.target.checked ? 'on' : 'off' }).then(r => { toast(r.message); refresh(); }));
+let DECK = null;
+async function renderDeck() {
+  if (PAGE !== 'settings' || !S || !S.admin) return;
+  if (!DECK) { try { DECK = await api('GET', '/app/admin/deck'); } catch (e) { return; } }
+  let html = '', group = '';
+  for (const x of DECK.links) { if (x.group !== group) { group = x.group; html += `<div class="muted" style="margin:8px 0 2px;font-weight:600">${esc(group)}</div>`; } html += urlRow(x.name, x.url); }
+  if ($('deck-links').dataset.html !== html) { $('deck-links').innerHTML = html; $('deck-links').dataset.html = html; }
+}
+$('deck-new').addEventListener('click', async () => { const r = await api('POST', '/app/admin/deck'); toast(r.message); DECK = null; renderDeck(); });
+function renderUpdate() {
+  const u = S.update || {};
+  $('upd-line').textContent = !u.supported ? `v${S.app || '?'}` : u.ready ? `v${S.app} · ${u.ready} is ready: restart to use it` : u.busy ? `v${S.app} · downloading ${u.available || 'the new version'}…`
+    : u.available ? `v${S.app} · ${u.available} is out` : u.checking ? `v${S.app} · checking…` : `v${S.app} · up to date`;
+  $('upd-go').hidden = !(u.available && !u.ready && !u.busy); $('upd-go').textContent = u.available ? `Update to ${u.available}` : 'Update';
+  $('upd-restart').hidden = !u.ready;
+  $('upd-check').hidden = !u.supported || !!u.ready;
+  $('upd-error').hidden = !u.error; $('upd-error').textContent = u.error || '';
+  const st = $('st-settings'); st.className = 'st dot ' + (u.ready || u.available ? 'warn' : ''); st.textContent = u.ready || u.available ? '•' : '';
+  st.title = u.ready ? `${u.ready} is ready` : u.available ? `${u.available} is out` : '';
+}
+$('upd-check').addEventListener('click', async () => { const r = await api('POST', '/app/update', { check: 'true' }); toast(r.message); setTimeout(refresh, 2500); });
+$('upd-go').addEventListener('click', async () => { const r = await api('POST', '/app/update'); toast(r.message); refresh(); });
+$('upd-restart').addEventListener('click', async () => { const r = await api('POST', '/app/restart'); toast(r.message); });
 $('lock-form').addEventListener('submit', async e => {
   e.preventDefault();
   const r = await api('POST', '/app/admin/code', { code: $('lock-code').value.trim() });
