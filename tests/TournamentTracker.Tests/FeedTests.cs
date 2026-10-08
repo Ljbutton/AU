@@ -402,8 +402,20 @@ public class FeedTests : IDisposable
         Assert.Equal((byte)4, _s.CamPlayer());                 // kept a moment after they die, to see it
         _clock.Advance(5);
         Assert.NotEqual((byte)4, _s.CamPlayer());
+        // The game sound follows what's on stream (Red Alert says), and isn't kept: it follows the stream.
+        Assert.False(_s.Spectator.CamAudio);
+        _s.RunCommand("spec audio cam");
+        Assert.True(_s.Spectator.CamAudio);
+        _clock.Advance(1);
+        _s.FeedTick(Frame());
+        Assert.Equal("cam", Read().Last(e => e.GetProperty("type").GetString() == "snap").GetProperty("spec").GetProperty("audio").GetString());
+        Assert.DoesNotContain("CamAudio", JsonSerializer.Serialize(_s.Spectator));
+        _s.RunCommand("spec audio wide");
+        Assert.False(_s.Spectator.CamAudio);
         _s.RunCommand("spec cam off");
         Assert.Null(_s.CamPlayer());
+        _clock.Advance(1);
+        _s.FeedTick(Frame());
         var spec = Read().Last(e => e.GetProperty("type").GetString() == "snap").GetProperty("spec");
         Assert.True(spec.TryGetProperty("cam", out _));
     }

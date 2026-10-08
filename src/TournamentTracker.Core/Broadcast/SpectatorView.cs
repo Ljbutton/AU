@@ -34,6 +34,13 @@ namespace TournamentTracker.Broadcast
         public bool CamOff { get; set; }
         /// <summary>Who the player camera follows, or null to pick by itself (an impostor closing in, else whoever is busy).</summary>
         public int? CamPlayer { get; set; }
+        /// <summary>
+        /// The player camera is what's on stream for this lobby (Red Alert says so): the host's game
+        /// sound is then what the followed player would hear. Otherwise it's the whole map's
+        /// (alarms and kills). Not saved: it follows the stream.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public bool CamAudio { get; set; }
     }
 }
 
@@ -126,7 +133,7 @@ namespace TournamentTracker
             Event(kind == "vent" ? "witnessed_vent" : "witnessed_kill", data);
         }
 
-        /// <summary>spec lit|report|eye on|off · spec vision off|focus|rings · spec focus auto|&lt;player id&gt; · spec dim 0.22 · spec cam on|off|auto|&lt;player id&gt;</summary>
+        /// <summary>spec lit|report|eye on|off · spec vision off|focus|rings · spec focus auto|&lt;player id&gt; · spec dim 0.22 · spec cam on|off|auto|&lt;player id&gt; · spec audio cam|wide</summary>
         private void SpectatorCommand(string[] args)
         {
             string what = args.ElementAtOrDefault(0)?.ToLowerInvariant() ?? "";
@@ -151,11 +158,14 @@ namespace TournamentTracker
                     else s.Cam = !s.Cam;
                     RefreshStatus();
                     break;
+                case "audio":
+                    s.CamAudio = value == "cam";
+                    break;
                 case "dim":
                     if (float.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float dim)) s.Dim = Math.Max(0, Math.Min(0.8f, dim));
                     break;
                 default:
-                    Reply("Spectator view: spec lit|report|eye on|off, spec vision off|focus|rings, spec focus auto|<player>, spec cam on|off|auto|<player>.", false);
+                    Reply("Spectator view: spec lit|report|eye on|off, spec vision off|focus|rings, spec focus auto|<player>, spec cam on|off|auto|<player>, spec audio cam|wide.", false);
                     return;
             }
             SaveState();
@@ -167,7 +177,7 @@ namespace TournamentTracker
         {
             lit = Spectator.Lit, vision = Spectator.Vision, report = Spectator.Report, eye = Spectator.Eye,
             focus = Spectator.Focus, focusing = FocusPlayer(), on = IsSpectator,
-            cam = Spectator.Cam, camPick = Spectator.CamPlayer, camOn = CamPlayer(),
+            cam = Spectator.Cam, camPick = Spectator.CamPlayer, camOn = CamPlayer(), audio = Spectator.CamAudio ? "cam" : "wide",
         };
     }
 }

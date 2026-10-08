@@ -113,6 +113,7 @@ namespace TournamentTracker.App.Broadcast
                 case "eye": l.SpecEye = value == "on" || value != "off" && !l.SpecEye; break;
                 case "vision": l.SpecVision = value is "off" or "focus" or "rings" ? value : l.SpecVision == "off" ? "focus" : l.SpecVision == "focus" ? "rings" : "off"; break;
                 case "focus": l.SpecFocus = int.TryParse(value, out var id) ? id : (int?)null; break;
+                case "audio": l.SpecAudio = value == "cam" ? "cam" : "wide"; break;
                 case "cam":
                     if (value is "on" or "off") l.SpecCam = value == "on";
                     else { l.SpecCam = true; l.SpecCamPick = int.TryParse(value, out var who) ? who : (int?)null; }
@@ -158,6 +159,7 @@ namespace TournamentTracker.App.Broadcast
             public int? SpecFocus;
             public bool SpecCam = true;
             public int? SpecCamPick;
+            public string SpecAudio = "wide";
             private readonly Random _r;
             private DateTime _now, _gameStart, _phaseEnds, _nextSnap;
             private string _phase = "lobby";
@@ -340,7 +342,7 @@ namespace TournamentTracker.App.Broadcast
                     ["players"] = _players.Select(p => p.Roster(_phase != "lobby")).ToList(),
                     ["ifEnded"] = IfEnded(),
                     ["spec"] = new { lit = SpecLit, vision = SpecVision, report = SpecReport, eye = SpecEye, focus = SpecFocus, focusing = SpecFocus ?? Alive(false).Select(p => (int?)p.Id).FirstOrDefault(), on = true,
-                        cam = SpecCam, camPick = SpecCamPick,
+                        cam = SpecCam, camPick = SpecCamPick, audio = SpecAudio,
                         camOn = !SpecCam || !game ? null : SpecCamPick is int pick && Alive().Any(p => p.Id == pick) ? pick : Alive(true).Select(p => (int?)p.Id).FirstOrDefault() },
                 });
             }

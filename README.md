@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.39**, a beta.
+The current release is **v0.1.40**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -446,6 +446,12 @@ stream.
   sends it as its own VDO.Ninja stream next to the game and the lobby voice; OBS's TT Cam source
   shows that stream. It costs each host about one more video stream of upload, and only while
   they send their game.
+* **Player camera sound:** while a lobby's player camera is on stream, its host's game sound is
+  what the followed player would hear: sounds are measured from where they stand (room ambience,
+  vents, doors), their own footsteps play, and a kill is heard only if they're the killer or the
+  victim, as in the game. With the whole map on stream it's back to the referee's: alarms and every
+  kill. Red Alert tells each host which view is on stream, by itself; their task sounds stay on
+  their own PC.
 * **Player camera replays:** the camera keeps its last 30 s in OBS like the lobbies, so every
   replay saved while it was on has a second angle. A kill the camera was following opens on the
   close-up; **🎥 Player cam / 🗺 Whole map** in the replay controls (key **P**) switches angle at

@@ -127,7 +127,8 @@ host's PC drops before the game is posted.
 
 Spectator commands: `spec lit|report|eye on|off`, `spec vision off|focus|rings`,
 `spec focus auto|<player id>`, `spec dim 0.22`, `spec cam on|off|auto|<player id>` (the player
-camera).
+camera), `spec audio cam|wide` (the game sound follows the camera, or the whole map; Red Alert
+sends it as what's on stream changes, and the snapshot's `spec.audio` says which).
 
 The player camera is a second VDO.Ninja stream from the host's send page, with the game
 stream's id plus `c` and the same password (the lobby voice is the id plus `v`). The send page

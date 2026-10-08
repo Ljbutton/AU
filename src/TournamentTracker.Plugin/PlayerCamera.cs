@@ -24,6 +24,8 @@ namespace TournamentTracker.Plugin
         private static Texture2D? _tex;
         private static float _nextShot, _nextPick;
         private static byte? _target;
+        /// <summary>Who the camera is following while it's drawn (null when it isn't).</summary>
+        public static byte? Following => _placed ? _target : null;
         private static Vector2 _at;
         private static bool _placed, _logged;
 
