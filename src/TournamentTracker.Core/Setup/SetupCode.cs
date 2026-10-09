@@ -60,7 +60,7 @@ namespace TournamentTracker.Setup
         [JsonPropertyName("ref")] public List<string>? RefereeUserIds { get; set; }
 
         /// <summary>
-        /// Each game waits in The Button (Referee) for the host to press Verify before anything goes
+        /// Each game waits in The Button (Referee) for the host to press Submit before anything goes
         /// to Discord. Missing: on (the default). False: results post as soon as a game ends.
         /// </summary>
         [JsonPropertyName("vr")] public bool? VerifyResults { get; set; }

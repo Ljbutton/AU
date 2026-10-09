@@ -85,3 +85,44 @@ _Player cameras on in Settings; at least two lobbies sending._
 - [ ] The Button snaps to the left/right half when dragged to an edge — and to a quarter in a corner, and maximises at the top.
 - [ ] Red Alert snaps the same way
 - [ ] Double-click the title bar still maximises; edges still resize — no white strip at the top.
+
+## New in 0.1.43
+_The Button and the mod 0.1.43. A fresh code from the code maker._
+
+### Code maker
+- [ ] Impostor rotation is ticked when the page opens
+- [ ] Common tasks above 4 (long 15, short 23) snaps back to the limit
+- [ ] Roles…: turn on Engineer 1 at 100% — the Rules card lists "Roles on: Engineer 1 at 100%".
+- [ ] Tournament host code with a server ID and no bot token is ready — "the host adds their bots in The Button".
+- [ ] Preliminary webhook box is called "Private reports channel webhook (yours)"
+
+### Roles and settings lock
+_Code with Engineer 1 at 100% and an Engineer vent cooldown typed in; lock on._
+- [ ] In the lobby, roles show Engineer 1 at 100% and every other role at 0
+- [ ] Change the Engineer's chance or turn on Shapeshifter: put back — one message in your chat.
+- [ ] Engineer vent cooldown goes back to the code's number
+- [ ] Task bar and Ghosts do tasks are put back too
+- [ ] An empty role option (e.g. Scientist battery) is left as you set it
+- [ ] Log has no "this game version has no role/option" lines — send them if it does.
+
+### Your Discord (The Button → Settings)
+- [ ] Wrong token: red message, "Discord refused that token" — nothing else lost.
+- [ ] Bot not invited to the server: "isn't in that server yet"
+- [ ] Good token: shows the bot's name and …last 4 — bot goes online in Discord within a few seconds.
+- [ ] Restart The Button: the bot comes back online by itself
+- [ ] Remove a bot, Save: it goes offline (or the next one takes over)
+- [ ] Bots saved here are used instead of the code's — automute and /link work with them.
+- [ ] Public report channel: bad URL refused; good one shows its webhook's name
+
+### Preliminaries
+_Preliminary code with your private reports webhook; host has a public channel set in The Button._
+- [ ] After a game: your private channel gets the report with its data file, then the lobby's Count
+- [ ] Next game: the old Count is gone and the new one is at the bottom — numbers include both games.
+- [ ] Count shows impostor % and crew % of points, per-player averages, wins and games
+- [ ] Public channel gets the report and the lobby's standings — no data file, no Count.
+- [ ] Void a sent game: both channels are told; the Count updates.
+- [ ] Scheduled job (Actions → Preliminary leaderboards → Run): an "all preliminary games" Count next to the leaderboard — one line per lobby.
+
+### Submit (was Verify)
+- [ ] Referee tab says Submit points / Submit all — and the in-game message says "press Submit".
+- [ ] Submitting sends the report and standings — reply says "Submitted".

@@ -12,7 +12,8 @@ namespace TournamentTracker.Plugin
     {
         private static readonly HashSet<string> Failed = new HashSet<string>();
 
-        public static LobbySettings Read()
+        /// <summary>The lobby's settings; roles and role options only for those <paramref name="want"/> names.</summary>
+        public static LobbySettings Read(LobbySettings? want = null)
         {
             var o = Game.Options();
             var s = new LobbySettings();
@@ -33,11 +34,15 @@ namespace TournamentTracker.Plugin
             s.CommonTasks = Try("common tasks", () => o.GetInt(Int32OptionNames.NumCommonTasks));
             s.LongTasks = Try("long tasks", () => o.GetInt(Int32OptionNames.NumLongTasks));
             s.ShortTasks = Try("short tasks", () => o.GetInt(Int32OptionNames.NumShortTasks));
+            s.TaskBarMode = Try("task bar", () => o.GetInt(Int32OptionNames.TaskBarMode));
+            s.GhostsDoTasks = Try("ghosts do tasks", () => o.GetBool(BoolOptionNames.GhostsDoTasks));
+            var on = want?.Roles ?? new Dictionary<string, int[]>();
             s.RolesOff = Try("roles", () =>
             {
                 var roles = o.RoleOptions;
                 foreach (var role in SpecialRoles())
                 {
+                    if (on.ContainsKey(role.ToString())) continue;      // meant to be on
                     try
                     {
                         if (roles.GetNumPerGame(role) > 0 && roles.GetChancePerGame(role) > 0) return false;
@@ -46,6 +51,31 @@ namespace TournamentTracker.Plugin
                 }
                 return true;
             });
+            if (want?.Roles != null)
+            {
+                s.Roles = new Dictionary<string, int[]>();
+                foreach (var name in want.Roles.Keys)
+                {
+                    if (!Enum.TryParse(name, out RoleTypes role)) { Unknown("role " + name); continue; }
+                    try { s.Roles[name] = new[] { o.RoleOptions.GetNumPerGame(role), o.RoleOptions.GetChancePerGame(role) }; }
+                    catch (Exception e) { if (Failed.Add("read role " + name)) TournamentPlugin.Logger.Warn($"Settings lock can't read {name}: {e.Message}"); }
+                }
+            }
+            if (want?.Options != null)
+            {
+                s.Options = new Dictionary<string, double>();
+                foreach (var name in want.Options.Keys)
+                {
+                    try
+                    {
+                        if (Enum.TryParse(name, out FloatOptionNames f)) s.Options[name] = o.GetFloat(f);
+                        else if (Enum.TryParse(name, out BoolOptionNames b)) s.Options[name] = o.GetBool(b) ? 1 : 0;
+                        else if (Enum.TryParse(name, out Int32OptionNames i)) s.Options[name] = o.GetInt(i);
+                        else Unknown("option " + name);
+                    }
+                    catch (Exception e) { if (Failed.Add("read " + name)) TournamentPlugin.Logger.Warn($"Settings lock can't read {name}: {e.Message}"); }
+                }
+            }
             return s;
         }
 
@@ -54,7 +84,7 @@ namespace TournamentTracker.Plugin
         {
             var o = Game.Options();
             if (o == null) return new List<string>();
-            var changed = want.Differences(Read());
+            var changed = want.Differences(Read(want));
             if (changed.Count == 0) return changed;
 
             if (want.Impostors.HasValue) Do("impostors", () => o.SetInt(Int32OptionNames.NumImpostors, want.Impostors.Value));
@@ -73,16 +103,35 @@ namespace TournamentTracker.Plugin
             if (want.CommonTasks.HasValue) Do("common tasks", () => o.SetInt(Int32OptionNames.NumCommonTasks, want.CommonTasks.Value));
             if (want.LongTasks.HasValue) Do("long tasks", () => o.SetInt(Int32OptionNames.NumLongTasks, want.LongTasks.Value));
             if (want.ShortTasks.HasValue) Do("short tasks", () => o.SetInt(Int32OptionNames.NumShortTasks, want.ShortTasks.Value));
+            if (want.TaskBarMode.HasValue) Do("task bar", () => o.SetInt(Int32OptionNames.TaskBarMode, want.TaskBarMode.Value));
+            if (want.GhostsDoTasks.HasValue) Do("ghosts do tasks", () => o.SetBool(BoolOptionNames.GhostsDoTasks, want.GhostsDoTasks.Value));
+            var on = want.Roles ?? new Dictionary<string, int[]>();
             if (want.RolesOff == true)
                 Do("roles", () =>
                 {
                     var roles = o.RoleOptions;
                     foreach (var role in SpecialRoles())
                     {
+                        if (on.ContainsKey(role.ToString())) continue;
                         try { roles.SetRoleRate(role, 0, 0); }
                         catch (Exception) { /* a role this version doesn't have */ }
                     }
                 });
+            foreach (var pair in on)
+            {
+                if (pair.Value == null || pair.Value.Length < 2 || !Enum.TryParse(pair.Key, out RoleTypes role)) continue;
+                int count = Math.Max(0, Math.Min(15, pair.Value[0])), chance = Math.Max(0, Math.Min(100, pair.Value[1]));
+                Do("role " + pair.Key, () => o.RoleOptions.SetRoleRate(role, count, chance));
+            }
+            if (want.Options != null)
+                foreach (var pair in want.Options)
+                {
+                    string name = pair.Key;
+                    double v = pair.Value;
+                    if (Enum.TryParse(name, out FloatOptionNames f)) Do(name, () => o.SetFloat(f, (float)v));
+                    else if (Enum.TryParse(name, out BoolOptionNames b)) Do(name, () => o.SetBool(b, v >= 0.5));
+                    else if (Enum.TryParse(name, out Int32OptionNames i)) Do(name, () => o.SetInt(i, (int)Math.Round(v)));
+                }
 
             Do("sync", () => GameManager.Instance.LogicOptions.SyncOptions());
             return changed;
@@ -97,6 +146,11 @@ namespace TournamentTracker.Plugin
                 if (name == "Crewmate" || name == "Impostor" || name.EndsWith("Ghost", StringComparison.Ordinal)) continue;
                 yield return role;
             }
+        }
+
+        private static void Unknown(string what)
+        {
+            if (Failed.Add("unknown " + what)) TournamentPlugin.Logger.Warn($"Settings lock: this game version has no {what}; it's skipped.");
         }
 
         private static T? Try<T>(string what, Func<T> read) where T : struct

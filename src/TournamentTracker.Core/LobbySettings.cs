@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text.Json.Serialization;
 
 namespace TournamentTracker
@@ -30,8 +31,31 @@ namespace TournamentTracker
         [JsonPropertyName("ct")] public int? CommonTasks { get; set; }
         [JsonPropertyName("lt")] public int? LongTasks { get; set; }
         [JsonPropertyName("st")] public int? ShortTasks { get; set; }
-        /// <summary>Every special role (Engineer, Scientist, Shapeshifter, Guardian Angel…) at 0.</summary>
+        /// <summary>Every special role (Engineer, Scientist, Shapeshifter, Guardian Angel…) at 0, apart from those in <see cref="Roles"/>.</summary>
         [JsonPropertyName("ro")] public bool? RolesOff { get; set; }
+        /// <summary>0 normal, 1 only in meetings, 2 never.</summary>
+        [JsonPropertyName("tb")] public int? TaskBarMode { get; set; }
+        [JsonPropertyName("gdt")] public bool? GhostsDoTasks { get; set; }
+
+        /// <summary>
+        /// Roles that are on, by the game's role name ("Engineer", "Shapeshifter"…): [most per game, chance %].
+        /// A role that isn't listed is off when <see cref="RolesOff"/> is set.
+        /// </summary>
+        [JsonPropertyName("rl")] public Dictionary<string, int[]>? Roles { get; set; }
+
+        /// <summary>
+        /// Role options by the game's option name ("EngineerCooldown", "ShapeshifterLeaveSkin"…): numbers,
+        /// with 1/0 for on/off. Names the game doesn't have are skipped.
+        /// </summary>
+        [JsonPropertyName("opt")] public Dictionary<string, double>? Options { get; set; }
+
+        /// <summary>The roles the game has (2026.9), with their options, for the setup-code maker and the messages.</summary>
+        public static readonly IReadOnlyDictionary<string, string> RoleLabels = new Dictionary<string, string>
+        {
+            ["Engineer"] = "Engineer", ["Scientist"] = "Scientist", ["GuardianAngel"] = "Guardian Angel", ["Noisemaker"] = "Noisemaker",
+            ["Tracker"] = "Tracker", ["Detective"] = "Detective", ["Judge"] = "Judge", ["SpiritGuide"] = "Spirit Guide",
+            ["Shapeshifter"] = "Shapeshifter", ["Phantom"] = "Phantom", ["Viper"] = "Viper",
+        };
 
         /// <summary>The settings the tournament uses today.</summary>
         public static LobbySettings TournamentDefaults() => new LobbySettings
@@ -81,13 +105,45 @@ namespace TournamentTracker
             Int("Common tasks", CommonTasks, actual.CommonTasks);
             Int("Long tasks", LongTasks, actual.LongTasks);
             Int("Short tasks", ShortTasks, actual.ShortTasks);
-            if (RolesOff == true && actual.RolesOff == false) list.Add("Special roles on (should all be off)");
+            if (RolesOff == true && actual.RolesOff == false) list.Add("Special roles on (should all be off" + (Roles?.Count > 0 ? " but " + string.Join(", ", Roles.Keys.Select(RoleName)) : "") + ")");
+            if (TaskBarMode.HasValue && actual.TaskBarMode.HasValue && TaskBarMode != actual.TaskBarMode)
+                list.Add($"Task bar {TaskBar(actual.TaskBarMode.Value)} (should be {TaskBar(TaskBarMode.Value)})");
+            Bool("Ghosts do tasks", GhostsDoTasks, actual.GhostsDoTasks);
+            if (Roles != null && actual.Roles != null)
+                foreach (var role in Roles)
+                {
+                    if (!actual.Roles.TryGetValue(role.Key, out var got) || role.Value.Length < 2 || got.Length < 2) continue;
+                    if (got[0] != role.Value[0] || got[1] != role.Value[1])
+                        list.Add($"{RoleName(role.Key)} {got[0]} at {got[1]}% (should be {role.Value[0]} at {role.Value[1]}%)");
+                }
+            if (Options != null && actual.Options != null)
+                foreach (var opt in Options)
+                {
+                    if (!actual.Options.TryGetValue(opt.Key, out var got) || Math.Abs(got - opt.Value) <= 0.001) continue;
+                    list.Add($"{OptionName(opt.Key)} {F((float)got)} (should be {F((float)opt.Value)})");
+                }
             return list;
         }
 
         public string Describe() =>
             $"{Impostors} impostors, kill cooldown {F(KillCooldown ?? 0)}s, {Distance(KillDistance ?? 0).ToLowerInvariant()} kill distance, " +
             $"{CommonTasks}/{LongTasks}/{ShortTasks} tasks";
+
+        private static readonly string[] TaskBars = { "always", "in meetings", "never" };
+        private static string TaskBar(int t) => t >= 0 && t < TaskBars.Length ? TaskBars[t] : t.ToString(CultureInfo.InvariantCulture);
+        public static string RoleName(string role) => RoleLabels.TryGetValue(role, out var label) ? label : role;
+
+        /// <summary>"EngineerInVentMaxTime" → "Engineer in vent max time".</summary>
+        public static string OptionName(string option)
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (char c in option)
+            {
+                if (char.IsUpper(c) && sb.Length > 0) sb.Append(' ').Append(char.ToLowerInvariant(c));
+                else sb.Append(c);
+            }
+            return sb.ToString().Replace("guardian angel", "Guardian Angel").Replace("spirit guide", "Spirit Guide");
+        }
 
         private static string Distance(int d) => d >= 0 && d < Distances.Length ? Distances[d] : d.ToString(CultureInfo.InvariantCulture);
         private static string F(float v) => v.ToString("0.##", CultureInfo.InvariantCulture);

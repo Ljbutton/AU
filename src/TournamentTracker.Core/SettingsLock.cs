@@ -19,6 +19,9 @@ namespace TournamentTracker
         public LobbySettings? LockedSettings =>
             _lockOn && _settings.Mode != TrackerMode.Standard ? _settings.LobbySettings : null;
 
+        /// <summary>The tournament's settings, locked or not (games are checked against them either way).</summary>
+        public LobbySettings? TournamentLobbySettings => _settings.Mode != TrackerMode.Standard ? _settings.LobbySettings : null;
+
         /// <summary>The plugin put settings back; tells the host, in their own chat only, once until the next game.</summary>
         public void SettingsRestored(IReadOnlyList<string> changed)
         {

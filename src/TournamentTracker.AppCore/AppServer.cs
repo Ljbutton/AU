@@ -39,6 +39,12 @@ namespace TournamentTracker.App
         /// </summary>
         public string? SetupCode { get; set; }
 
+        /// <summary>The host's own bots and channels (Settings → Your Discord), checked with Discord when saved. Copied to the Among Us folder for the mod.</summary>
+        public HostDiscord? HostDiscord { get; set; }
+        public List<string> HostBotNames { get; set; } = new List<string>();
+        public string HostPublicName { get; set; } = "";
+        public string HostStatusName { get; set; } = "";
+
         /// <summary>Lobby voice for the broadcast (when sending the game to the caster): levels, and whether the referee's own microphone goes in.</summary>
         public double VoiceLevel { get; set; } = 1.0;
         public double GameSoundLevel { get; set; } = 0.5;
@@ -216,7 +222,7 @@ namespace TournamentTracker.App
             Task.Run(AcceptLoop);
             StartOrganizer();
             // The bot stays online while The Button is open; the mod reaches Discord through it.
-            _bridge = new DiscordBridge(() => DiscordBridge.FromSetupCode(_settings.SetupCode),
+            _bridge = new DiscordBridge(() => DiscordBridge.FromSetupCode(_settings.SetupCode, _settings.HostDiscord),
                 () => GamePath == null ? null : ModInstaller.DataDir(GamePath), connect: env.Bots);
         }
 
@@ -410,6 +416,7 @@ namespace TournamentTracker.App
                     if (GamePath != null) try { ModInstaller.SetConsole(GamePath, _settings.ShowModConsole); } catch (Exception) { }
                     return Ok(new { ok = true, message = _settings.ShowModConsole ? "The mod's console window shows from the next start of Among Us." : "No console window from the next start of Among Us (the log is still in Settings → Mod and updates → Open log)." });
                 }
+                case ("POST", "/app/hostdiscord"): return Ok(await SaveHostDiscordAsync(input).ConfigureAwait(false));
                 case ("POST", "/app/twitch"):
                 {
                     string typed = Arg("name").Trim();
@@ -463,6 +470,7 @@ namespace TournamentTracker.App
                     Pending = _modWanted,
                 },
                 Setup = SetupView(),
+                HostDiscord = HostDiscordView(),
                 Admin = _organizer == null ? null : new { _organizer.Tournament },
                 AppUpdate = new
                 {
@@ -512,11 +520,66 @@ namespace TournamentTracker.App
                 else if (_settings.SetupCode != null && SetupCode.TryParse(_settings.SetupCode, out _, out _))
                 {
                     SetupCode.Save(dir, _settings.SetupCode);
+                    _settings.HostDiscord?.Save(dir);
                     string game = GamePath;
                     _ = Task.Run(() => _mod.CommandAsync(game, "setup reload"));
                 }
+                if (_settings.HostDiscord != null && !_settings.HostDiscord.IsEmpty && !File.Exists(Path.Combine(dir, HostDiscord.FileName)))
+                    _settings.HostDiscord.Save(dir);
             }
             catch (Exception) { }
+        }
+
+        /// <summary>The host's Discord for Settings: names and the end of each token, never the tokens.</summary>
+        private object HostDiscordView()
+        {
+            var h = _settings.HostDiscord ?? new HostDiscord();
+            string codeGuild = SetupCode.TryParse(_settings.SetupCode, out var code, out _) ? code.GuildId ?? "" : "";
+            return new
+            {
+                h.GuildId,
+                CodeGuild = codeGuild,
+                Bots = h.BotTokens.Select((t, i) => new { Name = i < _settings.HostBotNames.Count ? _settings.HostBotNames[i] : $"Bot {i + 1}", Tail = t.Length > 4 ? t.Substring(t.Length - 4) : "" }).ToList(),
+                Public = h.PublicWebhook.Length > 0 ? (_settings.HostPublicName.Length > 0 ? _settings.HostPublicName : "set") : "",
+                Status = h.StatusWebhook.Length > 0 ? (_settings.HostStatusName.Length > 0 ? _settings.HostStatusName : "set") : "",
+                CodeBots = code?.BotTokens?.Count ?? 0,
+                Prelim = code != null && !code.IsTournament && !code.IsAdmin,
+            };
+        }
+
+        private async Task<object> SaveHostDiscordAsync(JsonElement input)
+        {
+            string? Field(string name) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+            var typed = new HostDiscord
+            {
+                GuildId = Field("guild") ?? _settings.HostDiscord?.GuildId ?? "",
+                BotTokens = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("tokens", out var t) && t.ValueKind == JsonValueKind.Array
+                    ? t.EnumerateArray().Select(x => x.ValueKind == JsonValueKind.String ? x.GetString() ?? "" : "").ToList() : new List<string>(),
+                PublicWebhook = Field("public")!,
+                StatusWebhook = Field("status")!,
+            };
+            var remove = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("remove", out var rm) && rm.ValueKind == JsonValueKind.Array
+                ? rm.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Number).Select(x => x.GetInt32()).ToList() : new List<int>();
+            string? codeGuild = SetupCode.TryParse(_settings.SetupCode, out var code, out _) ? code.GuildId : null;
+            var result = await HostDiscordCheck.CheckAsync(_http, typed, _settings.HostDiscord, remove, codeGuild).ConfigureAwait(false);
+
+            _settings.HostDiscord = result.Saved.IsEmpty ? null : result.Saved;
+            _settings.HostBotNames = result.BotNames;
+            _settings.HostPublicName = result.PublicName;
+            _settings.HostStatusName = result.StatusName;
+            TrySave();
+            bool live = false;
+            if (GamePath != null)
+            {
+                string dir = ModInstaller.DataDir(GamePath);
+                try { result.Saved.Save(dir); } catch (Exception) { }
+                live = await _mod.CommandAsync(GamePath, "setup reload").ConfigureAwait(false) != null;
+            }
+            int bots = result.Saved.BotTokens.Count;
+            string saved = bots > 0 ? $"Saved: {string.Join(", ", result.BotNames)} online while The Button is open." : "Saved.";
+            if (bots > 0 && _settings.SetupCode == null) saved += " Paste your setup code too: the bots start with it.";
+            else if (live) saved += " The mod in Among Us picked it up.";
+            return new { ok = result.Ok, message = result.Ok ? saved : string.Join(" ", result.Problems) + (bots > 0 || result.Saved.PublicWebhook.Length > 0 ? " Everything else was saved." : "") };
         }
 
         private object? SetupView()
@@ -541,6 +604,9 @@ namespace TournamentTracker.App
                     code.Lobby.CrewmateVision, code.Lobby.ImpostorVision, code.Lobby.EmergencyMeetings, code.Lobby.EmergencyCooldown,
                     code.Lobby.DiscussionTime, code.Lobby.VotingTime, code.Lobby.ConfirmEjects, code.Lobby.AnonymousVotes,
                     code.Lobby.VisualTasks, code.Lobby.CommonTasks, code.Lobby.LongTasks, code.Lobby.ShortTasks, code.Lobby.RolesOff,
+                    code.Lobby.TaskBarMode, code.Lobby.GhostsDoTasks,
+                    Roles = code.Lobby.Roles == null ? null : string.Join(", ", code.Lobby.Roles.Select(r => $"{LobbySettings.RoleName(r.Key)} {(r.Value.Length > 0 ? r.Value[0] : 0)} at {(r.Value.Length > 1 ? r.Value[1] : 0)}%")),
+                    RoleOptions = code.Lobby.Options == null ? null : string.Join(", ", code.Lobby.Options.Select(o => $"{LobbySettings.OptionName(o.Key)} {o.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}")),
                 },
             };
         }

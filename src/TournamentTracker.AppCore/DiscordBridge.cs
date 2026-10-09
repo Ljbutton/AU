@@ -79,12 +79,13 @@ namespace TournamentTracker.App
         public int Port { get; }
         public string Token { get; }
 
-        /// <summary>The bot from a host setup code (an administration code has none for this).</summary>
-        public static BotConfig? FromSetupCode(string? text)
+        /// <summary>The bot from a host setup code, or the host's own (an administration code has none for this).</summary>
+        public static BotConfig? FromSetupCode(string? text, HostDiscord? host = null)
         {
             if (!SetupCode.TryParse(text, out var code, out _) || code.IsAdmin) return null;
             var s = new TrackerSettings();
             code.ApplyTo(s);
+            host?.ApplyTo(s);          // the host's own bots, set in The Button, come first
             if (!s.AutoMute.IsConfigured) return null;
             return new BotConfig(s.AutoMute.BotTokens[0], s.AutoMute.GuildId, s.ResultsChannelId.Length > 0 && s.Mode == TrackerMode.Tournament);
         }

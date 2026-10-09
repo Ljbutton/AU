@@ -11,7 +11,7 @@ namespace TournamentTracker
 {
     /// <summary>
     /// The host checks every game before Discord sees it. A finished game waits in The Button's
-    /// Referee tab: its points can be changed or the game voided there, and only Verify sends it
+    /// Referee tab: its points can be changed or the game voided there, and only Submit sends it
     /// (the report, the standings, the round's summary). A voided game that was never sent stays
     /// off Discord. The host can also void or change any game already sent (Discord is told), and
     /// start the points again from nothing (Reset all points: Discord isn't touched).
@@ -67,7 +67,7 @@ namespace TournamentTracker
         {
             Held.Add(new HeldGame { Id = game.Id, RoundDone = roundDone, Game = game });
             SaveHeld();
-            Reply($"Game {game.Name} is waiting for you: check it in The Button (Referee), then press Verify to send it to Discord.", false);
+            Reply($"Game {game.Name} is waiting for you: check it in The Button (Referee), then press Submit to send its points to Discord.", false);
         }
 
         /// <summary>A game by its name ("LJ-3") or number ("3"): waiting, the last one, or from its file.</summary>
@@ -102,7 +102,7 @@ namespace TournamentTracker
                 : Held.Where(h => h.Game != null && FindGame(which)?.Id == h.Id).ToList();
             if (list.Count == 0)
             {
-                Reply(Held.Count == 0 ? "No games are waiting to be verified." : $"Game {which} isn't waiting to be verified.", false);
+                Reply(Held.Count == 0 ? "No games are waiting to be submitted." : $"Game {which} isn't waiting to be submitted.", false);
                 return;
             }
             int sent = 0, kept = 0;
@@ -116,8 +116,8 @@ namespace TournamentTracker
             }
             SaveHeld();
             Reply(sent > 0
-                ? $"Verified: {(list.Count == 1 ? "game " + list[0].Game?.Name : sent + " games")} sent to Discord." + (kept > 0 ? $" {kept} voided game{(kept == 1 ? "" : "s")} left off." : "")
-                : "Verified: the voided game stays off Discord.", false);
+                ? $"Submitted: {(list.Count == 1 ? "game " + list[0].Game?.Name : sent + " games")} sent to Discord." + (kept > 0 ? $" {kept} voided game{(kept == 1 ? "" : "s")} left off." : "")
+                : "Done: the voided game stays off Discord.", false);
         }
 
         /// <summary>void LJ-3 reason · unvoid LJ-3: any game, waiting or sent.</summary>
@@ -132,7 +132,7 @@ namespace TournamentTracker
             if (IsWaiting(game))
             {
                 SaveHeld();
-                Reply(makeVoid ? $"Game {game.Name} is void: it won't count, and won't go to Discord." : $"Game {game.Name} counts again (still waiting for Verify).", false);
+                Reply(makeVoid ? $"Game {game.Name} is void: it won't count, and won't go to Discord." : $"Game {game.Name} counts again (still waiting for Submit).", false);
                 return;
             }
             string text = makeVoid
@@ -179,7 +179,7 @@ namespace TournamentTracker
             TrySave(() => SaveGameFile(game), "game record");
             _points = null;
             string what = $"{player.Name} {(change > 0 ? "+" : "")}{change.ToString("0.##", CultureInfo.InvariantCulture)} in game {game.Name}{(reason.Length > 0 ? " (" + reason + ")" : "")}";
-            if (IsWaiting(game)) { Reply($"Points changed: {what}. Still waiting for Verify.", false); return; }
+            if (IsWaiting(game)) { Reply($"Points changed: {what}. Still waiting for Submit.", false); return; }
             Reply($"Points changed: {what}.", false);
             AnnounceVoid(game, $"Referee · points changed: {what}.");
         }

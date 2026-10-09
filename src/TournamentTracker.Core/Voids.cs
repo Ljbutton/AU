@@ -54,7 +54,7 @@ namespace TournamentTracker
             if (IsWaiting(game))
             {
                 SaveHeld();
-                Reply(makeVoid ? $"Game {game.Name} is void: it won't count, and won't go to Discord." : $"Game {game.Name} counts again (still waiting for Verify).", false);
+                Reply(makeVoid ? $"Game {game.Name} is void: it won't count, and won't go to Discord." : $"Game {game.Name} counts again (still waiting for Submit).", false);
                 return;
             }
 
@@ -79,6 +79,8 @@ namespace TournamentTracker
                         var result = await _rest.ExecuteWebhookWithFileAsync(url, message, SharedResults.FileNameFor(game), SharedResults.FileFor(game)).ConfigureAwait(false);
                         if (!result.Ok) _log.Error("Discord webhook post failed: " + result);
                     });
+                UpdatePrelimCount();
+                PostPublic(message, true);
                 return;
             }
 

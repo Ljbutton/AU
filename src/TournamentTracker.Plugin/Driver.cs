@@ -178,7 +178,7 @@ namespace TournamentTracker.Plugin
             // Before roles are handed out everyone reads as a crewmate; wait for the real teams.
             if (!players.Exists(p => p.IsImpostor)) return;
             session.GameStarted(Game.LobbyCode(), Game.MapName(), players);
-            try { session.CheckSettings(LobbyLock.Read()); }
+            try { session.CheckSettings(LobbyLock.Read(session.TournamentLobbySettings)); }
             catch (Exception e) { TournamentPlugin.Logger.Error("Settings check failed: " + e); }
             ReplayCapture.CaptureMap();
             try { RefSlot.MakeGhost(); }

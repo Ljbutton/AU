@@ -402,6 +402,14 @@ details.advanced summary::-webkit-details-marker{display:none}
 details.advanced summary h2{margin:0}
 details.advanced summary h2::before{content:'▸ ';font-size:.8em}
 details.advanced[open] summary h2::before{content:'▾ '}
+#hd-card .hd-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}
+#hd-card label{display:grid;gap:4px;font-size:12.5px;color:var(--muted);min-width:0}
+#hd-card label input{width:100%}
+#hd-card .hd-bots{grid-row:span 2;display:grid;gap:8px;align-content:start}
+#hd-card .hd-bot{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:end}
+#hd-card .hd-saved{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line, #333);border-radius:8px;font-size:13px;color:inherit}
+#hd-card .hd-saved b{color:var(--good, #3fb950)}
+@media (max-width:760px){#hd-card .hd-grid{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>
 <body>
@@ -481,9 +489,9 @@ details.advanced[open] summary h2::before{content:'▾ '}
 </section>
 
 <section id="points">
-  <div><h1>Referee</h1><p class="sub" id="points-sub">Every game waits here for you to check it: change points or void it, then press <b>Verify</b> to send it to Discord. Players never see these in the game or through the bot.</p></div>
+  <div><h1>Referee</h1><p class="sub" id="points-sub">Every game waits here for you to check it: change points or void it, then press <b>Submit</b> to send the points to Discord. Players never see these in the game or through the bot.</p></div>
   <div class="card ref-wait" id="ref-wait" hidden>
-    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Waiting for you <span class="pill" id="ref-wait-n"></span></h2><button class="b primary" id="ref-verify-all">Verify all</button></div>
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Waiting for you <span class="pill" id="ref-wait-n"></span></h2><button class="b primary" id="ref-verify-all">Submit all</button></div>
     <div id="ref-wait-list"></div>
   </div>
   <div class="ref-grid">
@@ -577,6 +585,19 @@ details.advanced[open] summary h2::before{content:'▾ '}
       <div class="row" style="margin-top:8px"><button class="b primary" id="code-save">Use this code</button><button class="b" id="code-cancel" hidden>Cancel</button></div>
     </div>
     <p id="code-result" class="note" hidden style="margin-top:8px"></p>
+  </div>
+  <div class="card" id="hd-card">
+    <h2>Your Discord</h2>
+    <p class="muted" style="margin:0 0 10px">Your own bots and channels, so you don't need a new code to change them. Bots are checked with Discord when you save and go online whenever The Button is open. Tokens stay on this PC.</p>
+    <div class="hd-grid">
+      <label>Server ID<input id="hd-guild" class="mono" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="right-click your server → Copy Server ID"></label>
+      <div class="hd-bots" id="hd-bots"></div>
+      <label>Public report channel webhook<input id="hd-public" class="mono" type="password" autocomplete="off" placeholder="https://discord.com/api/webhooks/…"><small id="hd-public-now" class="muted"></small></label>
+      <label>Live lobby channel webhook <i class="muted">(optional, with a bot)</i><input id="hd-status" class="mono" type="password" autocomplete="off" placeholder="https://discord.com/api/webhooks/…"><small id="hd-status-now" class="muted"></small></label>
+    </div>
+    <p class="muted" id="hd-hint" style="margin:8px 0 0;font-size:12.5px"></p>
+    <div class="row" style="margin-top:10px"><button class="b primary" id="hd-save">Save and check</button></div>
+    <p id="hd-result" class="note" hidden style="margin-top:8px"></p>
   </div>
   <div class="card" id="twitch-card">
     <h2>Your Twitch</h2>
@@ -891,7 +912,7 @@ function renderPoints() {
     + (pts.voided ? `<p class="muted" style="font-size:12.5px">${pts.voided} voided game${pts.voided === 1 ? '' : 's'} left out.</p>` : '');
 }
 
-// ---- Referee: games waiting for Verify, every game's void, points changes, reset --------------
+// ---- Referee: games waiting for Submit, every game's void, points changes, reset --------------
 let gamesKey = '';
 const pn = v => (v > 0 ? '+' : '') + (Math.round(v * 100) / 100);
 function winLine(g) {
@@ -909,13 +930,13 @@ function renderGames() {
   gamesKey = key;
   $('ref-wait').hidden = !waiting.length;
   $('ref-wait-n').textContent = waiting.length;
-  $('ref-verify-all').textContent = `Verify all ${waiting.length}`;
+  $('ref-verify-all').textContent = `Submit all ${waiting.length}`;
   $('ref-verify-all').hidden = waiting.length < 2;
   $('ref-wait-list').innerHTML = waiting.map(g => `<div class="wg${g.voided ? ' voided' : ''}" data-game="${esc(g.name)}">
     <div class="wg-h"><b>Game ${esc(g.name)}</b>${g.round ? `<span class="pill">Round ${g.round}</span>` : ''}${winLine(g)}<span class="muted">${esc(g.map)} · ${Math.round(g.minutes)} min</span>
       ${g.settingsIssues && g.settingsIssues.length ? `<span class="pill bad" title="${esc(g.settingsIssues.join(', '))}">Wrong settings</span>` : ''}<span class="grow"></span>
       ${g.voided ? `<button class="b" data-gact="unvoidgame">Unvoid</button>` : `<button class="b danger" data-gact="voidgame">Void</button>`}
-      <button class="b primary" data-gact="verify">${g.voided ? 'Done (stays off Discord)' : 'Verify & send'}</button></div>
+      <button class="b primary" data-gact="verify">${g.voided ? 'Done (stays off Discord)' : 'Submit points'}</button></div>
     <div class="wg-p">${g.players.map(p => `<div class="wp" data-key="${esc(p.key)}">
       <img src="${head(p.color)}" alt=""><span class="nm">${esc(p.name)}</span>${p.impostor ? '<span class="imp">IMP</span>' : ''}
       <button class="b step" data-step="-1" title="One point less">−</button>
@@ -1042,6 +1063,49 @@ $('code-save').addEventListener('click', async () => {
 });
 $('code-clear').addEventListener('click', async () => { const r = await api('POST', '/app/setup/clear'); toast(r.message); refresh(); });
 
+// ---- Your Discord: the host's own bots and channels ----------------------------------------
+const hdRemove = new Set();
+function renderHostDiscord() {
+  const h = S.hostDiscord || { bots: [] };
+  if (document.activeElement !== $('hd-guild') && !$('hd-guild')._typed) $('hd-guild').value = h.guildId || '';
+  $('hd-guild').placeholder = h.codeGuild ? `${h.codeGuild} (from your setup code)` : 'right-click your server → Copy Server ID';
+  const box = $('hd-bots');
+  if (!box.contains(document.activeElement)) {
+    box.innerHTML = [0, 1, 2].map(i => {
+      const b = h.bots[i];
+      const label = `Bot ${i + 1}` + (i ? ' <i class="muted">(optional: faster muting)</i>' : '');
+      return b && !hdRemove.has(i)
+        ? `<label>${label}<div class="hd-bot"><span class="hd-saved"><b>●</b> ${esc(b.name)} <span class="muted mono">…${esc(b.tail)}</span></span><button class="b" data-hdrm="${i}">Remove</button></div></label>`
+        : `<label>${label}<input type="password" class="mono" data-hdtok="${i}" autocomplete="off" placeholder="${hdRemove.has(i) ? 'removed when you save' : 'bot token'}"></label>`;
+    }).join('');
+    box.querySelectorAll('[data-hdrm]').forEach(btn => btn.onclick = () => { hdRemove.add(+btn.dataset.hdrm); renderHostDiscord(); });
+  }
+  for (const k of ['public', 'status']) {
+    const now = $(`hd-${k}-now`), el = $('hd-' + k);
+    now.innerHTML = el._cleared ? 'Removed when you save.' : h[k] ? `Saved: ${esc(h[k])}. Paste a new one to change it. <button class="b" data-hdclear="${k}">Remove</button>` : '';
+    now.querySelector('[data-hdclear]')?.addEventListener('click', () => { el._cleared = true; el.value = ''; renderHostDiscord(); });
+  }
+  $('hd-hint').textContent = h.prelim
+    ? 'Preliminary: reports and your lobby\'s standings go to your public channel; the organiser gets their own private copy with the data.'
+    : h.codeBots && !h.bots.length ? `Your setup code has ${h.codeBots} bot${h.codeBots > 1 ? 's' : ''} in it; bots saved here are used instead.` : '';
+}
+$('hd-guild').addEventListener('input', () => { $('hd-guild')._typed = true; });
+$('hd-save').addEventListener('click', async () => {
+  const tokens = [0, 1, 2].map(i => { const el = document.querySelector(`[data-hdtok="${i}"]`); return el ? el.value.trim() : ''; });
+  const body = { guild: $('hd-guild').value.trim(), tokens, remove: [...hdRemove] };
+  // An untouched webhook box keeps what's saved; a cleared one (that had something) removes it.
+  for (const k of ['public', 'status']) { const el = $('hd-' + k); if (el.value.trim() || el._cleared) body[k] = el.value.trim(); }
+  $('hd-save').disabled = true; $('hd-save').textContent = 'Checking with Discord…';
+  try {
+    const r = await api('POST', '/app/hostdiscord', body);
+    const n = $('hd-result'); n.hidden = false; n.textContent = r.message; n.className = 'note ' + (r.ok ? 'good' : 'bad');
+    hdRemove.clear(); $('hd-guild')._typed = false; $('hd-public').value = ''; $('hd-status').value = '';
+    $('hd-public')._cleared = $('hd-status')._cleared = false;
+    $('hd-bots').innerHTML = '';
+    await refresh();
+  } finally { $('hd-save').disabled = false; $('hd-save').textContent = 'Save and check'; }
+});
+
 function renderSettings() {
   const g = S.game, m = S.mod;
   if (document.activeElement !== $('twitch-name')) $('twitch-name').value = S.twitch || '';
@@ -1070,6 +1134,7 @@ function renderSettings() {
   $('tour-card').hidden = !(S.status && S.status.mode === 'Tournament' && S.status.shared);
   $('conn-line').textContent = S.status ? `Connected to the mod in Among Us (mod ${S.status.version}).` : 'Among Us isn\'t running with the mod right now.';
   renderSetup();
+  renderHostDiscord();
   renderAppUpdate();
   renderAdmin();
 }
@@ -1108,7 +1173,8 @@ $('app-restart').addEventListener('click', async () => { const r = await api('PO
 function yesNo(v) { return v ? 'On' : 'Off'; }
 const SETTINGS = [['impostors','Impostors'],['killCooldown','Kill cooldown (s)'],['killDistance','Kill distance',v => ['Short','Medium','Long'][v] ?? v],['playerSpeed','Player speed'],['crewmateVision','Crewmate vision'],['impostorVision','Impostor vision'],
   ['emergencyMeetings','Emergency meetings'],['emergencyCooldown','Emergency cooldown (s)'],['discussionTime','Discussion (s)'],['votingTime','Voting (s)'],['confirmEjects','Confirm ejects',yesNo],['anonymousVotes','Anonymous votes',yesNo],['visualTasks','Visual tasks',yesNo],
-  ['commonTasks','Common tasks'],['longTasks','Long tasks'],['shortTasks','Short tasks'],['rolesOff','Special roles',v => v ? 'All off' : 'Allowed']];
+  ['commonTasks','Common tasks'],['longTasks','Long tasks'],['shortTasks','Short tasks'],['taskBarMode','Task bar',v => ['Always','In meetings','Never'][v] ?? v],['ghostsDoTasks','Ghosts do tasks',yesNo],
+  ['rolesOff','Special roles',v => v ? 'Off unless listed' : 'Allowed'],['roles','Roles on'],['roleOptions','Role options']];
 let setupKey = '', codeChanging = false, codeDetails = false;
 function renderSetup() {
   const s = S.setup, inUse = !!(s && !s.error);
