@@ -143,10 +143,11 @@ Create one bot per tournament lobby that runs at the same time, at
 <https://discord.com/developers/applications> (New Application → Bot → Reset Token). For
 each: turn on **Message Content Intent** (Bot → Privileged Gateway Intents), and invite it
 with this link (put in the application ID):
-`https://discord.com/oauth2/authorize?client_id=APP_ID&scope=bot+applications.commands&permissions=12700736`
-(view channels, send messages, embed links, attach files, read history, add reactions,
-mute and deafen members, and the `/link` and `/unlink` commands, which appear in the server
-the first time a host opens Among Us with the code). Preliminary hosts don't need a bot,
+`https://discord.com/oauth2/authorize?client_id=APP_ID&scope=bot+applications.commands&permissions=14011456`
+(view channels, send messages, embed links, attach files, read history, add reactions, use
+external emojis, connect, mute and deafen members, and the `/link` and `/unlink` commands,
+which appear in the server the first time a host opens Among Us with the code). Never
+Administrator: see *What the bots need (least privilege)* for the per-channel version. Preliminary hosts don't need a bot,
 but can have one for automute (see below).
 
 ### 3. Setup codes
