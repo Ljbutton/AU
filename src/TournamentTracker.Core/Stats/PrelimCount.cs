@@ -61,8 +61,6 @@ namespace TournamentTracker.Stats
                     else { t.CrewPoints += p.Points; t.CrewSeats++; }
                 }
             }
-            t.ImpostorPoints = Math.Round(t.ImpostorPoints, 2);
-            t.CrewPoints = Math.Round(t.CrewPoints, 2);
             return t;
         }
 

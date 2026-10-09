@@ -73,8 +73,8 @@ public class GameTrackerTests
         // correct vote out, lost, 100% tasks (up to 3)
         Assert.Equal(2 - 2 + 3, eve.Points);
         Assert.Equal(-2, finn.Points);                  // missed the vote, lost
-        // Carl died first: 90% of the crew's average (1 + 3 - 2) / 3 = 0.67, so 0.6 -> 0.5
-        Assert.Equal(0.5, game.ById(2)!.Points);
+        // Carl died first: 90% of the crew's average (1 + 3 - 2) / 3 = 0.667, so 0.6 exactly
+        Assert.Equal(0.6, game.ById(2)!.Points, 9);
         Assert.Equal(new[] { "Kill", "First blood", "Voted out first", "Kill win" }, alice.PointBreakdown.Select(l => l.Rule));
         Assert.Equal(1, alice.ImpostorEjectOrder);
         Assert.Equal(1, dana.CaughtKiller);

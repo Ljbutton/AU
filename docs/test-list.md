@@ -144,3 +144,9 @@ _A new code from the code maker (Task bar (players) is "In meetings" by default)
 - [ ] Preliminary code with the Red Alert channel and a bot: the lobby shows on Red Alert's Live desk
 - [ ] Same code: "Send my game to the caster" works and the video shows in Red Alert
 - [ ] Same code: reports still go to the private reports channel with the data file and the Count
+
+## New in 0.1.47
+- [ ] Task bonus and reads are exact: a crewmate with 7 of 13 task effort gets "Tasks 54% +1.62", not +1.5
+- [ ] Died first shows 90% of the crew average exactly (e.g. +3.87, not +4)
+- [ ] An old code made before 0.1.47 (it had "round to halves") also scores exactly
+- [ ] Code maker and Points Lab no longer have a rounding box

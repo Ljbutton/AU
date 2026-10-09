@@ -237,8 +237,8 @@ namespace TournamentTracker
         public double TaskPercentBonus { get; set; } = 3;
         /// <summary>How many short or common tasks one long task is worth in that share.</summary>
         public double LongTaskWeight { get; set; } = 2;
-        /// <summary>Percentage bonuses round to the nearest multiple of this (0.5 = halves). 0 keeps exact values.</summary>
-        public double BonusRounding { get; set; } = 0.5;
+        /// <summary>No longer used: points are never rounded (kept so older codes and config files still read).</summary>
+        public double BonusRounding { get; set; }
 
         // Crewmate penalties
         public double IncorrectVoteOut { get; set; } = -2;

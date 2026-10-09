@@ -112,7 +112,7 @@ namespace TournamentTracker.App.Broadcast
                 rows.Take(top).Select(p => (Name(p), p.LastColorId, value(p))).ToList();
             var boards = new List<(string, string, List<(string, int, string)>)>
             {
-                ("Tournament points", "pts", Board(all.OrderByDescending(p => p.Points), p => Math.Round(p.Points, 1).ToString(System.Globalization.CultureInfo.InvariantCulture))),
+                ("Tournament points", "pts", Board(all.OrderByDescending(p => p.Points), p => p.Points.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))),
                 ("Sharpest voters", "right", Board(all.Where(p => p.CorrectVotes + p.IncorrectVotes >= 3).OrderByDescending(p => p.VoteAccuracy).ThenByDescending(p => p.CorrectVotes), p => Pct(p.VoteAccuracy))),
                 ("Most kills", "kills", Board(all.Where(p => p.Kills > 0).OrderByDescending(p => p.Kills).ThenBy(p => p.Games), p => p.Kills.ToString())),
                 ("Impostor win %", "", Board(all.Where(p => p.ImpostorGames >= 2).OrderByDescending(p => (double)p.ImpostorWins / p.ImpostorGames).ThenByDescending(p => p.ImpostorWins), p => Pct((double)p.ImpostorWins / p.ImpostorGames))),

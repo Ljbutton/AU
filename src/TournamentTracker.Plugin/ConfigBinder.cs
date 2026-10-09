@@ -117,7 +117,6 @@ namespace TournamentTracker.Plugin
             p.ReadVotePoints = Rule("ReadVotePoints", p.ReadVotePoints, "Crewmate: per read on an impostor, up to ReadVoteBonus, then scaled by the share of their reads that were on impostors.");
             p.TaskPercentBonus = Rule("TaskPercentBonus", p.TaskPercentBonus, "Crewmate: bonus scaled by the share of their task effort they finished (full amount at 100%).");
             p.LongTaskWeight = Rule("LongTaskWeight", p.LongTaskWeight, "Crewmate: how many short or common tasks one long task counts as in the task bonus.");
-            p.BonusRounding = Rule("BonusRounding", p.BonusRounding, "Round the two percentage bonuses to a multiple of this (0.5 = halves, 0 = exact).");
             p.CrewTaskWin = Rule("CrewTaskWin", p.CrewTaskWin, "Crewmate: team won on tasks.");
             p.CrewVoteWin = Rule("CrewVoteWin", p.CrewVoteWin, "Crewmate: team won by voting the impostors out.");
             p.CrewSabotageLossAlive = Rule("CrewSabotageLossAlive", p.CrewSabotageLossAlive, "Crewmate: alive when the team lost to a sabotage.");
