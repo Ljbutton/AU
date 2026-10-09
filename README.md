@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.47**, a beta.
+The current release is **v0.1.48**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -1038,7 +1038,7 @@ allowed, penalties are negative, and 0 switches a rule off.
 
 | Crewmate | Points | Config key |
 | --- | --- | --- |
-| Finished every task | 0 (off; the task bonus covers it) | `CompletedTasks` |
+| Finished every task | +1 (on top of the task bonus) | `CompletedTasks` |
 | Voted for an impostor who got ejected | +2 each | `CorrectVoteOut` |
 | Called the meeting where an impostor got ejected | +1 | `CaughtKiller` |
 | Killed | 0 (off) | `GotKilled` |
