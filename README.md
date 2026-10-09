@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.46**, a beta.
+The current release is **v0.1.47**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -1061,14 +1061,14 @@ votes don't count either way.
 
 The **task bonus** scales with the share of task effort finished (up to +3), where a long
 task counts as two short ones (`LongTaskWeight`). With 2 common, 3 long and 5 short tasks,
-finishing everything but the long ones is 7 of 13 (54%, +1.5), not 7 of 10.
+finishing everything but the long ones is 7 of 13 (54%, +1.615…), not 7 of 10.
 
 The **first crewmate killed** ends the game on 90% of the average of their crew teammates
 (everyone else on the crew who didn't disconnect), whatever they scored themselves. Dying
 first once is often bad luck and costs little; dying first every game keeps a player out of
 the top half. The report shows it as "Died first: 90% of crew average".
 
-Bonuses and the died-first score round to the nearest half point (`BonusRounding`). Win and loss points go to the whole team, dead or alive, but not to anyone
+Points are never rounded: the task and reads bonuses and the died-first score keep their exact value (a third of a point stays a third), and totals add the exact values. Screens and Discord show up to two decimals. Win and loss points go to the whole team, dead or alive, but not to anyone
 who disconnected. A game won because the other team disconnected isn't on the sheet, so it
 scores nothing unless you set `DisconnectWin`.
 

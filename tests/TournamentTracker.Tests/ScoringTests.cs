@@ -128,26 +128,26 @@ public class ScoringTests
     [Fact]
     public void Percentage_bonuses_scale_with_vote_accuracy_and_tasks()
     {
-        var t = new GameTracker(new ScoringRules());   // defaults: reads 1 each up to 4, tasks 3, halves
+        var t = new GameTracker(new ScoringRules());   // defaults: reads 1 each up to 4, tasks 3, never rounded
         var lobby = Players.Lobby();                    // crewmates have 4 tasks
         t.Start(1, "Cup", "X", "Polus", lobby, _clock.Now);
-        // Nobody is ejected, so every vote is a read. Green: 2 of 3 on impostors -> 2 x 67% = 1.33 -> 1.5.
+        // Nobody is ejected, so every vote is a read. Green: 2 of 3 on impostors -> 2 x 2/3 = 1.333…
         t.VotingComplete(new[] { new VoteCast(2, 0), new VoteCast(3, 1) }, null, false, _clock.Now);
         t.VotingComplete(new[] { new VoteCast(2, 1), new VoteCast(3, VoteCast.SkippedVote) }, null, false, _clock.Now);
         t.VotingComplete(new[] { new VoteCast(2, 4) }, null, false, _clock.Now);
         var final = Players.Lobby();
-        final[2].TasksCompleted = 3;                    // 75% of 3 = 2.25 -> 2.5
-        final[3].TasksCompleted = 1;                    // 25% of 3 = 0.75 -> 1
+        final[2].TasksCompleted = 3;                    // 75% of 3 = 2.25
+        final[3].TasksCompleted = 1;                    // 25% of 3 = 0.75
         var g = t.End("HumansByTask", Outcome.Crewmates, final, _clock.Now)!;
 
         var green = g.ById(2)!;
-        Assert.Contains(green.PointBreakdown, l => l.Rule == "Reads 2/3 on impostors" && l.Points == 1.5);
-        Assert.Contains(green.PointBreakdown, l => l.Rule == "Tasks 75%" && l.Points == 2.5);
-        Assert.Equal(1.5 + 2.5 + 5, green.Points);
+        Assert.Contains(green.PointBreakdown, l => l.Rule == "Reads 2/3 on impostors" && Math.Abs(l.Points - 4.0 / 3) < 1e-9);
+        Assert.Contains(green.PointBreakdown, l => l.Rule == "Tasks 75%" && l.Points == 2.25);
+        Assert.Equal(4.0 / 3 + 2.25 + 5, green.Points, 9);
 
         var pink = g.ById(3)!;                          // one read on an impostor, one skip: 1 x 100%
         Assert.Contains(pink.PointBreakdown, l => l.Rule == "Reads 1/1 on impostors" && l.Points == 1);
-        Assert.Contains(pink.PointBreakdown, l => l.Rule == "Tasks 25%" && l.Points == 1);
+        Assert.Contains(pink.PointBreakdown, l => l.Rule == "Tasks 25%" && l.Points == 0.75);
 
         var orange = g.ById(4)!;                        // never voted: no vote bonus at all
         Assert.DoesNotContain(orange.PointBreakdown, l => l.Rule.StartsWith("Reads"));
@@ -159,7 +159,7 @@ public class ScoringTests
     [InlineData(4, 0, 4)]     // right at four meetings: the full bonus
     [InlineData(6, 0, 4)]     // capped
     [InlineData(4, 4, 2)]     // voting at everything: half right, half the bonus
-    [InlineData(1, 3, 0.5)]   // 1 x 25% = 0.25 -> 0.5
+    [InlineData(1, 3, 0.25)]  // 1 x 25%, not rounded
     [InlineData(0, 3, 0)]
     public void Reads_reward_how_often_and_how_accurately(int correct, int incorrect, double expected) =>
         Assert.Equal(expected, Scoring.ReadBonus(correct, incorrect, new ScoringRules()));
@@ -208,19 +208,21 @@ public class ScoringTests
         var crew = g.Players.Where(p => !p.IsImpostor && p.PlayerId != 2).ToList();
         double average = crew.Average(p => p.Points);
         var green = g.ById(2)!;
-        Assert.Equal(Scoring.Round(0.9 * average, 0.5), green.Points);
+        Assert.Equal(0.9 * average, green.Points, 9);
         Assert.Contains(green.PointBreakdown, l => l.Rule.StartsWith("Died first: 90% of crew average"));
         Assert.Equal(green.Points, green.PointBreakdown.Sum(l => l.Points));
     }
 
-    [Theory]
-    [InlineData(2, 0.67, 0.5, 1.5)]
-    [InlineData(2, 0.6, 0.5, 1.0)]
-    [InlineData(2, 0.625, 0.5, 1.5)]
-    [InlineData(3, 1.0, 0.5, 3.0)]
-    [InlineData(2, 0.67, 0, 1.34)]
-    public void Scaled_bonus_rounds_to_the_step(double max, double share, double step, double expected) =>
-        Assert.Equal(expected, Scoring.Scaled(max, share, step), 3);
+    [Fact]
+    public void Points_are_never_rounded_even_when_an_old_code_asks_for_halves()
+    {
+        var t = new GameTracker(new ScoringRules { BonusRounding = 0.5 });
+        t.Start(1, "Cup", "X", "Polus", Players.Lobby(), _clock.Now);
+        var final = Players.Lobby();
+        final[2].TasksCompleted = 1;                    // 1 of 4 tasks: 3 x 25%
+        var g = t.End("HumansByTask", Outcome.Crewmates, final, _clock.Now)!;
+        Assert.Contains(g.ById(2)!.PointBreakdown, l => l.Rule == "Tasks 25%" && l.Points == 0.75);
+    }
 
     [Theory]
     [InlineData("HumansByTask", "Tasks")]

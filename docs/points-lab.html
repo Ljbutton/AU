@@ -202,7 +202,7 @@ const RULES = [
     ['caughtKiller', 'Caught and voted out killer', 1], ['readVotePoints', 'Read on an impostor (each)', 1], ['readVoteBonus', 'Reads bonus (up to)', 4],
     ['taskPercentBonus', 'Task % bonus (up to)', 3], ['longTaskWeight', 'Long task counts as (short tasks)', 2],
     ['completedTasks', 'Finished every task', 0], ['gotKilled', 'Got killed', 0], ['diedFirstShareOfCrewAverage', 'Died first: share of crew average', 0.9]]],
-  ['Other', [['bonusRounding', 'Round bonuses to', 0.5], ['disconnectWin', 'Win by disconnect', 0]]],
+  ['Other', [['disconnectWin', 'Win by disconnect', 0]]],
 ];
 const DEFAULTS = Object.fromEntries(RULES.flatMap(([, rs]) => rs.map(([k, , v]) => [k, v])));
 
@@ -294,7 +294,7 @@ function track(game) {
 function readBonus(correct, incorrect, r) {
   if (correct <= 0) return 0;
   const earned = Math.min(r.readVoteBonus, r.readVotePoints * correct);
-  return roundStep(earned * correct / (correct + incorrect), r.bonusRounding);
+  return earned * correct / (correct + incorrect);
 }
 function taskEffort(p, longWeight) {
   if (p.tasksTotal <= 0) return 0;
@@ -332,7 +332,7 @@ function breakdown(p, winner, kind, r) {
     if (p.readsRight > 0) add(`Reads ${p.readsRight}/${p.readsRight + p.readsWrong} on impostors`, readBonus(p.readsRight, p.readsWrong, r));
     if (p.tasksTotal > 0) {
       const effort = taskEffort(p, r.longTaskWeight);
-      add(`Tasks ${pct(effort)}`, roundStep(r.taskPercentBonus * clamp01(effort), r.bonusRounding));
+      add(`Tasks ${pct(effort)}`, r.taskPercentBonus * clamp01(effort));
     }
     if (winner != null && (!left || !won)) {
       if (won) {
@@ -359,7 +359,7 @@ function scoreGame(game, r) {
   const mates = players.filter(p => !p.imp && p !== first && p.death !== 'Disconnected');
   if (!mates.length) return players;
   const average = mates.reduce((s, p) => s + p.points, 0) / mates.length;
-  const target = roundStep(r.diedFirstShareOfCrewAverage * average, r.bonusRounding);
+  const target = r.diedFirstShareOfCrewAverage * average;
   const change = target - first.points;
   if (change !== 0) {
     first.lines.push([`Died first: ${pct(r.diedFirstShareOfCrewAverage)} of crew average ${oneDecimal(average)}`, change]);
@@ -487,7 +487,7 @@ const signed = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + fmt(Math.abs(v));
 // ---- Point value inputs ----------------------------------------------------------------
 let rules = { ...DEFAULTS, ...(store.get('lab-rules') || {}) };
 const HELP = { readVotePoints: 'per vote on an impostor who stayed in', readVoteBonus: 'then × share of reads right',
-  diedFirstShareOfCrewAverage: '0.9 = 90%; 0 = off', longTaskWeight: 'in the task %', bonusRounding: '0.5 = halves' };
+  diedFirstShareOfCrewAverage: '0.9 = 90%; 0 = off', longTaskWeight: 'in the task %' };
 const rulesEl = $('rules');
 for (const [group, list] of RULES) {
   const h = document.createElement('div'); h.className = 'group'; h.textContent = group; rulesEl.appendChild(h);

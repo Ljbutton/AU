@@ -173,7 +173,7 @@ namespace TournamentTracker
             bool counted = game.Counted;
             if (counted) Store.Remove(game);
             player.PointBreakdown.Add(new PointLine("Referee" + (reason.Length > 0 ? ": " + reason : ""), change));
-            player.Points = Math.Round(player.Points + change, 2);
+            player.Points = player.Points + change;
             if (counted) Store.Apply(game);
             TrySave(() => Store.Save(_statsPath), "stats");
             TrySave(() => SaveGameFile(game), "game record");
