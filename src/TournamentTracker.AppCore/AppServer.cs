@@ -140,11 +140,6 @@ namespace TournamentTracker.App
                 _organizer = new Organizer(code, _http);
         }
 
-        private string? SideFolder() => string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.GetDirectoryName(_env.SettingsFile);
-
-        private string? SideFile(string name) =>
-            string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.Combine(Path.GetDirectoryName(_env.SettingsFile) ?? ".", name);
-
         private object SetAdminCode(string text)
         {
             if (text.Trim().Length == 0)
@@ -225,8 +220,6 @@ namespace TournamentTracker.App
             _bridge = new DiscordBridge(() => DiscordBridge.FromSetupCode(_settings.SetupCode, _settings.HostDiscord),
                 () => GamePath == null ? null : ModInstaller.DataDir(GamePath), connect: env.Bots);
         }
-
-        public DiscordBridge Bridge => _bridge;
 
         public string? GamePath => _settings.GamePath;
 
@@ -324,11 +317,6 @@ namespace TournamentTracker.App
                 case ("POST", "/app/setup"): return Ok(await SaveSetupAsync(Arg("code")).ConfigureAwait(false));
                 case ("POST", "/app/setup/clear"): return Ok(await ClearSetupAsync().ConfigureAwait(false));
                 case ("POST", "/app/command"): return Ok(await CommandAsync(Arg("command")).ConfigureAwait(false));
-                case ("GET", "/app/activity"):
-                {
-                    string? activity = GamePath == null ? null : await _mod.ActivityAsync(GamePath, long.TryParse(HttpRequest.Query(query, "since"), out var s) ? s : 0).ConfigureAwait(false);
-                    return Text(200, "application/json", activity ?? "{\"last\":0,\"lines\":[]}");
-                }
                 case ("POST", "/app/open"): return Ok(Open(Arg("what")));
                 case ("POST", "/app/feed"): return Ok(await FeedAsync(Arg("on") == "true").ConfigureAwait(false));
                 case ("POST", "/app/admin/code"): return Ok(SetAdminCode(Arg("code")));

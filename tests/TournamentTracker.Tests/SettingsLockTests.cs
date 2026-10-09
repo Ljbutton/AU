@@ -211,7 +211,6 @@ public class GeneratorOptionsTests
         Assert.Equal(0, s.LobbySettings.KillDistance);
         Assert.True(s.LobbySettings.RolesOff);
         Assert.False(s.LobbySettings.ConfirmEjects);
-        Assert.Equal(4, s.Scoring.ReadVoteBonus);
         Assert.Equal(0.9, s.Scoring.DiedFirstShareOfCrewAverage);
     }
 }

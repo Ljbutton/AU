@@ -52,7 +52,6 @@ namespace TournamentTracker.Plugin
 
         private static readonly List<Frame.Player> Alive = new List<Frame.Player>();
         private static readonly List<Frame.Player> Crew = new List<Frame.Player>();
-        private static readonly List<byte> Ids = new List<byte>();
 
         // Where each player's sight reaches, kept between frames.
         private sealed class Sight

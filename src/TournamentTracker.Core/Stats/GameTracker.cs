@@ -156,17 +156,6 @@ namespace TournamentTracker.Stats
             var exiled = exiledId.HasValue ? _game.ById(exiledId.Value) : null;
             string tally = string.Join(", ", meeting.Votes.Select(DescribeVote));
 
-            // Crewmate votes on someone who stayed in are reads; a vote that ejected someone scores as a vote out instead.
-            foreach (var v in meeting.Votes)
-            {
-                if (v.TargetKey == null || v.TargetKey == exiled?.Key) continue;
-                var voter = _game.ByKey(v.VoterKey);
-                var target = _game.ByKey(v.TargetKey);
-                if (voter == null || target == null || voter.IsImpostor) continue;
-                if (target.IsImpostor) voter.ReadVotesCorrect++;
-                else voter.ReadVotesIncorrect++;
-            }
-
             if (exiled != null)
             {
                 // Votes only score when they put someone out: see Scoring.

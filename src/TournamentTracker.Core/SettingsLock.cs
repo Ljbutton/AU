@@ -28,7 +28,7 @@ namespace TournamentTracker
             if (changed.Count == 0 || _lockNoticed) return;
             _lockNoticed = true;
             Reply($"Settings are locked for {_settings.TournamentName}: put back {string.Join(", ", changed)}. " +
-                  $"For a casual game, {HowTo("lock off", "the Settings lock switch")}.", false);
+                  $"For a casual game, {HowTo("the Settings lock switch")}.", false);
         }
 
         /// <summary>Compares the settings a game started with against the tournament's and flags the game if they differ.</summary>
@@ -41,7 +41,7 @@ namespace TournamentTracker
             var issues = want.Differences(actual);
             game.SettingsIssues = issues;
             if (issues.Count == 0) return;
-            Reply($"This game started with the wrong settings: {string.Join(", ", issues)}. Its report will say so. If it shouldn't count, {HowTo("void", "Void")}.", false);
+            Reply($"This game started with the wrong settings: {string.Join(", ", issues)}. Its report will say so. If it shouldn't count, {HowTo("Void")}.", false);
             if (Shared != null && _settings.Mode == TrackerMode.Tournament)
             {
                 string note = $"Settings · {game.Name} started with {string.Join(", ", issues)}.";

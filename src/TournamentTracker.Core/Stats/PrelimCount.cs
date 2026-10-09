@@ -29,7 +29,6 @@ namespace TournamentTracker.Stats
             public int ImpostorSeats { get; set; }
             public int CrewSeats { get; set; }
 
-            public double TotalPoints => ImpostorPoints + CrewPoints;
             /// <summary>Share of the points that went to impostors, 0–100 (50 with no points yet).</summary>
             public double ImpostorShare => Share(ImpostorPoints, CrewPoints);
             public double CrewShare => 100 - ImpostorShare;

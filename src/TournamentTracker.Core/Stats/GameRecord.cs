@@ -94,9 +94,6 @@ namespace TournamentTracker.Stats
         public int VotesCast { get; set; }
         public int CorrectVotes { get; set; }
         public int IncorrectVotes { get; set; }
-        /// <summary>Crewmate votes for someone who wasn't ejected that meeting, split by what they were.</summary>
-        public int ReadVotesCorrect { get; set; }
-        public int ReadVotesIncorrect { get; set; }
         public int Skips { get; set; }
         public int MissedVotes { get; set; }
         public int VotesReceived { get; set; }

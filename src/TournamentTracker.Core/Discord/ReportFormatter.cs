@@ -254,19 +254,6 @@ namespace TournamentTracker.Discord
             return best == null ? "—" : $"{best.Label} ({Signed(best.Points)})";
         }
 
-        private static string Icon(string kind) => kind switch
-        {
-            "kill" => "🔪",
-            "meeting" => "📢",
-            "eject" => "🚀",
-            "tasks" => "✅",
-            "sabotage" => "⚠️",
-            "disconnect" => "🔌",
-            "start" => "▶️",
-            "end" => "🏁",
-            _ => "•",
-        };
-
         private static EmbedField Field(string name, string value, bool inline) =>
             new EmbedField { Name = name, Value = Clip(string.IsNullOrWhiteSpace(value) ? "—" : value, Embed.FieldValueLimit), Inline = inline };
 

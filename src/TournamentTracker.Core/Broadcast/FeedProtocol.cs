@@ -52,15 +52,7 @@ namespace TournamentTracker.Broadcast
             public static readonly IReadOnlyList<string> All = new[] { GameStart, Kill, Meeting, Eject, Tasks, GameEnd, Vent, Sabotage, KillReady, Danger };
         }
 
-        // ---- Over VDO.Ninja (the host's push link; only the caster has its password) -------------------
-        /// <summary>Host → caster: <c>{sendData:{tt:[messages]}, type:'pcs'}</c>.</summary>
-        public const string DataKey = "tt";
-        /// <summary>Caster → host: a spectator view command, <c>{sendData:{ttc:"spec lit on"}, type:'rpcs'}</c>.</summary>
-        public const string CommandKey = "ttc";
-        /// <summary>Caster → host: roster names for the lobby's players (player key → name).</summary>
-        public const string NamesKey = "ttn";
-        /// <summary>Caster → host: what arrived, per run of the mod (src → last seq), so the page stops sending those again.</summary>
-        public const string AckKey = "ttack";
+        // ---- Over VDO.Ninja (keys tt / ttc / ttn / ttack: see docs/broadcast-protocol.md) -------------------
         /// <summary>The only commands a host's page passes on to the mod.</summary>
         public const string CommandPattern = @"^spec [a-z]+( [a-z0-9.]+)?$";
 

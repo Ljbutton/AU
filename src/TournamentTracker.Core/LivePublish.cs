@@ -30,10 +30,6 @@ namespace TournamentTracker
         private bool LivePublishOn =>
             _settings.PublishLive && _settings.Mode != TrackerMode.Standard && Shared != null && _settings.AutoMute.BotTokens.Count > 0;
 
-        /// <summary>The live data as the organiser's view reads it. Public for tests.</summary>
-        public string LiveJson(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, string lobbyCode, string map) =>
-            JsonSerializer.Serialize(LiveData(phase, players, lobbyCode, map));
-
         private Dictionary<string, object?> LiveData(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, string lobbyCode, string map)
         {
             var game = Tracker.Current;

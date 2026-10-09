@@ -25,7 +25,6 @@ namespace TournamentTracker.App
         public static readonly TimeSpan Stale = TimeSpan.FromSeconds(150);
         /// <summary>Events everyone in the game already knows about (safe for the stream before a meeting reveals more).</summary>
         public static readonly IReadOnlyCollection<string> PublicEvents = new HashSet<string> { "meeting", "eject", "end" };
-        private static readonly JsonSerializerOptions Camel = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
         private readonly SetupCode _code;
         private readonly DiscordRest _rest;

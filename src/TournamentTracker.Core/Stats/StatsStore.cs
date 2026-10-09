@@ -43,7 +43,6 @@ namespace TournamentTracker.Stats
         public double Points { get; set; }
 
         public int Losses => Games - Wins;
-        public double WinRate => Games == 0 ? 0 : (double)Wins / Games;
         public double VoteAccuracy => CorrectVotes + IncorrectVotes == 0 ? 0 : (double)CorrectVotes / (CorrectVotes + IncorrectVotes);
         public double TaskCompletion => TasksTotal == 0 ? 0 : (double)TasksCompleted / TasksTotal;
     }

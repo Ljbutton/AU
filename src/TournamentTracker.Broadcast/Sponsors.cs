@@ -47,7 +47,6 @@ namespace TournamentTracker.App.Broadcast
     {
         public const string FileName = "sponsors.json";
         public const string LogName = "sponsor-log.jsonl";
-        public static readonly string[] AllPlacements = { "killcam", "replay", "montage", "standings", "grid", "multiview", "break" };
         private static readonly JsonSerializerOptions Json = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase, ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
 
         private readonly string? _path, _logPath;
@@ -206,8 +205,6 @@ namespace TournamentTracker.App.Broadcast
             }
             Log(o.Sponsor.Name, o.Placement, o.Start, _clock(), o.Lobby, o.Moment);
         }
-
-        public bool IsOpen(string key) { lock (_lock) return _open.ContainsKey(key); }
 
         /// <summary>Ends every appearance whose key starts with this (e.g. all grid tiles).</summary>
         public void EndAll(string prefix)
