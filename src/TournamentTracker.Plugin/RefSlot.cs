@@ -95,6 +95,10 @@ namespace TournamentTracker.Plugin
                 _view = null;
                 RoomName(true);
                 HoldCamera(false);
+                // No referee slot: the host playing still gets the real task bar (see KeepHud).
+                bool meetingNow = MeetingHud.Instance != null || ExileController.Instance != null;
+                if (HudManager.InstanceExists && LocalIsHostInGame() && !meetingNow) TaskBar(true, small: false);
+                else TaskBar(false);
                 return;
             }
             bool meeting = MeetingHud.Instance != null || ExileController.Instance != null;
@@ -184,7 +188,15 @@ namespace TournamentTracker.Plugin
         private static void KeepHud(bool meeting)
         {
             bool referee = LocalIsRefereeGhost();
-            if (!referee || !HudManager.InstanceExists) { RoomName(true); TaskBar(false); return; }
+            if (!referee || !HudManager.InstanceExists)
+            {
+                RoomName(true);
+                // The host always sees the real task bar, whatever the lobby's setting (players see
+                // it as the lobby says: in a tournament, only in meetings).
+                bool hostPlaying = HudManager.InstanceExists && LocalIsHostInGame();
+                if (hostPlaying && !meeting) TaskBar(true, small: false); else TaskBar(false);
+                return;
+            }
             RoomName(false);
             if (!meeting) TaskBar(true);
         }
@@ -211,6 +223,11 @@ namespace TournamentTracker.Plugin
                 if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
         }
 
+        /// <summary>This game's player is the host, in a game that's running.</summary>
+        private static bool LocalIsHostInGame() =>
+            PlayerControl.LocalPlayer != null && Game.IsHost && AmongUsClient.Instance != null
+            && AmongUsClient.Instance.GameState == InnerNetClient.GameStates.Started && ShipStatus.Instance != null;
+
         /// <summary>This game's player is the referee ghost (the host, dead, in the referee slot).</summary>
         public static bool LocalIsRefereeGhost()
         {
@@ -220,9 +237,10 @@ namespace TournamentTracker.Plugin
             return me != null && me.Dead && RefereeId() == local.PlayerId;
         }
 
-        // ---- The task bar on the referee's screen ------------------------------------------------
-        // Smaller (it's in the way on the stream), and filled from the real task count every frame,
-        // whatever the lobby's task bar setting (the game only fills it in meetings, or never, for some).
+        // ---- The task bar on the host's screen ----------------------------------------------------
+        // Filled from the real task count every frame, whatever the lobby's task bar setting (the
+        // game only fills it in meetings, or never, for some). Smaller for the referee (it's in the
+        // way on the stream).
 
         private const float BarScale = 0.6f;
         private static ProgressTracker? _bar;
@@ -230,9 +248,16 @@ namespace TournamentTracker.Plugin
         private static Vector3 _barScale;
         private static float _barValue, _barLook;
 
-        private static void TaskBar(bool referee)
+        private static bool _barSmall;
+
+        private static void TaskBar(bool show, bool small = true)
         {
-            if (!referee)
+            if (_bar != null && show && small != _barSmall)
+            {
+                _bar.transform.localScale = _barScale * (small ? BarScale : 1f);
+                _barSmall = small;
+            }
+            if (!show)
             {
                 if (_bar != null) _bar.transform.localScale = _barScale;
                 _bar = null;
@@ -247,7 +272,8 @@ namespace TournamentTracker.Plugin
                 if (found == null || found.Length == 0) return;
                 _bar = found[0];
                 _barScale = _bar.transform.localScale;
-                _bar.transform.localScale = _barScale * BarScale;
+                _bar.transform.localScale = _barScale * (small ? BarScale : 1f);
+                _barSmall = small;
                 _barFill = _bar.GetComponentInChildren<MeshRenderer>(true);
                 _barValue = 0;
             }

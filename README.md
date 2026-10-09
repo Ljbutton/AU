@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.43**, a beta.
+The current release is **v0.1.44**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -202,7 +202,7 @@ put back by itself.
 
 * **Settings lock** (on by default in the generator): while a preliminary or tournament code
   is in use, the host's lobby is kept on the tournament's settings (impostors, cooldowns,
-  vision, kill distance, tasks, the task bar, ghosts doing tasks, and the roles). **Roles…**
+  vision, kill distance, tasks, the task bar (in meetings only by default: the host's own screen always shows the real bar), ghosts doing tasks, and the roles). **Roles…**
   sets each role (Engineer, Scientist, Guardian Angel, Noisemaker, Tracker, Detective, Judge,
   Spirit Guide, Shapeshifter, Phantom, Viper) to a number per game and a chance; every role
   left at 0 is off. Each role's options (cooldowns, durations, "leave evidence"…) are held too
