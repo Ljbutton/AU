@@ -65,6 +65,10 @@ jobs:
           dotnet build src/TournamentTracker.Plugin -c Release
           ${{ inputs.game_libs_version && format('-p:GameLibsVersion={0}', inputs.game_libs_version) || '' }}
 
+      - name: TEMP probe the game's options
+        continue-on-error: true
+        run: dotnet run --project tools/ApiProbe -c Release > api-probe.txt 2>&1; wc -l api-probe.txt; cat api-probe.txt
+
       - name: Build The Button, the app (Windows)
         run: >
           dotnet publish src/TournamentTracker.App -c Release -r win-x64 --self-contained
