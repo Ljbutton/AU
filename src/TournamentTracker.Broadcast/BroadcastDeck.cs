@@ -98,7 +98,9 @@ namespace TournamentTracker.App.Broadcast
             }
             _camPick[lobby] = pick;
             SpecOut(lobby, pick.HasValue ? $"spec cam {pick.Value}" : "spec cam auto");
-            _desk.Show(lobby, "cam");
+            // Several cameras up with this lobby's among them: only who it follows changes.
+            bool among = _desk.OnAir.Layout == "cams" && _desk.OnAir.Slots.Any(s => string.Equals(s, lobby, StringComparison.OrdinalIgnoreCase));
+            if (!among) _desk.Show(lobby, "cam");
             string name = pick.HasValue && live != null && live.People.TryGetValue(pick.Value, out var lp) ? _desk.Board.DisplayName(live, lp.Id, lp.Name) : "";
             return (true, pick.HasValue ? $"{lobby}: player camera on {name}." : $"{lobby}: player camera (it picks who to follow).");
         }
@@ -110,7 +112,7 @@ namespace TournamentTracker.App.Broadcast
             _settings.CamOff = !on;
             TrySave();
             foreach (var r in _desk.Board.Ranking()) SpecOut(r.Lobby, on ? "spec cam on" : "spec cam off");
-            if (!on && _desk.OnAir.Layout == "cam") _desk.Show(_desk.OnAir.Slots.FirstOrDefault() ?? "", "full");
+            if (!on && _desk.OnAir.IsCam) _desk.Show(_desk.OnAir.Slots.FirstOrDefault() ?? "", "full");
             return on ? "Player cameras on: each host sends one (it starts within a few seconds)." : "Player cameras off.";
         }
 

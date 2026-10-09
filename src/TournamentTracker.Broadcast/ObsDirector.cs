@@ -254,6 +254,15 @@ namespace TournamentTracker.App.Broadcast
             _ => (5, (count + 4) / 5),
         };
 
+        /// <summary>Where each lobby's player camera goes: full screen for one, else 2-up or quad boxes by slot.</summary>
+        public List<Box> CamBoxes(OnAir air)
+        {
+            if (air.Layout == "cam") return new List<Box> { new Box(0, 0, Width, Height) };
+            if (air.Layout != "cams") return new List<Box>();
+            int n = air.Slots.Count(s => s != null);
+            return Slots(n <= 2 ? "2up" : "4up", Width, Height, Settings.Gap);
+        }
+
         public static List<Box> Slots(string layout, double w, double h, double gap, int count = 0)
         {
             switch (layout)
@@ -268,6 +277,8 @@ namespace TournamentTracker.App.Broadcast
                             boxes.Add(new Box(gap + c * (bw + gap), gap + r * (bh + gap), bw, bh));
                     return boxes;
                 }
+                case "cams":
+                    return new List<Box>();     // only the cameras (placed by CamBoxes), no whole-map pictures
                 case "cam":
                 {
                     // The player camera fills the screen (its own source); the lobby's whole map sits small in the bottom right.
@@ -405,7 +416,7 @@ namespace TournamentTracker.App.Broadcast
         public async Task ApplyAsync(OnAir air)
         {
             var obs = _obs;
-            if (obs == null || !Settings.Scenes.TryGetValue(air.Layout, out var scene)) return;
+            if (obs == null || !Settings.Scenes.TryGetValue(air.Layout == "cams" ? "cam" : air.Layout, out var scene)) return;
             // From here until OBS confirms, its item events are ours (arranging the scene), not a switch by hand.
             var ex = new Expect { Scene = scene, Air = air, Asked = DateTime.UtcNow };
             _expect = ex;
@@ -413,7 +424,7 @@ namespace TournamentTracker.App.Broadcast
             // A swoosh when what's on stream changes (a new scene, or pictures moving in this one).
             string key = AirKey(air);
             // No swoosh to, from or within the player camera: game to player to player is a straight cut.
-            bool camCut = air.Layout == "cam" || Scene == Settings.Scenes.GetValueOrDefault("cam");
+            bool camCut = air.IsCam || Scene == Settings.Scenes.GetValueOrDefault("cam");
             if (!camCut && (key != _airKey || Scene != scene)) await SwooshAsync(Scene != scene).ConfigureAwait(false);
             _airKey = key;
             await _busy.WaitAsync().ConfigureAwait(false);
@@ -423,22 +434,28 @@ namespace TournamentTracker.App.Broadcast
                 var items = await ItemsAsync(obs, scene).ConfigureAwait(false);
                 foreach (var item in items)
                 {
-                    // The player camera scene: only the on-air lobby's camera shows, full screen, under everything.
+                    // The player camera scene: the on-air lobby's camera full screen, under everything; or
+                    // several lobbies' cameras side by side (two) or in a quad (three or four).
                     if (CamLobbyOf(item.Source) is string camLobby)
                     {
-                        bool showCam = air.Layout == "cam" && string.Equals(camLobby, air.Slots.FirstOrDefault(), StringComparison.OrdinalIgnoreCase);
+                        int camSlot = air.IsCam ? air.Slots.FindIndex(s => string.Equals(s, camLobby, StringComparison.OrdinalIgnoreCase)) : -1;
+                        var camBoxes = CamBoxes(air);
+                        bool showCam = camSlot >= 0 && camSlot < camBoxes.Count;
                         if (showCam)
+                        {
+                            var cb = camBoxes[camSlot];
                             await obs.RequestAsync("SetSceneItemTransform", new
                             {
                                 sceneName = scene,
                                 sceneItemId = item.Id,
                                 sceneItemTransform = new
                                 {
-                                    positionX = 0.0, positionY = 0.0, alignment = 5, rotation = 0.0,
-                                    boundsType = "OBS_BOUNDS_SCALE_INNER", boundsAlignment = 0, boundsWidth = Width, boundsHeight = Height,
+                                    positionX = cb.X, positionY = cb.Y, alignment = 5, rotation = 0.0,
+                                    boundsType = "OBS_BOUNDS_SCALE_INNER", boundsAlignment = 0, boundsWidth = cb.W, boundsHeight = cb.H,
                                     cropLeft = 0, cropRight = 0, cropTop = 0, cropBottom = 0,
                                 },
                             }).ConfigureAwait(false);
+                        }
                         if (item.Enabled != showCam)
                             await obs.RequestAsync("SetSceneItemEnabled", new { sceneName = scene, sceneItemId = item.Id, sceneItemEnabled = showCam }).ConfigureAwait(false);
                         continue;
