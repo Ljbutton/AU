@@ -314,6 +314,15 @@ public class TournamentModeTests : IDisposable
         s.RunCommand($"!adjust LJ-1 {red.Key} -2 left the call");
         Assert.Equal(before - 2, s.WaitingGames[0].ByKey(red.Key)!.Points);
         Assert.Contains(s.WaitingGames[0].ByKey(red.Key)!.PointBreakdown, l => l.Rule == "Referee: left the call" && l.Points == -2);
+
+        // Any amount up to 3 significant figures, added or taken away exactly.
+        s.RunCommand($"!adjust LJ-1 {red.Key} +0.125 referee");
+        Assert.Equal(before - 2 + 0.125, s.WaitingGames[0].ByKey(red.Key)!.Points, 9);
+        s.Pump();
+        s.RunCommand($"!adjust LJ-1 {red.Key} -0.125 referee");
+        s.RunCommand($"!adjust LJ-1 {red.Key} 1.234 referee");     // 4 significant figures: refused
+        Assert.Contains(s.Pump(), r => r.Text.Contains("more than 3 significant figures"));
+        Assert.Equal(before - 2, s.WaitingGames[0].ByKey(red.Key)!.Points, 9);
         await s.PendingPosts;
         Assert.Equal(0, s.Combined?.Store.GamesRecorded ?? 0);   // still nothing shared
 
@@ -826,4 +835,21 @@ public class PrelimLeaderboardTests
     }
 
     private static JsonElement Payload(FakeDiscord.Msg m) => JsonDocument.Parse("{\"embeds\":" + m.Embeds!.Value.GetRawText() + "}").RootElement;
+}
+
+public class RefereeAmountTests
+{
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(0.125, true)]
+    [InlineData(1.25, true)]
+    [InlineData(12.5, true)]
+    [InlineData(125, true)]
+    [InlineData(-0.75, true)]
+    [InlineData(1.234, false)]
+    [InlineData(0.1255, false)]
+    [InlineData(1001, false)]
+    [InlineData(0, false)]
+    public void A_referee_change_has_up_to_3_significant_figures(double value, bool ok) =>
+        Assert.Equal(ok, TournamentSession.ThreeSigFigs(value));
 }

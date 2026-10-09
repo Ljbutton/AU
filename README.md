@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.49**, a beta.
+The current release is **v0.1.50**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -79,8 +79,10 @@ While you play, the app's pages run the lobby:
   stream overlay switches; post the leaderboard or server standings, or repost the lobby
   message.
 * **Referee:** every game waits here before Discord sees anything. Under **Waiting for you**
-  each finished game shows every player's points (hover for where they came from): **−** and
-  **+** change a player's points by one (it shows as "Referee" in their breakdown), **Void**
+  each finished game shows every player's points (hover for where they came from). Type any
+  amount with up to 3 significant figures (0.125, 1.25, 12.5, 125; empty means 1) in the box
+  next to a player, then press **+** to add it or **−** to take it away (it shows as "Referee"
+  in their breakdown), **Void**
   keeps it out of the points and off Discord for good, and **Submit points** posts it (the
   report, the standings, the round's scores). **Submit all** sends every waiting game. The
   number on the tab says how many are waiting; they stay waiting across a restart.
