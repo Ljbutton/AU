@@ -29,7 +29,7 @@ namespace TournamentTracker
             string key = $"{Combined?.GameRecords.Count}|{Combined?.GetHashCode()}|{Round}|{LobbyLabel()}|{Links.Version}|{local.Count}|{(local.Count > 0 ? local.Max(f => f.LastWriteTimeUtc).Ticks : 0)}";
             if (_points != null && key == _pointsKey) return _points;
             _pointsKey = key;
-            try { _points = BuildPoints(local); }
+            try { _points = BuildPoints(); }
             catch (Exception e) { _log.Warn("Couldn't build the points view: " + e.Message); }
             return _points;
         }
@@ -84,7 +84,7 @@ namespace TournamentTracker
             catch (Exception) { return null; }
         }).Where(g => g != null).Select(g => g!).ToList();
 
-        private object BuildPoints(List<FileInfo> files)
+        private object BuildPoints()
         {
             bool combined = Combined != null;
             IReadOnlyList<GameRecord> games = Combined?.GameRecords ?? _localGames.Where(x => x.Game != null).Select(x => x.Game!).ToList();

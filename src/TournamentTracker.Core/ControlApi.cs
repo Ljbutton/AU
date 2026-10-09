@@ -56,7 +56,7 @@ namespace TournamentTracker
             if (_settings.ControlPort < 0) return;
             try
             {
-                _control = new ControlServer(_settings.ControlPort, _dataDir, () => _statusJson, ActivitySince, RunCommandForApp, _log, FeedSince) { Names = SetDisplayNames, Cam = Cam };
+                _control = new ControlServer(_settings.ControlPort, _dataDir, () => _statusJson, RunCommandForApp, _log, FeedSince) { Names = SetDisplayNames, Cam = Cam };
                 RefreshStatus();
                 _log.Info($"App connection ready on port {_control.Port}");
             }
@@ -75,14 +75,6 @@ namespace TournamentTracker
             }
         }
 
-        private string ActivitySince(long since)
-        {
-            lock (_activityLock)
-            {
-                var lines = _activity.Where(a => a.Seq > since).Select(a => new { seq = a.Seq, at = a.At.ToString("o"), text = a.Text }).ToList();
-                return JsonSerializer.Serialize(new { last = _activitySeq, lines });
-            }
-        }
 
         /// <summary>Runs a host command from the app on the game thread and answers with what the mod said.</summary>
         private async Task<string> RunCommandForApp(string command)

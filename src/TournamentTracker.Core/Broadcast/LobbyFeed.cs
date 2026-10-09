@@ -37,7 +37,6 @@ namespace TournamentTracker
         private GameRecord? _endedGame;
         private GameRecord? FeedGame => Tracker.Current ?? _endedGame;
 
-        private VoicePhase _feedPhase = VoicePhase.Menu;
         private FeedFrame? _lastFrame;
         private DateTime _nextSnapshot;
         private int _lastTaskPct = -1;
@@ -295,7 +294,7 @@ namespace TournamentTracker
             });
         }
 
-        private void FeedVote(int ejectsBefore)
+        private void FeedVote()
         {
             var game = Tracker.Current;
             var meeting = game?.Meetings.LastOrDefault();
@@ -367,7 +366,6 @@ namespace TournamentTracker
         {
             var now = _clock();
             _lastFrame = frame;
-            _feedPhase = frame.Phase;
             var game = Tracker.Current;
             bool playing = game != null && frame.Phase == VoicePhase.Tasks;
 

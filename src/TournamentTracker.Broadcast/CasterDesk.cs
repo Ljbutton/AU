@@ -213,8 +213,6 @@ namespace TournamentTracker.App.Broadcast
             }
         }
 
-        /// <summary>Lobbies in their fixed order (by number), never by score: what's on the desk doesn't move.</summary>
-        public List<LobbyRank> Ordered() => Board.Ranking().OrderBy(r => NumberOf(r.Lobby)).ToList();
         public bool Simulating => _sim != null;
 
         // ---- Feed in ------------------------------------------------------------------------
@@ -465,8 +463,6 @@ namespace TournamentTracker.App.Broadcast
             lock (sim) messages = sim.Advance(_clock());
             foreach (var m in messages) Apply(m);
         }
-
-        public void SimOffline(string lobby, bool offline) => _sim?.SetOffline(lobby, offline);
 
         /// <summary>A player object from a lobby's message as (key, real name, colour), for the stats database.</summary>
         private (string Key, string Name, int Color)? WhoIs(string lobby, JsonElement p)

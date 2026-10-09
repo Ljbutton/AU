@@ -167,7 +167,7 @@ namespace TournamentTracker.App.Broadcast
             Disconnect();
             if (Settings.TestMode)
             {
-                Api = new FakeTwitchApi(_random);
+                Api = new FakeTwitchApi();
                 User = await Api.MeAsync().ConfigureAwait(false);
                 Problem = null;
                 await EnsureRewardsAsync().ConfigureAwait(false);
@@ -284,7 +284,7 @@ namespace TournamentTracker.App.Broadcast
             if (Settings.Off || Api == null) return;
             // Polls and chat votes run out; a prediction's window closes.
             if (Vote is { Status: "open" } v && now >= v.EndsAt) v.Status = "ended";
-            if (Api is FakeTwitchApi fake && FakeAudience) await FakeTrafficAsync(fake).ConfigureAwait(false);
+            if (Api is FakeTwitchApi && FakeAudience) await FakeTrafficAsync().ConfigureAwait(false);
             if (Prediction is { Status: "open" } p && now >= p.EndsAt) p.Status = "locked";
             if (Poll is { Status: "open" } pl && now >= pl.EndsAt.AddSeconds(3)) await PollEndedAsync(pl).ConfigureAwait(false);
 
@@ -903,7 +903,7 @@ namespace TournamentTracker.App.Broadcast
 
         private static readonly string[] FakeViewers = { "sus_hunter", "ventwatcher", "crewmate4life", "emergencybtn", "taskmaster99", "redwasvented", "skeldwalker", "o2fixer", "polusfan", "miramira", "cafeteriaguy", "cardswipe", "lightsoff", "admintable", "medscanner", "asteroidpro" };
 
-        private async Task FakeTrafficAsync(FakeTwitchApi fake)
+        private async Task FakeTrafficAsync()
         {
             var now = _clock();
             // Votes trickle in on the poll, points on the prediction, !sus in chat (picked at random: test mode knows nothing either).
@@ -1008,12 +1008,10 @@ namespace TournamentTracker.App.Broadcast
     /// <summary>Test mode: a pretend Twitch channel (an Affiliate) that takes everything and sends nothing.</summary>
     public sealed class FakeTwitchApi : ITwitchApi
     {
-        private readonly Random _random;
         private int _n;
         public List<string> Calls { get; } = new List<string>();
         public List<string> ChatSent { get; } = new List<string>();
         public string BroadcasterType { get; set; } = "affiliate";
-        public FakeTwitchApi(Random? random = null) => _random = random ?? new Random();
         private string Id(string kind) => $"{kind}-{++_n}";
 
         public Task<TwitchUser> MeAsync() => Task.FromResult(new TwitchUser { Id = "1", Login = "test_channel", Name = "Test channel", BroadcasterType = BroadcasterType });

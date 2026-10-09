@@ -23,7 +23,6 @@ namespace TournamentTracker.Discord
         public string Body { get; set; } = "";
 
         public const int NotInVoice = 40032;
-        public const int UnknownMember = 10007;
 
         public bool IsNotInVoice => ErrorCode == NotInVoice;
         public override string ToString() => Ok ? "OK" : $"HTTP {Status} ({ErrorCode}) {Body}";
@@ -88,16 +87,6 @@ namespace TournamentTracker.Discord
             }, "member:" + botToken.GetHashCode() + ":" + guildId, ct);
         }
 
-        public async Task<GuildMember?> GetMemberAsync(string botToken, string guildId, string userId, CancellationToken ct = default)
-        {
-            var result = await SendAsync(() =>
-            {
-                var req = new HttpRequestMessage(HttpMethod.Get, $"{_apiBase}/guilds/{guildId}/members/{userId}");
-                Authorize(req, botToken);
-                return req;
-            }, "get-member:" + botToken.GetHashCode(), ct).ConfigureAwait(false);
-            return result.Ok ? ParseMember(JsonDocument.Parse(result.Body).RootElement) : null;
-        }
 
         /// <summary>Members whose username or server nickname starts with <paramref name="query"/>.</summary>
         public async Task<IReadOnlyList<GuildMember>> SearchMembersAsync(string botToken, string guildId, string query, CancellationToken ct = default)

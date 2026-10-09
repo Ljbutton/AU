@@ -95,10 +95,6 @@ public class ControlApiTests : IDisposable
         Assert.Equal(3, s.Round);
         status = JsonDocument.Parse(await http.GetStringAsync("api/status")).RootElement;
         Assert.Equal(3, status.GetProperty("round").GetInt32());
-
-        var activity = JsonDocument.Parse(await http.GetStringAsync("api/activity?since=0")).RootElement;
-        Assert.True(activity.GetProperty("last").GetInt64() > 0);
-        Assert.Contains(activity.GetProperty("lines").EnumerateArray(), l => l.GetProperty("text").GetString()!.StartsWith("Round 3"));
     }
 
     [Fact]

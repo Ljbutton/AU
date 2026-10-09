@@ -241,16 +241,11 @@ namespace TournamentTracker
         /// </summary>
         public double LowPercentBelow { get; set; } = 0.25;
         public double LowPercentPoints { get; set; } = -2;
-        /// <summary>No longer used (replaced by <see cref="VotingBonus"/> and <see cref="CorrectVoteBonus"/>); kept so older codes still read.</summary>
-        public double ReadVoteBonus { get; set; }
-        public double ReadVotePoints { get; set; }
 
         /// <summary>Scaled by the share of the crewmate's task effort they finished: the full amount at 100%.</summary>
         public double TaskPercentBonus { get; set; } = 3;
         /// <summary>How many short or common tasks one long task is worth in that share.</summary>
         public double LongTaskWeight { get; set; } = 2;
-        /// <summary>No longer used: points are never rounded (kept so older codes and config files still read).</summary>
-        public double BonusRounding { get; set; }
 
         // Crewmate penalties
         public double IncorrectVoteOut { get; set; } = -2;

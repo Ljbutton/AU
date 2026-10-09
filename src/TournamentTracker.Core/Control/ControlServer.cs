@@ -17,7 +17,6 @@ namespace TournamentTracker.Control
     /// port, to control.json in the mod's data folder for the app to read.
     /// <list type="bullet">
     /// <item>GET /api/status: the lobby, players, round, automute and the rest.</item>
-    /// <item>GET /api/activity?since=N: what the mod has said since line N.</item>
     /// <item>POST /api/command {"command":"r2"}: runs a host command; answers with what the mod said.</item>
     /// <item>GET /api/feed?since=N: the broadcast feed (events and snapshots) for the caster.</item>
     /// </list>
@@ -28,7 +27,6 @@ namespace TournamentTracker.Control
         private readonly TcpListener _listener;
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private readonly Func<string> _status;
-        private readonly Func<long, string> _activity;
         private readonly Func<string, Task<string>> _command;
         private readonly Func<long, string>? _feed;
         /// <summary>POST /api/names {"names":{key:name}}: the caster's roster names for this lobby.</summary>
@@ -40,11 +38,10 @@ namespace TournamentTracker.Control
         public int Port { get; }
         public string Token { get; }
 
-        public ControlServer(int port, string dataDir, Func<string> status, Func<long, string> activity, Func<string, Task<string>> command, ILog log, Func<long, string>? feed = null)
+        public ControlServer(int port, string dataDir, Func<string> status, Func<string, Task<string>> command, ILog log, Func<long, string>? feed = null)
         {
             _feed = feed;
             _status = status;
-            _activity = activity;
             _command = command;
             _log = log;
             _listener = Listen(port);
@@ -108,8 +105,6 @@ namespace TournamentTracker.Control
                         reply = "{\"error\":\"bad token\"}";
                     }
                     else if (method == "GET" && route == "/api/status") reply = _status();
-                    else if (method == "GET" && route == "/api/activity")
-                        reply = _activity(long.TryParse(HttpRequest.Query(query, "since"), out var since) ? since : 0);
                     else if (method == "GET" && route == "/api/feed" && _feed != null)
                         reply = _feed(long.TryParse(HttpRequest.Query(query, "since"), out var from) ? from : 0);
                     else if (method == "GET" && route == "/api/pov" && Cam != null)

@@ -179,10 +179,10 @@ namespace TournamentTracker
             FeedGameStarted(game);
             WarnIfNoButton();
             if (_settings.Mode == TrackerMode.Tournament && Round == 0)
-                Reply($"No round set, so this game counts as round 0. {Cap(HowTo("r1", "Next round"))} before the next game.", false);
+                Reply($"No round set, so this game counts as round 0. {Cap(HowTo("Next round"))} before the next game.", false);
             else if (_settings.Mode == TrackerMode.Tournament && _settings.GamesPerRound > 0 && GamesThisRound >= _settings.GamesPerRound)
                 Reply($"This lobby has already played {GamesThisRound} of {_settings.GamesPerRound} games in round {Round}, so this one is extra. " +
-                      $"If it shouldn't count, {HowTo("void", "Void")}. If a new round has started, {HowTo($"r{Round + 1}", "Next round")} before the next game.", false);
+                      $"If it shouldn't count, {HowTo("Void")}. If a new round has started, {HowTo("Next round")} before the next game.", false);
         }
 
         /// <summary>A kill. <paramref name="at"/>: where it happened (for the caster's feed), when the plugin can tell.</summary>
@@ -204,7 +204,7 @@ namespace TournamentTracker
         public void VotingComplete(IReadOnlyList<VoteCast> votes, byte? exiledId, bool tie)
         {
             Tracker.VotingComplete(votes, exiledId, tie, _clock());
-            if (Tracker.InGame) FeedVote(0);
+            if (Tracker.InGame) FeedVote();
         }
 
         public void MeetingClosed()
@@ -236,11 +236,11 @@ namespace TournamentTracker
             string at = TimeSpan.FromSeconds(p.DiedAtSeconds ?? 0).ToString(@"m\:ss");
             if (game.Meetings.Count == 0)
             {
-                Reply($"{p.Name} left at {at}, before the first meeting. To restart, {HowTo($"void {p.Name} left", "Void")}, then start a new game.", false);
+                Reply($"{p.Name} left at {at}, before the first meeting. To restart, {HowTo("Void")}, then start a new game.", false);
             }
             else
             {
-                Reply($"{p.Name} left at {at}. The game plays on: they keep the points they'd earned and take the loss if their team loses. (To throw the game out instead, {HowTo("void", "Void")}.)", false);
+                Reply($"{p.Name} left at {at}. The game plays on: they keep the points they'd earned and take the loss if their team loses. (To throw the game out instead, {HowTo("Void")}.)", false);
             }
             if (Shared != null && _settings.Mode == TrackerMode.Tournament)
             {
@@ -430,7 +430,7 @@ namespace TournamentTracker
         private void Reply(string text, bool isPublic) => Reply(text, isPublic, false);
 
         /// <summary>How the host does something, for messages: the button in The Button ("press Void in The Button").</summary>
-        private static string HowTo(string command, string button) => $"press {button} in The Button";
+        private static string HowTo(string button) => $"press {button} in The Button";
 
         private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s.Substring(1);
 
@@ -500,14 +500,6 @@ namespace TournamentTracker
             string safe = new string(chars).Trim('-');
             while (safe.Contains("--")) safe = safe.Replace("--", "-");
             return safe.Length == 0 ? "host" : safe;
-        }
-
-        private static string Slug(string name)
-        {
-            var chars = name.Trim().ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray();
-            string slug = new string(chars).Trim('-');
-            while (slug.Contains("--")) slug = slug.Replace("--", "-");
-            return slug.Length == 0 ? "tournament" : slug;
         }
 
         /// <summary>Gives everyone their voice back and waits briefly for Discord, for when the game closes.</summary>

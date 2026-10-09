@@ -393,8 +393,6 @@ public class AppTests : IDisposable
         while (!command.IsCompleted) { mod.Pump(); await Task.Delay(10); }
         Assert.True((await command).GetProperty("ok").GetBoolean());
         Assert.Equal(4, mod.Round);
-        var activity = await Get(http, "app/activity?since=0");
-        Assert.Contains(activity.GetProperty("lines").EnumerateArray(), l => l.GetProperty("text").GetString()!.StartsWith("Round 4"));
     }
 
 }

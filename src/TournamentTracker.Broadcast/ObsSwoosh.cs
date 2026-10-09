@@ -93,9 +93,6 @@ namespace TournamentTracker.App.Broadcast
             catch (Exception e) { SwooshProblem = "Swoosh: " + e.Message; }
         }
 
-        /// <summary>Whether OBS has the TT Swoosh Stinger transition (scene changes use it).</summary>
-        public bool HasStinger => _stinger;
-
         /// <summary>
         /// A swoosh before a switch, unless one just played. A scene change with the Stinger transition
         /// needs nothing here (OBS plays it); otherwise the TT Swoosh layer plays and the switch waits

@@ -194,7 +194,6 @@ namespace TournamentTracker.App.Broadcast
             }
         }
 
-        public bool HasOverride(string key) { lock (_lock) return _overrides.ContainsKey(key); }
     }
 
     /// <summary>Names in caster texts: "[[colour|Name]]" tokens become a colour swatch and the name on screen.</summary>

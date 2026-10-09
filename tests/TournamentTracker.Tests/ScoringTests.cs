@@ -221,9 +221,6 @@ public class ScoringTests
         t.VotingComplete(new[] { new VoteCast(2, 1), new VoteCast(3, 4) }, null, false, _clock.Now);
         var g = t.End("HumansByVote", Outcome.Crewmates, Players.Lobby(), _clock.Now)!;
 
-        Assert.Equal((1, 0), (g.ById(2)!.ReadVotesCorrect, g.ById(2)!.ReadVotesIncorrect));
-        Assert.Equal((0, 1), (g.ById(3)!.ReadVotesCorrect, g.ById(3)!.ReadVotesIncorrect));
-        Assert.Equal((1, 0), (g.ById(4)!.ReadVotesCorrect, g.ById(4)!.ReadVotesIncorrect));
         Assert.Equal(1, g.ById(2)!.EjectVotesOnImpostor);
         Assert.DoesNotContain(g.ById(3)!.PointBreakdown, l => l.Rule.StartsWith("Reads"));
     }
@@ -262,7 +259,10 @@ public class ScoringTests
     [Fact]
     public void Points_are_never_rounded_even_when_an_old_code_asks_for_halves()
     {
-        var t = new GameTracker(new ScoringRules { BonusRounding = 0.5 });
+        // Old codes can still carry the retired rules; they're ignored.
+        var old = System.Text.Json.JsonSerializer.Deserialize<ScoringRules>("{\"bonusRounding\":0.5,\"readVoteBonus\":4,\"readVotePoints\":1}",
+            new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })!;
+        var t = new GameTracker(old);
         t.Start(1, "Cup", "X", "Polus", Players.Lobby(), _clock.Now);
         var final = Players.Lobby();
         final[2].TasksCompleted = 1;                    // 1 of 4 tasks: 3 x 25%

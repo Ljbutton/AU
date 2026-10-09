@@ -95,7 +95,6 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>The same number for the same text every run (string.GetHashCode changes per run, losing pins and used marks).</summary>
         private static uint Stable(string s) { uint h = 2166136261; foreach (char c in s) { h ^= c; h *= 16777619; } return h; }
 
-        private static string Ord(int n) => n + (n % 100 is 11 or 12 or 13 ? "th" : (n % 10) switch { 1 => "st", 2 => "nd", 3 => "rd", _ => "th" });
         private static string Time(double s) => $"{(int)s / 60}:{(int)s % 60:00}";
 
         /// <summary>

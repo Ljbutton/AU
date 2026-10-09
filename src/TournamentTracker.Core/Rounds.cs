@@ -106,7 +106,7 @@ namespace TournamentTracker
 
             if (round == null)
             {
-                Reply(Round == 0 ? $"No round set. To start one, {HowTo("r1", "Next round")}." : $"This is round {Round}.", false);
+                Reply(Round == 0 ? $"No round set. To start one, {HowTo("Next round")}." : $"This is round {Round}.", false);
                 return true;
             }
             if (Tracker.InGame)
