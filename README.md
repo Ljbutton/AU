@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.50**, a beta.
+The current release is **v0.1.51**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -248,7 +248,7 @@ right away.
 
 | | Preliminary code | Tournament host code |
 | --- | --- | --- |
-| After each game | Report plus the game's data and the lobby's count in your private channel; report and standings in the server's public channel (set in The Button); a summary in the host's chat | Report in the results channel; the lobby's round standings |
+| After each game | Report, the game's data, the lobby's standings and its count in your private channel; only the game's results (who won, how, each player's role, result and total) and timeline in the server's public channel (set in The Button); a summary in the host's chat | Report in the results channel; the lobby's round standings |
 | Leaderboard | The scheduled job's combined board per preliminary | Per lobby per round, with the cut line, plus a running total |
 | Automute | Optional: the host adds bots in The Button (otherwise players can use AutoMuteUs) | Yes, with the code's bots or the host's own |
 | Live status, referee tools | No | Yes |

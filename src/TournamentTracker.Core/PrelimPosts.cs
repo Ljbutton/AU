@@ -25,12 +25,12 @@ namespace TournamentTracker
         }
 
         /// <summary>This lobby's report (and standings) in the host's public channel.</summary>
-        private void PostPublic(WebhookMessage message, bool standings)
+        /// <summary>The public channel gets the game's results and timeline, and nothing else (no standings, no data).</summary>
+        private void PostPublic(WebhookMessage message)
         {
             string url = _settings.PublicWebhookUrl;
             if (string.IsNullOrWhiteSpace(url)) return;
             Post(url, message);
-            if (standings) Post(url, LeaderboardMessage());
         }
 
         /// <summary>Replaces this lobby's count in the private channel with a fresh one at the bottom.</summary>

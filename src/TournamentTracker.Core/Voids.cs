@@ -79,8 +79,9 @@ namespace TournamentTracker
                         var result = await _rest.ExecuteWebhookWithFileAsync(url, message, SharedResults.FileNameFor(game), SharedResults.FileFor(game)).ConfigureAwait(false);
                         if (!result.Ok) _log.Error("Discord webhook post failed: " + result);
                     });
+                Post(url, LeaderboardMessage());
                 UpdatePrelimCount();
-                PostPublic(message, true);
+                PostPublic(ReportFormatter.PublicReport(game));
                 if (Shared != null) Chain(() => Shared.PublishAsync(game));      // Red Alert's copy
                 return;
             }
