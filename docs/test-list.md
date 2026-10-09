@@ -126,3 +126,10 @@ _Preliminary code with your private reports webhook; host has a public channel s
 ### Submit (was Verify)
 - [ ] Referee tab says Submit points / Submit all — and the in-game message says "press Submit".
 - [ ] Submitting sends the report and standings — reply says "Submitted".
+
+## New in 0.1.44
+_A new code from the code maker (Task bar (players) is "In meetings" by default)._
+- [ ] Players' task bar only fills in meetings
+- [ ] Your own screen as host (playing, not referee) shows the real task bar all game — normal size.
+- [ ] As the referee, the small live task bar still shows
+- [ ] Back in the lobby, the task bar is its normal size again
