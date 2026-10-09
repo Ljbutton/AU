@@ -10,7 +10,7 @@ using Object = UnityEngine.Object;
 namespace TournamentTracker.Plugin
 {
     /// <summary>
-    /// Watches a replay inside Among Us, on the real map with the real characters. Open
+    /// Watches a replay of a game this PC hosted inside Among Us, on the real map with the real characters. Open
     /// Freeplay on the replay's map and press F8: pick a replay with 1–9. The players are
     /// drawn with their colour, hat, skin, visor and name; bodies appear where the kills were.
     /// Keys: Space play/pause · ←/→ 5 s · ↑/↓ speed · 1–0 follow a player · Tab next player ·
@@ -76,18 +76,14 @@ namespace TournamentTracker.Plugin
         {
             _menu = true;
             _notice = "";
-            _files = ReplayLibrary.Find(new[]
-            {
-                Path.Combine(TournamentPlugin.DataDir, "games"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads"),
-            });
+            _files = ReplayLibrary.Find(new[] { Path.Combine(TournamentPlugin.DataDir, "games") });
             ShowMenu();
         }
 
         private static void ShowMenu()
         {
             var lines = new List<string> { "<b>Replays</b>  (press 1–9 · F8 to close)" };
-            if (_files.Count == 0) lines.Add("No replays yet. They're saved with each game, or download one from Discord into Downloads.");
+            if (_files.Count == 0) lines.Add("No replays yet: each game you host is saved here (the newest 20).");
             for (int i = 0; i < _files.Count; i++)
             {
                 var age = DateTime.UtcNow - _files[i].LastWriteTimeUtc;

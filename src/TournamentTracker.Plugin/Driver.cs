@@ -47,14 +47,16 @@ namespace TournamentTracker.Plugin
             if (ReplayTheater.Active) return;
             try { using (FrameProfiler.Time(FrameProfiler.Part.OverlayLate)) SpectatorOverlay.LateUpdate(); }
             catch (Exception e) { if (!_loggedOverlay) TournamentPlugin.Logger.Error("Spectator view failed: " + e); _loggedOverlay = true; }
-            try { using (FrameProfiler.Time(FrameProfiler.Part.PlayerCam)) PlayerCamera.LateUpdate(); }
-            catch (Exception e) { if (!_loggedCam) TournamentPlugin.Logger.Error("Player camera failed: " + e); _loggedCam = true; }
+            try { using (FrameProfiler.Time(FrameProfiler.Part.Referee)) RefSlot.KeepChat(); }
+            catch (Exception e) { if (!_loggedReferee) TournamentPlugin.Logger.Error("Referee chat failed: " + e); _loggedReferee = true; }
         }
         private static bool _loggedCam;
 
         public static void Update()
         {
             FrameProfiler.BeginFrame();
+            try { using (FrameProfiler.Time(FrameProfiler.Part.PlayerCam)) PlayerCamera.Tick(); }
+            catch (Exception e) { if (!_loggedCam) TournamentPlugin.Logger.Error("Player camera failed: " + e); _loggedCam = true; }
             if (RestartRequested)
             {
                 RestartRequested = false;
@@ -146,7 +148,11 @@ namespace TournamentTracker.Plugin
             {
                 // The status, overlay and live data follow two frames later (step 2).
                 if (phase == VoicePhase.Menu) session.VoiceTick(phase, players, publish: false);
-                else session.VoiceTick(phase, players, Game.LobbyCode(), Game.MapName(), publish: false);
+                else
+                {
+                    session.Server = Game.Region();
+                    session.VoiceTick(phase, players, Game.LobbyCode(), Game.MapName(), publish: false);
+                }
             }
             _lastPhase = phase;
         }

@@ -504,6 +504,15 @@ public class LiveLobbyTests : IDisposable
     }
 
     [Fact]
+    public void The_live_message_says_which_server_the_lobby_is_on()
+    {
+        var msg = StatusFormatter.Build(new StatusInfo { Phase = VoicePhase.Lobby, LobbyCode = "ABCDEF", Map = "Polus", Server = StatusFormatter.ShortServer("North America") });
+        Assert.StartsWith("**Code:** `ABCDEF` · **Server:** NA · **Map:** Polus", msg.Embeds![0].Description);
+        Assert.Equal("EU", StatusFormatter.ShortServer("Europe"));
+        Assert.Equal("Modded EU", StatusFormatter.ShortServer("Modded EU"));
+    }
+
+    [Fact]
     public void Status_says_when_the_referee_is_speaking()
     {
         var msg = StatusFormatter.Build(new StatusInfo { Phase = VoicePhase.Lobby, RefereeMode = true });

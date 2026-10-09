@@ -139,6 +139,7 @@ namespace TournamentTracker
                 Lobby = LobbyLabel(),
                 Phase = _phase.ToString(),
                 LobbyCode = _lobbyCode,
+                Server = Discord.StatusFormatter.ShortServer(Server),
                 Map = _map,
                 InGame = Tracker.InGame,
                 Round,

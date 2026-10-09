@@ -427,7 +427,7 @@ public class TournamentModeTests : IDisposable
     }
 
     [Fact]
-    public async Task Games_are_recorded_for_the_replay_viewer_and_sent_to_the_referees()
+    public async Task Games_are_recorded_for_the_replay_viewer_on_this_pc_only()
     {
         var s = Session(TournamentCode());
         var lobby = Lobby();
@@ -443,9 +443,7 @@ public class TournamentModeTests : IDisposable
         s.GameEnded("ImpostorByKill", lobby);
         await s.PendingPosts;
 
-        var post = _discord.Messages.Single(m => m.File != null && m.File.StartsWith("tt-replay-"));
-        Assert.Equal("results", post.Channel);
-        Assert.StartsWith("Replay of game LJ-1", post.Content);
+        Assert.DoesNotContain(_discord.Messages, m => m.File != null && m.File.StartsWith("tt-replay-"));   // never to Discord
         string saved = Directory.GetFiles(_dir.Path, "tt-replay-*.json.gz", SearchOption.AllDirectories).Single();
         using var gz = new System.IO.Compression.GZipStream(File.OpenRead(saved), System.IO.Compression.CompressionMode.Decompress);
         var replay = JsonDocument.Parse(gz).RootElement;

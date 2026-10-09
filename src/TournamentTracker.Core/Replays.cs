@@ -1,16 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using TournamentTracker.Discord;
+using System.Linq;
 using TournamentTracker.Stats;
 
 namespace TournamentTracker
 {
     /// <summary>
     /// Game replays: the plugin feeds positions and the map while a game runs; when it ends the
-    /// replay is saved next to the game and sent where the game's data goes (the results
-    /// channel for tournaments, the organiser's channel for preliminaries), for referees to
-    /// open in the replay viewer.
+    /// replay is saved next to the game, on this PC only, for watching in Freeplay (F8). Nothing
+    /// goes to Discord, and only the newest few are kept.
     /// </summary>
     public sealed partial class TournamentSession
     {
@@ -50,7 +49,7 @@ namespace TournamentTracker
             var replay = _replay;
             _replay = null;
             if (replay == null || replay.Frames == 0) return;
-            // Packed, saved and posted off the game's main thread (it's the biggest file a game makes).
+            // Packed and saved off the game's main thread (it's the biggest file a game makes).
             Work.Post(() => SaveReplay(replay, game));
         }
 
@@ -64,24 +63,18 @@ namespace TournamentTracker
                 File.WriteAllBytes(Path.Combine(_gamesDir, name), file);
             }, "replay");
 
-            string text = $"Replay of game {game.Name}: open it in the replay viewer.";
-            if (Shared != null && _settings.Mode == TrackerMode.Tournament)
-            {
-                Chain(async () =>
-                {
-                    var result = await _rest.PostFileAsync(Shared.Token, Shared.ChannelId, text, name, file).ConfigureAwait(false);
-                    if (!result.Ok) _log.Error("Could not post the replay: " + result);
-                });
-            }
-            else if (_settings.Mode == TrackerMode.Preliminary && !string.IsNullOrWhiteSpace(_settings.StatsWebhookUrl))
-            {
-                string url = _settings.StatsWebhookUrl;
-                Chain(async () =>
-                {
-                    var result = await _rest.ExecuteWebhookWithFileAsync(url, new WebhookMessage { Username = ReportFormatter.BotName, Content = text }, name, file).ConfigureAwait(false);
-                    if (!result.Ok) _log.Error("Could not post the replay: " + result);
-                });
-            }
+            TrySave(PruneReplays, "old replays");
+        }
+
+        /// <summary>How many replays are kept on this PC (the newest).</summary>
+        public const int ReplaysKept = 20;
+
+        private void PruneReplays()
+        {
+            var dir = new DirectoryInfo(_gamesDir);
+            if (!dir.Exists) return;
+            foreach (var old in ReplayLibrary.Find(new[] { dir.FullName }, int.MaxValue).Skip(ReplaysKept))
+                old.Delete();
         }
     }
 }
