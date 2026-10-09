@@ -25,6 +25,25 @@ public class SetupCodeTests
         Assert.Equal("Fall Cup (tournament host, automute on)", back.Describe());
     }
 
+    [Fact]
+    public void Codes_carry_verify_the_repeat_chance_and_a_tournament_live_channel()
+    {
+        var code = new SetupCode { Mode = "tournament", TournamentId = "cup", TournamentName = "Cup", Webhook = "https://discord.com/api/webhooks/1/x",
+            StatusWebhook = "https://discord.com/api/webhooks/2/live", VerifyResults = false, ImpostorRotation = true, RepeatImpostorChance = 0.05 };
+        Assert.True(SetupCode.TryParse(code.Encode(), out var back, out _));
+        var s = new TrackerSettings();
+        back.ApplyTo(s);
+        Assert.False(s.VerifyResults);
+        Assert.Equal(0.05, s.RepeatImpostorChance);
+        Assert.Equal("https://discord.com/api/webhooks/2/live", s.StatusWebhookUrl);
+        // An older code without them keeps the defaults: verify on, 2%, the live message beside the results.
+        var old = new TrackerSettings();
+        new SetupCode { Mode = "tournament", TournamentId = "cup", TournamentName = "Cup", Webhook = "https://discord.com/api/webhooks/1/x" }.ApplyTo(old);
+        Assert.True(old.VerifyResults);
+        Assert.Equal(0.02, old.RepeatImpostorChance);
+        Assert.Equal("", old.StatusWebhookUrl);
+    }
+
     [Theory]
     [InlineData("hello", "start with TT1-")]
     [InlineData("TT1-!!!notbase64", "damaged")]

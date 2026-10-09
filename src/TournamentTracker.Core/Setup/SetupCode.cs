@@ -42,7 +42,7 @@ namespace TournamentTracker.Setup
         [JsonPropertyName("g")] public string? GuildId { get; set; }
         [JsonPropertyName("bt")] public List<string>? BotTokens { get; set; }
 
-        /// <summary>Preliminaries with automute: where the live lobby message (with the colour menu) goes. Optional.</summary>
+        /// <summary>Where the live lobby message (with the colour menu) goes. Optional: preliminaries with automute, and tournament hosts.</summary>
         [JsonPropertyName("sw")] public string? StatusWebhook { get; set; }
         [JsonPropertyName("rc")] public string? ResultsChannelId { get; set; }
         [JsonPropertyName("pc")] public List<string>? PrelimChannelIds { get; set; }
@@ -58,6 +58,15 @@ namespace TournamentTracker.Setup
         /// <summary>Tournament host codes: this host's mod answers the results-channel commands. Give it to one host (you).</summary>
         [JsonPropertyName("lead")] public bool? Lead { get; set; }
         [JsonPropertyName("ref")] public List<string>? RefereeUserIds { get; set; }
+
+        /// <summary>
+        /// Each game waits in The Button (Referee) for the host to press Verify before anything goes
+        /// to Discord. Missing: on (the default). False: results post as soon as a game ends.
+        /// </summary>
+        [JsonPropertyName("vr")] public bool? VerifyResults { get; set; }
+
+        /// <summary>With impostor rotation: the chance (0–1) each of last game's impostors is impostor again. Missing: 0.02.</summary>
+        [JsonPropertyName("rr")] public double? RepeatImpostorChance { get; set; }
 
         /// <summary>Point values, so every host scores the same way. Missing: the defaults.</summary>
         [JsonPropertyName("sc")] public ScoringRules? Scoring { get; set; }
@@ -138,6 +147,8 @@ namespace TournamentTracker.Setup
             if (Scoring != null) s.Scoring = Scoring;
             s.LobbySettings = Lobby;
             s.ImpostorRotation = ImpostorRotation == true;
+            if (RepeatImpostorChance.HasValue) s.RepeatImpostorChance = Math.Max(0, Math.Min(1, RepeatImpostorChance.Value));
+            if (VerifyResults.HasValue) s.VerifyResults = VerifyResults.Value;
 
             if (IsTournament)
             {
@@ -154,6 +165,9 @@ namespace TournamentTracker.Setup
                 if (GamesPerRound.HasValue) s.GamesPerRound = GamesPerRound.Value;
                 if (RefereeUserIds != null) s.AutoMute.RefereeUserIds = RefereeUserIds.ToList();
                 s.Lead = Lead == true;
+                // Its own channel for the live lobby message (otherwise it shares the results channel's webhook).
+                if (StatusWebhook != null && StatusWebhook.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    s.StatusWebhookUrl = StatusWebhook;
             }
             else
             {

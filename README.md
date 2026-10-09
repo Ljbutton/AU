@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.41**, a beta.
+The current release is **v0.1.42**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -152,7 +152,10 @@ but can have one for automute (see below).
 
 ### 3. Setup codes
 
-Download **`setup-codes.html`** from the [latest release](https://github.com/Ljbutton/AU/releases/latest) and open it in your browser (it runs on your PC only; nothing you type is sent anywhere). Once your administration code is in, Settings → Administration → **Make setup codes** opens the same page. Fill it in:
+Download **`setup-codes.html`** from the [latest release](https://github.com/Ljbutton/AU/releases/latest) and open it in your browser (it runs on your PC only; nothing you type is sent anywhere). Once your administration code is in, Settings → Administration → **Make setup codes** opens the same page. It fits on one screen: pick the kind of code at the top, then fill in
+the three columns in order (Tournament and Discord, Rules, The code). The code column lists
+whatever is still missing and ticks it off; **Point values…** and **Load an old code** open on
+top. Fill it in:
 
 * **Preliminary code:** the tournament name, the preliminary server's name and the
   preliminary channel's webhook. Make one per preliminary server (the server name is what
@@ -163,8 +166,9 @@ Download **`setup-codes.html`** from the [latest release](https://github.com/Ljb
     it empty and the preliminary works exactly as before (players can use AutoMuteUs). A
     code with a bot token in it must be sent privately.
 * **Tournament host code:** the tournament name, the results channel webhook, and
-  optionally your server ID, up to 3 bot tokens, the private results channel and the
-  preliminary channels. The bot is optional: without one, games are still tracked, scored
+  optionally your server ID, up to 3 bot tokens, the private results channel, a webhook for
+  its own live lobby channel (otherwise the lobby message goes in the results channel, or
+  where the host types `/new`), the preliminary channels and the referees' user IDs. The bot is optional: without one, games are still tracked, scored
   and reported, and the host has the whole app, but there's no automute, no `/link`, `/new`
   or colour menu, no combined standings and no referee commands. 2 or 3 bots mute a full
   lobby faster (Discord limits each bot's speed; the work is shared). A code with a bot
@@ -189,8 +193,11 @@ put back by itself.
   next game). A game that still starts on the wrong settings says so in its
   report (and to the referees). For a casual game the host turns **Settings lock** off on
   The Button's Home page (until they restart Among Us); without a code nothing is ever touched.
+* **Hold each game until the host presses Verify** (on by default): every game waits in
+  The Button's Referee tab, nothing goes to Discord until the host checks it. Untick it to
+  post results as soon as a game ends.
 * **Impostor rotation** (off unless ticked): last game's impostors are rarely impostor
-  again straight away. Each of them has a 2% chance (`RepeatImpostorChance` in the config)
+  again straight away. Each of them has a 2% chance (set it in the code maker)
   and everyone else shares the rest equally, so in a 10-player game with 2 impostors the
   other 8 each have about 24.5%. Back to back is possible but rare (about 1 in 50), three
   in a row almost never happens. The mod swaps the roles the game handed out, and announces
