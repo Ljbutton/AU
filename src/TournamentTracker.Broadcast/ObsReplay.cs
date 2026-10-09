@@ -91,12 +91,14 @@ namespace TournamentTracker.App.Broadcast
                     await obs.RequestAsync("CreateSourceFilter", new { sourceName = source, filterName = Settings.Replay.FilterName, filterKind = SourceRecordKind, filterSettings = settings }).ConfigureAwait(false);
                 else
                     await obs.RequestAsync("SetSourceFilterSettings", new { sourceName = source, filterName = Settings.Replay.FilterName, filterSettings = settings, overlay = true }).ConfigureAwait(false);
+                // A new filter's buffer doesn't always start on its own: started (it's empty anyway).
+                if (!has) await RestartBufferAsync(obs, source).ConfigureAwait(false);
                 _filtered.Add(source);
                 if (ReplayProblem?.StartsWith("Install", StringComparison.Ordinal) != true) ReplayProblem = null;
             }
             catch (ObsException e)
             {
-                ReplayProblem = e.Message.IndexOf("kind", StringComparison.OrdinalIgnoreCase) >= 0 || e.Code == 605
+                ReplayProblem = e.Message.IndexOf("kind", StringComparison.OrdinalIgnoreCase) >= 0 || e.Code == 605 || e.Code == 607
                     ? "Install the Source Record plugin for OBS (by Exeldro) for replays, then press Rebuild TT scenes."
                     : "Replays: " + e.Message;
             }
@@ -146,17 +148,44 @@ namespace TournamentTracker.App.Broadcast
             _saving[source] = tcs;
             try
             {
-                await obs.RequestAsync("CallVendorRequest", new { vendorName = "source-record", requestType = "replay_buffer_save", requestData = new { source, filter = Settings.Replay.FilterName } }).ConfigureAwait(false);
+                var answer = await obs.RequestAsync("CallVendorRequest", new { vendorName = "source-record", requestType = "replay_buffer_save", requestData = new { source, filter = Settings.Replay.FilterName } }).ConfigureAwait(false);
+                if (!VendorOk(answer, out string? why))
+                {
+                    // Source Record's buffer isn't running on this source (it sometimes doesn't start
+                    // with OBS, or after the source was off): started again, so the next save works.
+                    await RestartBufferAsync(obs, source).ConfigureAwait(false);
+                    throw new InvalidOperationException($"The lobby's replay buffer wasn't running ({why ?? "OBS said no"}), so it's been started again: it has the next {Settings.Replay.BufferSeconds}s from now. Try again in a few seconds.");
+                }
                 var done = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
-                if (done != tcs.Task) throw new TimeoutException("OBS didn't save the clip. Is the lobby's replay buffer running (Source Record filter on its source)?");
+                if (done != tcs.Task) throw new TimeoutException("OBS didn't say the clip was written. Update the replay plugin in OBS (an older version doesn't say), or press Rebuild TT scenes.");
                 return await tcs.Task.ConfigureAwait(false);
             }
-            catch (ObsException e) when (e.Code == 206 || e.Message.IndexOf("vendor", StringComparison.OrdinalIgnoreCase) >= 0)
+            catch (ObsException e) when (e.Message.IndexOf("vendor", StringComparison.OrdinalIgnoreCase) >= 0 && e.Message.IndexOf("found", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 ReplayProblem = "Install the Source Record plugin for OBS (by Exeldro) for replays.";
                 throw new InvalidOperationException(ReplayProblem);
             }
             finally { _saving.TryRemove(source, out _); }
+        }
+
+        /// <summary>Source Record's own answer inside the vendor reply: { success, error }.</summary>
+        private static bool VendorOk(JsonElement answer, out string? why)
+        {
+            why = null;
+            var data = answer.TryGetProperty("responseData", out var r) ? r : answer;
+            if (data.ValueKind != JsonValueKind.Object || !data.TryGetProperty("success", out var ok) || ok.ValueKind != JsonValueKind.False) return true;
+            why = data.TryGetProperty("error", out var e) && e.ValueKind == JsonValueKind.String ? e.GetString() : "its buffer isn't running";
+            return false;
+        }
+
+        /// <summary>Stops and starts Source Record's buffer on the source (what makes a stuck one run).</summary>
+        private async Task RestartBufferAsync(ObsClient obs, string source)
+        {
+            try
+            {
+                await obs.RequestAsync("CallVendorRequest", new { vendorName = "source-record", requestType = "replay_buffer_start", requestData = new { source, filter = Settings.Replay.FilterName, stop_existing = true } }).ConfigureAwait(false);
+            }
+            catch (ObsException) { /* reported by the save */ }
         }
 
         private void OnVendorEvent(JsonElement data)

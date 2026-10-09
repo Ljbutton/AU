@@ -33,6 +33,8 @@ namespace TournamentTracker.App.Broadcast
 
         public BroadcastTheme Theme { get; set; } = new BroadcastTheme();
         public Dictionary<string, bool> Elements { get; set; } = DefaultElements();
+        /// <summary>Which one-off changes to the switches have been made to this file.</summary>
+        public int ElementsVersion { get; set; }
         /// <summary>How long each big graphic (a table, a player card, a note) stays before the next, in seconds.</summary>
         public double GraphicSeconds { get; set; } = 8;
         /// <summary>After a game, put the lobby's table up by itself (the old way) instead of asking on the Live desk.</summary>
@@ -52,7 +54,6 @@ namespace TournamentTracker.App.Broadcast
         {
             ["lobbyLabels"] = true,       // the lobby's name on each feed
             ["gridTiles"] = true,         // Part 12: grid tiles' status line, pulsing border, logo in empty tiles
-            ["statusBar"] = false,        // Part 9: one cell per lobby along the bottom (off: the top 3 and the stats ticker took its place)
             ["top3"] = true,              // the top 3 of a lobby's round, top left, taking turns through the lobbies
             ["ticker"] = true,            // leader boards along the bottom (vote %, kills…), taking turns
             ["impostorTags"] = true,      // Part 10: "IMPOSTORS: …" on each feed
@@ -64,14 +65,13 @@ namespace TournamentTracker.App.Broadcast
             ["alerts"] = true,            // Part 18: banners for plays in lobbies that aren't on screen
             ["winCounter"] = true,        // Part 20: impostor wins v crewmate wins, in the corner
             ["playerCards"] = true,       // Part 21: a player's card as a lower third
-            ["hideRoomCode"] = true,      // a "Room code hidden" box over the room code while a lobby on stream is in its lobby or menu
+            ["hideRoomCode"] = false,     // a "Room code hidden" box over the room code in the lobby (off: hosts use streamer mode)
         };
 
         public static readonly Dictionary<string, string> ElementNames = new Dictionary<string, string>
         {
             ["lobbyLabels"] = "Lobby labels",
             ["gridTiles"] = "Grid tiles",
-            ["statusBar"] = "Status bar",
             ["top3"] = "Top 3 by lobby",
             ["ticker"] = "Stats ticker",
             ["impostorTags"] = "Impostor tags",
@@ -99,6 +99,14 @@ namespace TournamentTracker.App.Broadcast
             s.Theme ??= new BroadcastTheme();
             s.RoomCodeBox ??= new CodeBox();
             var el = new Dictionary<string, bool>(s.Elements ?? new Dictionary<string, bool>(), StringComparer.OrdinalIgnoreCase);
+            if (s.ElementsVersion < 2)
+            {
+                // The status bar is gone (it sat on the stats ticker), and the room code box is off by
+                // default now: everyone streams with Among Us's streamer mode on.
+                el.Remove("statusBar");
+                el["hideRoomCode"] = false;
+                s.ElementsVersion = 2;
+            }
             foreach (var kv in DefaultElements()) if (!el.ContainsKey(kv.Key)) el[kv.Key] = kv.Value;
             s.Elements = el;
             return s;

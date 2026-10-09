@@ -245,6 +245,19 @@ public class ReplayObsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_stuck_replay_buffer_is_started_again_and_the_next_save_works()
+    {
+        int started = _obs.BufferStarts;
+        Assert.True(started >= 2);   // each new filter's buffer is started
+        _obs.BufferStuck = true;
+        var e = await Assert.ThrowsAsync<InvalidOperationException>(() => _director.SaveClipAsync("LJ"));
+        Assert.Contains("wasn't running", e.Message);
+        Assert.DoesNotContain("Install", e.Message);
+        Assert.Equal(started + 1, _obs.BufferStarts);
+        Assert.StartsWith("/clips/TT_Lobby_LJ", await _director.SaveClipAsync("LJ"));
+    }
+
+    [Fact]
     public async Task Without_Source_Record_it_says_to_install_it()
     {
         await using var obs = new FakeObs { SourceRecordInstalled = false };

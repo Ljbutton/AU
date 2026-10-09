@@ -1159,7 +1159,7 @@ $('muted-un').addEventListener('click', () => voiceDo({ action: 'mute' }));
 // Why a replay didn't save, in a few words (the whole reason is in the tooltip).
 function failWhy(p) {
   p = plain(p || '');
-  return /Source Record/i.test(p) ? 'no Source Record plugin' : /ffmpeg/i.test(p) ? 'no ffmpeg' : /Connect OBS|Not connected/i.test(p) ? 'OBS not connected'
+  return /Install the Source Record/i.test(p) ? 'no Source Record plugin' : /wasn't running/i.test(p) ? 'buffer restarted, try again' : /ffmpeg/i.test(p) ? 'no ffmpeg' : /Connect OBS|Not connected/i.test(p) ? 'OBS not connected'
     : /too long ago/i.test(p) ? 'too long ago' : /didn't save|buffer/i.test(p) ? 'buffer not running' : /no source/i.test(p) ? 'no OBS source for this lobby'
     : /not found|could not find|no such file/i.test(p) ? 'file not found' : p ? p.slice(0, 40) : 'unknown';
 }
@@ -1766,7 +1766,7 @@ function renderGfx(g) {
 }
 // Graphics in three groups: what's always up, what comes up when something happens, and what you put up.
 const GFX_GROUPS = [
-  ['Always on', 'on the pictures all the time', ['hideRoomCode', 'lobbyLabels', 'impostorTags', 'sabotage', 'gridTiles', 'winCounter', 'top3', 'ticker', 'statusBar']],
+  ['Always on', 'on the pictures all the time', ['hideRoomCode', 'lobbyLabels', 'impostorTags', 'sabotage', 'gridTiles', 'winCounter', 'top3', 'ticker']],
   ['Moments', 'come up by themselves', ['alerts', 'standingsChange', 'playerCards']],
   ['Info', 'up while on', ['standings', 'pointsOnTheLine', 'storyline']],
 ];
