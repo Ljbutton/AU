@@ -49,6 +49,12 @@ namespace TournamentTracker
         /// <summary>Record a replay of every game (positions ~10 times a second, about 0.5 MB a game).</summary>
         public bool RecordReplays { get; set; } = true;
 
+        /// <summary>
+        /// Each game waits in The Button (Referee) for the host to press Verify before its results
+        /// go to Discord. Off: they go as soon as the game ends.
+        /// </summary>
+        public bool VerifyResults { get; set; } = true;
+
         /// <summary>Tournaments with a results channel: keep a live data message there for the organiser's view and casters.</summary>
         public bool PublishLive { get; set; } = true;
 

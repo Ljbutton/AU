@@ -62,15 +62,27 @@ public class BroadcastTests : IDisposable
     }
 
     [Fact]
+    public void Old_switches_lose_the_status_bar_and_the_room_code_box_once()
+    {
+        var s = BroadcastSettings.Parse("""{ "elements": { "statusBar": true, "hideRoomCode": true, "top3": false } }""");
+        Assert.False(s.Elements.ContainsKey("statusBar"));
+        Assert.False(s.Elements["hideRoomCode"]);
+        Assert.False(s.Elements["top3"]);
+        s.Elements["hideRoomCode"] = true;   // turned back on: stays on
+        Assert.True(BroadcastSettings.Parse(s.ToJson()).Elements["hideRoomCode"]);
+    }
+
+    [Fact]
     public void Theme_and_switches_come_from_broadcast_json()
     {
         var s = State();
-        Assert.False(s.GetProperty("elements").GetProperty("statusBar").GetBoolean());   // the top 3 and the ticker took its place
+        Assert.False(s.GetProperty("elements").TryGetProperty("statusBar", out _));   // gone: it sat on the ticker
+        Assert.False(s.GetProperty("elements").GetProperty("hideRoomCode").GetBoolean());   // hosts use streamer mode
         Assert.True(s.GetProperty("elements").GetProperty("top3").GetBoolean());
         Assert.True(s.GetProperty("elements").GetProperty("ticker").GetBoolean());
         Assert.Equal("#1fa143", s.GetProperty("theme").GetProperty("primary").GetString());
-        _app.Settings.Set("statusBar", false);
-        Assert.False(State().GetProperty("elements").GetProperty("statusBar").GetBoolean());
+        _app.Settings.Set("top3", false);
+        Assert.False(State().GetProperty("elements").GetProperty("top3").GetBoolean());
         // Edited by hand: picked up; elements left out keep their defaults.
         string path = Path.Combine(_dir.Path, BroadcastSettings.FileName);
         File.WriteAllText(path, """{ "theme": { "primary": "#ff8800", "font": "Oswald", "logo": "https://example.com/logo.png" } }""");

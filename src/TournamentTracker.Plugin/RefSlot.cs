@@ -175,7 +175,6 @@ namespace TournamentTracker.Plugin
             catch (Exception) { return false; }
         }
 
-        private static float _nextChat;
         private static bool _roomHidden;
 
         /// <summary>
@@ -188,12 +187,28 @@ namespace TournamentTracker.Plugin
             if (!referee || !HudManager.InstanceExists) { RoomName(true); TaskBar(false); return; }
             RoomName(false);
             if (!meeting) TaskBar(true);
-            if (meeting || Time.unscaledTime < _nextChat) return;
-            _nextChat = Time.unscaledTime + 0.5f;
-            var chat = HudManager.Instance.Chat;
+        }
+
+        /// <summary>
+        /// The referee's chat button, put back every frame after the game's own updates (the game
+        /// hides it for a player whose role isn't a ghost role; put back twice a second, the game's
+        /// hiding won most frames and it never showed).
+        /// </summary>
+        public static void KeepChat()
+        {
+            if (!HudManager.InstanceExists || MeetingHud.Instance != null || !LocalIsRefereeGhost()) return;
+            var hud = HudManager.Instance;
+            var chat = hud.Chat;
             if (chat == null) return;
             if (!chat.gameObject.activeSelf) chat.gameObject.SetActive(true);
-            if (chat.chatButton != null && !chat.chatButton.gameObject.activeSelf) chat.SetVisible(true);
+            var button = chat.chatButton;
+            if (button == null) return;
+            var go = button.gameObject;
+            if (!go.activeSelf) go.SetActive(true);
+            if (go.activeInHierarchy) return;
+            // Something above it switched off too (up to the HUD): on again.
+            for (var t = go.transform.parent; t != null && t != hud.transform; t = t.parent)
+                if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
         }
 
         /// <summary>This game's player is the referee ghost (the host, dead, in the referee slot).</summary>

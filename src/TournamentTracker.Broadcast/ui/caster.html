@@ -607,6 +607,45 @@ button.b.sw-onoff:not(.on){background:transparent;color:var(--muted);border-colo
 .prompt{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 14px;background:#141417;border:2px solid var(--edge);border-left:6px solid var(--red)}
 .prompt b{font:700 22px/1 var(--hand);letter-spacing:.06em;text-transform:uppercase}
 .prompt .t{color:var(--muted);font-size:12px;margin-left:auto;font-variant-numeric:tabular-nums}
+/* ---- Live desk on one screen: a strip on top, three columns that scroll on their own ---- */
+main.ldmode{overflow:hidden;display:flex;flex-direction:column;padding-bottom:12px}
+main.ldmode>section#caster.on{flex:1;min-height:0;display:flex;flex-direction:column}
+.ld{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px}
+.ld-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:12px;align-items:stretch}
+.ld-top .onair{padding:10px 14px;gap:14px}
+.ld-top .air-card{min-width:0;gap:6px;padding:8px 12px}
+.ld-top .air-card .lay-grp,.ld-top .air-card .stage-bar{flex-wrap:wrap;row-gap:4px}
+.ld-top .air-card .b{padding:4px 10px 2px;font-size:15px}
+.ld-msgs{display:grid;gap:8px}
+.ld-msgs:not(:has(> :not([hidden]):not(:empty))){display:none}
+.ld-cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1.3fr) minmax(0,.95fr);gap:12px}
+.ld-col{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px;padding-right:4px;scrollbar-width:thin}
+.ld-col>h2,.ld-h h2{margin:0;font-size:22px}
+.ld-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.ld-h .muted{font-size:12px}
+.ld-col .mv-card{padding:8px 10px}
+.ld-col .mv-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:6px}
+.ld-col .desk-cards{display:grid;gap:8px}
+.ld-col .mv .nm small{display:none}
+.ld-col .mv .nm{font-size:13px;padding:4px 6px}
+.ld-col .card{flex:0 0 auto}
+.cams-card{display:grid;gap:6px}
+.crow{display:grid;gap:4px;padding:6px 8px;background:var(--sunk);border-left:3px solid transparent}
+.crow.air{border-left-color:var(--red)}
+.crow .cl{display:flex;align-items:center;gap:8px;font-size:13px}
+.crow .cl .no{font:700 12px/1 var(--hand);background:#2a2a31;color:#fff;padding:3px 6px 1px}
+.crow .cl .live{font:700 10px/1 "Segoe UI",sans-serif;letter-spacing:.12em;color:#fff;background:var(--red);padding:3px 5px}
+.crow .cc{display:flex;flex-wrap:wrap;gap:4px}
+.cchip{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font:600 12px/1 var(--round);padding:4px 7px;border:1px solid var(--line);color:var(--fg);background:#141417}
+.cchip:hover{border-color:#6a6a75}
+.cchip.on{border-color:var(--red);background:rgba(225,6,0,.18)}
+.cchip.live{box-shadow:inset 0 -2px 0 var(--good)}
+.cchip.dead{opacity:.45}
+@media (max-width:1150px),(max-height:640px){
+  main.ldmode{overflow:auto;display:block}
+  .ld-top,.ld-cols{grid-template-columns:minmax(0,1fr)}
+  .ld-col{overflow:visible}
+}
 </style>
 </head>
 <body>
@@ -647,52 +686,91 @@ button.b.sw-onoff:not(.on){background:transparent;color:var(--muted);border-colo
   <p id="org-problem" class="note bad" hidden></p>
 <section id="caster" class="on">
   <div class="page-head pg-off" id="page-head"><h1 id="page-title"></h1><p id="page-sub"></p></div>
-  <div class="desk-top" data-page="live">
+
+
+
+
+
+  <div class="ld" data-page="live">
+    <div class="ld-top">
     <div class="onair none" id="onair" aria-live="polite">
       <div class="oa-tag" id="oa-tag">OFF AIR</div>
       <div class="oa-main"><div class="oa-what" id="oa-what">Nothing on stream</div><div class="oa-sub"><span id="oa-sub"></span><span class="oa-auto" id="oa-auto" hidden title="Lobby health: when a lobby on stream drops, Red Alert switches away from it once">Auto switch ON</span></div></div>
       <div class="oa-audio" id="oa-audio" title="Whose lobby voice the stream hears"><span>Audio</span><b id="oa-heard">—</b></div>
       <div class="oa-time" title="How long this shot has been on (resets on every switch)"><span>Shot</span><b id="oa-timer">0:00</b></div>
     </div>
-    <div class="card talk-card" id="talk-card">
-      <div class="row" style="justify-content:space-between"><b>Talking points</b><span class="row" style="gap:6px"><button class="b" id="talk-next" title="The next note">Next</button></span></div>
-      <div class="talk-list" id="talk-list"></div>
-    </div>
-  </div>
-  <div class="warns" id="desk-warn" data-page="live"></div>
-  <div class="prompts" id="ag-prompts" data-page="live"></div>
-  <div class="reads" id="reads" data-page="live"></div>
-  <div class="card gq-card" id="gq-card" data-page="live">
-    <div class="row" style="justify-content:space-between"><div><b>Graphics queue</b> <span class="muted" id="gq-line"></span></div>
-      <div class="row"><label class="muted" style="font-size:12.5px" title="How long each table, card or note stays on stream">Each <input id="gq-hold" type="number" min="3" max="60" step="1" style="width:56px"> s</label><button class="b" id="gq-skip">Skip</button><button class="b danger" id="gq-clear">Clear</button></div></div>
-    <div class="gq" id="gq-list"></div>
-  </div>
-  <div class="muted-all" id="muted-all" data-page="live" hidden><b>ALL LOBBY AUDIO MUTED</b><span id="muted-key"></span><button class="b" id="muted-un">Unmute</button></div>
-  <div class="desk-head" data-page="live">
-    <div><h1>Live desk</h1><p class="sub" id="desk-sub">Only on this PC. It shows who the impostors are, so keep it off stream.</p></div>
     <div class="card air-card">
       <div class="row" style="justify-content:space-between"><b>On stream</b><span class="muted" id="air-by"></span></div>
       <div class="air-slots" id="air-slots"></div>
       <div class="air-pick" id="air-pick" hidden></div>
-      <div class="lay-grp"><span class="lay-h">Views</span><button class="b" data-layout="full">Full</button><button class="b" data-layout="2up">2-Up</button><button class="b" data-layout="4up">Quad</button><button class="b" data-layout="grid" title="Every lobby at once (key G)">Grid</button><button class="b" id="desk-autogrid" title="Grid by itself whenever no lobby is mid-game">Auto grid</button></div>
+      <div class="lay-grp"><span class="lay-h">Views</span><button class="b" data-layout="full">Full</button><button class="b" data-layout="2up">2-Up</button><button class="b" data-layout="4up">Quad</button><button class="b" data-layout="grid" title="Every lobby at once (key G)">Grid</button><button class="b" id="desk-autogrid" title="Grid by itself whenever no lobby is mid-game">Auto grid</button><button class="b" data-layout="cams" id="desk-cams" title="The picked lobbies' player cameras: one full screen (its whole map in the corner), two side by side, three or four in a quad. Back to the whole map by itself when the game ends.">🎥 Player cams</button><button class="b primary" id="org-jump" title="Puts the lobby worth watching on stream (key N)">Jump to action</button></div>
       <div class="stage-bar" id="stage-bar"><span class="lay-h">Next</span><span class="stage-line" id="stage-line">Click lobbies (cards, lobby list, tiles or 1–9), then Send.</span><button class="b" id="stage-clear" hidden>Clear</button><button class="b primary" id="stage-send" disabled title="Put the picked lobbies on stream (Enter)">Send</button></div>
       <div class="lay-grp brk"><span class="lay-h">Breaks</span><button class="b" data-layout="slate" title="Technical difficulties: be right back (standings and storylines take turns)">Be right back</button><button class="b" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" id="desk-autointer" title="Intermission by itself when every lobby is between games, and back when one starts">Auto intermission</button></div>
     </div>
+    </div>
+    <div class="ld-msgs">
+  <div class="warns" id="desk-warn"></div>
+  <div class="prompts" id="ag-prompts"></div>
+  <div class="reads" id="reads"></div>
+  <div class="muted-all" id="muted-all" hidden><b>ALL LOBBY AUDIO MUTED</b><span id="muted-key"></span><button class="b" id="muted-un">Unmute</button></div>
+  <div class="card rp-card" id="rp-card" hidden>
+    <div class="row" style="justify-content:space-between;align-items:center"><div class="rp-title"><span class="rp-badge">REPLAY</span> <b id="rp-what"></b></div>
+      <div class="row"><button class="b" id="rp-keys" title="Change the replay keys">Keys</button><button class="b primary" data-rp="live" title="Back to live">Back to live</button></div></div>
+    <div class="rp-scrub"><span class="mono" id="rp-time">0:00.0</span><div class="rp-bar" id="rp-bar"><div class="rp-fill" id="rp-fill"></div><div class="rp-mark" id="rp-start" title="Replay start"></div><div class="rp-mark ev" id="rp-ev" title="The play"></div><div class="rp-head" id="rp-head"></div></div><span class="mono muted" id="rp-len">0:00</span></div>
+    <div class="row rp-ctl">
+      <button class="b" data-rp="restart" title="Restart">⟲ Restart</button>
+      <button class="b" data-rp="frameBack" title="Back one frame">◁|</button>
+      <button class="b" data-rp="back" title="Back 1 s">−1s</button>
+      <button class="b primary rp-play" data-rp="toggle" id="rp-play" title="Play / pause">Pause</button>
+      <button class="b" data-rp="forward" title="Forward 1 s">+1s</button>
+      <button class="b" data-rp="frameForward" title="Forward one frame">|▷</button>
+      <span style="flex:1"></span>
+      <button class="b" data-rp="zoomOut" title="Zoom out">−</button><span class="mono muted" id="rp-zoom">×1.0</span><button class="b" data-rp="zoomIn" title="Zoom in">+</button>
+      <button class="b" data-rp="pan" data-dx="-1" data-dy="0" title="Pan left">←</button><button class="b" data-rp="pan" data-dx="0" data-dy="-1" title="Pan up">↑</button><button class="b" data-rp="pan" data-dx="0" data-dy="1" title="Pan down">↓</button><button class="b" data-rp="pan" data-dx="1" data-dy="0" title="Pan right">→</button>
+      <button class="b" data-rp="follow" id="rp-follow" title="Follow the players again">Follow</button>
+      <button class="b" data-rp="angle" id="rp-angle" hidden title="The other angle of this moment: the player camera's close-up, or the whole map (key P)">🎥 Player cam</button>
+    </div>
+    <div class="rp-keys" id="rp-keymap" hidden></div>
+  </div>    </div>
+    <div class="ld-cols">
+      <div class="ld-col ld-lob">
+      <div class="ld-h"><h2>Lobbies</h2><span class="muted" id="desk-sub"></span></div>
+        <div class="card mv-card" id="mv-card">
+          <div class="row" style="justify-content:space-between"><div><b>Multiview</b> <span class="muted" id="mv-line">Click the lobbies you want on stream, then Send.</span></div>
+            <div class="row"><button class="b" id="mv-clear">Clear</button><button class="b primary" id="mv-send" disabled>Send</button></div></div>
+          <p class="muted help" hidden style="font-size:12.5px;margin:6px 0 0">Click the lobbies you want on stream (they're numbered in the order you pick), then Send. 1 lobby goes full screen, 2 side by side, 3 or 4 in the quad, 5 and more in the grid. Clicking a lobby anywhere on the Live desk picks it the same way; nothing changes on stream until Send.</p>
+          <div class="mv-grid" id="mv-grid"></div>
+        </div>      <div class="desk-lobbies" id="desk-lobbies"></div>
+      </div>
+      <div class="ld-col">
+      <h2>Happening now</h2>
+      <div class="desk-cards" id="desk-cards"></div>
+      </div>
+      <div class="ld-col">
+        <div class="card cams-card" id="cams-card" hidden>
+          <div class="row" style="justify-content:space-between"><b>Player cams</b><span class="muted" style="font-size:12px">click a player</span></div>
+          <div id="cams-list"></div>
+        </div>
+        <div class="card talk-card" id="talk-card">
+          <div class="row" style="justify-content:space-between"><b>Talking points</b><span class="row" style="gap:6px"><button class="b" id="talk-next" title="The next note">Next</button></span></div>
+          <div class="talk-list" id="talk-list"></div>
+        </div>
+        <div class="card gq-card" id="gq-card">
+          <div class="row" style="justify-content:space-between"><div><b>Graphics queue</b> <span class="muted" id="gq-line"></span></div>
+            <div class="row"><label class="muted" style="font-size:12.5px" title="How long each table, card or note stays on stream">Each <input id="gq-hold" type="number" min="3" max="60" step="1" style="width:56px"> s</label><button class="b" id="gq-skip">Skip</button><button class="b danger" id="gq-clear">Clear</button></div></div>
+          <div class="gq" id="gq-list"></div>
+        </div>      <h2>Earlier</h2>
+      <div class="desk-history" id="desk-history"></div>
+      </div>
+    </div>
   </div>
-  <div class="card mv-card" id="mv-card" data-page="live">
-    <div class="row" style="justify-content:space-between"><div><b>Multiview</b> <span class="muted" id="mv-line">Click the lobbies you want on stream, then Send.</span></div>
-      <div class="row"><button class="b" id="mv-clear">Clear</button><button class="b primary" id="mv-send" disabled>Send</button></div></div>
-    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Click the lobbies you want on stream (they're numbered in the order you pick), then Send. 1 lobby goes full screen, 2 side by side, 3 or 4 in the quad, 5 and more in the grid. Clicking a lobby anywhere on the Live desk picks it the same way; nothing changes on stream until Send.</p>
-    <div class="mv-grid" id="mv-grid"></div>
-  </div>
-  <div class="card cast-card" id="cast-card" hidden data-page="live">
+  <div class="card cast-card" id="cast-card" hidden data-page="settings">
     <div class="row" style="justify-content:space-between"><div><b>Caster overlay</b> <span class="cast-state" id="org-casting"></span></div>
-      <div class="row"><label class="muted" style="font-size:13px"><input type="checkbox" id="org-roles"> Count kills (staff view)</label><button class="b primary" id="org-jump" title="Puts the lobby worth watching on stream (key N)">Jump to action</button></div></div>
+      <div class="row"><label class="muted" style="font-size:13px"><input type="checkbox" id="org-roles"> Count kills (staff view)</label></div></div>
     <div class="urls" id="org-cast-url"></div>
     <div class="row" id="org-cast-list"></div>
     <div class="muted help" style="font-size:12px">OBS Browser sources. The overlay, video and multiview follow what's on stream (the full-screen lobby, or slot 1 of a multi-view); Pin keeps them on one lobby. On the Live desk, keys 1–9 put that lobby number full screen and N jumps to the action. Overlay 380×720, add <span class="mono">?full=1</span> on a delayed stream for roles and kills. Video (with the game sound of the lobby on air) and multiview (silent) 1920×1080: hosts turn on "Send my game to the caster" in their Button.</div>
-  </div>
-  <div class="card hl-card" id="hl-card" hidden data-page="health">
+  </div>  <div class="card hl-card" id="hl-card" hidden data-page="health">
     <div class="row" style="justify-content:space-between"><div><b>Lobby health</b> <span class="muted" id="hl-line"></span></div>
       <div class="row"><button class="b sw-onoff" id="hl-auto" title="When a lobby on stream drops, switch away from it once (a lobby you put on yourself while it's down stays on)">Auto switch: OFF</button><button class="b" id="hl-slate" title="Every lobby down: the be-right-back screen (off: intermission)">BRB screen</button><button class="b" id="hl-open" title="Thresholds and timings (health.json)">Thresholds</button></div></div>
     <div class="hl-list" id="hl-list"></div>
@@ -837,38 +915,9 @@ button.b.sw-onoff:not(.on){background:transparent;color:var(--muted);border-colo
     <div class="rl" id="roster-list"></div>
   </details>
   <p id="desk-problem" class="note bad" hidden></p>
-  <div class="card rp-card" id="rp-card" hidden>
-    <div class="row" style="justify-content:space-between;align-items:center"><div class="rp-title"><span class="rp-badge">REPLAY</span> <b id="rp-what"></b></div>
-      <div class="row"><button class="b" id="rp-keys" title="Change the replay keys">Keys</button><button class="b primary" data-rp="live" title="Back to live">Back to live</button></div></div>
-    <div class="rp-scrub"><span class="mono" id="rp-time">0:00.0</span><div class="rp-bar" id="rp-bar"><div class="rp-fill" id="rp-fill"></div><div class="rp-mark" id="rp-start" title="Replay start"></div><div class="rp-mark ev" id="rp-ev" title="The play"></div><div class="rp-head" id="rp-head"></div></div><span class="mono muted" id="rp-len">0:00</span></div>
-    <div class="row rp-ctl">
-      <button class="b" data-rp="restart" title="Restart">⟲ Restart</button>
-      <button class="b" data-rp="frameBack" title="Back one frame">◁|</button>
-      <button class="b" data-rp="back" title="Back 1 s">−1s</button>
-      <button class="b primary rp-play" data-rp="toggle" id="rp-play" title="Play / pause">Pause</button>
-      <button class="b" data-rp="forward" title="Forward 1 s">+1s</button>
-      <button class="b" data-rp="frameForward" title="Forward one frame">|▷</button>
-      <span style="flex:1"></span>
-      <button class="b" data-rp="zoomOut" title="Zoom out">−</button><span class="mono muted" id="rp-zoom">×1.0</span><button class="b" data-rp="zoomIn" title="Zoom in">+</button>
-      <button class="b" data-rp="pan" data-dx="-1" data-dy="0" title="Pan left">←</button><button class="b" data-rp="pan" data-dx="0" data-dy="-1" title="Pan up">↑</button><button class="b" data-rp="pan" data-dx="0" data-dy="1" title="Pan down">↓</button><button class="b" data-rp="pan" data-dx="1" data-dy="0" title="Pan right">→</button>
-      <button class="b" data-rp="follow" id="rp-follow" title="Follow the players again">Follow</button>
-      <button class="b" data-rp="angle" id="rp-angle" hidden title="The other angle of this moment: the player camera's close-up, or the whole map (key P)">🎥 Player cam</button>
-    </div>
-    <div class="rp-keys" id="rp-keymap" hidden></div>
-  </div>
+
   <div class="card inter-card" id="inter-card" hidden></div>
-  <div class="desk-grid" data-page="live">
-    <div class="desk-col">
-      <h2>Happening now</h2>
-      <div class="desk-cards" id="desk-cards"></div>
-    </div>
-    <div class="desk-col">
-      <h2>Lobbies</h2>
-      <div class="desk-lobbies" id="desk-lobbies"></div>
-      <h2 style="margin-top:14px">Earlier</h2>
-      <div class="desk-history" id="desk-history"></div>
-    </div>
-  </div>
+
   <div id="desk-receivers" hidden></div>
 </section>
 </main>
@@ -1001,8 +1050,8 @@ async function show(lobby, layout, slot) {
 }
 const onlineLobbies = () => DESK ? DESK.lobbies.filter(l => l.online).map(l => l.lobby) : [];
 function stageAll() { PICK = onlineLobbies(); }
-const STAGE_NAME = { full: 'Full screen', '2up': '2-up', '4up': 'Quad', grid: 'Grid' };
-const SLOTS = { full: 1, '2up': 2, '4up': 4 };
+const STAGE_NAME = { full: 'Full screen', '2up': '2-up', '4up': 'Quad', grid: 'Grid', cams: 'Player cams' };
+const SLOTS = { full: 1, '2up': 2, '4up': 4, cams: 4 };
 function stageLayout() { return STAGE_LAYOUT || (PICK.length <= 1 ? 'full' : PICK.length === 2 ? '2up' : PICK.length <= 4 ? '4up' : 'grid'); }
 function renderStage() {
   const lay = stageLayout(), n = SLOTS[lay];
@@ -1159,7 +1208,7 @@ $('muted-un').addEventListener('click', () => voiceDo({ action: 'mute' }));
 // Why a replay didn't save, in a few words (the whole reason is in the tooltip).
 function failWhy(p) {
   p = plain(p || '');
-  return /Source Record/i.test(p) ? 'no Source Record plugin' : /ffmpeg/i.test(p) ? 'no ffmpeg' : /Connect OBS|Not connected/i.test(p) ? 'OBS not connected'
+  return /Install the Source Record/i.test(p) ? 'no Source Record plugin' : /wasn't running/i.test(p) ? 'buffer restarted, try again' : /ffmpeg/i.test(p) ? 'no ffmpeg' : /Connect OBS|Not connected/i.test(p) ? 'OBS not connected'
     : /too long ago/i.test(p) ? 'too long ago' : /didn't save|buffer/i.test(p) ? 'buffer not running' : /no source/i.test(p) ? 'no OBS source for this lobby'
     : /not found|could not find|no such file/i.test(p) ? 'file not found' : p ? p.slice(0, 40) : 'unknown';
 }
@@ -1176,11 +1225,12 @@ function renderDesk() {
   if (key === deskKey) return;
   deskKey = key;
   const d = DESK, air = d.onAir;
-  $('desk-sub').textContent = `${d.lobbies.filter(l => l.online).length} lobbies sending${d.simulating ? ' · simulation (fake lobbies)' : ''} · only on this PC: it shows who the impostors are.`;
+  $('desk-sub').textContent = `${d.lobbies.filter(l => l.online).length} sending${d.simulating ? ' · simulation' : ''} · keep this screen off stream`;
   if (document.activeElement !== $('desk-sim')) $('desk-sim').checked = !!d.simulating;
   $('testbar').hidden = !d.simulating;
   $('desk-problem').hidden = !d.problem; $('desk-problem').textContent = d.problem || '';
-  document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === air.layout));
+  document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === air.layout || (b.dataset.layout === 'cams' && air.layout === 'cam')));
+  $('desk-cams').hidden = !(S && S.cam && S.cam.on);
   $('desk-autogrid').classList.toggle('on', !!d.autoGrid);
   renderInter(d);
   renderHealth(d);
@@ -1212,12 +1262,32 @@ function renderDesk() {
       ${specRow(l)}
       ${playersRow(l)}
     </div>`).join('') : '<p class="empty">No lobbies.</p>';
+  renderCams(d);
   $('desk-history').innerHTML = d.history.length ? d.history.map(c => `<div class="hrow tier-${c.tier}">
       <span class="tm">${clock(c.at)}</span>
       <span class="tx"><b>${esc(c.lobby)}</b> · ${rich(c.text)}${c.shown ? ' <span class="shown">SHOWN</span>' : ''}</span>
       <button data-watch="${c.id}" title="Bring this lobby back up (the replay comes later)">Watch again</button>
     </div>`).join('') : '<p class="empty" style="font-size:13px">Plays that have calmed down move here.</p>';
 }
+// Player cams: every live lobby's players; click one to put that lobby's camera on them (or, with
+// several cameras up, just switch who that lobby's camera follows). The current one is lit.
+function renderCams(d) {
+  const on = S && S.cam && S.cam.on;
+  const live = on ? d.lobbies.filter(l => l.online && (l.players || []).length) : [];
+  $('cams-card').hidden = !live.length;
+  if (!live.length) return;
+  const air = d.onAir, onCam = air.layout === 'cam' || air.layout === 'cams' ? air.slots.filter(Boolean) : [];
+  $('cams-list').innerHTML = live.map(l => {
+    const pick = S.cam.picks ? S.cam.picks[l.lobby] : null, following = l.spec ? l.spec.camOn : null;
+    const chip = (id, label, colour, imp, dead) => `<button class="cchip${(id === 'auto' ? pick == null : pick === id) ? ' on' : ''}${following === id ? ' live' : ''}${dead ? ' dead' : ''}" data-camlobby="${esc(l.lobby)}" data-camid="${id}" title="${id === 'auto' ? 'The camera picks whoever is in the action' : 'Follow ' + esc(label)}${following === id ? ' (following now)' : ''}">${colour != null ? sw(colour) : ''}${imp ? '🔪' : ''}${esc(label)}</button>`;
+    return `<div class="crow${onCam.includes(l.lobby) ? ' air' : ''}"><div class="cl"><span class="no">${l.no}</span><b>${esc(l.lobby)}</b>${onCam.includes(l.lobby) ? '<span class="live">ON AIR</span>' : ''}</div>
+      <div class="cc">${chip('auto', 'Auto', null, false, false)}${(l.players || []).map(p => chip(p.id, realName(l.lobby, p.id, p.name), p.color, p.imp, p.dead)).join('')}</div></div>`;
+  }).join('');
+}
+$('cams-list').addEventListener('click', e => {
+  const c = e.target.closest('[data-camid]'); if (!c) return;
+  camGo(c.dataset.camlobby, c.dataset.camid);
+});
 // Part 22: cards from the desk itself: a lobby down or back, a game interrupted (count, void or replay it).
 function sysCard(c) {
   const it = c.interruption;
@@ -1311,7 +1381,7 @@ setInterval(async () => {
   }
   // The host's game sound follows what's on stream: the followed player's ears while their camera is up, else the whole map's.
   if (DESK && DESK.onAir) {
-    const camOn = DESK.onAir.layout === 'cam' ? DESK.onAir.slots[0] : null;
+    const camOn = DESK.onAir.layout === 'cam' || DESK.onAir.layout === 'cams' ? DESK.onAir.slots[0] : null;
     for (const l of DESK.lobbies || []) {
       if (!l.online || !l.spec || l.spec.audio == null) continue;          // an older host: no camera sound
       const want = l.lobby === camOn ? 'cam' : 'wide';
@@ -1324,15 +1394,18 @@ const VISION = { off: 'Vision: off', focus: 'Vision: crewmates', rings: 'Vision:
 function specRow(l) {
   const sp = l.spec; if (!sp || !l.online) return '';
   const crew = (l.players || []).filter(p => !p.imp);
-  return `<div class="spec" data-specrow="${esc(l.lobby)}"><span class="sh" title="What the referee ghost's screen (the picture sent to you) shows. Only drawn on that one game, never sent to the players.">Host view${sp.on ? '' : ' (host isn\'t the referee ghost)'}</span>
+  const open = SPEC_OPEN.has(l.lobby), lit = [sp.lit && 'lit', sp.vision !== 'off' && 'vision', sp.eye && 'eye'].filter(Boolean);
+  if (!open) return `<div class="pltg-row"><button class="pltg" data-spectg="${esc(l.lobby)}" aria-expanded="false">▸ Host view${lit.length ? ': ' + lit.join(' · ') : ''}${sp.on ? '' : ' (host isn\'t the referee ghost)'}</button></div>`;
+  return `<div class="pltg-row"><button class="pltg" data-spectg="${esc(l.lobby)}" aria-expanded="true">▾ Host view</button></div><div class="spec" data-specrow="${esc(l.lobby)}"><span class="sh" title="What the referee ghost's screen (the picture sent to you) shows. Only drawn on that one game, never sent to the players.">Host view${sp.on ? '' : ' (host isn\'t the referee ghost)'}</span>
     <button data-spec="lit" class="${sp.lit ? 'on' : ''}" title="Lights the whole map and shows every player (impostors in vents stay hidden). Key ${keyName('specLit')}">💡 Lit map</button>
     <button data-spec="vision" class="${sp.vision !== 'off' ? 'on' : ''}" title="Click to cycle: off → every crewmate's real vision (the rest dimmed) → every player's vision outline. Key ${keyName('specVision')}">◐ ${VISION[sp.vision] || sp.vision}</button>
     <button data-spec="eye" class="${sp.eye ? 'on' : ''}" title="A small eye by a crewmate's name while an impostor is in their sight. Key ${keyName('specEye')}">👁 Sees impostor</button>
-    ${S && S.cam && S.cam.on ? `<button data-cam class="${DESK && DESK.onAir && DESK.onAir.layout === 'cam' && DESK.onAir.slots[0] === l.lobby ? 'on' : ''}" title="This lobby's player camera on stream (full screen, the whole map small in the corner). The host's game follows the player you pick, up close. Stream Deck: Settings → Stream Deck.">🎥 Player cam</button><select data-camfollow title="Who the player camera follows"><option value="auto">Follows: whoever's in the action</option>${(l.players || []).map(p => `<option value="${p.id}"${S.cam.picks && S.cam.picks[l.lobby] === p.id ? ' selected' : ''}>${p.imp ? '🔪 ' : ''}${esc(p.colour)} · ${esc(realName(l.lobby, p.id, p.name))}</option>`).join('')}</select>${sp.camOn != null ? `<span class="muted">on ${esc(camName(l, sp.camOn))}</span>` : ''}` : ''}
     ${sp.vision === 'focus' ? `<select data-specfocus title="Whose vision is shown: every crewmate's, or just one."><option value="auto">Whose vision: every crewmate</option>${crew.map(p => `<option value="${p.id}"${sp.focus === p.id ? ' selected' : ''}>${esc(p.colour)} · ${esc(realName(l.lobby, p.id, p.name))}</option>`).join('')}</select>` : ''}
   </div>`;
 }
-// Players on a lobby card: behind a toggle, remembered per lobby (closed by default).
+// Players and host view on a lobby card: behind toggles, remembered per lobby (closed by default).
+let SPEC_OPEN = new Set();
+try { SPEC_OPEN = new Set(JSON.parse(localStorage.getItem('ra.spec.open') || '[]')); } catch (e) { }
 let PL_OPEN = new Set();
 try { PL_OPEN = new Set(JSON.parse(localStorage.getItem('ra.players.open') || '[]')); } catch (e) { }
 function playersRow(l) {
@@ -1344,12 +1417,17 @@ const keyName = k => ((RP && RP.hotkeys && RP.hotkeys[k]) || '').replace(/^Key|^
 function camName(l, id) { const p = (l.players || []).find(x => x.id === id); return p ? realName(l.lobby, p.id, p.name) : '#' + id; }
 function camGo(lobby, follow) { api('POST', '/app/admin/cam', { lobby, follow }).then(r => { if (r.ok) toast(r.message); loadDesk(); }); }
 $('desk-lobbies').addEventListener('change', e => {
-  const cf = e.target.closest('[data-camfollow]');
-  if (cf) { camGo(cf.closest('[data-specrow]').dataset.specrow, cf.value); return; }
   const sel = e.target.closest('[data-specfocus]'); if (!sel) return;
   specSend(sel.closest('[data-specrow]').dataset.specrow, 'spec focus ' + sel.value);
 });
 $('desk-lobbies').addEventListener('click', e => {
+  const stg = e.target.closest('[data-spectg]');
+  if (stg) {
+    e.stopPropagation();
+    const l = stg.dataset.spectg; if (SPEC_OPEN.has(l)) SPEC_OPEN.delete(l); else SPEC_OPEN.add(l);
+    try { localStorage.setItem('ra.spec.open', JSON.stringify([...SPEC_OPEN])); } catch (err) { }
+    deskKey = ''; renderDesk(); return;
+  }
   const tg = e.target.closest('[data-pltg]');
   if (tg) {
     e.stopPropagation();
@@ -1357,9 +1435,7 @@ $('desk-lobbies').addEventListener('click', e => {
     try { localStorage.setItem('ra.players.open', JSON.stringify([...PL_OPEN])); } catch (err) { }
     deskKey = ''; renderDesk(); return;
   }
-  if (e.target.closest('[data-specfocus]') || e.target.closest('[data-camfollow]')) return;
-  const cb = e.target.closest('[data-cam]');
-  if (cb) { const row = cb.closest('[data-specrow]'); camGo(row.dataset.specrow, row.querySelector('[data-camfollow]').value); return; }
+  if (e.target.closest('[data-specfocus]')) return;
   const sb = e.target.closest('[data-spec]');
   if (sb) { specSend(sb.closest('[data-specrow]').dataset.specrow, 'spec ' + sb.dataset.spec); return; }
   if (e.target.closest('[data-specrow]')) return;
@@ -1766,7 +1842,7 @@ function renderGfx(g) {
 }
 // Graphics in three groups: what's always up, what comes up when something happens, and what you put up.
 const GFX_GROUPS = [
-  ['Always on', 'on the pictures all the time', ['hideRoomCode', 'lobbyLabels', 'impostorTags', 'sabotage', 'gridTiles', 'winCounter', 'top3', 'ticker', 'statusBar']],
+  ['Always on', 'on the pictures all the time', ['hideRoomCode', 'lobbyLabels', 'impostorTags', 'sabotage', 'gridTiles', 'winCounter', 'top3', 'ticker']],
   ['Moments', 'come up by themselves', ['alerts', 'standingsChange', 'playerCards']],
   ['Info', 'up while on', ['standings', 'pointsOnTheLine', 'storyline']],
 ];
@@ -2006,6 +2082,7 @@ function go(page) {
     if (on && el.tagName === 'DETAILS') el.open = true;
   });
   $('page-head').classList.toggle('pg-off', page === 'live');
+  document.querySelector('main').classList.toggle('ldmode', page === 'live');
   $('page-title').textContent = PAGES[page][0]; $('page-sub').textContent = PAGES[page][1];
   document.querySelector('main').scrollTop = 0;
 }

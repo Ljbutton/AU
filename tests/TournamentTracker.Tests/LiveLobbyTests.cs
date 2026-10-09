@@ -142,7 +142,7 @@ public class LiveLobbyTests : IDisposable
 
     private TournamentSession Session(Action<TrackerSettings>? configure = null)
     {
-        var settings = new TrackerSettings { TournamentName = "Cup", StatsWebhookUrl = Webhook, LiveStatus = false, PublicChat = true, ControlPort = -1, PostLeaderboardAfterEachGame = false };
+        var settings = new TrackerSettings { TournamentName = "Cup", StatsWebhookUrl = Webhook, LiveStatus = false, PublicChat = true, ControlPort = -1, PostLeaderboardAfterEachGame = false, VerifyResults = false };
         settings.AutoMute.Enabled = true;
         settings.AutoMute.GuildId = "g1";
         settings.AutoMute.BotTokens.Add("tok");
@@ -501,6 +501,15 @@ public class LiveLobbyTests : IDisposable
         s.RunCommand("!ref on");
         s.RunCommand("!unmuteall");
         Assert.False(s.AutoMute!.RefereeMode);
+    }
+
+    [Fact]
+    public void The_live_message_says_which_server_the_lobby_is_on()
+    {
+        var msg = StatusFormatter.Build(new StatusInfo { Phase = VoicePhase.Lobby, LobbyCode = "ABCDEF", Map = "Polus", Server = StatusFormatter.ShortServer("North America") });
+        Assert.StartsWith("**Code:** `ABCDEF` · **Server:** NA · **Map:** Polus", msg.Embeds![0].Description);
+        Assert.Equal("EU", StatusFormatter.ShortServer("Europe"));
+        Assert.Equal("Modded EU", StatusFormatter.ShortServer("Modded EU"));
     }
 
     [Fact]

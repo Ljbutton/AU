@@ -101,7 +101,6 @@ namespace TournamentTracker.App
     public sealed class AppServer : IDisposable
     {
         private static readonly JsonSerializerOptions Json = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-        private static readonly Regex ReplayName = new Regex(@"^tt-replay-[\w.-]+\.json(\.gz)?$");
 
         private readonly TcpListener _listener;
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
@@ -285,10 +284,6 @@ namespace TournamentTracker.App
             string query = path.Contains('?') ? path.Substring(path.IndexOf('?') + 1) : "";
             if (method == "GET" && (route == "/" || route == "/index.html"))
                 return Text(200, "text/html; charset=utf-8", Resource("ui/index.html").Replace("__APP_TOKEN__", Token));
-            if (method == "GET" && route == "/viewer")
-                return Text(200, "text/html; charset=utf-8",
-                    "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head><body style=\"margin:0\">"
-                    + Resource("ui/viewer-body.html") + "</body></html>");
             if (method == "GET" && route == "/send")
                 return Text(200, "text/html; charset=utf-8", SendPage.Html);
             if (method == "GET" && route == "/generator")
@@ -327,14 +322,6 @@ namespace TournamentTracker.App
                 {
                     string? activity = GamePath == null ? null : await _mod.ActivityAsync(GamePath, long.TryParse(HttpRequest.Query(query, "since"), out var s) ? s : 0).ConfigureAwait(false);
                     return Text(200, "application/json", activity ?? "{\"last\":0,\"lines\":[]}");
-                }
-                case ("GET", "/app/replays"): return Ok(Replays());
-                case ("GET", "/app/games"): return Ok(Games());
-                case ("GET", "/app/replay"):
-                {
-                    string name = HttpRequest.Query(query, "name");
-                    var file = ReplayFiles().FirstOrDefault(f => f.Name == name);
-                    return file == null || !ReplayName.IsMatch(name) ? Text(404, "text/plain", "Not found") : (200, "application/octet-stream", File.ReadAllBytes(file.FullName));
                 }
                 case ("POST", "/app/open"): return Ok(Open(Arg("what")));
                 case ("POST", "/app/feed"): return Ok(await FeedAsync(Arg("on") == "true").ConfigureAwait(false));
@@ -717,68 +704,6 @@ namespace TournamentTracker.App
             string? answer = await _mod.CommandAsync(GamePath, command).ConfigureAwait(false);
             if (answer == null) return new { ok = false, replies = new[] { "Among Us isn't running with the mod, so that can't be done right now." } };
             return JsonDocument.Parse(answer).RootElement;
-        }
-
-        private List<FileInfo> ReplayFiles(int max = 50)
-        {
-            var folders = new List<string> { _env.Downloads };
-            if (GamePath != null) folders.Add(Path.Combine(ModInstaller.DataDir(GamePath), "games"));
-            return ReplayLibrary.Find(folders, max);
-        }
-
-        private object Replays() => ReplayFiles().Select(f => new
-        {
-            f.Name, Label = ReplayLibrary.Label(f), When = f.LastWriteTimeUtc.ToString("o"), Size = f.Length,
-            Downloaded = f.FullName.StartsWith(_env.Downloads, StringComparison.OrdinalIgnoreCase),
-        }).ToList();
-
-        /// <summary>
-        /// The Games page: this PC's games (newest first) from the saved game files, each with its
-        /// replay when there is one, plus replays from elsewhere (downloaded from another lobby).
-        /// Read from the files, so it works with Among Us closed.
-        /// </summary>
-        private object Games()
-        {
-            var replays = ReplayFiles(200);
-            var byName = replays.GroupBy(f => f.Name, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-            var games = new List<GameRecord>();
-            if (GamePath != null)
-            {
-                try
-                {
-                    var dir = new DirectoryInfo(Path.Combine(ModInstaller.DataDir(GamePath), "games"));
-                    if (dir.Exists)
-                        foreach (var f in dir.EnumerateFiles("game-*.json", SearchOption.AllDirectories).OrderByDescending(f => f.LastWriteTimeUtc).Take(60))
-                        {
-                            try { if (JsonSerializer.Deserialize<GameRecord>(File.ReadAllText(f.FullName)) is GameRecord g) games.Add(g); }
-                            catch (Exception) { /* a damaged file */ }
-                        }
-                }
-                catch (Exception) { }
-            }
-            var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var list = games.OrderByDescending(g => g.EndedUtc ?? g.StartedUtc).Select(g =>
-            {
-                string file = ReplayRecorder.FileNameFor(g);
-                bool hasReplay = byName.ContainsKey(file);
-                if (hasReplay) used.Add(file);
-                var mvp = g.Counted ? g.Players.OrderByDescending(p => p.Points).FirstOrDefault() : null;
-                return new
-                {
-                    g.Id, g.Name, g.Round, g.Map, g.Winner, g.EndReason,
-                    When = (g.EndedUtc ?? g.StartedUtc).ToString("o"),
-                    Minutes = g.EndedUtc == null ? (double?)null : Math.Round((g.EndedUtc.Value - g.StartedUtc).TotalMinutes, 1),
-                    g.Voided, g.VoidReason, Players = g.Players.Count,
-                    Mvp = mvp == null ? null : new { mvp.Name, Color = mvp.ColorId, Points = Math.Round(mvp.Points, 2) },
-                    Replay = hasReplay ? file : null,
-                };
-            }).ToList();
-            var other = replays.Where(f => !used.Contains(f.Name)).Select(f => new
-            {
-                f.Name, Label = ReplayLibrary.Label(f), When = f.LastWriteTimeUtc.ToString("o"),
-                Downloaded = f.FullName.StartsWith(_env.Downloads, StringComparison.OrdinalIgnoreCase),
-            }).Take(30).ToList();
-            return new { Games = list, Other = other };
         }
 
         private object Open(string what)

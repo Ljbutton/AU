@@ -55,6 +55,9 @@ namespace TournamentTracker
         /// <summary>A live message is kept: turned on in the settings with a channel for it, or a channel picked with /new.</summary>
         private bool LiveStatusOn => (_settings.LiveStatus && !string.IsNullOrWhiteSpace(StatusWebhook)) || (_statusChosen != null && _settings.AutoMute.IsConfigured);
 
+        /// <summary>The Among Us server region the host is on (set by the plugin; "North America"…).</summary>
+        public string Server { get; set; } = "";
+
         /// <summary>Called a few times a second with the current phase and players.</summary>
         /// <param name="publish">
         /// False: leave the live status, overlay, live data and the app's status for <see cref="PublishTick"/>
@@ -252,6 +255,7 @@ namespace TournamentTracker
                 Round = _settings.Mode == TrackerMode.Tournament ? Round : 0,
                 LobbyCode = lobbyCode,
                 Map = map,
+                Server = StatusFormatter.ShortServer(Server),
                 AutoMuteOn = AutoMute?.Enabled,
                 Spectators = spectators,
                 SpectatorsMuted = AutoMute != null && AutoMute.Enabled && _settings.AutoMute.MuteSpectators,

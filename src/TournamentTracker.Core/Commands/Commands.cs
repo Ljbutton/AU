@@ -90,6 +90,19 @@ namespace TournamentTracker
                 case "unlink" when fromHost:
                     UnlinkCommand(args);
                     return true;
+                case "verify" when fromHost:
+                    VerifyCommand(args);
+                    return true;
+                case "voidgame" when fromHost:
+                case "unvoidgame" when fromHost:
+                    VoidGameCommand(command == "voidgame", args);
+                    return true;
+                case "adjust" when fromHost:
+                    AdjustCommand(args);
+                    return true;
+                case "resetpoints" when fromHost:
+                    ResetPointsCommand();
+                    return true;
                 case "resetleaderboard" when fromHost:
                     ResetLeaderboardCommand();
                     return true;

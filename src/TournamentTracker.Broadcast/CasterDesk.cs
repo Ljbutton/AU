@@ -44,7 +44,7 @@ namespace TournamentTracker.App.Broadcast
     /// <summary>What's on stream: one lobby full screen, two side by side, or four.</summary>
     public sealed class OnAir
     {
-        /// <summary>"full", "2up", "4up", "grid", "break", "cam" (a lobby's player camera), "intermission", "slate" (be right back), "replay" or "none".</summary>
+        /// <summary>"full", "2up", "4up", "grid", "break", "cam" (a lobby's player camera), "cams" (2–4 lobbies' player cameras at once), "intermission", "slate" (be right back), "replay" or "none".</summary>
         public string Layout { get; set; } = "none";
         public List<string?> Slots { get; set; } = new List<string?>();
         /// <summary>Who set it: "button" (a click here) or "obs" (switched in OBS).</summary>
@@ -55,7 +55,10 @@ namespace TournamentTracker.App.Broadcast
         public List<Box>? Boxes { get; set; }
         public DateTime Since { get; set; }
 
-        public static int SlotsFor(string layout) => layout == "4up" ? 4 : layout == "2up" ? 2 : layout is "full" or "grid" or "break" or "cam" ? 1 : 0;
+        public static int SlotsFor(string layout) => layout is "4up" or "cams" ? 4 : layout == "2up" ? 2 : layout is "full" or "grid" or "break" or "cam" ? 1 : 0;
+
+        /// <summary>A player camera layout (one lobby's, or several at once).</summary>
+        public bool IsCam => Layout is "cam" or "cams";
 
         /// <summary>"LIVE (full)", "LIVE (2-up, slot 1)", "LIVE (quad, slot 2)", "REPLAY", or null when not on.</summary>
         public string? Label(string lobby)
@@ -70,6 +73,7 @@ namespace TournamentTracker.App.Broadcast
                 "grid" => $"LIVE (grid, tile {i + 1})",
                 "break" => "LIVE (sponsor break)",
                 "cam" => "LIVE (player cam)",
+                "cams" => $"LIVE (player cams, {i + 1})",
                 "intermission" => null,
                 "slate" => null,
                 "replay" => "REPLAY",
@@ -668,6 +672,29 @@ namespace TournamentTracker.App.Broadcast
             return false;
         }
 
+        // ---- Player cameras: back to the whole map when the game ends -------------------------------
+
+        private readonly HashSet<string> _camPlayed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// On a player camera, once its lobby's game is over the picture goes back to that lobby's
+        /// whole map (several cameras: once none of their games is still on, the same lobbies side by side).
+        /// </summary>
+        private bool CamTick(OnAir air)
+        {
+            if (!air.IsCam) { _camPlayed.Clear(); return false; }
+            var lobbies = air.Slots.Where(s => s != null).Select(s => s!).ToList();
+            var phase = Board.Ranking().ToDictionary(r => r.Lobby, r => r.Phase, StringComparer.OrdinalIgnoreCase);
+            bool Playing(string l) => phase.TryGetValue(l, out var p) && p is "ingame" or "meeting";
+            foreach (var l in lobbies) if (Playing(l)) _camPlayed.Add(l);
+            var over = lobbies.Where(l => _camPlayed.Contains(l) && !Playing(l)).ToList();
+            if (over.Count == 0 || lobbies.Any(Playing)) return false;
+            _camPlayed.Clear();
+            if (lobbies.Count == 1) Show(lobbies[0], "full", null, null, "auto");
+            else ShowPicked(lobbies, "auto");
+            return true;
+        }
+
         // ---- Win counter (Part 20) and player cards (Part 21) ------------------------------------
 
         /// <summary>"today" or "round".</summary>
@@ -901,6 +928,7 @@ namespace TournamentTracker.App.Broadcast
             var pick = lobbies.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (pick.Count == 0) return OnAir;
             List<string?> Fill(int n) { var s = pick.Take(n).Cast<string?>().ToList(); while (s.Count < n) s.Add(null); return s; }
+            if (layout == "cams") return pick.Count == 1 ? Show(pick[0], "cam", null, null, by) : Show("", "cams", null, Fill(4)!, by);
             return (layout is "full" or "2up" or "4up" or "grid" ? layout : LayoutFor(pick.Count)) switch
             {
                 "full" => Show(pick[0], "full", null, null, by),
@@ -994,6 +1022,7 @@ namespace TournamentTracker.App.Broadcast
             OnAir air;
             lock (_lock) air = _onAir;
             if (air.Layout is "replay" or "slate") return;
+            if (CamTick(air)) return;
             if (IntermissionTick(air)) return;
             if (air.Layout == "break")
             {
@@ -1144,6 +1173,8 @@ namespace TournamentTracker.App.Broadcast
                             Name = p.TryGetProperty("name", out var n) ? n.GetString() : "",
                             Colour = p.TryGetProperty("colorName", out var c) ? c.GetString() : "",
                             Imp = p.TryGetProperty("imp", out var im) && im.ValueKind == JsonValueKind.True,
+                            Color = p.TryGetProperty("color", out var co) && co.ValueKind == JsonValueKind.Number ? co.GetInt32() : (int?)null,
+                            Dead = p.TryGetProperty("dead", out var de) && de.ValueKind == JsonValueKind.True,
                         }).ToList(),
                         OnAir = _onAir.Label(r.Lobby),
                         Health = Health.Status(r.Lobby).Level,

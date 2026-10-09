@@ -193,6 +193,20 @@ namespace TournamentTracker.Plugin.Patches
         }
     }
 
+    // Referee ghost: task animations (scans, asteroid shots, trash) show on the referee's screen
+    // and the player camera even with visual tasks off for the players. Only this game's own
+    // drawing reads it this way; the lobby's settings (what's sent to everyone) aren't touched.
+    [HarmonyPatch(typeof(LogicOptionsNormal), nameof(LogicOptionsNormal.GetVisualTasks))]
+    internal static class RefereeVisualTasksPatch
+    {
+        public static void Postfix(ref bool __result)
+        {
+            if (__result) return;
+            try { if (RefSlot.LocalIsRefereeGhost()) __result = true; }
+            catch (Exception) { }
+        }
+    }
+
     // The referee's mini chat: every message this game shows in its chat.
     [HarmonyPatch(typeof(ChatController), nameof(ChatController.AddChat))]
     internal static class MiniChatPatch

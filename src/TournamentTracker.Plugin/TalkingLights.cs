@@ -23,6 +23,7 @@ namespace TournamentTracker.Plugin
         private static readonly Dictionary<byte, Light> Icons = new Dictionary<byte, Light>();
         private static readonly Dictionary<string, (string Key, Color Colour)> KeyByName = new Dictionary<string, (string, Color)>();
         private static MeetingHud? _meeting;
+        private static bool _told;
 
         private sealed class Light
         {
@@ -44,7 +45,7 @@ namespace TournamentTracker.Plugin
             bool hosting = session != null && Game.IsHost && client != null;
             var meeting = hosting ? MeetingHud.Instance : null;
             bool lobby = hosting && client!.GameState == InnerNetClient.GameStates.Joined;
-            if (meeting != _meeting) { ClearCards(); _meeting = meeting; }
+            if (meeting != _meeting) { ClearCards(); _meeting = meeting; _told = false; }
             if (!lobby) ClearIcons();
 
             if (hosting && Time.unscaledTime >= _next && (meeting != null || lobby))
@@ -70,13 +71,13 @@ namespace TournamentTracker.Plugin
                 string real = p.Data.PlayerName ?? "";
                 string key = PlayerSnapshot.MakeKey(p.Data.FriendCode, real);
                 var colour = ColourOf(p.Data);
-                KeyByName[real] = (key, colour);
-                if (session.DisplayName(key) is string shown) KeyByName[shown] = (key, colour);
+                KeyByName[real.Trim()] = (key, colour);
+                if (session.DisplayName(key) is string shown) KeyByName[shown.Trim()] = (key, colour);
             }
             foreach (var area in meeting.playerStates)
             {
                 if (area == null || area.NameText == null) continue;
-                bool talking = KeyByName.TryGetValue(area.NameText.text ?? "", out var who) && session.IsTalking(who.Key)
+                bool talking = KeyByName.TryGetValue(Plain(area.NameText.text), out var who) && session.IsTalking(who.Key)
                     && area.gameObject.activeInHierarchy && area.transform.localScale != Vector3.zero;
                 if (!Cards.TryGetValue(area.Pointer, out var light) || light.Go == null)
                 {
@@ -86,12 +87,40 @@ namespace TournamentTracker.Plugin
                 if (talking) light.Colour = who.Colour;
                 light.On = talking;
             }
+            if (!_told)
+            {
+                // Once a meeting, for the log: how many cards were matched to players.
+                _told = true;
+                int cards = 0, known = 0;
+                foreach (var area in meeting.playerStates)
+                    if (area != null && area.NameText != null && area.transform.localScale != Vector3.zero) { cards++; if (KeyByName.ContainsKey(Plain(area.NameText.text))) known++; }
+                TournamentPlugin.Logger.Info($"Who's talking: meeting with {cards} cards, {known} matched to players.");
+            }
+        }
+
+        /// <summary>A card's name without any colour tags, trimmed.</summary>
+        private static string Plain(string? text)
+        {
+            if (string.IsNullOrEmpty(text)) return "";
+            if (text!.IndexOf('<') < 0) return text.Trim();
+            var sb = new System.Text.StringBuilder(text.Length);
+            bool tag = false;
+            foreach (char c in text)
+            {
+                if (c == '<') tag = true;
+                else if (c == '>') tag = false;
+                else if (!tag) sb.Append(c);
+            }
+            return sb.ToString().Trim();
         }
 
         /// <summary>A green ring around a meeting card, sized to the card.</summary>
         private static Light CardLight(PlayerVoteArea area)
         {
             var go = new GameObject("TT Talking");
+            // On the card's own layer: the meeting screen is drawn by the screen-overlay camera,
+            // which leaves out the default layer (the ring and speaker never showed on it).
+            go.layer = area.gameObject.layer;
             go.transform.SetParent(area.transform, false);
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = Ring();
@@ -118,6 +147,7 @@ namespace TournamentTracker.Plugin
 
             // A speaker sitting on the outline's top-right corner.
             var badgeGo = new GameObject("TT Talking speaker");
+            badgeGo.layer = area.gameObject.layer;
             badgeGo.transform.SetParent(area.transform, false);
             var badge = badgeGo.AddComponent<SpriteRenderer>();
             badge.sprite = Badge();

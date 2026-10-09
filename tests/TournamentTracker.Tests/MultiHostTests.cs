@@ -33,7 +33,7 @@ public class MultiHostTests : IDisposable
 
     private TournamentSession Session(Action<TrackerSettings>? configure = null, string? dir = null)
     {
-        var settings = new TrackerSettings { TournamentName = "Fall Cup", StatsWebhookUrl = Webhook, LiveStatus = false, PublicChat = true, ControlPort = -1 };
+        var settings = new TrackerSettings { TournamentName = "Fall Cup", StatsWebhookUrl = Webhook, LiveStatus = false, PublicChat = true, ControlPort = -1, VerifyResults = false };
         settings.AutoMute.Enabled = true;
         settings.AutoMute.GuildId = "g1";
         settings.AutoMute.BotTokens.Add("tok");

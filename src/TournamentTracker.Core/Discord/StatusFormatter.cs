@@ -21,6 +21,8 @@ namespace TournamentTracker.Discord
         public string Label { get; set; } = "";
         public int Round { get; set; }
         public string Map { get; set; } = "";
+        /// <summary>The Among Us server region the lobby is on ("NA", "EU", "Asia" or a custom server's name).</summary>
+        public string Server { get; set; } = "";
         public List<StatusPlayer> Players { get; set; } = new List<StatusPlayer>();
         public bool? AutoMuteOn { get; set; }
         public int Spectators { get; set; }
@@ -46,6 +48,7 @@ namespace TournamentTracker.Discord
             var sb = new StringBuilder();
             var header = new List<string>();
             if (s.LobbyCode.Length > 0) header.Add($"**Code:** `{s.LobbyCode}`");
+            if (s.Server.Length > 0) header.Add($"**Server:** {s.Server}");
             if (s.Map.Length > 0) header.Add($"**Map:** {s.Map}");
             if (header.Count > 0) sb.AppendLine(string.Join(" · ", header)).AppendLine();
 
@@ -105,6 +108,19 @@ namespace TournamentTracker.Discord
                 },
                 Components = menu ? LinkMenu(s) : null,
             };
+        }
+
+        /// <summary>A region's short name: "NA" for North America, "EU" for Europe; others as they are.</summary>
+        public static string ShortServer(string? region)
+        {
+            string r = (region ?? "").Trim();
+            switch (r.ToLowerInvariant())
+            {
+                case "north america": return "NA";
+                case "europe": return "EU";
+                case "asia": return "Asia";
+                default: return r;
+            }
         }
 
         /// <summary>The emoji name for a colour's crewmate head, e.g. "tt_red".</summary>

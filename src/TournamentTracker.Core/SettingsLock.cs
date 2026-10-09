@@ -12,19 +12,18 @@ namespace TournamentTracker
     public sealed partial class TournamentSession
     {
         private bool _lockOn = true;
-        private DateTime _lastLockNotice = DateTime.MinValue;
+        /// <summary>The host has been told settings were put back (once until the next game, not on every join).</summary>
+        private bool _lockNoticed;
 
         /// <summary>The settings to hold the lobby to right now, or null to leave the lobby alone.</summary>
         public LobbySettings? LockedSettings =>
             _lockOn && _settings.Mode != TrackerMode.Standard ? _settings.LobbySettings : null;
 
-        /// <summary>The plugin put settings back; tells the host (at most every few seconds).</summary>
+        /// <summary>The plugin put settings back; tells the host, in their own chat only, once until the next game.</summary>
         public void SettingsRestored(IReadOnlyList<string> changed)
         {
-            if (changed.Count == 0) return;
-            var now = _clock();
-            if ((now - _lastLockNotice).TotalSeconds < 5) return;
-            _lastLockNotice = now;
+            if (changed.Count == 0 || _lockNoticed) return;
+            _lockNoticed = true;
             Reply($"Settings are locked for {_settings.TournamentName}: put back {string.Join(", ", changed)}. " +
                   $"For a casual game, {HowTo("lock off", "the Settings lock switch")}.", false);
         }
@@ -32,6 +31,7 @@ namespace TournamentTracker
         /// <summary>Compares the settings a game started with against the tournament's and flags the game if they differ.</summary>
         public void CheckSettings(LobbySettings actual)
         {
+            _lockNoticed = false;
             var want = _settings.LobbySettings;
             var game = Tracker.Current;
             if (want == null || game == null || _settings.Mode == TrackerMode.Standard) return;
@@ -55,6 +55,7 @@ namespace TournamentTracker
             }
             string arg = args.FirstOrDefault()?.ToLowerInvariant() ?? "";
             if (arg == "on" || arg == "off") _lockOn = arg == "on";
+            _lockNoticed = false;
             Reply(_lockOn
                 ? $"Settings locked to the tournament's ({_settings.LobbySettings.Describe()}). Turn Settings lock off in The Button for a casual game."
                 : $"Settings unlocked until you restart Among Us or turn Settings lock back on. Games still count for {_settings.TournamentName} while its setup code is in use (remove the code in The Button to stop).", false);

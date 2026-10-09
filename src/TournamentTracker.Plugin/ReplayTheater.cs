@@ -10,7 +10,7 @@ using Object = UnityEngine.Object;
 namespace TournamentTracker.Plugin
 {
     /// <summary>
-    /// Watches a replay inside Among Us, on the real map with the real characters. Open
+    /// Watches a replay of a game this PC hosted inside Among Us, on the real map with the real characters. Open
     /// Freeplay on the replay's map and press F8: pick a replay with 1–9. The players are
     /// drawn with their colour, hat, skin, visor and name; bodies appear where the kills were.
     /// Keys: Space play/pause · ←/→ 5 s · ↑/↓ speed · 1–0 follow a player · Tab next player ·
@@ -40,6 +40,8 @@ namespace TournamentTracker.Plugin
         private static readonly HashSet<string> Failed = new HashSet<string>();
 
         public static bool Active => _replay != null || _menu;
+        private static bool _hinted;
+        private static float _hintUntil;
 
         public static void Update()
         {
@@ -48,7 +50,15 @@ namespace TournamentTracker.Plugin
             if (!freeplay)
             {
                 if (Active) Stop();
+                _hinted = false;
                 return;
+            }
+            // A reminder on arriving in Freeplay that replays play here.
+            if (!_hinted) { _hinted = true; _hintUntil = Time.unscaledTime + 8f; }
+            if (!Active && _hintUntil > 0)
+            {
+                if (Time.unscaledTime < _hintUntil) Hud("<b>Replays:</b> press F8 to watch a game here");
+                else { _hintUntil = 0; if (_hud != null) { Object.Destroy(_hud.gameObject); _hud = null; } }
             }
             if (Input.GetKeyDown(KeyCode.F8))
             {
@@ -66,18 +76,14 @@ namespace TournamentTracker.Plugin
         {
             _menu = true;
             _notice = "";
-            _files = ReplayLibrary.Find(new[]
-            {
-                Path.Combine(TournamentPlugin.DataDir, "games"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads"),
-            });
+            _files = ReplayLibrary.Find(new[] { Path.Combine(TournamentPlugin.DataDir, "games") });
             ShowMenu();
         }
 
         private static void ShowMenu()
         {
             var lines = new List<string> { "<b>Replays</b>  (press 1–9 · F8 to close)" };
-            if (_files.Count == 0) lines.Add("No replays yet. They're saved with each game, or download one from Discord into Downloads.");
+            if (_files.Count == 0) lines.Add("No replays yet: each game you host is saved here (the newest 20).");
             for (int i = 0; i < _files.Count; i++)
             {
                 var age = DateTime.UtcNow - _files[i].LastWriteTimeUtc;
@@ -340,13 +346,18 @@ namespace TournamentTracker.Plugin
 
         private static void Hud(string text)
         {
-            var camera = Camera.main;
+            // Drawn by the camera that draws the game's own screen overlays, on their layer, so it's
+            // on top of the map (on the map's layer it sat behind the ship and nothing showed).
+            int layer = HudManager.InstanceExists ? HudManager.Instance.gameObject.layer : 5;
+            var camera = HudCamera(layer);
             if (camera == null) return;
+            if (_hud != null && _hudOn != camera) { Object.Destroy(_hud.gameObject); _hud = null; }
             if (_hud == null)
             {
                 try
                 {
                     var go = new GameObject("ReplayHud");
+                    go.layer = layer;
                     go.transform.SetParent(camera.transform, false);
                     _hud = go.AddComponent<TextMeshPro>();
                     var font = Object.FindObjectOfType<TextMeshPro>();
@@ -356,6 +367,8 @@ namespace TournamentTracker.Plugin
                     _hud.color = Color.white;
                     _hud.outlineWidth = 0.2f;
                     _hud.outlineColor = new Color32(0, 0, 0, 255);
+                    _hud.sortingOrder = 500;
+                    _hudOn = camera;
                 }
                 catch (Exception e)
                 {
@@ -370,8 +383,19 @@ namespace TournamentTracker.Plugin
             _hud.fontSize = 2f;
             _hud.rectTransform.sizeDelta = new Vector2(12f, 4f);
             _hud.rectTransform.pivot = new Vector2(0, 1);
-            _hud.transform.localPosition = new Vector3(-size * camera.aspect + 0.25f * scale, size - 0.2f * scale, 5f);
+            _hud.transform.localPosition = new Vector3(-size * camera.aspect + 0.25f * scale, size - 0.2f * scale, camera.nearClipPlane + 0.5f);
             _hud.text = text;
+        }
+        private static Camera? _hudOn;
+
+        /// <summary>The camera that draws the screen overlays' layer (the main one if it draws everything).</summary>
+        private static Camera? HudCamera(int layer)
+        {
+            int bit = 1 << layer;
+            Camera? best = null;
+            foreach (var c in Camera.allCameras)
+                if (c != null && c.orthographic && (c.cullingMask & bit) != 0 && (best == null || c.depth > best.depth)) best = c;
+            return best ?? Camera.main;
         }
 
         private static string Clock(double seconds) => $"{(int)(seconds / 60)}:{(int)(seconds % 60):00}";

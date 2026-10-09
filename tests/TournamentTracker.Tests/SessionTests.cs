@@ -24,7 +24,7 @@ public class SessionTests : IDisposable
 
     private TournamentSession Session(bool bot = true, Action<TrackerSettings>? configure = null)
     {
-        var settings = new TrackerSettings { TournamentName = "Fall Cup", StatsWebhookUrl = Webhook, LiveStatus = false, PublicChat = true, ControlPort = -1 };
+        var settings = new TrackerSettings { TournamentName = "Fall Cup", StatsWebhookUrl = Webhook, LiveStatus = false, PublicChat = true, ControlPort = -1, VerifyResults = false };
         if (bot)
         {
             settings.AutoMute.Enabled = true;

@@ -231,7 +231,7 @@ public class BridgeTests : IDisposable
     public async Task A_game_with_The_Button_open_posts_its_results_through_it()
     {
         using var bridge = await Bridge();
-        var settings = new TrackerSettings { LiveStatus = false, ControlPort = -1, TournamentName = "Cup", StatsWebhookUrl = "https://discord.com/api/webhooks/1/abc" };
+        var settings = new TrackerSettings { LiveStatus = false, ControlPort = -1, TournamentName = "Cup", StatsWebhookUrl = "https://discord.com/api/webhooks/1/abc", VerifyResults = false };
         using var s = new TournamentSession(settings, _modDir, NullLog.Instance);
         Assert.True(s.ButtonOpen);
         s.GameStarted("ABCDEF", "Skeld", Players.Lobby());

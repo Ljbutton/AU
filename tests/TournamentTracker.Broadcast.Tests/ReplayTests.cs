@@ -245,6 +245,19 @@ public class ReplayObsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_stuck_replay_buffer_is_started_again_and_the_next_save_works()
+    {
+        int started = _obs.BufferStarts;
+        Assert.True(started >= 2);   // each new filter's buffer is started
+        _obs.BufferStuck = true;
+        var e = await Assert.ThrowsAsync<InvalidOperationException>(() => _director.SaveClipAsync("LJ"));
+        Assert.Contains("wasn't running", e.Message);
+        Assert.DoesNotContain("Install", e.Message);
+        Assert.Equal(started + 1, _obs.BufferStarts);
+        Assert.StartsWith("/clips/TT_Lobby_LJ", await _director.SaveClipAsync("LJ"));
+    }
+
+    [Fact]
     public async Task Without_Source_Record_it_says_to_install_it()
     {
         await using var obs = new FakeObs { SourceRecordInstalled = false };
@@ -330,5 +343,40 @@ public class PlayerCamReplayTests : IAsyncLifetime
         Assert.Contains("Lobby", _obs.MediaFile);
         Assert.Equal("wide", clip.Angle);
         Assert.Equal("Player camera angle.", await _replays.ControlAsync("angle"));
+    }
+
+    [Fact]
+    public void When_the_game_ends_the_camera_goes_back_to_the_whole_map()
+    {
+        _desk.Show("LJ", "cam");
+        _desk.Tick();
+        Assert.Equal("cam", _desk.OnAir.Layout);
+        Send("snap", null, new { phase = "lobby", spec = new { cam = true } });
+        _desk.Tick();
+        Assert.Equal("full", _desk.OnAir.Layout);
+        Assert.Equal("LJ", _desk.OnAir.Slots[0]);
+        Assert.Equal("TT Full", _obs.Program);
+    }
+
+    [Fact]
+    public void Several_cameras_share_the_screen_with_no_whole_map_pictures()
+    {
+        var two = new OnAir { Layout = "cams", Slots = new List<string?> { "LJ", "MAL", null, null } };
+        var boxes = _director.CamBoxes(two);
+        Assert.Equal(2, boxes.Count);
+        Assert.True(boxes[0].W < 1920 / 2.0 && boxes[1].X > boxes[0].X);
+        Assert.Equal(4, _director.CamBoxes(new OnAir { Layout = "cams", Slots = new List<string?> { "A", "B", "C", null } }).Count);
+        Assert.Empty(ObsDirector.Slots("cams", 1920, 1080, 12));
+        Assert.Equal("LIVE (player cams, 2)", two.Label("MAL"));
+
+        // Sent from the desk: the camera scene, LJ's camera in the left half, its whole map hidden.
+        var air = _desk.ShowPicked(new[] { "LJ", "MAL" }, "button", "cams");
+        Assert.Equal("cams", air.Layout);
+        Assert.Equal("TT Player Cam", _obs.Program);
+        var cam = _obs.Scenes["TT Player Cam"].Single(i => i.Source == "TT Cam LJ");
+        Assert.True(cam.Enabled && cam.W < 1920 / 2.0);
+        Assert.False(_obs.Scenes["TT Player Cam"].Single(i => i.Source == "TT Lobby LJ").Enabled);
+        // One lobby picked as a camera is the single camera (with its whole map in the corner).
+        Assert.Equal("cam", _desk.ShowPicked(new[] { "LJ" }, "button", "cams").Layout);
     }
 }

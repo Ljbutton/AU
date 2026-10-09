@@ -112,7 +112,6 @@ img.sw{display:inline-block;height:1.1em;width:auto;margin-right:.25em;vertical-
 .ph.rc{background:var(--danger)!important;color:#fff!important;animation:rcblink 1.2s ease-in-out infinite}
 @keyframes rcblink{50%{opacity:.55}}
 .frozen{filter:grayscale(1);opacity:.6}
-.cell.rc{opacity:.85}.cell.rc .ph{padding:.1em .35em;border-radius:.25em}
 .rcbox{box-sizing:border-box;display:grid;place-items:center;background:repeating-linear-gradient(135deg,rgba(10,12,16,.94) 0 26px,rgba(18,21,27,.94) 26px 52px);border:4px solid var(--danger)}
 .rcbox div{display:grid;gap:.25em;text-align:center}
 .rcbox b{font:700 1.5em/1 var(--head),sans-serif;letter-spacing:.06em}
@@ -173,23 +172,6 @@ img.sw{display:inline-block;height:1.1em;width:auto;margin-right:.25em;vertical-
 .mvs small{font:700 .55em/1 var(--font),sans-serif;letter-spacing:.16em;opacity:.75}
 .mvs b{font:700 1em/1 var(--head),sans-serif;letter-spacing:.05em;text-transform:uppercase}
 .mvs img{height:1.4em;max-width:6em;object-fit:contain}
-/* Status bar */
-.bar{display:flex;flex-wrap:wrap;gap:6px;padding:6px 10px;box-sizing:border-box;background:linear-gradient(transparent,rgba(0,0,0,.55) 30%)}
-.cell{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:.45em;padding:.25em .55em;border-radius:.3em;background:var(--panel);border:.08em solid rgba(255,255,255,.12);font-size:.82em;white-space:nowrap;overflow:hidden;position:relative}
-.cell .n{font:700 1.25em/1 var(--head),sans-serif;color:var(--primary);min-width:1.1em;text-align:center}
-.cell .nm{font:700 .8em/1 var(--font),sans-serif;opacity:.75;overflow:hidden;text-overflow:ellipsis;max-width:6em}
-.cell .ct{display:flex;align-items:center;gap:.15em;font-variant-numeric:tabular-nums}
-.cell .ct svg{width:.85em;height:.95em}
-.cell .tk{font-size:.85em;opacity:.85;font-variant-numeric:tabular-nums}
-.cell .ph{margin-left:auto;font:700 .72em/1 var(--head),sans-serif;letter-spacing:.08em;padding:.25em .4em .15em;border-radius:.25em;background:rgba(255,255,255,.12)}
-.cell .ph.meeting{background:var(--accent);color:#111}
-.cell .ph.ended{background:rgba(255,255,255,.3)}
-.cell .sb{color:var(--danger);display:flex}
-.cell .sb svg{width:1em;height:1em}
-.cell.on{border-color:var(--primary);box-shadow:inset 0 0 0 .1em var(--primary);background:rgba(10,40,20,.85)}
-.cell.on::before{content:"ON AIR";position:absolute;right:.3em;top:.12em;font:700 .45em/1 var(--font),sans-serif;letter-spacing:.1em;color:var(--primary)}
-.cell.hot{animation:pulse 1.1s infinite}
-.cell.off{opacity:.45}
 @keyframes pulse{50%{box-shadow:inset 0 0 0 .14em var(--danger),0 0 .9em rgba(255,45,85,.7)}}
 </style></head><body>
 <div id="stage"></div>
@@ -284,27 +266,6 @@ function emptyTile(slot) {
   put(`empty-${slot.slot}`, `<div class="empty" style="width:${slot.w}px;height:${slot.h}px">${inner}</div>`, { left: slot.x + 'px', top: slot.y + 'px', fontSize: 40 * slot.w / S.canvas.w * 2 + 'px' });
 }
 
-// The status bar: one cell per lobby, along the bottom of the screen.
-function statusBar() {
-  // Fixed order; in a multi-view, the lobbies on screen first, numbered where they are (1 top left…).
-  const list = Object.entries(S.lobbies).filter(([, l]) => l.online || l.phase !== 'menu').sort((a, b) => a[1].order - b[1].order);
-  if (!list.length) return;
-  const onAir = new Set(S.slots.map(s => s.lobby).filter(Boolean));
-  const rows = list.length * 230 > S.canvas.w - 20 ? 2 : 1;
-  const cells = list.map(([name, l]) => {
-    const sab = l.sabotage ? `<span class="sb" title="${esc(l.sabotage.system)}">${sabIcon(l.sabotage.system)}</span>` : '';
-    const hot = l.tier === 'must' || l.tier === 'veryHigh';
-    const playing = l.phase === 'ingame' || l.phase === 'meeting';
-    if (l.reconnecting && l.phase !== 'menu') return `<div class="cell rc${onAir.has(name) ? ' on' : ''}" style="flex-basis:${100 / Math.ceil(list.length / rows) - 1}%">
-      <span class="n">${l.number ?? '–'}</span><span class="nm">${esc(name)}</span>${playing && l.crew != null ? `<span class="ct">${CNT.crew}${l.crew}</span><span class="ct">${CNT.imp}${l.imps}</span>` : ''}<span class="ph rc">RECONNECTING</span></div>`;
-    return `<div class="cell${onAir.has(name) ? ' on' : ''}${hot ? ' hot' : ''}${l.online ? '' : ' off'}" style="flex-basis:${100 / Math.ceil(list.length / rows) - 1}%">
-      <span class="n">${l.number ?? '–'}</span><span class="nm">${esc(name)}</span>
-      ${playing && l.crew != null ? `<span class="ct">${CNT.crew}${l.crew}</span><span class="ct">${CNT.imp}${l.imps}</span><span class="tk">${l.tasks ?? 0}%</span>` : ''}
-      ${sab}<span class="ph ${l.online ? l.phase : 'menu'}">${(l.online ? PH[l.phase] || l.phase : 'Offline').toUpperCase()}</span></div>`;
-  }).join('');
-  put('statusbar', `<div class="bar" style="flex-wrap:${rows > 1 ? 'wrap' : 'nowrap'}">${cells}</div>`, { left: '0px', bottom: '0px', width: S.canvas.w + 'px', fontSize: (rows > 1 ? 24 : 28) + 'px' });
-}
-
 // Top 3: each playing lobby's top three for its own round, top left, a different lobby every 8 s.
 // The top 3 steps aside while a big graphic (a table, a card, a note) is up.
 const LEFT_BUSY = () => S.big || S.layout === 'intermission' || S.layout === 'slate' || S.layout === 'replay';
@@ -325,7 +286,7 @@ function ticker() {
   put('ticker', `<div class="tk" style="width:${S.canvas.w}px"><div class="tk-l"><b>${esc(b.title)}</b><small>TOP ${b.rows.length} · ${p ? '6–' + b.rows.length : '1–' + Math.min(5, b.rows.length)}</small></div><div class="tk-r">${items}</div><div class="tk-brand">${esc((S.theme && S.theme.tournamentName) || '')}</div></div>`,
     { left: '0px', bottom: '0px', fontSize: '26px' });
 }
-const BOTTOM = () => S.ticker && S.ticker.length && S.layout !== 'intermission' && S.layout !== 'slate' ? 66 : S.elements.statusBar ? (Object.keys(S.lobbies).length * 230 > S.canvas.w - 20 ? 130 : 84) : 0;
+const BOTTOM = () => S.ticker && S.ticker.length && S.layout !== 'intermission' && S.layout !== 'slate' ? 66 : 0;
 // A multiview with 4 or more lobbies, presented by a sponsor: a badge where the pictures meet.
 function multiviewSponsor() {
   const m = S.extras && S.extras.multiviewSponsor; if (!m || (S.layout !== '4up' && S.layout !== 'grid')) return;
@@ -420,7 +381,9 @@ function winCounter() {
   const b = k => now - winsSeen.at[k] < 1300 ? ' class="bump"' : '';
   const html = `<div class="wins"><span class="i">IMPOSTOR WINS<b${b('i')}>${w.impostors}</b></span><span class="sep">·</span><span class="c">CREWMATE WINS<b${b('c')}>${w.crew}</b></span><small>${w.scope === 'round' ? 'THIS ROUND' : 'TODAY'}</small></div>`;
   if (S.layout === 'intermission' || S.layout === 'slate') put('wins', html, { left: '110px', bottom: '150px', right: 'auto', top: 'auto', fontSize: '40px' });
-  else if (S.elements.winCounter) put('wins', html, { right: '40px', bottom: (BOTTOM() || 10) + 20 + 'px', left: 'auto', top: 'auto', fontSize: '28px' });
+  // On the player camera the lobby's picture sits in the bottom-right corner (its chat): the counter goes top middle there.
+  else if (S.elements.winCounter && S.layout === 'cam') put('wins', html, { left: S.canvas.w / 2 + 'px', top: '22px', right: 'auto', bottom: 'auto', transform: 'translateX(-50%)', fontSize: '26px' });
+  else if (S.elements.winCounter) put('wins', html, { right: '40px', bottom: (BOTTOM() || 10) + 20 + 'px', left: 'auto', top: 'auto', transform: '', fontSize: '28px' });
 }
 // A player's card: on their lobby's tile in a multi-view, else bottom left.
 function playerCard() {
@@ -466,7 +429,7 @@ function twitch() {
 }
 
 // More elements are added by later parts (sponsors, alerts, counters…).
-const GLOBAL = { intermission, statusBar, top3, ticker, standings, standingsChange, storyline, sponsorBreak, multiviewSponsor, winCounter, playerCard, alerts, twitch };
+const GLOBAL = { intermission, top3, ticker, standings, standingsChange, storyline, sponsorBreak, multiviewSponsor, winCounter, playerCard, alerts, twitch };
 const ALWAYS = new Set(['sponsorBreak', 'multiviewSponsor', 'intermission', 'winCounter', 'playerCard', 'twitch', 'standingsChange', 'storyline', 'standings']);
 
 function render() {

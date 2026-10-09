@@ -138,6 +138,17 @@ namespace TournamentTracker.Plugin
             return client == null ? "" : GameCode.IntToGameName(client.GameId);
         }
 
+        /// <summary>The server region this game is on ("North America"…), or "" if unknown.</summary>
+        public static string Region()
+        {
+            try
+            {
+                var servers = ServerManager.InstanceExists ? ServerManager.Instance : null;
+                return servers?.CurrentRegion?.Name ?? "";
+            }
+            catch (Exception) { return ""; }
+        }
+
         public static string MapName()
         {
             var options = Options();

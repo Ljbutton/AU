@@ -885,7 +885,7 @@ namespace TournamentTracker.App.Broadcast
                         ? pl.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString() ?? "").ToList() : new List<string>();
                     if (pick.Count == 0) return Ok(new { ok = false, message = "Pick one or more lobbies first." });
                     var air = _desk.ShowPicked(pick, "button", Arg("layout").Length > 0 ? Arg("layout") : null);
-                    string how = air.Layout switch { "full" => "Full screen", "2up" => "2-up", "4up" => "Quad", "grid" => "Grid", _ => air.Layout };
+                    string how = air.Layout switch { "full" => "Full screen", "2up" => "2-up", "4up" => "Quad", "grid" => "Grid", "cam" => "Player cam", "cams" => "Player cams", _ => air.Layout };
                     return Ok(new { ok = true, message = $"On stream ({how}): {string.Join(", ", air.Slots.Where(x => x != null))}." + _desk.DownNote(air.Slots), down = _desk.DownNote(air.Slots).Trim() });
                 }
                 case ("POST", "/app/admin/autoswitch"):

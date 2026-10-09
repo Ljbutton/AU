@@ -153,32 +153,6 @@ public class AppTests : IDisposable
     }
 
     [Fact]
-    public async Task The_games_page_lists_saved_games_with_their_replays()
-    {
-        var (app, http, game) = App();
-        using var _ = app;
-        string dir = Path.Combine(ModInstaller.DataDir(game), "games", "fall-cup");
-        Directory.CreateDirectory(dir);
-        var record = new GameRecord { Id = "LJ-2-20261003-190000", Host = "LJ", GameNumber = 2, Round = 1, Map = "Polus", Winner = "Crewmates", EndReason = "HumansByTask",
-            StartedUtc = new DateTime(2026, 10, 3, 19, 0, 0, DateTimeKind.Utc), EndedUtc = new DateTime(2026, 10, 3, 19, 8, 0, DateTimeKind.Utc),
-            Players = { new GamePlayer { Name = "Cy", ColorId = 8, Points = 6 }, new GamePlayer { Name = "Bo", ColorId = 7, Points = 2 } } };
-        File.WriteAllText(Path.Combine(dir, "game-LJ-2.json"), JsonSerializer.Serialize(record));
-        File.WriteAllBytes(Path.Combine(dir, ReplayRecorder.FileNameFor(record)), new byte[] { 1 });
-        File.WriteAllText(Path.Combine(dir, "game-LJ-1.json"), JsonSerializer.Serialize(new GameRecord { Id = "LJ-1", Host = "LJ", GameNumber = 1, Voided = true, VoidReason = "restart",
-            StartedUtc = new DateTime(2026, 10, 3, 18, 50, 0, DateTimeKind.Utc) }));
-
-        var games = await Get(http, "app/games");
-        var list = games.GetProperty("games").EnumerateArray().ToList();
-        Assert.Equal(new[] { "LJ-2", "LJ-1" }, list.Select(g => g.GetProperty("name").GetString()));
-        Assert.Equal("Cy", list[0].GetProperty("mvp").GetProperty("name").GetString());
-        Assert.Equal(8, list[0].GetProperty("minutes").GetDouble());
-        Assert.Equal(ReplayRecorder.FileNameFor(record), list[0].GetProperty("replay").GetString());
-        Assert.True(list[1].GetProperty("voided").GetBoolean());
-        Assert.Equal(JsonValueKind.Null, list[1].GetProperty("replay").ValueKind);
-        Assert.Empty(games.GetProperty("other").EnumerateArray());   // its replay is already on its game
-    }
-
-    [Fact]
     public async Task The_send_page_keeps_working_after_The_Button_restarts()
     {
         var env = new AppEnvironment
@@ -331,7 +305,7 @@ public class AppTests : IDisposable
         rebinding.Headers.Host = "evil.example";
         rebinding.Headers.Add("X-App-Token", app.Token);
         Assert.Equal(HttpStatusCode.Forbidden, (await anon.SendAsync(rebinding)).StatusCode);
-        Assert.Contains("REPLAY", await anon.GetStringAsync("/viewer"));
+        Assert.Equal(HttpStatusCode.NotFound, (await anon.GetAsync("/viewer")).StatusCode);   // replays live in Red Alert and Freeplay now
         Assert.Contains("Tournament Setup Codes", await anon.GetStringAsync("/generator"));
         var head = await anon.GetByteArrayAsync("/crew/17.png");            // every colour has a head, up to coral
         Assert.Equal(new byte[] { 0x89, (byte)'P', (byte)'N', (byte)'G' }, head.Take(4).ToArray());
@@ -423,24 +397,6 @@ public class AppTests : IDisposable
         Assert.Contains(activity.GetProperty("lines").EnumerateArray(), l => l.GetProperty("text").GetString()!.StartsWith("Round 4"));
     }
 
-    [Fact]
-    public async Task Lists_replays_from_the_games_folder_and_downloads()
-    {
-        var (app, http, game) = App();
-        using var _ = app;
-        string games = Path.Combine(ModInstaller.DataDir(game), "games", "cup");
-        Directory.CreateDirectory(games);
-        File.WriteAllBytes(Path.Combine(games, "tt-replay-LJ-3-20261003-192144.json.gz"), new byte[] { 1, 2, 3 });
-        Directory.CreateDirectory(Path.Combine(_dir.Path, "Downloads"));
-        File.WriteAllBytes(Path.Combine(_dir.Path, "Downloads", "tt-replay-MAL-1-20261003-190000.json.gz"), new byte[] { 4 });
-
-        var list = await Get(http, "app/replays");
-        Assert.Equal(2, list.GetArrayLength());
-        Assert.Contains(list.EnumerateArray(), r => r.GetProperty("label").GetString() == "MAL-1" && r.GetProperty("downloaded").GetBoolean());
-        var bytes = await http.GetByteArrayAsync("app/replay?name=tt-replay-LJ-3-20261003-192144.json.gz");
-        Assert.Equal(new byte[] { 1, 2, 3 }, bytes);
-        Assert.Equal(HttpStatusCode.NotFound, (await http.GetAsync("app/replay?name=..%2F..%2Fsecret.txt")).StatusCode);
-    }
 }
 
 public class AppVersionTests

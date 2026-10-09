@@ -72,13 +72,17 @@ public class SettingsLockTests : IDisposable
     }
 
     [Fact]
-    public void Putting_settings_back_tells_the_host_without_spamming()
+    public void Putting_settings_back_tells_the_host_once_until_the_next_game()
     {
         using var s = Session(Prelim(LobbySettings.TournamentDefaults()));
         s.SettingsRestored(new[] { "Kill cooldown 20s (should be 25s)" });
         s.SettingsRestored(new[] { "Kill cooldown 20s (should be 25s)" });
-        Assert.Single(s.Pump(), r => r.Text.StartsWith("Settings are locked for October prelims: put back Kill cooldown 20s"));
-        _clock.Advance(6);
+        var told = Assert.Single(s.Pump(), r => r.Text.StartsWith("Settings are locked for October prelims: put back Kill cooldown 20s"));
+        Assert.False(told.Public);
+        _clock.Advance(600);
+        s.SettingsRestored(new[] { "Impostors 3 (should be 2)" });
+        Assert.Empty(s.Pump());
+        s.CheckSettings(LobbySettings.TournamentDefaults());
         s.SettingsRestored(new[] { "Impostors 3 (should be 2)" });
         Assert.Single(s.Pump());
     }

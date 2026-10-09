@@ -61,6 +61,10 @@ public sealed class FakeObs : IAsyncDisposable
     public int RefusedSceneItems;
     /// <summary>Requests that fail (OBS answering with an error).</summary>
     public readonly HashSet<string> Fail = new();
+    /// <summary>Source Record's buffer isn't running: a save answers success = false until it's started.</summary>
+    public bool BufferStuck;
+    public int BufferStarts;
+    private bool _saved;
 
     public FakeObs()
     {
@@ -144,7 +148,7 @@ public sealed class FakeObs : IAsyncDisposable
                 await Event("SceneItemEnableStateChanged", new { sceneName = data.GetProperty("sceneName").GetString(), sceneItemId = data.GetProperty("sceneItemId").GetInt32(), sceneItemEnabled = data.GetProperty("sceneItemEnabled").GetBoolean() });
             if (ok && type == "SetInputMute")
                 await Event("InputMuteStateChanged", new { inputName = data.GetProperty("inputName").GetString(), inputMuted = data.GetProperty("inputMuted").GetBoolean() });
-            if (ok && type == "CallVendorRequest")
+            if (ok && type == "CallVendorRequest" && _saved)
             {
                 string source = data.GetProperty("requestData").GetProperty("source").GetString()!;
                 string path = $"/clips/{source.Replace(' ', '_')}-{Saved.Count + 1}.mp4";
@@ -225,7 +229,12 @@ public sealed class FakeObs : IAsyncDisposable
                 return null;
             case "CallVendorRequest":
                 if (!SourceRecordInstalled) throw new Exception("No vendor was found by that name.");
-                if (S(d, "vendorName") != "source-record" || S(d, "requestType") != "replay_buffer_save") throw new Exception("bad vendor request");
+                if (S(d, "vendorName") != "source-record") throw new Exception("bad vendor request");
+                _saved = false;
+                if (S(d, "requestType") == "replay_buffer_start") { BufferStarts++; BufferStuck = false; return new { vendorName = "source-record", requestType = "replay_buffer_start", responseData = new { success = true } }; }
+                if (S(d, "requestType") != "replay_buffer_save") throw new Exception("bad vendor request");
+                _saved = !BufferStuck;
+                if (BufferStuck) return new { vendorName = "source-record", requestType = "replay_buffer_save", responseData = new { success = false } };
                 return new { vendorName = "source-record", requestType = "replay_buffer_save", responseData = new { success = true } };
             case "GetMediaInputStatus":
                 return new { mediaState = MediaState, mediaDuration = MediaFile == null ? (double?)null : MediaDurationMs, mediaCursor = MediaFile == null ? (double?)null : MediaCursorMs };

@@ -37,10 +37,10 @@ namespace TournamentTracker.Plugin
                 var colors = Palette.PlayerColors;
                 if (id >= 0 && id < colors.Length)
                 {
+                    // The player's own colour; only the darkest (black, brown) lifted a little to read.
                     Color c = colors[id];
-                    // Dark colours lightened so they read on the map.
                     float light = 0.299f * c.r + 0.587f * c.g + 0.114f * c.b;
-                    if (light < 0.35f) c = Color.Lerp(c, Color.white, 0.45f);
+                    if (light < 0.2f) c = Color.Lerp(c, Color.white, 0.25f);
                     colour = ColorUtility.ToHtmlStringRGB(c);
                 }
             }
@@ -136,7 +136,7 @@ namespace TournamentTracker.Plugin
                 _text.richText = true;
                 _text.fontSize = 1.15f;
                 _text.color = Color.white;
-                _text.outlineWidth = 0.22f;
+                _text.outlineWidth = 0.12f;   // thin, so the names keep their colour
                 _text.outlineColor = new Color32(0, 0, 0, 255);
                 _text.sortingOrder = 500;
                 _text.rectTransform.pivot = new Vector2(0.5f, 0);
