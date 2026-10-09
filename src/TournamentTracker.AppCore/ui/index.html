@@ -332,13 +332,15 @@ select{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5p
 .wg-h b{font-size:15px}
 .wg-h .grow{flex:1}
 .wg.voided .wg-p{opacity:.5}
-.wg-p{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 14px;margin-top:8px}
+.wg-p{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:4px 14px;margin-top:8px}
 .wp{display:flex;align-items:center;gap:7px;min-width:0;padding:3px 0}
 .wp img{width:22px;height:22px}
 .wp .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wp .imp{font-size:10.5px;color:var(--danger);font-weight:700;letter-spacing:.04em}
 .wp .pt{font-weight:700;font-variant-numeric:tabular-nums;min-width:3.2em;text-align:right;cursor:help}
 .wp button.step{min-width:28px;padding:2px 0;border-radius:8px}
+.wp input.amt{width:58px;padding:3px 6px;text-align:right;font-variant-numeric:tabular-nums}
+.wp input.amt.bad{border-color:var(--danger)}
 .danger-zone{border-color:var(--danger-soft)}
 /* ---- Points ---- */
 .points-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,640px),1fr));gap:14px;align-items:start}
@@ -507,7 +509,7 @@ details.advanced[open] summary h2::before{content:'▾ '}
   <div class="card ref-card" id="home-ref" style="grid-column:1/-1" hidden>
     <h2>Results channel</h2>
     <p class="muted" style="margin:0 0 8px;font-size:12.5px">Posted to the private results channel as the administration bot, exactly like typing it there.</p>
-    <div class="row"><select id="adj-lobby"></select><input id="adj-player" placeholder="Player (colour or name)" style="width:170px"><input id="adj-points" type="number" step="0.5" placeholder="Points" style="width:90px"><input id="adj-reason" placeholder="Reason" style="flex:1;min-width:120px"><button class="b" id="adj-go">Adjust</button></div>
+    <div class="row"><select id="adj-lobby"></select><input id="adj-player" placeholder="Player (colour or name)" style="width:170px"><input id="adj-points" inputmode="decimal" placeholder="Points" title="Any amount up to 3 significant figures" style="width:80px"><button class="b" id="adj-minus" title="Take these points away">−</button><button class="b" id="adj-plus" title="Add these points">+</button><input id="adj-reason" placeholder="Reason" style="flex:1;min-width:120px"></div>
     <div class="row" style="margin-top:8px"><input id="void-game" placeholder="Game (LJ-3) or lobby (LJ)" style="width:200px"><input id="void-why" placeholder="Reason" style="flex:1;min-width:120px"><button class="b danger" id="void-go">Void</button><button class="b" id="unvoid-go">Unvoid</button></div>
     <div class="row" style="margin-top:8px"><input id="org-cmd" placeholder="Any command: !start 3 in 10, !lobbies 3, !move Soggy B…" class="mono" style="flex:1"><button class="b" id="org-cmd-go">Post</button></div>
   </div>
@@ -914,7 +916,16 @@ function renderPoints() {
 
 // ---- Referee: games waiting for Submit, every game's void, points changes, reset --------------
 let gamesKey = '';
-const pn = v => (v > 0 ? '+' : '') + (Math.round(v * 100) / 100);
+const r3 = v => Math.round(v * 1000) / 1000;
+const pn = v => (v > 0 ? '+' : '') + r3(v);
+// A referee change: any positive amount with up to 3 significant figures (0.125, 1.25, 12.5, 125). Empty means 1.
+function refAmount(text) {
+  const t = String(text || '').trim().replace(',', '.');
+  if (!t) return 1;
+  const n = Number(t);
+  return n > 0 && n <= 1000 && Number(n.toPrecision(3)) === n ? n : null;
+}
+const amounts = {};
 function winLine(g) {
   return g.voided ? `<span class="pill bad">Void</span>${g.voidReason ? ` <span class="muted">${esc(g.voidReason)}</span>` : ''}`
     : g.winner ? `<b class="${g.winner === 'Impostors' ? 'imp-win' : 'crew-win'}">${g.winner === 'Impostors' ? 'Impostors win' : 'Crewmates win'}</b>` : '<span class="muted">No result</span>';
@@ -939,9 +950,10 @@ function renderGames() {
       <button class="b primary" data-gact="verify">${g.voided ? 'Done (stays off Discord)' : 'Submit points'}</button></div>
     <div class="wg-p">${g.players.map(p => `<div class="wp" data-key="${esc(p.key)}">
       <img src="${head(p.color)}" alt=""><span class="nm">${esc(p.name)}</span>${p.impostor ? '<span class="imp">IMP</span>' : ''}
-      <button class="b step" data-step="-1" title="One point less">−</button>
-      <span class="pt" title="${esc(p.lines.map(l => `${pn(l.points)}  ${l.rule}`).join('\n'))}">${Math.round(p.points * 100) / 100}</span>
-      <button class="b step" data-step="1" title="One point more">+</button></div>`).join('')}</div></div>`).join('');
+      <span class="pt" title="${esc(p.lines.map(l => `${pn(l.points)}  ${l.rule}`).join('\n'))}">${r3(p.points)}</span>
+      <input class="amt" inputmode="decimal" placeholder="1" title="Points to add or take away: any amount up to 3 significant figures" value="${esc(amounts[g.name + '|' + p.key] || '')}" aria-label="Points for ${esc(p.name)}">
+      <button class="b step" data-step="-1" title="Take these points away">−</button>
+      <button class="b step" data-step="1" title="Add these points">+</button></div>`).join('')}</div></div>`).join('');
   $('ref-games').innerHTML = recent.length ? recent.map(g => `<tr class="${g.voided ? 'voided' : ''}" data-game="${esc(g.name)}">
       <td><b>Game ${esc(g.name)}</b>${g.round ? `<div class="muted">Round ${g.round}</div>` : ''}</td><td>${winLine(g)}</td>
       <td class="muted">${esc(g.map)}<div>${new Date(g.ended).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div></td>
@@ -958,9 +970,22 @@ document.addEventListener('click', e => {
   }
   const step = e.target.closest('[data-step]');
   if (step) {
-    const name = step.closest('[data-game]').dataset.game, key = step.closest('[data-key]').dataset.key;
-    cmd(`adjust ${name} ${key} ${step.dataset.step} referee`);
+    const name = step.closest('[data-game]').dataset.game, row = step.closest('[data-key]'), key = row.dataset.key;
+    const box = row.querySelector('.amt'), n = refAmount(box.value);
+    if (n === null) { box.classList.add('bad'); box.focus(); return toast('Use a number above 0 with up to 3 significant figures, e.g. 0.125, 1.25, 12.5 or 125.'); }
+    delete amounts[name + '|' + key];
+    box.value = '';
+    cmd(`adjust ${name} ${key} ${step.dataset.step < 0 ? '-' : ''}${n} referee`);
   }
+});
+document.addEventListener('input', e => {
+  if (!e.target.matches('.wp input.amt')) return;
+  e.target.classList.remove('bad');
+  amounts[e.target.closest('[data-game]').dataset.game + '|' + e.target.closest('[data-key]').dataset.key] = e.target.value;
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || !e.target.matches('.wp input.amt')) return;
+  toast('Press + to add the points or − to take them away.');
 });
 $('ref-verify-all').addEventListener('click', () => cmd('verify all'));
 $('reset-pts').addEventListener('click', () => { $('reset-pts-confirm').hidden = false; $('reset-pts-word').value = ''; $('reset-pts-go').disabled = true; $('reset-pts-word').focus(); });
@@ -996,11 +1021,15 @@ $('aw-copy').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(text); toast('Copied. Paste it in Discord and keep the winners you choose.'); } catch (e) { toast('Couldn\'t copy.'); }
 });
 async function orgPost(text) { const r = await api('POST', '/app/admin/command', { text }); toast(r.message); }
-$('adj-go').addEventListener('click', () => {
-  const pts = $('adj-points').value.trim(), who = $('adj-player').value.trim();
-  if (!pts || !who) return toast('Pick the player and the points.');
-  orgPost(`!adjust ${$('adj-lobby').value} ${who} ${pts} ${$('adj-reason').value.trim()}`.trim());
-});
+function orgAdjust(sign) {
+  const who = $('adj-player').value.trim(), raw = $('adj-points').value.trim(), n = raw ? refAmount(raw) : null;
+  if (!who || !raw) return toast('Pick the player and the points.');
+  if (n === null) return toast('Use a number above 0 with up to 3 significant figures, e.g. 0.125, 1.25, 12.5 or 125.');
+  orgPost(`!adjust ${$('adj-lobby').value} ${who} ${sign}${n} ${$('adj-reason').value.trim()}`.trim());
+  $('adj-points').value = '';
+}
+$('adj-plus').addEventListener('click', () => orgAdjust('+'));
+$('adj-minus').addEventListener('click', () => orgAdjust('-'));
 $('void-go').addEventListener('click', () => { const g = $('void-game').value.trim(); if (g) orgPost(`!void ${g} ${$('void-why').value.trim()}`.trim()); });
 $('unvoid-go').addEventListener('click', () => { const g = $('void-game').value.trim(); if (g) orgPost(`!unvoid ${g}`); });
 $('org-cmd-go').addEventListener('click', () => { const t = $('org-cmd').value.trim(); if (t) { orgPost(t); $('org-cmd').value = ''; } });

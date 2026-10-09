@@ -155,6 +155,10 @@ namespace TournamentTracker
         }
 
         /// <summary>adjust LJ-3 &lt;player key&gt; &lt;+/-points&gt; reason: a referee's change to one player's points in one game.</summary>
+        /// <summary>A referee change can be any amount written with up to 3 significant figures (0.125, 1.25, 12.5, 125).</summary>
+        public static bool ThreeSigFigs(double value) =>
+            value != 0 && double.Parse(value.ToString("G3", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture) == value;
+
         private void AdjustCommand(string[] args)
         {
             if (args.Length < 3) { Reply("adjust <game> <player> <points> [reason], e.g. adjust LJ-3 Red -2 left early", false); return; }
@@ -169,6 +173,11 @@ namespace TournamentTracker
                 Reply($"\"{args[2]}\" isn't a number of points (e.g. 2 or -1.5).", false);
                 return;
             }
+            if (!ThreeSigFigs(change))
+            {
+                Reply($"\"{args[2]}\" has more than 3 significant figures. Use e.g. 0.125, 1.25, 12.5 or 125.", false);
+                return;
+            }
             string reason = string.Join(" ", args.Skip(3)).Trim();
             bool counted = game.Counted;
             if (counted) Store.Remove(game);
@@ -178,7 +187,7 @@ namespace TournamentTracker
             TrySave(() => Store.Save(_statsPath), "stats");
             TrySave(() => SaveGameFile(game), "game record");
             _points = null;
-            string what = $"{player.Name} {(change > 0 ? "+" : "")}{change.ToString("0.##", CultureInfo.InvariantCulture)} in game {game.Name}{(reason.Length > 0 ? " (" + reason + ")" : "")}";
+            string what = $"{player.Name} {(change > 0 ? "+" : "")}{change.ToString("0.###", CultureInfo.InvariantCulture)} in game {game.Name}{(reason.Length > 0 ? " (" + reason + ")" : "")}";
             if (IsWaiting(game)) { Reply($"Points changed: {what}. Still waiting for Submit.", false); return; }
             Reply($"Points changed: {what}.", false);
             AnnounceVoid(game, $"Referee · points changed: {what}.");

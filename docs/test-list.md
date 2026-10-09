@@ -166,3 +166,10 @@ _A new code from the code maker (old codes keep their old values; new rules use 
 - [ ] Tasks under 25% go negative (0 tasks = −2); 25% and up as before
 - [ ] No "Reads" line any more
 - [ ] Points Lab shows the new rules; the code maker's Point values… lists them
+
+## New in 0.1.50 — referee amounts
+- [ ] Referee tab: type 0.25 next to a player and press + → their points go up by exactly 0.25 ("Referee +0.25")
+- [ ] Type 1.5 and press − → down by 1.5
+- [ ] Empty box + → one point, as before
+- [ ] 1.234 (4 significant figures) or 0 is refused with a message, and nothing changes
+- [ ] Home → Results channel (administration code): − / + buttons post !adjust with the sign
