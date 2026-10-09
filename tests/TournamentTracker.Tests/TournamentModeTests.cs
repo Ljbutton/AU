@@ -649,6 +649,21 @@ public class TournamentModeTests : IDisposable
     }
 
     [Fact]
+    public async Task A_preliminary_with_the_red_alert_channel_and_a_bot_sends_live_data()
+    {
+        var plain = Session(new SetupCode { TournamentId = "p", TournamentName = "P", Server = "S", Webhook = Webhook, GuildId = "g1", BotTokens = new() { "tok" } });
+        Assert.False(plain.FeedAvailable);
+        var streamed = Session(new SetupCode { TournamentId = "p", TournamentName = "P", Server = "S", Webhook = Webhook, GuildId = "g1", BotTokens = new() { "tok" }, ResultsChannelId = "results" });
+        Assert.True(streamed.FeedAvailable);
+        Play(streamed, Lobby());
+        await streamed.PendingPosts;
+        // The report still goes to the organiser's private webhook with its data; Red Alert's copy goes to the results channel.
+        Assert.Contains(_discord.Webhooks, w => w.File != null);
+        Assert.Contains(_discord.Messages, m => m.Channel == "results");
+        await plain.PendingPosts;
+    }
+
+    [Fact]
     public async Task A_setup_saved_during_a_game_is_used_when_the_game_ends()
     {
         var s = Session(TournamentCode());

@@ -178,7 +178,9 @@ namespace TournamentTracker.Setup
                 s.ServerName = Server ?? "";
                 s.LiveStatus = false;
                 s.PostLeaderboardAfterEachGame = false;
-                s.ResultsChannelId = "";
+                // Optional: the private results channel, so Red Alert sees this lobby live (needs a bot,
+                // the code's or the host's own). Without it nothing goes there.
+                s.ResultsChannelId = ResultsChannelId ?? "";
 
                 // Automute is optional in preliminaries: only when the organiser put a bot in the
                 // code. Everything else works the same without it (players can use AutoMuteUs).

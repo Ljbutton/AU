@@ -81,6 +81,7 @@ namespace TournamentTracker
                     });
                 UpdatePrelimCount();
                 PostPublic(message, true);
+                if (Shared != null) Chain(() => Shared.PublishAsync(game));      // Red Alert's copy
                 return;
             }
 

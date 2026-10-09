@@ -18,7 +18,7 @@ namespace TournamentTracker
         private string? _feedId, _feedKey;
         private bool _feedOn;
 
-        /// <summary>Only tournament hosts with a bot (whose live data the organiser reads) can send their game.</summary>
+        /// <summary>Only hosts with a bot and the private results channel (whose live data the organiser reads) can send their game.</summary>
         public bool FeedAvailable => LivePublishOn;
 
         /// <summary>The page the host opens in their browser to share the game. Public for tests.</summary>
@@ -58,7 +58,7 @@ namespace TournamentTracker
             string arg = args.FirstOrDefault()?.ToLowerInvariant() ?? "";
             if (!FeedAvailable)
             {
-                Reply("Sending your game to the caster needs a tournament host code with a bot and a private results channel.", false);
+                Reply("Sending your game to the caster needs a bot and the private results channel (Red Alert channel) in the setup code.", false);
                 return;
             }
             if (arg == "on") { EnsureFeedId(); _feedOn = true; SaveState(); }

@@ -125,7 +125,7 @@ dialog h2{font:600 16px var(--body);margin:0 0 4px}
     <p class="hint" id="bot-hint"></p>
     <div class="r2">
       <div class="f"><label for="guild">Server ID</label><input type="text" id="guild" class="mono" inputmode="numeric" placeholder="1180000000000000000"><span class="bad" id="guild-bad" hidden></span></div>
-      <div class="f tour-admin"><label for="results">Private results channel ID</label><input type="text" id="results" class="mono" inputmode="numeric" placeholder="1290000000000000000"><span class="bad" id="results-bad" hidden></span></div>
+      <div class="f"><label for="results" id="results-label">Private results channel ID</label><input type="text" id="results" class="mono" inputmode="numeric" placeholder="1290000000000000000"><span class="bad" id="results-bad" hidden></span></div>
     </div>
     <div class="f"><label for="token">Bot token<span class="host-only"><i> · 2nd and 3rd optional, for faster muting</i></span></label>
       <div class="r3"><input type="password" id="token" class="mono" placeholder="Bot 1" aria-label="Bot token"><input type="password" id="token2" class="mono host-only" placeholder="Bot 2" aria-label="Second bot token"><input type="password" id="token3" class="mono host-only" placeholder="Bot 3" aria-label="Third bot token"></div>
@@ -163,7 +163,7 @@ dialog h2{font:600 16px var(--body);margin:0 0 4px}
       <label>Common tasks<input type="number" id="s-ct" value="2" min="0" max="4"></label>
       <label>Long tasks<input type="number" id="s-lt" value="3" min="0" max="15"></label>
       <label>Short tasks<input type="number" id="s-st" value="5" min="0" max="23"></label>
-      <label title="What players see. The host always sees the real task bar.">Task bar (players)<select id="s-tb"><option value="0">Always</option><option value="1" selected>In meetings</option><option value="2">Never</option></select></label>
+      <label title="What everyone sees. Only the referee gets the live bar.">Task bar<select id="s-tb"><option value="0">Always</option><option value="1" selected>In meetings</option><option value="2">Never</option></select></label>
       <label class="tick"><input type="checkbox" id="s-ce"> Confirm ejects</label>
       <label class="tick"><input type="checkbox" id="s-av" checked> Anonymous votes</label>
       <label class="tick"><input type="checkbox" id="s-vis"> Visual tasks</label>
@@ -349,6 +349,8 @@ function build() {
   $('bot-hint').textContent = HINTS[k].bot;
   if (k !== 'admin') { $('webhook-hint').textContent = HINTS[k].webhook; $('status-hint').textContent = HINTS[k].status; }
   $('webhook-label').textContent = k === 'prelim' ? 'Private reports channel webhook (yours)' : 'Results channel webhook';
+  $('results-label').innerHTML = k === 'prelim' ? 'Red Alert channel ID <i>(optional)</i>' : 'Private results channel ID';
+  $('results').title = k === 'prelim' ? 'Your private results channel (the one in your administration code). With a bot, this lobby shows live in Red Alert and can send its game to the caster.' : '';
   $('rr-row').hidden = !$('rot').checked;
   $('roles-sum').hidden = !$('lock').checked;
   $('lock-fields').classList.toggle('off', !$('lock').checked);
@@ -396,6 +398,8 @@ function build() {
     }
     if (webhookOk(status) && (k === 'tournament' || wantsBot)) code.sw = status;
     if (k === 'tournament' && prelims.length) code.pc = prelims;
+    // A preliminary can feed Red Alert too (testing, or a streamed prelim): the private results channel and a bot.
+    if (k === 'prelim' && results) { need(snowflake(results), 'Red Alert channel ID (a long number)'); if (snowflake(results)) code.rc = results; }
   }
   if (k !== 'prelim') {
     code.adv = Math.max(1, Math.min(10, parseInt($('advance').value, 10) || 5));

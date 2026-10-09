@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.45**, a beta.
+The current release is **v0.1.46**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -176,6 +176,11 @@ top. Fill it in:
   **private reports channel** webhook. Make one per preliminary server (the server name is what
   server standings use). Safe to hand out. The host adds their own bots and their server's
   public report channel in The Button (Settings → **Your Discord**), so leave the bot empty:
+  * **Red Alert channel (optional):** your private results channel's ID (the one in your
+    administration code). With a bot (the code's, or the host's own from The Button), the lobby
+    shows live in Red Alert and the host can send their game to the caster, exactly like a
+    tournament lobby; reports still go to your private reports channel as usual. For Red Alert's
+    standings too, give the administration code the same Tournament ID as the preliminary code.
   * **Automute in the code (optional, older way):** a server ID and a bot's token (and a
     live lobby channel webhook). A code with a bot token in it must be sent privately.
 * **Tournament host code:** the tournament name, the results channel webhook, and
@@ -202,7 +207,7 @@ put back by itself.
 
 * **Settings lock** (on by default in the generator): while a preliminary or tournament code
   is in use, the host's lobby is kept on the tournament's settings (impostors, cooldowns,
-  vision, kill distance, tasks, the task bar (in meetings only by default: the host's own screen always shows the real bar), ghosts doing tasks, and the roles). **Roles…**
+  vision, kill distance, tasks, the task bar (in meetings only by default; the referee still sees the live bar), ghosts doing tasks, and the roles). **Roles…**
   sets each role (Engineer, Scientist, Guardian Angel, Noisemaker, Tracker, Detective, Judge,
   Spirit Guide, Shapeshifter, Phantom, Viper) to a number per game and a chance; every role
   left at 0 is off. Each role's options (cooldowns, durations, "leave evidence"…) are held too
