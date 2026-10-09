@@ -60,10 +60,6 @@ jobs:
       - name: Test Red Alert
         run: dotnet test tests/TournamentTracker.Broadcast.Tests -c Release
 
-      - name: TEMP probe the game's classes
-        continue-on-error: true
-        run: dotnet build src/TournamentTracker.Plugin -c Release > /dev/null 2>&1 || true; dotnet run --project tools/ApiProbe -c Release > api-probe.txt 2>&1; tail -c 300 api-probe.txt; wc -l api-probe.txt; cat api-probe.txt
-
       - name: Build the plugin
         run: >
           dotnet build src/TournamentTracker.Plugin -c Release

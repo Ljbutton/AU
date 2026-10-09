@@ -25,6 +25,8 @@ namespace TournamentTracker.App
         private DateTime _lastDrag;
         private Point _lastDragAt;
         private bool _pageReady;
+        /// <summary>Our own title bar (the page's); false once the normal window frame is back (no WebView2).</summary>
+        private bool _borderless = true;
 
         private int Edge => Math.Max(4, (int)Math.Round(5 * DeviceDpi / 96.0));
 
@@ -65,6 +67,7 @@ namespace TournamentTracker.App
                 {
                     // No WebView2 runtime (rare on Windows 10/11): use the normal browser instead,
                     // and give this window its normal frame back.
+                    _borderless = false;
                     FormBorderStyle = FormBorderStyle.Sizable;
                     Padding = Padding.Empty;
                     BackColor = SystemColors.Control;
@@ -123,8 +126,11 @@ namespace TournamentTracker.App
             get
             {
                 var cp = base.CreateParams;
-                // Keeps the taskbar button's minimise/restore, Win+arrow snapping and the drop shadow.
+                // Keeps the taskbar button's minimise/restore, Win+arrow snapping and the drop shadow. The
+                // caption and sizing frame (hidden: see WM_NCCALCSIZE) are what let Windows snap the window
+                // to a screen edge or corner when it's dragged there, like any other window.
                 cp.Style |= NativeMethods.WS_MINIMIZEBOX | NativeMethods.WS_MAXIMIZEBOX | NativeMethods.WS_SYSMENU;
+                if (_borderless) cp.Style |= NativeMethods.WS_CAPTION | NativeMethods.WS_THICKFRAME;
                 cp.ClassStyle |= NativeMethods.CS_DROPSHADOW;
                 return cp;
             }
@@ -155,7 +161,13 @@ namespace TournamentTracker.App
 
         protected override void WndProc(ref Message m)
         {
-            if (m.Msg == NativeMethods.WM_NCHITTEST && WindowState == FormWindowState.Normal)
+            // No frame drawn: the whole window is the page (the frame styles are only there for snapping).
+            if (m.Msg == NativeMethods.WM_NCCALCSIZE && m.WParam != IntPtr.Zero && _borderless)
+            {
+                m.Result = IntPtr.Zero;
+                return;
+            }
+            if (m.Msg == NativeMethods.WM_NCHITTEST && WindowState == FormWindowState.Normal && _borderless)
             {
                 // The edge around the page resizes the window.
                 var p = PointToClient(new Point(unchecked((short)(long)m.LParam), unchecked((short)((long)m.LParam >> 16))));
@@ -183,8 +195,9 @@ namespace TournamentTracker.App
         /// <summary>The window's title, and the program to bring forward when it's started twice (set by each app).</summary>
         public static string Title { get; set; } = "The Button";
         public static string ProcessName { get; set; } = "TheButton";
-        public const int WM_NCHITTEST = 0x84, WM_NCLBUTTONDOWN = 0xA1, WM_GETMINMAXINFO = 0x24, HTCAPTION = 2;
+        public const int WM_NCHITTEST = 0x84, WM_NCLBUTTONDOWN = 0xA1, WM_GETMINMAXINFO = 0x24, WM_NCCALCSIZE = 0x83, HTCAPTION = 2;
         public const int WS_MINIMIZEBOX = 0x20000, WS_MAXIMIZEBOX = 0x10000, WS_SYSMENU = 0x80000, CS_DROPSHADOW = 0x20000;
+        public const int WS_CAPTION = 0xC00000, WS_THICKFRAME = 0x40000;
 
         [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
         public struct POINT { public int X, Y; }
