@@ -338,7 +338,7 @@ public class TournamentModeTests : IDisposable
         await s.PendingPosts;
         Assert.Empty(s.WaitingGames);
         Assert.DoesNotContain(_discord.Messages, m => m.Content?.Contains("LJ-1") == true);
-        Assert.Contains(s.Pump(), r => r.Text.StartsWith("Verified: the voided game stays off Discord"));
+        Assert.Contains(s.Pump(), r => r.Text.StartsWith("Done: the voided game stays off Discord"));
     }
 
     [Fact]
@@ -611,8 +611,10 @@ public class TournamentModeTests : IDisposable
         var game = Play(s, Lobby());
         await s.PendingPosts;
 
-        var report = Assert.Single(_discord.Webhooks);
+        Assert.Equal(2, _discord.Webhooks.Count);   // the report, then this lobby's count below it
+        var report = _discord.Webhooks[0];
         Assert.Contains("Game LJ-1", FakeDiscord.Title(report.Payload));
+        Assert.Equal("October prelims — Count: Sus Squad", FakeDiscord.Title(_discord.Webhooks[1].Payload).Split(" · ")[0]);
         Assert.Equal(3, report.Payload.GetProperty("embeds").GetArrayLength());
         Assert.Equal(SharedResults.FileNameFor(game), report.Payload.GetProperty("attachments")[0].GetProperty("filename").GetString());
         var sent = JsonSerializer.Deserialize<GameRecord>(report.File!)!;
@@ -622,6 +624,28 @@ public class TournamentModeTests : IDisposable
         var chat = s.Pump();
         Assert.Contains(chat, r => !r.Public && r.Text.StartsWith("Game LJ-1: Crewmates win"));
         Assert.Contains(chat, r => r.Text.StartsWith("Points: "));
+    }
+
+    [Fact]
+    public async Task Preliminary_count_moves_to_the_bottom_and_the_public_channel_gets_the_report()
+    {
+        const string Public = "https://discord.test/api/webhooks/9/public";
+        new HostDiscord { PublicWebhook = Public }.Save(_dir.Path);
+        var s = Session(new SetupCode { TournamentId = "oct-prelim-sus", TournamentName = "October prelims", Server = "Sus Squad", Webhook = Webhook });
+        Play(s, Lobby());
+        Play(s, Lobby(), "ImpostorByKill");
+        await s.PendingPosts;
+
+        // Private: report, count; report, (old count deleted) count. Public: report and standings, twice.
+        var mine = _discord.Webhooks.Where(w => w.Url.StartsWith(Webhook)).ToList();
+        Assert.Equal(4, mine.Count);
+        Assert.Contains("Count", FakeDiscord.Title(mine[3].Payload));
+        Assert.Contains("2 games", FakeDiscord.Description(mine[3].Payload).Replace("Games: 2", "2 games"));
+        Assert.Contains(_discord.WebhookDeletes, u => u.StartsWith(Webhook) && u.EndsWith("/messages/42"));
+        var pub = _discord.Webhooks.Where(w => w.Url.StartsWith(Public)).ToList();
+        Assert.Equal(4, pub.Count);
+        Assert.All(pub, w => Assert.Null(w.File));                               // no data file in public
+        Assert.DoesNotContain(pub, w => FakeDiscord.Title(w.Payload).Contains("Count"));
     }
 
     [Fact]
@@ -641,6 +665,74 @@ public class TournamentModeTests : IDisposable
         Assert.True(restarted);
         Assert.Contains(s.Pump(), r => r.Text.StartsWith("Setup applied: Prelims"));
         await s.PendingPosts;
+    }
+}
+
+public class HostDiscordTests
+{
+    private const string Tok = "test-token-good.not-real.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    [Fact]
+    public void The_hosts_bots_replace_the_codes_and_their_channels_fill_the_gaps()
+    {
+        var host = new HostDiscord
+        {
+            GuildId = "118000000000000000", BotTokens = new() { Tok, " ", Tok, "not a token" },
+            PublicWebhook = "https://discord.com/api/webhooks/5/pub", StatusWebhook = "https://discord.com/api/webhooks/6/live",
+        };
+        Assert.Single(host.Clean().BotTokens);
+
+        var prelim = new TrackerSettings();
+        new SetupCode { TournamentId = "p", TournamentName = "P", Server = "S", Webhook = "https://discord.com/api/webhooks/1/private" }.ApplyTo(prelim);
+        host.ApplyTo(prelim);
+        Assert.True(prelim.AutoMute.IsConfigured);
+        Assert.Equal("118000000000000000", prelim.AutoMute.GuildId);
+        Assert.Equal("https://discord.com/api/webhooks/1/private", prelim.StatsWebhookUrl);   // the organiser's stays
+        Assert.Equal("https://discord.com/api/webhooks/5/pub", prelim.PublicWebhookUrl);
+        Assert.Equal("https://discord.com/api/webhooks/6/live", prelim.StatusWebhookUrl);
+        Assert.True(prelim.LiveStatus);
+
+        var tour = new TrackerSettings();
+        new SetupCode { Mode = "tournament", TournamentId = "c", TournamentName = "C", Webhook = "https://discord.com/api/webhooks/1/results",
+            GuildId = "g", BotTokens = new() { "old" }, StatusWebhook = "https://discord.com/api/webhooks/2/code-live" }.ApplyTo(tour);
+        host.ApplyTo(tour);
+        Assert.Equal(new[] { Tok }, tour.AutoMute.BotTokens);
+        Assert.Equal("https://discord.com/api/webhooks/1/results", tour.StatsWebhookUrl);     // the code's results channel stays
+        Assert.Equal("https://discord.com/api/webhooks/2/code-live", tour.StatusWebhookUrl);
+        Assert.Equal("", tour.PublicWebhookUrl);
+
+        // Nothing usable saved: no file, nothing changed.
+        using var dir = new TempDir();
+        new HostDiscord { BotTokens = new() { "x" } }.Save(dir.Path);
+        Assert.Null(HostDiscord.Load(dir.Path));
+    }
+
+    [Fact]
+    public void Count_shares_points_between_impostors_and_crew()
+    {
+        var t = new GameTracker(new ScoringRules());
+        var clock = new FakeClock();
+        var games = new List<GameRecord>();
+        foreach (var reason in new[] { "HumansByTask", "ImpostorByKill", "HumansByVote" })
+        {
+            var g = t.Start(games.Count + 1, "P", "X", "Skeld", Players.Lobby(), clock.Now);
+            g.Server = "Sus"; g.Host = "Soggy"; g.Mode = "Preliminary";
+            clock.Advance(600);
+            games.Add(t.End(reason, Outcome.WinnerFromReason(reason), Players.Lobby(), clock.Now)!);
+        }
+        games[2].Voided = true;
+        var c = PrelimCount.Count(games, "Sus · Soggy");
+        Assert.Equal(2, c.Games);
+        Assert.Equal(1, c.Voided);
+        Assert.Equal(1, c.ImpostorWins);
+        Assert.Equal(1, c.CrewWins);
+        double imp = games.Take(2).SelectMany(g => g.Players).Where(p => p.IsImpostor).Sum(p => p.Points);
+        double crew = games.Take(2).SelectMany(g => g.Players).Where(p => !p.IsImpostor).Sum(p => p.Points);
+        Assert.Equal(Math.Round(Math.Abs(imp) * 100 / (Math.Abs(imp) + Math.Abs(crew)), 1), c.ImpostorShare);
+        Assert.Equal(100, c.ImpostorShare + c.CrewShare, 3);
+        var all = PrelimCount.AllMessage("P", games).Embeds![0];
+        Assert.Equal("P — Count, all preliminary games", all.Title);
+        Assert.Contains("**Sus · Soggy** — 2 games", all.Description);
     }
 }
 
@@ -667,8 +759,8 @@ public class PrelimLeaderboardTests
         _discord.AddGame("prelims", Prelim("oct-sus", "October: Sus Squad", "Sus Squad", "Fred", 1, "HumansByTask"));   // a second lobby at once
         _discord.AddGame("prelims", Prelim("oct-hq", "October: Crew HQ", "Crew HQ", "Millie", 1, "ImpostorByKill"));
 
-        Assert.Equal(2, await Job().UpdateAsync(new[] { "prelims" }));
-        var boards = _discord.Messages.Where(m => m.Embeds.HasValue).ToList();
+        Assert.Equal(4, await Job().UpdateAsync(new[] { "prelims" }));      // a leaderboard and a count each
+        var boards = _discord.Messages.Where(m => m.Embeds.HasValue && FakeDiscord.Title(Payload(m)).EndsWith(PrelimLeaderboards.TitleSuffix)).ToList();
         Assert.Equal(2, boards.Count);
         var sus = boards.Single(b => FakeDiscord.Title(Payload(b)) == "October: Sus Squad — Preliminary leaderboard");
         Assert.Contains("2 games · 2 lobbies · Sus Squad", sus.Embeds!.Value[0].GetProperty("footer").GetProperty("text").GetString());
@@ -677,10 +769,10 @@ public class PrelimLeaderboardTests
 
         _discord.AddGame("prelims", Prelim("oct-sus", "October: Sus Squad", "Sus Squad", "Soggy", 2, "HumansByTask"));
         _discord.Say("prelims", "!adjust Soggy-2 red -1 meta", _clock.Now);
-        Assert.Equal(1, await Job().UpdateAsync(new[] { "prelims" }));
-        Assert.Equal(1, _discord.Edits);
-        Assert.Equal(2, _discord.Messages.Count(m => m.Embeds.HasValue));   // still two messages
-        Assert.Contains("3 games", _discord.Messages.Where(m => m.Embeds.HasValue).Select(m => m.Embeds!.Value[0].GetProperty("footer").GetProperty("text").GetString()).First(t => t!.Contains("Sus")));
+        Assert.Equal(2, await Job().UpdateAsync(new[] { "prelims" }));      // Sus Squad's leaderboard and count
+        Assert.Equal(2, _discord.Edits);
+        Assert.Equal(4, _discord.Messages.Count(m => m.Embeds.HasValue));   // still four messages
+        Assert.Contains("3 games", _discord.Messages.Where(m => m.Embeds.HasValue && FakeDiscord.Title(Payload(m)).EndsWith(PrelimLeaderboards.TitleSuffix)).Select(m => m.Embeds!.Value[0].GetProperty("footer").GetProperty("text").GetString()).First(t => t!.Contains("Sus")));
     }
 
     [Fact]
@@ -691,7 +783,7 @@ public class PrelimLeaderboardTests
         _discord.Say("prelims", "!void Soggy-1 restarted", _clock.Now);
 
         await Job().UpdateAsync(new[] { "prelims" });
-        string Footer() => _discord.Messages.Single(m => m.Embeds.HasValue).Embeds!.Value[0].GetProperty("footer").GetProperty("text").GetString()!;
+        string Footer() => _discord.Messages.Single(m => m.Embeds.HasValue && FakeDiscord.Title(Payload(m)).EndsWith(PrelimLeaderboards.TitleSuffix)).Embeds!.Value[0].GetProperty("footer").GetProperty("text").GetString()!;
         Assert.StartsWith("1 game ·", Footer());
         var command = _discord.Messages.Single(m => m.Content.StartsWith("!void"));
         Assert.Contains(("prelims", command.Id, "✅"), _discord.Reactions);

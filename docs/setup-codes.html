@@ -82,6 +82,17 @@ dialog h2{font:600 16px var(--body);margin:0 0 4px}
 .scores h4{grid-column:1/-1;font:600 11px var(--body);letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:8px 0 0}
 .score{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px}
 .score input{width:68px;text-align:right;font-variant-numeric:tabular-nums;padding:3px 6px}
+.roles{display:grid;gap:6px;margin:10px 0;max-height:calc(100vh - 220px);overflow:auto}
+.role{display:grid;grid-template-columns:minmax(110px,1fr) 70px 80px minmax(0,3fr);gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-radius:8px}
+.role.on{border-color:var(--accent-hi)}
+.role b{font-size:13px}.role .team{display:block;font-size:10.5px;color:var(--muted);font-weight:400}
+.role label{display:grid;gap:2px;font-size:10.5px;color:var(--muted)}
+.role .opts{display:flex;flex-wrap:wrap;gap:6px}
+.role .opts label{width:120px}
+.role input,.role select{padding:4px 6px}
+.role.off .opts{opacity:.45}
+@media (max-width:700px){.role{grid-template-columns:1fr 1fr}.role .opts{grid-column:1/-1}}
+.rolesbtn{grid-column:span 2}
 .score.changed span{color:var(--accent-hi);font-weight:600}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head><body>
@@ -108,7 +119,7 @@ dialog h2{font:600 16px var(--body);margin:0 0 4px}
       <div class="f"><label for="tid">Tournament ID <i>(auto)</i></label><input type="text" id="tid" class="mono"></div>
     </div>
     <p class="hint" id="tid-hint">Every code for the same event needs the same ID. It's filled in from the name<span class="prelim-only">; make one code per server</span>.</p>
-    <div class="f host-only"><label for="webhook">Report channel webhook</label><input type="text" id="webhook" class="mono" placeholder="https://discord.com/api/webhooks/…"><span class="hint" id="webhook-hint">Channel settings → Integrations → Webhooks → Copy URL.</span><span class="bad" id="webhook-bad" hidden></span></div>
+    <div class="f host-only"><label for="webhook" id="webhook-label">Report channel webhook</label><input type="text" id="webhook" class="mono" placeholder="https://discord.com/api/webhooks/…"><span class="hint" id="webhook-hint">Channel settings → Integrations → Webhooks → Copy URL.</span><span class="bad" id="webhook-bad" hidden></span></div>
 
     <h3 id="bot-title">Discord bot <i class="hint">(optional)</i></h3>
     <p class="hint" id="bot-hint"></p>
@@ -134,8 +145,8 @@ dialog h2{font:600 16px var(--body);margin:0 0 4px}
       <div class="f"><label for="gpr">Games per round</label><input type="number" id="gpr" min="1" max="10" value="3"></div>
     </div>
     <label class="check tour-only"><input type="checkbox" id="lead"><span><b>Lead lobby</b><span class="hint">This host's mod answers <code>!lobbies</code>, <code>!move</code>, <code>!start</code>… in the results channel. One host only (you).</span></span></label>
-    <label class="check host-only"><input type="checkbox" id="verify" checked><span><b>Hold each game until the host presses Verify</b><span class="hint">Nothing goes to Discord until it's checked in The Button's Referee tab (points can be changed or the game voided first). Off: results post as soon as a game ends.</span></span></label>
-    <label class="check host-only"><input type="checkbox" id="rot"><span><b>Impostor rotation</b><span class="hint">Last game's impostors are rarely impostor again straight away; everyone else shares the rest.</span>
+    <label class="check host-only"><input type="checkbox" id="verify" checked><span><b>Hold each game until the host presses Submit</b><span class="hint">Nothing goes to Discord until it's checked in The Button's Referee tab (points can be changed or the game voided first). Off: results post as soon as a game ends.</span></span></label>
+    <label class="check host-only"><input type="checkbox" id="rot" checked><span><b>Impostor rotation</b><span class="hint">Last game's impostors are rarely impostor again straight away; everyone else shares the rest.</span>
       <span class="inline" id="rr-row">Chance each repeats <input type="number" id="rr" value="2" min="0" max="100" step="any"> %</span></span></label>
     <label class="check host-only"><input type="checkbox" id="lock" checked><span><b>Lock the lobby to these settings</b><span class="hint">Anything changed is put back; the host turns Settings lock off in The Button for a casual game.</span></span></label>
     <div class="lockgrid host-only" id="lock-fields">
@@ -149,14 +160,17 @@ dialog h2{font:600 16px var(--body);margin:0 0 4px}
       <label>Voting (s)<input type="number" id="s-vt" value="150" min="0"></label>
       <label>Crewmate vision<input type="number" id="s-cv" value="0.25" step="any"></label>
       <label>Impostor vision<input type="number" id="s-iv" value="1" step="any"></label>
-      <label>Common tasks<input type="number" id="s-ct" value="2" min="0"></label>
-      <label>Long tasks<input type="number" id="s-lt" value="3" min="0"></label>
-      <label>Short tasks<input type="number" id="s-st" value="5" min="0"></label>
+      <label>Common tasks<input type="number" id="s-ct" value="2" min="0" max="4"></label>
+      <label>Long tasks<input type="number" id="s-lt" value="3" min="0" max="15"></label>
+      <label>Short tasks<input type="number" id="s-st" value="5" min="0" max="23"></label>
+      <label>Task bar<select id="s-tb"><option value="0" selected>Always</option><option value="1">In meetings</option><option value="2">Never</option></select></label>
       <label class="tick"><input type="checkbox" id="s-ce"> Confirm ejects</label>
       <label class="tick"><input type="checkbox" id="s-av" checked> Anonymous votes</label>
       <label class="tick"><input type="checkbox" id="s-vis"> Visual tasks</label>
-      <label class="tick"><input type="checkbox" id="s-ro" checked> Special roles off</label>
+      <label class="tick"><input type="checkbox" id="s-gdt" checked> Ghosts do tasks</label>
+      <button type="button" id="open-roles" class="rolesbtn">Roles…</button>
     </div>
+    <p class="hint host-only" id="roles-sum"></p>
     <div class="btns host-only"><button type="button" id="open-scores">Point values…</button><span class="pill" id="changed-count">the point sheet</span></div>
   </section>
 
@@ -172,6 +186,7 @@ dialog h2{font:600 16px var(--body);margin:0 0 4px}
     <ol class="howto host-only">
       <li>Download <code>Install-TheButton.bat</code> from the latest release and run it.</li>
       <li>The Button → Settings → <b>Setup code</b>: paste the code, press <b>Use this code</b>.</li>
+      <li>Settings → <b>Your Discord</b>: their own bots (up to 3), server ID and public report channel, checked and saved there. No new code needed to change them.</li>
       <li>With a bot: link to Discord with <code>/link</code> or the colour menu on the lobby message.</li>
     </ol>
     <ol class="howto admin-only">
@@ -188,6 +203,13 @@ dialog h2{font:600 16px var(--body);margin:0 0 4px}
   <div class="scores" id="scores"></div>
   <div class="f"><label for="lab-values">Paste values copied from the Points Lab <i>(optional)</i></label><textarea id="lab-values" rows="2" class="mono" placeholder='{"kill":1,"readVoteBonus":4,…}'></textarea><span class="hint" id="lab-status"></span></div>
   <div class="btns" style="margin-top:10px"><button type="button" id="reset-scores">Back to the point sheet</button><span style="flex:1"></span><button type="button" class="primary" id="close-scores">Done</button></div>
+</dialog>
+
+<dialog id="roles-dlg" aria-labelledby="roles-title">
+  <h2 id="roles-title">Roles</h2>
+  <p class="hint">Every role starts off. Give one a number per game and a chance to turn it on. Leave an option empty to keep whatever the host's game has. The lobby is held to all of this while the settings lock is on.</p>
+  <div class="roles" id="roles"></div>
+  <div class="btns" style="margin-top:10px"><button type="button" id="roles-off">All roles off</button><span style="flex:1"></span><button type="button" class="primary" id="close-roles">Done</button></div>
 </dialog>
 
 <dialog id="load-dlg" aria-labelledby="load-title">
@@ -229,6 +251,21 @@ const RULES = [
   ['Other', [['bonusRounding','Round % bonuses to',0.5],['disconnectWin','Win by disconnect',0]]],
 ];
 const $ = id => document.getElementById(id);
+// The game's role and option names (Among Us 2026.9): must match what the mod looks up.
+const ROLES = [
+  ['Engineer', 'Crewmate', [['EngineerCooldown', 'Vent cooldown (s)'], ['EngineerInVentMaxTime', 'Max time in vents (s)']]],
+  ['Scientist', 'Crewmate', [['ScientistCooldown', 'Vitals cooldown (s)'], ['ScientistBatteryCharge', 'Battery (s)']]],
+  ['GuardianAngel', 'Crewmate', [['GuardianAngelCooldown', 'Protect cooldown (s)'], ['ProtectionDurationSeconds', 'Protection (s)'], ['ImpostorsCanSeeProtect', 'Impostors see it', 'bool']], 'Guardian Angel'],
+  ['Noisemaker', 'Crewmate', [['NoisemakerAlertDuration', 'Alert (s)'], ['NoisemakerImpostorAlert', 'Impostors get alert', 'bool']]],
+  ['Tracker', 'Crewmate', [['TrackerCooldown', 'Track cooldown (s)'], ['TrackerDuration', 'Track time (s)'], ['TrackerDelay', 'Map delay (s)']]],
+  ['Detective', 'Crewmate', [['DetectiveSuspectLimit', 'Suspect limit']]],
+  ['Judge', 'New role', [['JudgeTaskRequirementPercentage', 'Task requirement (%)']]],
+  ['SpiritGuide', 'New role', [['SpiritGuideCooldownSeconds', 'Cooldown (s)']], 'Spirit Guide'],
+  ['Shapeshifter', 'Impostor', [['ShapeshifterCooldown', 'Shift cooldown (s)'], ['ShapeshifterDuration', 'Shift time (s)'], ['ShapeshifterLeaveSkin', 'Leave evidence', 'bool']]],
+  ['Phantom', 'Impostor', [['PhantomCooldown', 'Vanish cooldown (s)'], ['PhantomDuration', 'Vanish time (s)']]],
+  ['Viper', 'Impostor', [['ViperDissolveTime', 'Body dissolves (s)']]],
+];
+
 const scoresEl = $('scores');
 for (const [group, rules] of RULES) {
   const h = document.createElement('h4'); h.textContent = group; scoresEl.appendChild(h);
@@ -237,6 +274,32 @@ for (const [group, rules] of RULES) {
     row.innerHTML = `<span></span><input type="number" step="any" id="sc-${key}" value="${def}" data-default="${def}">`;
     row.firstChild.textContent = label; scoresEl.appendChild(row);
   }
+}
+
+const rolesEl = $('roles');
+for (const [key, team, opts, label] of ROLES) {
+  const row = document.createElement('div'); row.className = 'role off'; row.dataset.role = key;
+  row.innerHTML = `<b>${label || key}<span class="team">${team}</span></b>
+    <label>Per game<input type="number" min="0" max="15" value="0" data-k="n"></label>
+    <label>Chance %<input type="number" min="0" max="100" step="10" value="0" data-k="c"></label>
+    <div class="opts">${opts.map(([o, l, kind]) => kind === 'bool'
+      ? `<label>${l}<select data-o="${o}"><option value="">Game's</option><option value="1">On</option><option value="0">Off</option></select></label>`
+      : `<label>${l}<input type="number" step="any" min="0" placeholder="Game's" data-o="${o}"></label>`).join('')}</div>`;
+  rolesEl.appendChild(row);
+}
+function readRoles() {
+  const rl = {}, opt = {}, names = [];
+  rolesEl.querySelectorAll('.role').forEach(row => {
+    const n = Math.max(0, Math.min(15, parseInt(row.querySelector('[data-k=n]').value, 10) || 0));
+    const c = Math.max(0, Math.min(100, parseInt(row.querySelector('[data-k=c]').value, 10) || 0));
+    const on = n > 0 && c > 0;
+    row.classList.toggle('on', on); row.classList.toggle('off', !on);
+    if (!on) return;
+    rl[row.dataset.role] = [n, c];
+    names.push(`${row.querySelector('b').firstChild.textContent} ${n} at ${c}%`);
+    row.querySelectorAll('[data-o]').forEach(el => { if (el.value !== '' && !isNaN(parseFloat(el.value))) opt[el.dataset.o] = parseFloat(el.value); });
+  });
+  return { rl, opt, names };
 }
 
 let idEdited = false;
@@ -259,13 +322,13 @@ function autoId() {
 
 const HINTS = {
   prelim: {
-    webhook: 'Your preliminary channel: Channel settings → Integrations → Webhooks → Copy URL.',
-    bot: 'Leave empty and players use AutoMuteUs if they want. With a bot, this host\'s game mutes Discord itself and players link with /link or their colour.',
+    webhook: 'Your private reports channel: every preliminary\'s reports and each lobby\'s impostor/crew points count go here. Use the same one in every preliminary code. Channel settings → Integrations → Webhooks → Copy URL.',
+    bot: 'Usually leave this empty: hosts add their own bots, server and public report channel in The Button (Settings → Your Discord). Without any bot players can use AutoMuteUs.',
     status: 'Where the lobby\'s live message goes, with its "pick your colour" menu. Needs the bot.',
   },
   tournament: {
     webhook: 'Your results channel for players: Channel settings → Integrations → Webhooks → Copy URL.',
-    bot: 'Without a bot games are still tracked and reported. The bot adds automute, /link, /new and the colour menu, combined standings across lobbies and the referee commands. Give each lobby its own bots.',
+    bot: 'Without a bot games are still tracked and reported. The bot adds automute, /link, /new and the colour menu, combined standings across lobbies and the referee commands. Give each lobby its own bots, or leave the tokens empty and let the host add theirs in The Button (Settings → Your Discord).',
     status: 'Its own channel for the live lobby message. Empty: it goes in the results channel (or a channel the host picks with /new).',
   },
   admin: {
@@ -285,7 +348,9 @@ function build() {
   $('bot-title').innerHTML = k === 'admin' ? 'The administration bot' : 'Discord bot <i class="hint">(optional)</i>';
   $('bot-hint').textContent = HINTS[k].bot;
   if (k !== 'admin') { $('webhook-hint').textContent = HINTS[k].webhook; $('status-hint').textContent = HINTS[k].status; }
+  $('webhook-label').textContent = k === 'prelim' ? 'Private reports channel webhook (yours)' : 'Results channel webhook';
   $('rr-row').hidden = !$('rot').checked;
+  $('roles-sum').hidden = !$('lock').checked;
   $('lock-fields').classList.toggle('off', !$('lock').checked);
   autoId();
 
@@ -299,7 +364,7 @@ function build() {
   const wh = $('webhook').value.trim();
   if (k !== 'admin') {
     show('webhook-bad', wh && !webhookOk(wh) ? "That isn't a Discord webhook URL. It starts with https://discord.com/api/webhooks/." : '');
-    need(webhookOk(wh), 'Report channel webhook');
+    need(webhookOk(wh), k === 'prelim' ? 'Private reports channel webhook' : 'Results channel webhook');
     code.wh = wh;
   }
   if (k === 'prelim' && $('server').value.trim()) code.srv = $('server').value.trim();
@@ -322,9 +387,10 @@ function build() {
     const wantsBot = tokens.length > 0 || guild !== '' || (k === 'tournament' && results !== '');
     if (wantsBot) {
       need(snowflake(guild), 'Server ID (for the bot)');
-      need(tokens.length > 0 && tokens.every(tokenOk), tokens.length ? 'Bot token (one looks wrong: copy it again)' : 'Bot token (or clear the server ID)');
+      // Tournament hosts may add their own bots in The Button; preliminaries without a token just leave it empty.
+      if (tokens.length || k === 'prelim') need(tokens.length > 0 && tokens.every(tokenOk), tokens.length ? 'Bot token (one looks wrong: copy it again)' : 'Bot token (or clear the server ID)');
       if (k === 'tournament' && results) need(snowflake(results), 'Private results channel ID (a long number)');
-      code.g = guild; code.bt = tokens;
+      code.g = guild; if (tokens.length) code.bt = tokens;
       if (k === 'tournament' && snowflake(results)) code.rc = results;
       if (refs.length) code.ref = refs;
     }
@@ -346,9 +412,15 @@ function build() {
     }
     if ($('lock').checked) {
       const set = {};
-      for (const s of ['imp', 'em', 'ec', 'dt', 'vt', 'ct', 'lt', 'st', 'kd']) { const v = parseInt($('s-' + s).value, 10); if (!isNaN(v)) set[s] = v; }
+      const max = { ct: 4, lt: 15, st: 23, imp: 3 };
+      for (const s of ['imp', 'em', 'ec', 'dt', 'vt', 'ct', 'lt', 'st', 'kd', 'tb']) { let v = parseInt($('s-' + s).value, 10); if (isNaN(v)) continue; if (s in max && (v > max[s] || v < 0)) { v = Math.max(0, Math.min(max[s], v)); $('s-' + s).value = v; } set[s] = v; }
       for (const s of ['kc', 'ps', 'cv', 'iv']) { const v = parseFloat($('s-' + s).value); if (!isNaN(v)) set[s] = v; }
-      for (const s of ['ce', 'av', 'vis', 'ro']) set[s] = $('s-' + s).checked;
+      for (const s of ['ce', 'av', 'vis', 'gdt']) set[s] = $('s-' + s).checked;
+      set.ro = true;
+      const roles = readRoles();
+      if (Object.keys(roles.rl).length) set.rl = roles.rl;
+      if (Object.keys(roles.opt).length) set.opt = roles.opt;
+      $('roles-sum').textContent = roles.names.length ? 'Roles on: ' + roles.names.join(', ') + '. Every other role off.' : 'Every special role off (Roles… to turn some on).';
       code.set = set;
     }
     const sc = {}; let changed = 0;
@@ -372,7 +444,7 @@ function build() {
   const bots = code.bt ? code.bt.length : 0;
   $('ready').textContent = !ready ? '' : k === 'admin' ? `Ready: ${name}, administration code.`
     : k === 'prelim' ? `Ready: ${name}, preliminary in ${code.srv || 'an unnamed server'}${bots ? ', with automute' : ''}.`
-    : `Ready: ${name}, tournament host${bots ? ` with ${bots} bot${bots > 1 ? 's' : ''}` : ', no bot'}${code.lead ? ', lead lobby' : ''}.`;
+    : `Ready: ${name}, tournament host${bots ? ` with ${bots} bot${bots > 1 ? 's' : ''}` : code.g ? ', the host adds their bots in The Button' : ', no bot'}${code.lead ? ', lead lobby' : ''}.`;
   $('toast').textContent = '';
 }
 
@@ -383,6 +455,10 @@ $('form').addEventListener('submit', e => e.preventDefault());
 scoresEl.addEventListener('input', build);
 
 $('open-scores').addEventListener('click', () => $('scores-dlg').showModal());
+$('open-roles').addEventListener('click', () => $('roles-dlg').showModal());
+$('close-roles').addEventListener('click', () => $('roles-dlg').close());
+$('roles-off').addEventListener('click', () => { rolesEl.querySelectorAll('input,select').forEach(i => i.value = i.dataset.k ? '0' : ''); build(); });
+rolesEl.addEventListener('input', build); rolesEl.addEventListener('change', build);
 $('close-scores').addEventListener('click', () => $('scores-dlg').close());
 $('reset-scores').addEventListener('click', () => { scoresEl.querySelectorAll('input').forEach(i => i.value = i.dataset.default); build(); });
 $('lab-values').addEventListener('input', e => {
@@ -419,6 +495,11 @@ $('load-btn').addEventListener('click', () => {
     $('rot').checked = !!c.rot; $('rr').value = typeof c.rr === 'number' ? Math.round(c.rr * 10000) / 100 : 2;
     $('lock').checked = !!c.set;
     if (c.set) for (const [key, v] of Object.entries(c.set)) { const el = $('s-' + key); if (!el) continue; if (el.type === 'checkbox') el.checked = !!v; else el.value = v; }
+    rolesEl.querySelectorAll('.role').forEach(row => {
+      const r = c.set && c.set.rl && c.set.rl[row.dataset.role];
+      row.querySelector('[data-k=n]').value = r ? r[0] : 0; row.querySelector('[data-k=c]').value = r ? r[1] : 0;
+      row.querySelectorAll('[data-o]').forEach(el => { const v = c.set && c.set.opt && c.set.opt[el.dataset.o]; el.value = v === undefined || v === null ? '' : String(v); });
+    });
     scoresEl.querySelectorAll('input').forEach(i => { const key = i.id.slice(3); i.value = c.sc && key in c.sc ? c.sc[key] : i.dataset.default; });
     show('load-bad', ''); $('load-dlg').close(); build();
   } catch (err) { show('load-bad', err instanceof SyntaxError || /atob|decode|base64/i.test(err.message) ? 'That setup code is damaged. Copy the whole code again.' : err.message); }

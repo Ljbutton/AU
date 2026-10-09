@@ -118,6 +118,7 @@ public sealed class FakeDiscord
     public sealed record Msg(string Id, string Channel, string Content, string? File, string? Json, bool Bot, JsonElement? Embeds);
     public readonly List<Msg> Messages = new();                    // oldest first
     public readonly List<(string Url, JsonElement Payload, string? File)> Webhooks = new();
+    public readonly List<string> WebhookDeletes = new();
     public readonly List<(string Channel, string Message, string Emoji)> Reactions = new();
     private long _next = 1_300_000_000_000_000_000;
     public int Edits;
@@ -147,6 +148,11 @@ public sealed class FakeDiscord
         {
             var parts = r.RequestUri.AbsolutePath.Split('/');
             Reactions.Add((parts[^6], parts[^4], Uri.UnescapeDataString(parts[^2])));
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        }
+        if (url.Contains("/webhooks/") && r.Method == HttpMethod.Delete)
+        {
+            WebhookDeletes.Add(url);
             return new HttpResponseMessage(HttpStatusCode.NoContent);
         }
         if (url.Contains("/webhooks/"))

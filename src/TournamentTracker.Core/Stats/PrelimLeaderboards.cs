@@ -10,7 +10,8 @@ namespace TournamentTracker.Stats
     /// Run by the organiser's scheduled GitHub job, not by the mod. Preliminary hosts have no
     /// bot, so no single game can see the others; this reads every preliminary game file in
     /// the organiser's preliminary channels (with the organiser's bot) and keeps one
-    /// leaderboard message per preliminary up to date, edited in place.
+    /// leaderboard message per preliminary up to date, edited in place, with the count of
+    /// impostor against crew points across every lobby (see <see cref="PrelimCount"/>).
     /// </summary>
     public sealed class PrelimLeaderboards
     {
@@ -55,12 +56,25 @@ namespace TournamentTracker.Stats
                     var message = Board(name, prelim.ToList(), size);
                     var embed = message.Embeds![0];
                     var mine = existing.FirstOrDefault(m => m.AuthorIsBot && m.EmbedTitle == embed.Title);
-                    if (mine != null && mine.EmbedDescription == embed.Description && mine.EmbedFooter == embed.Footer?.Text) continue;
-                    var result = mine == null
-                        ? await _rest.PostEmbedsAsync(_token, target, message).ConfigureAwait(false)
-                        : await _rest.EditEmbedsAsync(_token, target, mine.Id, message).ConfigureAwait(false);
-                    if (result.Ok) changed++;
-                    else _log.Error($"Could not update the {name} leaderboard: {result}");
+                    if (mine == null || mine.EmbedDescription != embed.Description || mine.EmbedFooter != embed.Footer?.Text)
+                    {
+                        var result = mine == null
+                            ? await _rest.PostEmbedsAsync(_token, target, message).ConfigureAwait(false)
+                            : await _rest.EditEmbedsAsync(_token, target, mine.Id, message).ConfigureAwait(false);
+                        if (result.Ok) changed++;
+                        else _log.Error($"Could not update the {name} leaderboard: {result}");
+                    }
+
+                    // The balance check: impostor against crew points, every lobby together and each on its own line.
+                    var count = PrelimCount.AllMessage(name, prelim.ToList());
+                    var countEmbed = count.Embeds![0];
+                    var countMine = existing.FirstOrDefault(m => m.AuthorIsBot && m.EmbedTitle == countEmbed.Title);
+                    if (countMine != null && countMine.EmbedDescription == countEmbed.Description && countMine.EmbedFooter == countEmbed.Footer?.Text) continue;
+                    var countResult = countMine == null
+                        ? await _rest.PostEmbedsAsync(_token, target, count).ConfigureAwait(false)
+                        : await _rest.EditEmbedsAsync(_token, target, countMine.Id, count).ConfigureAwait(false);
+                    if (countResult.Ok) changed++;
+                    else _log.Error($"Could not update the {name} count: {countResult}");
                 }
             }
             return changed;

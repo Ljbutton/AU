@@ -57,6 +57,8 @@ namespace TournamentTracker
             {
                 settings = JsonSerializer.Deserialize<TrackerSettings>(JsonSerializer.Serialize(settings))!;
                 setup.ApplyTo(settings);
+                // The host's own bots and channels, set in The Button, on top of the code.
+                TournamentTracker.Setup.HostDiscord.Load(dataDir)?.ApplyTo(settings);
                 Setup = setup;
             }
             _settings = settings;
@@ -307,6 +309,8 @@ namespace TournamentTracker
                         var result = await _rest.ExecuteWebhookWithFileAsync(url, report, SharedResults.FileNameFor(game), SharedResults.FileFor(game)).ConfigureAwait(false);
                         if (!result.Ok) _log.Error("Discord webhook post failed: " + result);
                     });
+                UpdatePrelimCount();
+                PostPublic(report, game.Counted);
             }
             else
             {

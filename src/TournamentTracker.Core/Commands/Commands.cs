@@ -91,6 +91,7 @@ namespace TournamentTracker
                     UnlinkCommand(args);
                     return true;
                 case "verify" when fromHost:
+                case "submit" when fromHost:
                     VerifyCommand(args);
                     return true;
                 case "voidgame" when fromHost:

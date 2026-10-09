@@ -50,7 +50,7 @@ namespace TournamentTracker
         public bool RecordReplays { get; set; } = true;
 
         /// <summary>
-        /// Each game waits in The Button (Referee) for the host to press Verify before its results
+        /// Each game waits in The Button (Referee) for the host to press Submit before its results
         /// go to Discord. Off: they go as soon as the game ends.
         /// </summary>
         public bool VerifyResults { get; set; } = true;
@@ -93,6 +93,9 @@ namespace TournamentTracker
 
         /// <summary>Keep one live message in Discord showing the lobby, its players and their links, and the phase.</summary>
         public bool LiveStatus { get; set; } = true;
+
+        /// <summary>Preliminaries: the host's own server channel for reports and its standings (set in The Button). The StatsWebhookUrl channel is the organiser's private one.</summary>
+        public string PublicWebhookUrl { get; set; } = "";
 
         /// <summary>Webhook for the live status message. Empty: the StatsWebhookUrl channel.</summary>
         public string StatusWebhookUrl { get; set; } = "";

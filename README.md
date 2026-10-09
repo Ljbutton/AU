@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.42**, a beta.
+The current release is **v0.1.43**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -81,8 +81,8 @@ While you play, the app's pages run the lobby:
 * **Referee:** every game waits here before Discord sees anything. Under **Waiting for you**
   each finished game shows every player's points (hover for where they came from): **−** and
   **+** change a player's points by one (it shows as "Referee" in their breakdown), **Void**
-  keeps it out of the points and off Discord for good, and **Verify & send** posts it (the
-  report, the standings, the round's scores). **Verify all** sends every waiting game. The
+  keeps it out of the points and off Discord for good, and **Submit points** posts it (the
+  report, the standings, the round's scores). **Submit all** sends every waiting game. The
   number on the tab says how many are waiting; they stay waiting across a restart.
   Below: the game running now (void or unvoid it), every recent game with **Void** / **Unvoid**
   (Discord is told, since it was posted), the point totals (players never see them in the game
@@ -94,8 +94,20 @@ While you play, the app's pages run the lobby:
   from zero. Discord isn't touched. `VerifyResults = false` in the config posts games as soon
   as they end instead.
 * **Settings:** the game folder; the mod and The Button's updates; the setup code as one line (details, change or
-  remove it); in a tournament with a results channel, the **lead lobby** and the combined
+  remove it); **Your Discord** (below); in a tournament with a results channel, the **lead lobby** and the combined
   leaderboard reset; files under **Advanced**.
+
+**Your Discord** (Settings): the host's own bots and channels, so the organiser doesn't need
+anyone's bot token and a host can change bots without a new code. Up to 3 bot tokens, the
+server ID (a tournament code's server is used if it's left empty), a **public report
+channel** webhook and a live lobby channel webhook. **Save and check** asks Discord about each
+one: a token that's refused, or a bot that isn't in the server, is not saved (and says why);
+the rest is. Saved bots go online whenever The Button is open (with a setup code in), and
+are used instead of any bot in the code. Tokens stay on the PC (the screen shows only each
+bot's name and the token's last 4 characters). With a preliminary code, reports and the
+lobby's standings go to the public channel (without the data file); the organiser's
+private channel from the code still gets everything. With a tournament code, the public
+channel is used only when the code has no results channel webhook.
 
 When a lobby plays its last game of the round, its bot posts the **round's scores** in the
 private results channel (staff only, so lobbies without a bot don't post it): every player's
@@ -132,7 +144,10 @@ Discord developer settings or the config file.
 
 ### 1. Discord channels
 
-* **Preliminary channel(s):** preliminary reports land here. Make a webhook for it.
+* **Private reports channel (preliminaries):** yours, staff only. Every preliminary's reports
+  and data land here, with each lobby's count of impostor against crew points kept at the
+  bottom. Make one webhook and use it in every preliminary code. Each preliminary server
+  keeps its own public channel, which its host sets in The Button.
 * **Results channel:** tournament game reports and standings for players. Make a webhook.
 * **Private results channel:** staff only. The hosts' mods post each game's data here,
   referees type point adjustments here, and `!resetleaderboard` here starts standings over.
@@ -157,16 +172,15 @@ the three columns in order (Tournament and Discord, Rules, The code). The code c
 whatever is still missing and ticks it off; **Point values…** and **Load an old code** open on
 top. Fill it in:
 
-* **Preliminary code:** the tournament name, the preliminary server's name and the
-  preliminary channel's webhook. Make one per preliminary server (the server name is what
-  server standings use). Safe to hand out, unless you add automute:
-  * **Automute (optional):** fill in your server ID and a bot's token (and, if you like, a
-    webhook for a live lobby channel, which gets the message with the colour menu). The
-    host's game then mutes Discord itself, and players link with `/link` or the menu. Leave
-    it empty and the preliminary works exactly as before (players can use AutoMuteUs). A
-    code with a bot token in it must be sent privately.
+* **Preliminary code:** the tournament name, the preliminary server's name and your
+  **private reports channel** webhook. Make one per preliminary server (the server name is what
+  server standings use). Safe to hand out. The host adds their own bots and their server's
+  public report channel in The Button (Settings → **Your Discord**), so leave the bot empty:
+  * **Automute in the code (optional, older way):** a server ID and a bot's token (and a
+    live lobby channel webhook). A code with a bot token in it must be sent privately.
 * **Tournament host code:** the tournament name, the results channel webhook, and
-  optionally your server ID, up to 3 bot tokens, the private results channel, a webhook for
+  optionally your server ID, up to 3 bot tokens (or none: with the server ID and no tokens,
+  the host adds their own bots in The Button), the private results channel, a webhook for
   its own live lobby channel (otherwise the lobby message goes in the results channel, or
   where the host types `/new`), the preliminary channels and the referees' user IDs. The bot is optional: without one, games are still tracked, scored
   and reported, and the host has the whole app, but there's no automute, no `/link`, `/new`
@@ -188,28 +202,37 @@ put back by itself.
 
 * **Settings lock** (on by default in the generator): while a preliminary or tournament code
   is in use, the host's lobby is kept on the tournament's settings (impostors, cooldowns,
-  vision, kill distance, tasks, special roles off…). Anything changed in the lobby is put
+  vision, kill distance, tasks, the task bar, ghosts doing tasks, and the roles). **Roles…**
+  sets each role (Engineer, Scientist, Guardian Angel, Noisemaker, Tracker, Detective, Judge,
+  Spirit Guide, Shapeshifter, Phantom, Viper) to a number per game and a chance; every role
+  left at 0 is off. Each role's options (cooldowns, durations, "leave evidence"…) are held too
+  when filled in; an empty one keeps the host's own value. Task counts stop at the game's own
+  menu limits (common 4, long 15, short 23). Anything changed in the lobby is put
   back and the host is told, once, in their own chat only (not again on every join, until the
   next game). A game that still starts on the wrong settings says so in its
   report (and to the referees). For a casual game the host turns **Settings lock** off on
   The Button's Home page (until they restart Among Us); without a code nothing is ever touched.
-* **Hold each game until the host presses Verify** (on by default): every game waits in
+* **Hold each game until the host presses Submit** (on by default): every game waits in
   The Button's Referee tab, nothing goes to Discord until the host checks it. Untick it to
   post results as soon as a game ends.
-* **Impostor rotation** (off unless ticked): last game's impostors are rarely impostor
+* **Impostor rotation** (ticked by default in the code maker; codes made before 0.1.43
+  have it only if it was ticked): last game's impostors are rarely impostor
   again straight away. Each of them has a 2% chance (set it in the code maker)
   and everyone else shares the rest equally, so in a 10-player game with 2 impostors the
   other 8 each have about 24.5%. Back to back is possible but rare (about 1 in 50), three
   in a row almost never happens. The mod swaps the roles the game handed out, and announces
   it when a round starts.
 
-### 4. The combined preliminary leaderboard
+### 4. The combined preliminary leaderboard and count
 
-Preliminary hosts have no bot, so a scheduled GitHub job builds one leaderboard per
-preliminary, across all its lobbies, every 10 minutes. In the GitHub repository: Settings →
+Each lobby's mod keeps its own **count** at the bottom of your private reports channel after
+every game: of all the points scored there, the share that went to impostors and to crew
+(with the totals, points per player per game, wins and games). A scheduled GitHub job builds
+one leaderboard per preliminary across all its lobbies every 10 minutes, and next to it the
+**all-games count**: every lobby together, then each lobby on its own line. In the GitHub repository: Settings →
 Secrets and variables → Actions → add the secret `DISCORD_BOT_TOKEN` (one of your bots,
-invited to the server with the preliminary channels) and the variable `PRELIM_CHANNEL_IDS`
-(comma separated). Optionally set `PRELIM_LEADERBOARD_CHANNEL` to post every leaderboard
+invited to the server with the private reports channel) and the variable `PRELIM_CHANNEL_IDS`
+(the private reports channel's ID; several, comma separated, if you use more). Optionally set `PRELIM_LEADERBOARD_CHANNEL` to post every leaderboard
 in one channel. Scheduled runs only happen on the repository's default branch, so merge
 this branch into it first. Actions → *Preliminary leaderboards* → Run workflow updates it
 right away.
@@ -218,9 +241,9 @@ right away.
 
 | | Preliminary code | Tournament host code |
 | --- | --- | --- |
-| After each game | Report plus the game's data in your preliminary channel; a summary in the host's chat | Report in the results channel; the lobby's round standings |
+| After each game | Report plus the game's data and the lobby's count in your private channel; report and standings in the server's public channel (set in The Button); a summary in the host's chat | Report in the results channel; the lobby's round standings |
 | Leaderboard | The scheduled job's combined board per preliminary | Per lobby per round, with the cut line, plus a running total |
-| Automute | Optional: add a bot to the code (otherwise players can use AutoMuteUs) | Yes, with your bot |
+| Automute | Optional: the host adds bots in The Button (otherwise players can use AutoMuteUs) | Yes, with the code's bots or the host's own |
 | Live status, referee tools | No | Yes |
 
 ### During the tournament

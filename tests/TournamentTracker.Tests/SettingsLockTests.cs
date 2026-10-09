@@ -36,6 +36,34 @@ public class SettingsLockTests : IDisposable
     }
 
     [Fact]
+    public void Roles_and_role_options_are_checked_by_the_games_names()
+    {
+        var want = new LobbySettings
+        {
+            RolesOff = true, TaskBarMode = 1, GhostsDoTasks = true,
+            Roles = new() { ["Engineer"] = new[] { 1, 100 }, ["Shapeshifter"] = new[] { 1, 50 } },
+            Options = new() { ["EngineerCooldown"] = 20, ["ShapeshifterLeaveSkin"] = 0 },
+        };
+        var code = new SetupCode { TournamentId = "p", TournamentName = "P", Webhook = Webhook, Lobby = want };
+        Assert.True(SetupCode.TryParse(code.Encode(), out var back, out _));
+        Assert.Equal(new[] { 1, 50 }, back.Lobby!.Roles!["Shapeshifter"]);
+        Assert.Equal(20, back.Lobby.Options!["EngineerCooldown"]);
+
+        var actual = new LobbySettings
+        {
+            RolesOff = false, TaskBarMode = 0, GhostsDoTasks = true,
+            Roles = new() { ["Engineer"] = new[] { 1, 100 }, ["Shapeshifter"] = new[] { 0, 0 } },
+            Options = new() { ["EngineerCooldown"] = 30, ["ShapeshifterLeaveSkin"] = 0 },
+        };
+        var diff = want.Differences(actual);
+        Assert.Contains("Special roles on (should all be off but Engineer, Shapeshifter)", diff);
+        Assert.Contains("Task bar always (should be in meetings)", diff);
+        Assert.Contains("Shapeshifter 0 at 0% (should be 1 at 50%)", diff);
+        Assert.Contains("Engineer cooldown 30 (should be 20)", diff);
+        Assert.Equal(4, diff.Count);
+    }
+
+    [Fact]
     public void The_code_carries_the_settings_and_locks_only_outside_standard_mode()
     {
         var code = Prelim(LobbySettings.TournamentDefaults());
