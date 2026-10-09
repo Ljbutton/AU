@@ -113,14 +113,19 @@ namespace TournamentTracker.Plugin
             p.GotKilled = Rule("GotKilled", p.GotKilled, "Crewmate: killed.");
             p.DiedFirstShareOfCrewAverage = Rule("DiedFirstShareOfCrewAverage", p.DiedFirstShareOfCrewAverage, "Crewmate: the first player killed ends on this share of their crew teammates' average points (0.9 = 90%). 0 turns it off.");
             p.IncorrectVoteOut = Rule("IncorrectVoteOut", p.IncorrectVoteOut, "Crewmate: per vote for a crewmate who then got ejected.");
-            p.ReadVoteBonus = Rule("ReadVoteBonus", p.ReadVoteBonus, "Crewmate: most a player can earn for reads (votes for someone who wasn't ejected that meeting).");
-            p.ReadVotePoints = Rule("ReadVotePoints", p.ReadVotePoints, "Crewmate: per read on an impostor, up to ReadVoteBonus, then scaled by the share of their reads that were on impostors.");
+            p.EjectedAsCrew = Rule("EjectedAsCrew", p.EjectedAsCrew, "Crewmate: voted out by the crew.");
+            p.VotingBonus = Rule("VotingBonus", p.VotingBonus, "Crewmate: up to this for voting for someone at every meeting they were alive for.");
+            p.CorrectVoteBonus = Rule("CorrectVoteBonus", p.CorrectVoteBonus, "Crewmate: up to this for the share of their votes that were on an impostor.");
             p.TaskPercentBonus = Rule("TaskPercentBonus", p.TaskPercentBonus, "Crewmate: bonus scaled by the share of their task effort they finished (full amount at 100%).");
+            p.LowPercentBelow = Rule("LowPercentBelow", p.LowPercentBelow, "Crewmate: below this share (0.25 = 25%) the correct-voting and task bonuses slide down to LowPercentPoints at 0%.");
+            p.LowPercentPoints = Rule("LowPercentPoints", p.LowPercentPoints, "Crewmate: the correct-voting and task bonuses at 0%.");
             p.LongTaskWeight = Rule("LongTaskWeight", p.LongTaskWeight, "Crewmate: how many short or common tasks one long task counts as in the task bonus.");
             p.CrewTaskWin = Rule("CrewTaskWin", p.CrewTaskWin, "Crewmate: team won on tasks.");
             p.CrewVoteWin = Rule("CrewVoteWin", p.CrewVoteWin, "Crewmate: team won by voting the impostors out.");
             p.CrewSabotageLossAlive = Rule("CrewSabotageLossAlive", p.CrewSabotageLossAlive, "Crewmate: alive when the team lost to a sabotage.");
             p.CrewOtherLoss = Rule("CrewOtherLoss", p.CrewOtherLoss, "Crewmate: team lost any other way (kills, votes, or dead during a sabotage loss).");
+            p.AliveLossPerRound = Rule("AliveLossPerRound", p.AliveLossPerRound, "Crewmate: on top of the loss, per round (meetings + 1) for a crewmate alive when the team lost.");
+            p.AliveLossCap = Rule("AliveLossCap", p.AliveLossCap, "Crewmate: the most AliveLossPerRound can add up to.");
 
             p.DisconnectWin = Rule("DisconnectWin", p.DisconnectWin, "Either team: won because the other team disconnected. Not on the sheet.");
 

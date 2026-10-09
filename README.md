@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.48**, a beta.
+The current release is **v0.1.49**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -1041,23 +1041,36 @@ allowed, penalties are negative, and 0 switches a rule off.
 | Finished every task | +1 (on top of the task bonus) | `CompletedTasks` |
 | Voted for an impostor who got ejected | +2 each | `CorrectVoteOut` |
 | Called the meeting where an impostor got ejected | +1 | `CaughtKiller` |
-| Killed | 0 (off) | `GotKilled` |
+| Killed | −0.25 | `GotKilled` |
+| Voted out by the crew | −1 | `EjectedAsCrew` |
 | First player killed: ends on 90% of their crew teammates' average | see below | `DiedFirstShareOfCrewAverage` |
 | Voted for a crewmate who got ejected | −2 each | `IncorrectVoteOut` |
-| Reads bonus: +1 per vote on an impostor who stayed in, times the share of such votes that were right | up to +4 | `ReadVotePoints`, `ReadVoteBonus` |
-| Task bonus: % of their task effort finished, a long task counting double | up to +3 | `TaskPercentBonus`, `LongTaskWeight` |
+| Voting bonus: share of meetings (alive) where they voted for someone | up to +1 | `VotingBonus` |
+| Correct-voting bonus: share of their votes that were on an impostor (−2 at 0%, see below) | up to +2 | `CorrectVoteBonus` |
+| Task bonus: % of their task effort finished, a long task counting double (−2 at 0%, see below) | up to +3 | `TaskPercentBonus`, `LongTaskWeight` |
 | Win by tasks | +5 | `CrewTaskWin` |
 | Win by vote | +3 | `CrewVoteWin` |
 | Alive when the team loses to sabotage | −5 | `CrewSabotageLossAlive` |
 | Any other loss | −2 | `CrewOtherLoss` |
+| Alive when the team loses, on top of the loss: per round (meetings + 1), up to −4 | −0.25 each | `AliveLossPerRound`, `AliveLossCap` |
 
-A crewmate's vote scores one of two ways. A vote that **ejected** someone is a vote out:
-+2 on an impostor, −2 on a crewmate. Any other vote, for someone who stayed in, is a
-**read**. Reads show who spotted the impostors early, so each read on an impostor earns +1,
-up to +4, and that is then multiplied by the share of their reads that were right. Right at
-four meetings earns +4; right at one earns +1; voting at everyone in 8 meetings and being
-right in 4 earns only +2, so calling lots of meetings to vote doesn't pay. Skips and missed
-votes don't count either way.
+A crewmate's vote scores in three ways. A vote that **ejected** someone is a vote out: +2 on an
+impostor, −2 on a crewmate. On top of that, two percentage bonuses cover every meeting:
+
+* **Voting bonus (up to +1):** the share of meetings they were alive for where they voted for
+  someone. Voting at every meeting earns +1; voting at 2 of 4 earns +0.5. A skip or no vote
+  isn't voting.
+* **Correct-voting bonus (up to +2):** the share of their votes (for a player) that were on an
+  impostor, whether or not anyone was ejected. 3 of 4 right earns +1.5.
+
+**Below 25%** the correct-voting and task bonuses don't just shrink to nothing: from 25% they
+slide in a straight line down to −2 at 0% (`LowPercentBelow`, `LowPercentPoints`). So tasks at
+25% earn +0.75, at 12.5% −0.625, at 0% −2; votes right at 25% earn +0.5, at 0% −2. The voting
+bonus isn't affected. A crewmate who never voted for anyone gets no correct-voting line.
+
+**Alive at the loss:** a crewmate still alive when the crew loses loses 0.25 more for every
+round the game lasted (a round is the play between meetings, so rounds = meetings + 1), up to
+−4, on top of the loss itself.
 
 The **task bonus** scales with the share of task effort finished (up to +3), where a long
 task counts as two short ones (`LongTaskWeight`). With 2 common, 3 long and 5 short tasks,
@@ -1068,7 +1081,7 @@ The **first crewmate killed** ends the game on 90% of the average of their crew 
 first once is often bad luck and costs little; dying first every game keeps a player out of
 the top half. The report shows it as "Died first: 90% of crew average".
 
-Points are never rounded: the task and reads bonuses and the died-first score keep their exact value (a third of a point stays a third), and totals add the exact values. Screens and Discord show up to two decimals. Win and loss points go to the whole team, dead or alive, but not to anyone
+Points are never rounded: the percentage bonuses and the died-first score keep their exact value (a third of a point stays a third), and totals add the exact values. Screens and Discord show up to two decimals. Win and loss points go to the whole team, dead or alive, but not to anyone
 who disconnected. A game won because the other team disconnected isn't on the sheet, so it
 scores nothing unless you set `DisconnectWin`.
 

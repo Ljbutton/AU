@@ -201,7 +201,7 @@ dialog h2{font:600 16px var(--body);margin:0 0 4px}
   <h2 id="scores-title">Point values</h2>
   <p class="hint">Every host scores the same way from these. Changed values are green.</p>
   <div class="scores" id="scores"></div>
-  <div class="f"><label for="lab-values">Paste values copied from the Points Lab <i>(optional)</i></label><textarea id="lab-values" rows="2" class="mono" placeholder='{"kill":1,"readVoteBonus":4,…}'></textarea><span class="hint" id="lab-status"></span></div>
+  <div class="f"><label for="lab-values">Paste values copied from the Points Lab <i>(optional)</i></label><textarea id="lab-values" rows="2" class="mono" placeholder='{"kill":1,"correctVoteBonus":2,…}'></textarea><span class="hint" id="lab-status"></span></div>
   <div class="btns" style="margin-top:10px"><button type="button" id="reset-scores">Back to the point sheet</button><span style="flex:1"></span><button type="button" class="primary" id="close-scores">Done</button></div>
 </dialog>
 
@@ -244,10 +244,12 @@ const RULES = [
     ['impostorSabotageWin','Sabotage win',5],['impostorVoteWin','Vote win',4],['impostorKillWin','Kill win',4],
     ['impostorTaskLoss','Lost to tasks',-3],['impostorVoteLoss','Lost to vote',-2],['votedOutFirst','Voted out first',-2],['votedOutLast','Voted out later',-1]]],
   ['Crewmate', [['completedTasks','Finished every task',1],['taskPercentBonus','Task % bonus (up to)',3],['longTaskWeight','Long task counts as (short tasks)',2],['correctVoteOut','Correct vote out (each)',2],
-    ['readVotePoints','Read on an impostor (each)',1],['readVoteBonus','Reads bonus (up to)',4],['caughtKiller','Caught and voted out killer',1],
-    ['diedFirstShareOfCrewAverage','Died first: share of crew average',0.9],['gotKilled','Got killed',0],
+    ['votingBonus','Voted every meeting (up to)',1],['correctVoteBonus','Votes on impostors (up to)',2],
+    ['lowPercentBelow','Below this share, % bonuses slide down',0.25],['lowPercentPoints','…to this at 0%',-2],['caughtKiller','Caught and voted out killer',1],
+    ['diedFirstShareOfCrewAverage','Died first: share of crew average',0.9],['gotKilled','Got killed',-0.25],['ejectedAsCrew','Voted out (crewmate)',-1],
     ['incorrectVoteOut','Incorrect vote out (each)',-2],['crewTaskWin','Task win',5],['crewVoteWin','Vote win',3],
-    ['crewSabotageLossAlive','Alive at a sabotage loss',-5],['crewOtherLoss','Any other loss',-2]]],
+    ['crewSabotageLossAlive','Alive at a sabotage loss',-5],['crewOtherLoss','Any other loss',-2],
+    ['aliveLossPerRound','Alive at a loss, per round',-0.25],['aliveLossCap','Alive at a loss, most',-4]]],
   ['Other', [['disconnectWin','Win by disconnect',0]]],
 ];
 const $ = id => document.getElementById(id);

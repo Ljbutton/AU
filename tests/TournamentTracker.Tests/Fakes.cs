@@ -8,6 +8,19 @@ using TournamentTracker.Voice;
 
 namespace TournamentTracker.Tests;
 
+/// <summary>
+/// The fixed rules on the point sheet only: the crew's percentage bonuses, the −2 slide, the
+/// alive-at-the-loss rounds and the killed / voted-out penalties are off (they have their own tests).
+/// </summary>
+public static class SheetRules
+{
+    public static ScoringRules Fixed() => new()
+    {
+        VotingBonus = 0, CorrectVoteBonus = 0, TaskPercentBonus = 0, LowPercentPoints = 0,
+        GotKilled = 0, EjectedAsCrew = 0, AliveLossPerRound = 0,
+    };
+}
+
 public static class Players
 {
     public static PlayerSnapshot Make(byte id, string name, int color, bool impostor = false, int tasks = 4) => new()
