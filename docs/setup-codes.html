@@ -3,148 +3,150 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: form on the left, the finished code pinned on the right; one column on phones. */
+/* One screen: the kind of code across the top, then three columns in the order you fill them in:
+   1 Tournament and Discord, 2 Rules, 3 The code. Point values and loading an old code open on top. */
 :root{
-  --bg:#14161c; --panel:#1c1f27; --sunk:#12141a; --line:#2d313c; --fg:#e8eaf0; --muted:#9aa1b2;
-  --accent:#ff5a5f; --accent-fg:#1a0b0c; --ok:#4ade80; --warn:#f5b453; --warn-bg:#2c2214; --err:#ff8a80;
+  --bg:#101318; --panel:#191d25; --sunk:#0d1015; --line:#2a303c; --fg:#e9ecf2; --muted:#98a1b3;
+  --accent:#1fa143; --accent-hi:#2fbf5a; --accent-fg:#04120a; --ok:#4ade80; --warn:#f5b453; --warn-bg:#2a2113; --err:#ff8a80;
   color-scheme:dark;
-  --display:"Rubik","Segoe UI",system-ui,sans-serif; --body:"Rubik","Segoe UI",system-ui,sans-serif; --mono:"JetBrains Mono",Consolas,monospace;
+  --body:"Rubik","Segoe UI",system-ui,sans-serif; --mono:"JetBrains Mono",Consolas,monospace;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);padding-inline:16px;padding-block:28px 56px;margin:0}
-.wrap{max-width:1080px;margin:0 auto}
-h1{font:700 28px/1.2 var(--display);margin:0 0 6px;text-wrap:balance;letter-spacing:-.01em}
-.lede{color:var(--muted);max-width:66ch;margin:0 0 22px}
-.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:22px;align-items:start}
-@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
-form{display:grid;gap:18px}
-fieldset{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:16px;margin:0;display:grid;gap:14px;min-width:0}
-legend{font:600 12px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:0 6px}
-.kind{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.kind label{display:grid;gap:2px;border:1.5px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer;background:var(--panel)}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font:13.5px/1.4 var(--body);margin:0;padding-inline:16px;padding-block:14px}
+.wrap{max-width:1440px;margin:0 auto;display:grid;gap:12px}
+header{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+h1{font:700 21px/1.1 var(--body);margin:0;letter-spacing:-.01em}
+h1 span{color:var(--accent-hi)}
+.kind{display:flex;gap:6px;flex-wrap:wrap}
+.kind label{display:grid;gap:1px;border:1.5px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;background:var(--panel);min-width:0}
 .kind input{position:absolute;opacity:0;pointer-events:none}
-.kind label:has(input:checked){border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
-.kind label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
-.kind b{font-weight:600}.kind small{color:var(--muted);font-size:12.5px}
-.field{display:grid;gap:5px;min-width:0}
-.field label{font-weight:500;font-size:14px}
-.field .hint,#lab-status{color:var(--muted);font-size:12.5px}
-.check{display:flex;gap:10px;align-items:flex-start;font-size:14px;margin:8px 0}
-.check input{margin-top:3px}
-.settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 14px;margin-top:8px}
-.settings-grid label{display:grid;gap:4px;font-size:12.5px;color:var(--muted)}
-.settings-grid label.tick{display:flex;gap:8px;align-items:center;color:var(--fg);font-size:13.5px}
-.settings-grid select{font:14px var(--body);color:var(--fg);background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:8px 10px}
-.lab-paste{display:grid;gap:6px;margin-top:12px;font-size:13px;color:var(--muted)}
-input[type=text],input[type=password],input[type=number],textarea{font:14px var(--body);color:var(--fg);background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:9px 11px;width:100%;min-width:0}
-input:focus-visible,textarea:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.mono{font-family:var(--mono)!important;font-size:13px!important}
-.row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-@media (max-width:520px){.row{grid-template-columns:minmax(0,1fr)}}
-.bad{color:var(--err);font-size:12.5px}
-details{border:1px solid var(--line);border-radius:10px;background:var(--panel)}
-summary{cursor:pointer;padding:12px 16px;font-weight:600}
-details .inner{padding:0 16px 16px;display:grid;gap:14px}
-.scores{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 18px}
-@media (max-width:520px){.scores{grid-template-columns:minmax(0,1fr)}}
-.scores h3{grid-column:1/-1;font:600 12px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:8px 0 2px}
-.score{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13.5px}
-.score input{width:76px;text-align:right;font-variant-numeric:tabular-nums;padding:5px 8px}
-.score.changed span{color:var(--accent);font-weight:600}
-aside{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px);display:grid;gap:14px;min-width:0}
-@media (max-width:860px){aside{position:static}}
-.out{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:12px}
-.out h2{font:600 17px var(--display);margin:0}
-.status{font-size:13.5px;display:flex;gap:8px;align-items:flex-start}
-.status.ok{color:var(--ok)}.status.no{color:var(--muted)}
-textarea#code{min-height:130px;resize:vertical;word-break:break-all}
-.btns{display:flex;flex-wrap:wrap;gap:8px}
-button{font:600 14px var(--body);border-radius:8px;padding:9px 14px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--fg)}
+.kind label:has(input:checked){border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset;background:#13241a}
+.kind label:has(input:focus-visible){outline:2px solid var(--accent-hi);outline-offset:2px}
+.kind b{font-weight:600;font-size:13.5px}.kind small{color:var(--muted);font-size:11.5px}
+header .sp{flex:1}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) minmax(0,.95fr);gap:12px;align-items:start}
+@media (max-width:1100px){.cols{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.col3{grid-column:1/-1}}
+@media (max-width:700px){.cols{grid-template-columns:minmax(0,1fr)}}
+.card{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:12px;display:grid;gap:9px;min-width:0}
+.card h2{font:600 12px/1 var(--body);letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0;display:flex;align-items:center;gap:8px}
+.card h2 .n{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--accent);color:var(--accent-fg);font-size:11.5px;letter-spacing:0}
+.card h3{font:600 12.5px/1.2 var(--body);margin:4px 0 -2px;color:var(--fg)}
+.f{display:grid;gap:3px;min-width:0}
+.f>label{font-weight:500;font-size:12.5px}
+.f>label i{font-style:normal;color:var(--muted);font-weight:400}
+.hint{color:var(--muted);font-size:11.5px;line-height:1.35}
+.card p{margin:0}
+.r2:has(> .prelim-only[hidden]){grid-template-columns:minmax(0,1fr)}
+.hint code,.howto code{font-family:var(--mono);font-size:11px;background:var(--sunk);padding:0 4px;border-radius:4px;color:var(--fg)}
+.r2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.r3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+input[type=text],input[type=password],input[type=number],textarea,select{font:13px var(--body);color:var(--fg);background:var(--sunk);border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:100%;min-width:0}
+input:focus-visible,textarea:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent-hi);outline-offset:1px}
+.mono{font-family:var(--mono)!important;font-size:12px!important}
+.bad{color:var(--err);font-size:11.5px}
+.check{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start;font-size:12.5px;cursor:pointer}
+.check input{margin-top:2px}
+.check b{font-weight:600}
+.check .hint{display:block}
+.inline{display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;color:var(--muted)}
+.inline input{width:64px;padding:3px 6px}
+.lockgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px 8px}
+@media (max-width:520px){.lockgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.lockgrid label{display:grid;gap:2px;font-size:11px;color:var(--muted);min-width:0}
+.lockgrid label.tick{display:flex;gap:6px;align-items:center;color:var(--fg);font-size:12px}
+.lockgrid input[type=number],.lockgrid select{padding:4px 6px}
+.lockgrid.off{opacity:.4;pointer-events:none}
+button{font:600 13px var(--body);border-radius:7px;padding:7px 12px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--fg)}
+button:hover{border-color:#4b5466}
 button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+button.primary:hover{background:var(--accent-hi)}
 button:disabled{opacity:.45;cursor:not-allowed}
-.warn{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:10px 12px;font-size:13.5px}
-.howto{font-size:13.5px;color:var(--muted);margin:0;padding-left:18px;display:grid;gap:4px}
-.howto code,.hint code{font-family:var(--mono);font-size:12px;background:var(--sunk);padding:1px 4px;border-radius:4px;color:var(--fg)}
-.toast{font-size:13px;color:var(--ok);min-height:1.2em}
+.btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.todo{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:12.5px}
+.todo li{display:grid;grid-template-columns:16px minmax(0,1fr);gap:6px}
+.todo li::before{content:"○";color:var(--warn)}
+.todo li.done::before{content:"✓";color:var(--ok)}
+.ready{color:var(--ok);font-weight:600;font-size:13px}
+textarea#code{min-height:96px;resize:vertical;word-break:break-all}
+.warn{background:var(--warn-bg);color:var(--warn);border-radius:7px;padding:8px 10px;font-size:12px}
+.howto{font-size:12px;color:var(--muted);margin:0;padding-left:18px;display:grid;gap:3px}
+.toast{font-size:12px;color:var(--ok);min-height:1.1em}
+.pill{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:1px 7px;white-space:nowrap}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--fg);padding:16px;width:min(860px,calc(100vw - 32px));max-height:calc(100vh - 32px)}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h2{font:600 16px var(--body);margin:0 0 4px}
+.scores{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 16px;margin:10px 0}
+@media (max-width:700px){.scores{grid-template-columns:minmax(0,1fr)}}
+.scores h4{grid-column:1/-1;font:600 11px var(--body);letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:8px 0 0}
+.score{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px}
+.score input{width:68px;text-align:right;font-variant-numeric:tabular-nums;padding:3px 6px}
+.score.changed span{color:var(--accent-hi);font-weight:600}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head><body>
 
 <div class="wrap">
-<h1>Tournament setup codes</h1>
-<p class="lede">Make the code a host pastes into The Button (Settings → Setup code). A preliminary code only points games at your Discord. A tournament host code also carries your bot, so give those out privately.</p>
+<header>
+  <h1>Setup <span>codes</span></h1>
+  <div class="kind" role="radiogroup" aria-label="Kind of code">
+    <label><input type="radio" name="kind" id="kind-prelim" value="prelim" checked><b>Preliminary</b><small>Hosts in other servers</small></label>
+    <label><input type="radio" name="kind" id="kind-tournament" value="tournament"><b>Tournament host</b><small>Your trusted hosts</small></label>
+    <label><input type="radio" name="kind" id="kind-admin" value="admin"><b>Administration</b><small>You, referees, casters</small></label>
+  </div>
+  <span class="sp"></span>
+  <button type="button" id="open-load">Load an old code</button>
+</header>
 
-<div class="grid">
-<form id="form" autocomplete="off">
-  <fieldset>
-    <legend>Kind of code</legend>
-    <div class="kind">
-      <label><input type="radio" name="kind" id="kind-prelim" value="prelim" checked><b>Preliminary</b><small>For hosts in other servers. Reports go to your server.</small></label>
-      <label><input type="radio" name="kind" id="kind-tournament" value="tournament"><b>Tournament host</b><small>Your trusted hosts. Automute, rounds and standings.</small></label>
-      <label><input type="radio" name="kind" id="kind-admin" value="admin"><b>Administration</b><small>You, referees and casters: unlocks the Organiser tab in The Button (every lobby live, standings, referee buttons, caster overlay).</small></label>
+<form id="form" autocomplete="off" class="cols">
+  <!-- 1: who and where -->
+  <section class="card">
+    <h2><span class="n">1</span>Tournament and Discord</h2>
+    <div class="f"><label for="name">Tournament name</label><input type="text" id="name" value="Fall Cup 2026"></div>
+    <div class="r2">
+      <div class="f prelim-only"><label for="server">Preliminary server</label><input type="text" id="server" value="Sus Squad"></div>
+      <div class="f"><label for="tid">Tournament ID <i>(auto)</i></label><input type="text" id="tid" class="mono"></div>
     </div>
-  </fieldset>
+    <p class="hint" id="tid-hint">Every code for the same event needs the same ID. It's filled in from the name<span class="prelim-only">; make one code per server</span>.</p>
+    <div class="f host-only"><label for="webhook">Report channel webhook</label><input type="text" id="webhook" class="mono" placeholder="https://discord.com/api/webhooks/…"><span class="hint" id="webhook-hint">Channel settings → Integrations → Webhooks → Copy URL.</span><span class="bad" id="webhook-bad" hidden></span></div>
 
-  <fieldset>
-    <legend>Tournament</legend>
-    <div class="field"><label for="name">Name</label><input type="text" id="name" value="Fall Cup 2026"><span class="hint">Shown on every report and leaderboard.</span></div>
-    <div class="field prelim-only"><label for="server">Preliminary server</label><input type="text" id="server" value="Sus Squad"><span class="hint">The Discord server these games are played in. Make one code per server.</span></div>
-    <div class="field"><label for="tid">Tournament ID</label><input type="text" id="tid" class="mono"><span class="hint">Keeps this tournament's stats apart from every other. Filled in from the name; every host of the same event needs the same ID.</span></div>
-    <div class="field host-only"><label for="webhook">Report channel webhook</label><input type="text" id="webhook" class="mono" placeholder="https://discord.com/api/webhooks/…"><span class="hint">Channel settings → Integrations → Webhooks → Copy URL. Preliminaries: your preliminary channel. Tournament: your results channel for players.</span><span class="bad" id="webhook-bad" hidden></span></div>
-  </fieldset>
+    <h3 id="bot-title">Discord bot <i class="hint">(optional)</i></h3>
+    <p class="hint" id="bot-hint"></p>
+    <div class="r2">
+      <div class="f"><label for="guild">Server ID</label><input type="text" id="guild" class="mono" inputmode="numeric" placeholder="1180000000000000000"><span class="bad" id="guild-bad" hidden></span></div>
+      <div class="f tour-admin"><label for="results">Private results channel ID</label><input type="text" id="results" class="mono" inputmode="numeric" placeholder="1290000000000000000"><span class="bad" id="results-bad" hidden></span></div>
+    </div>
+    <div class="f"><label for="token">Bot token<span class="host-only"><i> · 2nd and 3rd optional, for faster muting</i></span></label>
+      <div class="r3"><input type="password" id="token" class="mono" placeholder="Bot 1" aria-label="Bot token"><input type="password" id="token2" class="mono host-only" placeholder="Bot 2" aria-label="Second bot token"><input type="password" id="token3" class="mono host-only" placeholder="Bot 3" aria-label="Third bot token"></div>
+      <span class="hint">Developer Portal → Bot: Message Content Intent on. Invite with permissions <code>14011456</code> (never Administrator). The token only leaves this page inside the code.</span></div>
+    <div class="f host-only"><label for="p-status">Live lobby channel webhook <i>(optional)</i></label><input type="text" id="p-status" class="mono" placeholder="https://discord.com/api/webhooks/…"><span class="hint" id="status-hint"></span><span class="bad" id="p-status-bad" hidden></span></div>
+    <div class="r2 host-only">
+      <div class="f tour-only"><label for="prelims">Preliminary channel IDs <i>(optional)</i></label><input type="text" id="prelims" class="mono" placeholder="129…01, 129…02"><span class="bad" id="prelims-bad" hidden></span></div>
+      <div class="f"><label for="refs">Referee user IDs <i>(optional)</i></label><input type="text" id="refs" class="mono" placeholder="Can talk in referee mode"></div>
+    </div>
+  </section>
 
-  <fieldset class="prelim-only">
-    <legend>Automute (optional)</legend>
-    <p class="hint" style="margin:0">Leave these empty and the preliminary works as before: players use AutoMuteUs if they want it. Fill them in to have this host's game mute Discord itself, and to let players link by picking their colour.</p>
-    <div class="row">
-      <div class="field"><label for="p-guild">Server ID</label><input type="text" id="p-guild" class="mono" inputmode="numeric" placeholder="1180000000000000000"><span class="bad" id="p-guild-bad" hidden></span></div>
-      <div class="field"><label for="p-token">Bot token</label><input type="password" id="p-token" class="mono" placeholder="MTIz…"><span class="hint">Your bot, invited to this preliminary's server with the link in the README.</span></div>
+  <!-- 2: how the games run -->
+  <section class="card">
+    <h2><span class="n">2</span>Rules</h2>
+    <div class="r2 tour-admin">
+      <div class="f"><label for="advance">Players who move on per lobby</label><input type="number" id="advance" min="1" max="10" value="5"></div>
+      <div class="f"><label for="gpr">Games per round</label><input type="number" id="gpr" min="1" max="10" value="3"></div>
     </div>
-    <div class="row">
-      <div class="field"><label for="p-token2">Second bot token (optional)</label><input type="password" id="p-token2" class="mono" placeholder="MTIz…"></div>
-      <div class="field"><label for="p-token3">Third bot token (optional)</label><input type="password" id="p-token3" class="mono" placeholder="MTIz…"></div>
-    </div>
-    <div class="field"><label for="p-status">Live lobby channel webhook (optional)</label><input type="text" id="p-status" class="mono" placeholder="https://discord.com/api/webhooks/…"><span class="hint">A channel where the lobby's live message goes, with the "Select your in-game colour" menu. Without it, players link with <code>/link</code>.</span><span class="bad" id="p-status-bad" hidden></span></div>
-  </fieldset>
-
-  <fieldset class="tournament-only" hidden>
-    <legend>Your bot (optional)</legend>
-    <p class="hint admin-only" style="margin:0">The Button reads every lobby's live data and the results from the private results channel with this bot, and posts referee commands there. It needs View Channel, Read Message History and Send Messages in that channel, and Message Content Intent turned on (Discord Developer Portal → Bot). One of your hosts' bots is fine.</p>
-    <p class="hint host-only" style="margin:0">Without a bot, games are still tracked, scored and reported, and the host still has the app. The bot adds automute, <b>/link</b>, <b>/new</b> and the colour menu, the combined standings across lobbies, and the referee commands in the private results channel.</p>
-    <div class="row">
-      <div class="field"><label for="guild">Server ID</label><input type="text" id="guild" class="mono" inputmode="numeric" placeholder="1180000000000000000"><span class="bad" id="guild-bad" hidden></span></div>
-      <div class="field"><label for="results">Private results channel ID</label><input type="text" id="results" class="mono" inputmode="numeric" placeholder="1290000000000000000"><span class="bad" id="results-bad" hidden></span></div>
-    </div>
-    <div class="field"><label for="token">Bot token</label><input type="password" id="token" class="mono" placeholder="MTIz…"><span class="hint">Invite it with the link in the README. The token never leaves this page except inside the code.</span></div>
-    <div class="row host-only">
-      <div class="field"><label for="token2">Second bot token (optional)</label><input type="password" id="token2" class="mono" placeholder="MTIz…"></div>
-      <div class="field"><label for="token3">Third bot token (optional)</label><input type="password" id="token3" class="mono" placeholder="MTIz…"></div>
-    </div>
-    <p class="hint host-only" style="margin:-6px 0 0">Discord limits how fast one bot can mute people, so 2 or 3 bots mute a full lobby noticeably faster: the work is shared between them. Each extra bot needs inviting to the server too. Give every lobby its own bots.</p>
-    <div class="field host-only"><label for="prelims">Preliminary channel IDs</label><input type="text" id="prelims" class="mono" placeholder="1290000000000000001, 1290000000000000002"><span class="hint">Where preliminary reports went; used for server standings. Comma separated.</span><span class="bad" id="prelims-bad" hidden></span></div>
-    <div class="row">
-      <div class="field"><label for="advance">Players who move on per lobby</label><input type="number" id="advance" min="1" max="10" value="5"></div>
-      <div class="field host-only"><label for="refs">Referee user IDs (optional)</label><input type="text" id="refs" class="mono" placeholder="Who can talk in referee mode"></div>
-    </div>
-    <div class="row">
-      <div class="field"><label for="gpr">Games per round</label><input type="number" id="gpr" min="1" max="10" value="3"><span class="hint">Cut-line tiebreaks apply once a lobby has played them all.</span></div>
-      <label class="check host-only"><input type="checkbox" id="lead"> <span><b>Lead lobby</b>: this host's mod answers !lobbies, !move, !start… in the results channel. Tick it in the code for one host only (you).</span></label>
-    </div>
-  </fieldset>
-
-  <fieldset class="host-only">
-    <legend>Fairness and settings</legend>
-    <label class="check"><input type="checkbox" id="rot"> <span><b>Impostor rotation</b>: last game's impostors are rarely impostor again straight away (2% each; everyone else shares the rest). Off unless ticked.</span></label>
-    <label class="check"><input type="checkbox" id="lock" checked> <span><b>Lock lobby settings</b> to these while the code is in use (for a casual game the host turns Settings lock off in The Button):</span></label>
-    <div class="settings-grid" id="lock-fields">
+    <label class="check tour-only"><input type="checkbox" id="lead"><span><b>Lead lobby</b><span class="hint">This host's mod answers <code>!lobbies</code>, <code>!move</code>, <code>!start</code>… in the results channel. One host only (you).</span></span></label>
+    <label class="check host-only"><input type="checkbox" id="verify" checked><span><b>Hold each game until the host presses Verify</b><span class="hint">Nothing goes to Discord until it's checked in The Button's Referee tab (points can be changed or the game voided first). Off: results post as soon as a game ends.</span></span></label>
+    <label class="check host-only"><input type="checkbox" id="rot"><span><b>Impostor rotation</b><span class="hint">Last game's impostors are rarely impostor again straight away; everyone else shares the rest.</span>
+      <span class="inline" id="rr-row">Chance each repeats <input type="number" id="rr" value="2" min="0" max="100" step="any"> %</span></span></label>
+    <label class="check host-only"><input type="checkbox" id="lock" checked><span><b>Lock the lobby to these settings</b><span class="hint">Anything changed is put back; the host turns Settings lock off in The Button for a casual game.</span></span></label>
+    <div class="lockgrid host-only" id="lock-fields">
       <label>Impostors<input type="number" id="s-imp" value="2" min="1" max="3"></label>
       <label>Kill cooldown (s)<input type="number" id="s-kc" value="25" step="any"></label>
       <label>Kill distance<select id="s-kd"><option value="0" selected>Short</option><option value="1">Medium</option><option value="2">Long</option></select></label>
+      <label>Player speed<input type="number" id="s-ps" value="1.25" step="any"></label>
       <label>Emergency meetings<input type="number" id="s-em" value="1" min="0"></label>
       <label>Emergency cooldown (s)<input type="number" id="s-ec" value="20" min="0"></label>
       <label>Discussion (s)<input type="number" id="s-dt" value="15" min="0"></label>
       <label>Voting (s)<input type="number" id="s-vt" value="150" min="0"></label>
-      <label>Player speed<input type="number" id="s-ps" value="1.25" step="any"></label>
       <label>Crewmate vision<input type="number" id="s-cv" value="0.25" step="any"></label>
       <label>Impostor vision<input type="number" id="s-iv" value="1" step="any"></label>
       <label>Common tasks<input type="number" id="s-ct" value="2" min="0"></label>
@@ -153,52 +155,48 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <label class="tick"><input type="checkbox" id="s-ce"> Confirm ejects</label>
       <label class="tick"><input type="checkbox" id="s-av" checked> Anonymous votes</label>
       <label class="tick"><input type="checkbox" id="s-vis"> Visual tasks</label>
-      <label class="tick"><input type="checkbox" id="s-ro" checked> All special roles off</label>
+      <label class="tick"><input type="checkbox" id="s-ro" checked> Special roles off</label>
     </div>
-  </fieldset>
+    <div class="btns host-only"><button type="button" id="open-scores">Point values…</button><span class="pill" id="changed-count">the point sheet</span></div>
+  </section>
 
-  <details id="scoring" class="host-only">
-    <summary>Point values <span class="hint" id="changed-count"></span></summary>
-    <div class="inner"><div class="scores" id="scores"></div>
-      <div><button type="button" id="reset-scores">Back to the point sheet</button></div>
-      <label class="lab-paste">Paste values copied from the Points Lab
-        <textarea id="lab-values" rows="2" placeholder='{"kill":1,"readVoteBonus":4,…}'></textarea></label>
-      <div id="lab-status" class="hint"></div></div>
-  </details>
-
-  <details>
-    <summary>Edit an existing code</summary>
-    <div class="inner">
-      <div class="field"><label for="load">Paste a code</label><textarea id="load" class="mono" rows="3" placeholder="TT1-…"></textarea><span class="bad" id="load-bad" hidden></span></div>
-      <div><button type="button" id="load-btn">Load into the form</button></div>
-    </div>
-  </details>
-</form>
-
-<aside>
-  <div class="out">
-    <h2>The code</h2>
-    <div class="status no" id="status">Add the webhook to finish the code.</div>
-    <textarea id="code" class="mono" readonly aria-label="Setup code"></textarea>
-    <div class="btns"><button type="button" class="primary" id="copy" disabled>Copy code</button></div>
-    <div class="toast" id="toast" role="status"></div>
-    <div class="warn" id="secret" hidden>This code contains your bot token. Send it <span id="secret-who">to that host</span> privately. If it leaks, reset the token in the Discord Developer Portal and make new codes.</div>
-  </div>
-  <div class="out">
-    <h2 id="howto-title">What the host does</h2>
+  <!-- 3: the result -->
+  <section class="card col3">
+    <h2><span class="n">3</span>The code</h2>
+    <div class="ready" id="ready" hidden></div>
+    <ul class="todo" id="todo"></ul>
+    <textarea id="code" class="mono" readonly aria-label="Setup code" placeholder="The code appears here once everything above is filled in."></textarea>
+    <div class="btns"><button type="button" class="primary" id="copy" disabled>Copy code</button><span class="toast" id="toast" role="status"></span></div>
+    <div class="warn" id="secret" hidden>This code holds your bot token. Send it <span id="secret-who">to that host</span> privately (a DM, never a channel). If it leaks, reset the token in the Developer Portal and make new codes.</div>
+    <h3 id="howto-title">What the host does</h3>
     <ol class="howto host-only">
       <li>Download <code>Install-TheButton.bat</code> from the latest release and run it.</li>
-      <li>In The Button: Settings → <b>Setup code</b>, paste this code and press <b>Use this code</b>.</li>
+      <li>The Button → Settings → <b>Setup code</b>: paste the code, press <b>Use this code</b>.</li>
+      <li>With a bot: link to Discord with <code>/link</code> or the colour menu on the lobby message.</li>
     </ol>
     <ol class="howto admin-only">
-      <li>Download <code>Install-TheButton.bat</code> from the latest release and run it (Among Us isn't needed).</li>
-      <li>In The Button: Settings → <b>Setup code</b>, paste this code and press <b>Use this code</b>. It unlocks the administration instead of setting up a lobby.</li>
-      <li>The <b>Organiser</b> tab appears. The caster overlay is at <code>http://localhost:8767/</code>.</li>
+      <li>The Button → Settings → <b>Setup code</b>: paste it (Among Us isn't needed). The <b>Organiser</b> tab and <b>Make setup codes</b> appear.</li>
+      <li>Casters paste the same code into <b>Red Alert</b> to unlock the Live desk.</li>
     </ol>
-  </div>
-</aside>
+  </section>
+</form>
 </div>
-</div>
+
+<dialog id="scores-dlg" aria-labelledby="scores-title">
+  <h2 id="scores-title">Point values</h2>
+  <p class="hint">Every host scores the same way from these. Changed values are green.</p>
+  <div class="scores" id="scores"></div>
+  <div class="f"><label for="lab-values">Paste values copied from the Points Lab <i>(optional)</i></label><textarea id="lab-values" rows="2" class="mono" placeholder='{"kill":1,"readVoteBonus":4,…}'></textarea><span class="hint" id="lab-status"></span></div>
+  <div class="btns" style="margin-top:10px"><button type="button" id="reset-scores">Back to the point sheet</button><span style="flex:1"></span><button type="button" class="primary" id="close-scores">Done</button></div>
+</dialog>
+
+<dialog id="load-dlg" aria-labelledby="load-title">
+  <h2 id="load-title">Load an old code</h2>
+  <p class="hint">Paste any setup code to fill the form with it, change what you need and copy the new code.</p>
+  <textarea id="load" class="mono" rows="4" placeholder="TT1-…" aria-label="Setup code to load"></textarea>
+  <span class="bad" id="load-bad" hidden></span>
+  <div class="btns" style="margin-top:10px"><button type="button" id="close-load">Cancel</button><span style="flex:1"></span><button type="button" class="primary" id="load-btn">Load into the form</button></div>
+</dialog>
 
 <script>
 // ---- codec: must match SetupCode.cs (TT1- + base64url of the JSON, no padding) ----
@@ -233,7 +231,7 @@ const RULES = [
 const $ = id => document.getElementById(id);
 const scoresEl = $('scores');
 for (const [group, rules] of RULES) {
-  const h = document.createElement('h3'); h.textContent = group; scoresEl.appendChild(h);
+  const h = document.createElement('h4'); h.textContent = group; scoresEl.appendChild(h);
   for (const [key, label, def] of rules) {
     const row = document.createElement('label'); row.className = 'score'; row.htmlFor = 'sc-' + key;
     row.innerHTML = `<span></span><input type="number" step="any" id="sc-${key}" value="${def}" data-default="${def}">`;
@@ -246,7 +244,11 @@ const slug = s => s.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replac
 const kind = () => document.querySelector('input[name=kind]:checked').value;
 const ids = s => s.split(/[\s,;]+/).map(x => x.trim()).filter(Boolean);
 const snowflake = s => /^\d{15,21}$/.test(s);
+const webhookOk = s => /^https:\/\/(ptb\.|canary\.)?discord(app)?\.com\/api\/webhooks\/\d+\/[\w-]+/.test(s);
+const tokenOk = s => s.split('.').length >= 3;
 function show(id, msg) { const el = $(id); el.textContent = msg || ''; el.hidden = !msg; }
+const SERVER_BAD = 'Server IDs are long numbers (right-click the server → Copy Server ID).';
+const CHANNEL_BAD = 'Channel IDs are long numbers (right-click the channel → Copy Channel ID).';
 
 function autoId() {
   if (idEdited) return;
@@ -255,137 +257,170 @@ function autoId() {
   $('tid').value = slug(parts.join(' '));
 }
 
+const HINTS = {
+  prelim: {
+    webhook: 'Your preliminary channel: Channel settings → Integrations → Webhooks → Copy URL.',
+    bot: 'Leave empty and players use AutoMuteUs if they want. With a bot, this host\'s game mutes Discord itself and players link with /link or their colour.',
+    status: 'Where the lobby\'s live message goes, with its "pick your colour" menu. Needs the bot.',
+  },
+  tournament: {
+    webhook: 'Your results channel for players: Channel settings → Integrations → Webhooks → Copy URL.',
+    bot: 'Without a bot games are still tracked and reported. The bot adds automute, /link, /new and the colour menu, combined standings across lobbies and the referee commands. Give each lobby its own bots.',
+    status: 'Its own channel for the live lobby message. Empty: it goes in the results channel (or a channel the host picks with /new).',
+  },
+  admin: {
+    bot: 'The Button and Red Alert read every lobby\'s data and the results from the private results channel with this bot, and post referee commands there. One of your hosts\' bots is fine.',
+  },
+};
+
 function build() {
   const k = kind();
   document.querySelectorAll('.prelim-only').forEach(e => e.hidden = k !== 'prelim');
-  document.querySelector('.tournament-only').hidden = k === 'prelim';
+  document.querySelectorAll('.tour-only').forEach(e => e.hidden = k !== 'tournament');
+  document.querySelectorAll('.tour-admin').forEach(e => e.hidden = k === 'prelim');
   document.querySelectorAll('.host-only').forEach(e => e.hidden = k === 'admin');
   document.querySelectorAll('.admin-only').forEach(e => e.hidden = k !== 'admin');
   $('howto-title').textContent = k === 'admin' ? 'What they do' : 'What the host does';
-  $('secret-who').textContent = k === 'admin' ? 'only to your referees and casters' : 'to that host';
-  document.querySelector('.tournament-only legend').textContent = k === 'admin' ? 'The administration bot' : 'Your bot (optional)';
+  $('secret-who').textContent = k === 'admin' ? 'only to you, your referees and casters' : 'to that host';
+  $('bot-title').innerHTML = k === 'admin' ? 'The administration bot' : 'Discord bot <i class="hint">(optional)</i>';
+  $('bot-hint').textContent = HINTS[k].bot;
+  if (k !== 'admin') { $('webhook-hint').textContent = HINTS[k].webhook; $('status-hint').textContent = HINTS[k].status; }
+  $('rr-row').hidden = !$('rot').checked;
+  $('lock-fields').classList.toggle('off', !$('lock').checked);
   autoId();
-  const problems = [];
-  const name = $('name').value.trim(), wh = $('webhook').value.trim();
-  if (!name) problems.push('Give the tournament a name.');
-  const whOk = /^https:\/\/(ptb\.|canary\.)?discord(app)?\.com\/api\/webhooks\/\d+\/[\w-]+/.test(wh);
-  show('webhook-bad', wh && !whOk ? "That isn't a Discord webhook URL. It starts with https://discord.com/api/webhooks/." : '');
-  if (!whOk && k !== 'admin') problems.push('Add the webhook to finish the code.');
 
-  const code = k === 'admin' ? { m: k, id: $('tid').value.trim() || slug(name), n: name } : { m: k, id: $('tid').value.trim() || slug(name), n: name, wh };
+  // Each thing still needed, in the order of the form; done ones are ticked off.
+  const todo = [];
+  const need = (done, text) => todo.push({ done, text });
+  const name = $('name').value.trim();
+  need(!!name, 'Tournament name');
+  const code = { m: k, id: $('tid').value.trim() || slug(name), n: name };
+
+  const wh = $('webhook').value.trim();
+  if (k !== 'admin') {
+    show('webhook-bad', wh && !webhookOk(wh) ? "That isn't a Discord webhook URL. It starts with https://discord.com/api/webhooks/." : '');
+    need(webhookOk(wh), 'Report channel webhook');
+    code.wh = wh;
+  }
+  if (k === 'prelim' && $('server').value.trim()) code.srv = $('server').value.trim();
+
+  const guild = $('guild').value.trim(), results = $('results').value.trim();
+  const tokens = (k === 'admin' ? [$('token').value.trim()] : [$('token').value.trim(), $('token2').value.trim(), $('token3').value.trim()]).filter(Boolean);
+  show('guild-bad', guild && !snowflake(guild) ? SERVER_BAD : '');
+  show('results-bad', results && !snowflake(results) ? CHANNEL_BAD : '');
+  const status = $('p-status').value.trim();
+  show('p-status-bad', status && !webhookOk(status) ? "That isn't a Discord webhook URL." : '');
+  const prelims = ids($('prelims').value), refs = ids($('refs').value);
+  show('prelims-bad', k === 'tournament' && prelims.some(p => !snowflake(p)) ? 'Each channel ID is a long number.' : '');
+
   if (k === 'admin') {
-    const guild = $('guild').value.trim(), results = $('results').value.trim(), token = $('token').value.trim();
-    show('guild-bad', guild && !snowflake(guild) ? 'Server IDs are long numbers (right-click the server → Copy Server ID).' : '');
-    show('results-bad', results && !snowflake(results) ? 'Channel IDs are long numbers (right-click the channel → Copy Channel ID).' : '');
-    if (token.split('.').length < 3) problems.push("Add the bot token: The Button reads the results channel with it.");
-    if (!snowflake(results)) problems.push('Add the private results channel ID.');
+    need(tokens.length === 1 && tokenOk(tokens[0]), 'Administration bot token');
+    need(snowflake(results), 'Private results channel ID');
     if (snowflake(guild)) code.g = guild;
-    code.bt = [token]; code.rc = results;
-    code.adv = Math.max(1, Math.min(10, parseInt($('advance').value, 10) || 5));
-    code.gpr = Math.max(1, Math.min(10, parseInt($('gpr').value, 10) || 3));
-  } else if (k === 'prelim') {
-    if ($('server').value.trim()) code.srv = $('server').value.trim();
-    const pg = $('p-guild').value.trim(), pt = $('p-token').value.trim(), ps = $('p-status').value.trim();
-    const psOk = /^https:\/\/(ptb\.|canary\.)?discord(app)?\.com\/api\/webhooks\/\d+\/[\w-]+/.test(ps);
-    show('p-guild-bad', pg && !snowflake(pg) ? 'Server IDs are long numbers (right-click the server → Copy Server ID).' : '');
-    show('p-status-bad', ps && !psOk ? "That isn't a Discord webhook URL." : '');
-    const pts = [pt, $('p-token2').value.trim(), $('p-token3').value.trim()].filter(Boolean);
-    if (pg || pts.length) {
-      if (!snowflake(pg)) problems.push('Automute: add the server ID (or clear the bot tokens).');
-      if (!pts.length || pts.some(t => t.split('.').length < 3)) problems.push('Automute: a bot token looks wrong (or clear the server ID).');
-      code.g = pg; code.bt = pts;
-      if (psOk) code.sw = ps;
-    }
+    code.bt = tokens; code.rc = results;
   } else {
-    const guild = $('guild').value.trim(), results = $('results').value.trim(), token = $('token').value.trim(), prelims = ids($('prelims').value);
-    show('guild-bad', guild && !snowflake(guild) ? 'Server IDs are long numbers (right-click the server → Copy Server ID).' : '');
-    show('results-bad', results && !snowflake(results) ? 'Channel IDs are long numbers (right-click the channel → Copy Channel ID).' : '');
-    show('prelims-bad', prelims.some(p => !snowflake(p)) ? 'Each channel ID is a long number.' : '');
-    const tokens = [token, $('token2').value.trim(), $('token3').value.trim()].filter(Boolean);
-    if (tokens.length) {
-      if (!snowflake(guild)) problems.push('Add your server ID (the bot needs it).');
-      if (tokens.some(t => t.split('.').length < 3)) problems.push("A bot token looks wrong: copy it again from the Developer Portal.");
+    const wantsBot = tokens.length > 0 || guild !== '' || (k === 'tournament' && results !== '');
+    if (wantsBot) {
+      need(snowflake(guild), 'Server ID (for the bot)');
+      need(tokens.length > 0 && tokens.every(tokenOk), tokens.length ? 'Bot token (one looks wrong: copy it again)' : 'Bot token (or clear the server ID)');
+      if (k === 'tournament' && results) need(snowflake(results), 'Private results channel ID (a long number)');
       code.g = guild; code.bt = tokens;
-      if (results) { if (!snowflake(results)) problems.push('The private results channel ID should be a long number.'); else code.rc = results; }
-    } else if (guild || results) {
-      if (snowflake(guild)) code.g = guild;
-      if (results) problems.push('The private results channel needs a bot: add a bot token, or clear the channel ID.');
+      if (k === 'tournament' && snowflake(results)) code.rc = results;
+      if (refs.length) code.ref = refs;
     }
-    if (prelims.length) code.pc = prelims;
+    if (webhookOk(status) && (k === 'tournament' || wantsBot)) code.sw = status;
+    if (k === 'tournament' && prelims.length) code.pc = prelims;
+  }
+  if (k !== 'prelim') {
     code.adv = Math.max(1, Math.min(10, parseInt($('advance').value, 10) || 5));
-    const refs = ids($('refs').value); if (refs.length) code.ref = refs;
     code.gpr = Math.max(1, Math.min(10, parseInt($('gpr').value, 10) || 3));
-    if ($('lead').checked) code.lead = true;
   }
-  if ($('rot').checked && k !== 'admin') code.rot = true;
-  $('lock-fields').hidden = !$('lock').checked;
-  if ($('lock').checked && k !== 'admin') {
-    const set = {};
-    for (const k of ['imp', 'em', 'ec', 'dt', 'vt', 'ct', 'lt', 'st', 'kd']) { const v = parseInt($('s-' + k).value, 10); if (!isNaN(v)) set[k] = v; }
-    for (const k of ['kc', 'ps', 'cv', 'iv']) { const v = parseFloat($('s-' + k).value); if (!isNaN(v)) set[k] = v; }
-    for (const k of ['ce', 'av', 'vis', 'ro']) set[k] = $('s-' + k).checked;
-    code.set = set;
-  }
-  const sc = {}; let changed = 0;
-  scoresEl.querySelectorAll('input').forEach(inp => {
-    const v = parseFloat(inp.value); const def = parseFloat(inp.dataset.default);
-    sc[inp.id.slice(3)] = isNaN(v) ? def : v;
-    const diff = !isNaN(v) && v !== def; inp.parentElement.classList.toggle('changed', diff); if (diff) changed++;
-  });
-  if (k !== 'admin') code.sc = sc;
-  $('changed-count').textContent = changed ? `(${changed} changed from the point sheet)` : '(the point sheet)';
+  if (k === 'tournament' && $('lead').checked) code.lead = true;
 
-  const ready = problems.length === 0;
+  if (k !== 'admin') {
+    if (!$('verify').checked) code.vr = false;
+    if ($('rot').checked) {
+      code.rot = true;
+      const rr = parseFloat($('rr').value);
+      if (!isNaN(rr) && rr !== 2) code.rr = Math.max(0, Math.min(100, rr)) / 100;
+    }
+    if ($('lock').checked) {
+      const set = {};
+      for (const s of ['imp', 'em', 'ec', 'dt', 'vt', 'ct', 'lt', 'st', 'kd']) { const v = parseInt($('s-' + s).value, 10); if (!isNaN(v)) set[s] = v; }
+      for (const s of ['kc', 'ps', 'cv', 'iv']) { const v = parseFloat($('s-' + s).value); if (!isNaN(v)) set[s] = v; }
+      for (const s of ['ce', 'av', 'vis', 'ro']) set[s] = $('s-' + s).checked;
+      code.set = set;
+    }
+    const sc = {}; let changed = 0;
+    scoresEl.querySelectorAll('input').forEach(inp => {
+      const v = parseFloat(inp.value), def = parseFloat(inp.dataset.default);
+      sc[inp.id.slice(3)] = isNaN(v) ? def : v;
+      const diff = !isNaN(v) && v !== def; inp.parentElement.classList.toggle('changed', diff); if (diff) changed++;
+    });
+    code.sc = sc;
+    $('changed-count').textContent = changed ? `${changed} changed from the point sheet` : 'the point sheet';
+  }
+
+  const missing = todo.filter(t => !t.done);
+  const ready = missing.length === 0;
+  $('todo').innerHTML = todo.map(t => `<li class="${t.done ? 'done' : ''}">${t.text}</li>`).join('');
+  $('todo').hidden = ready;
   $('code').value = ready ? encodeCode(code) : '';
   $('copy').disabled = !ready;
-  $('secret').hidden = !(ready && code.bt);
-  const st = $('status');
-  st.className = 'status ' + (ready ? 'ok' : 'no');
-  st.textContent = ready
-    ? (k === 'admin' ? `Ready: ${name}, administration code. Give it privately to you, your referees and casters: it holds the bot token.` : k === 'prelim' ? `Ready: ${name}, preliminary in ${code.srv || 'an unnamed server'}${code.bt ? ', with automute' : ''}.`
-       : `Ready: ${name}, tournament host${code.bt ? ` with ${code.bt.length} bot${code.bt.length > 1 ? 's' : ''}` : ', no bot (no automute or combined standings)'}.`)
-    : problems[0];
+  $('secret').hidden = !(ready && code.bt && code.bt.length);
+  $('ready').hidden = !ready;
+  const bots = code.bt ? code.bt.length : 0;
+  $('ready').textContent = !ready ? '' : k === 'admin' ? `Ready: ${name}, administration code.`
+    : k === 'prelim' ? `Ready: ${name}, preliminary in ${code.srv || 'an unnamed server'}${bots ? ', with automute' : ''}.`
+    : `Ready: ${name}, tournament host${bots ? ` with ${bots} bot${bots > 1 ? 's' : ''}` : ', no bot'}${code.lead ? ', lead lobby' : ''}.`;
   $('toast').textContent = '';
 }
 
 $('form').addEventListener('input', e => { if (e.target.id === 'tid') idEdited = $('tid').value.trim() !== ''; build(); });
 $('form').addEventListener('change', build);
+document.querySelectorAll('input[name=kind]').forEach(r => r.addEventListener('change', build));
 $('form').addEventListener('submit', e => e.preventDefault());
+scoresEl.addEventListener('input', build);
+
+$('open-scores').addEventListener('click', () => $('scores-dlg').showModal());
+$('close-scores').addEventListener('click', () => $('scores-dlg').close());
 $('reset-scores').addEventListener('click', () => { scoresEl.querySelectorAll('input').forEach(i => i.value = i.dataset.default); build(); });
 $('lab-values').addEventListener('input', e => {
-  const text = e.target.value.trim(); const status = $('lab-status');
-  if (!text) { status.textContent = ''; return; }
+  const text = e.target.value.trim(); const st = $('lab-status');
+  if (!text) { st.textContent = ''; return; }
   let values;
-  try { values = JSON.parse(text); } catch { status.textContent = 'That isn\'t the text the lab copies.'; return; }
+  try { values = JSON.parse(text); } catch { st.textContent = 'That isn\'t the text the lab copies.'; return; }
   let n = 0;
-  for (const [key, v] of Object.entries(values)) {
-    const inp = $('sc-' + key);
-    if (inp && typeof v === 'number') { inp.value = v; n++; }
-  }
-  status.textContent = n ? `Filled in ${n} point values.` : 'No point values found in that text.';
+  for (const [key, v] of Object.entries(values)) { const inp = $('sc-' + key); if (inp && typeof v === 'number') { inp.value = v; n++; } }
+  st.textContent = n ? `Filled in ${n} point values.` : 'No point values found in that text.';
   build();
 });
+
 $('copy').addEventListener('click', async () => {
   const text = $('code').value;
   try { await navigator.clipboard.writeText(text); $('toast').textContent = 'Copied.'; }
   catch { $('code').select(); $('toast').textContent = 'Selected: press Ctrl+C (or ⌘C) to copy.'; }
 });
+
+$('open-load').addEventListener('click', () => { show('load-bad', ''); $('load-dlg').showModal(); $('load').focus(); });
+$('close-load').addEventListener('click', () => $('load-dlg').close());
 $('load-btn').addEventListener('click', () => {
   try {
     const c = decodeCode($('load').value);
     $(c.m === 'tournament' ? 'kind-tournament' : c.m === 'admin' ? 'kind-admin' : 'kind-prelim').checked = true;
     $('name').value = c.n || ''; $('server').value = c.srv || ''; $('tid').value = c.id || ''; idEdited = !!c.id;
     $('webhook').value = c.wh || ''; $('guild').value = c.g || ''; $('results').value = c.rc || '';
-    const bt = c.bt || [], tour = c.m === 'tournament' || c.m === 'admin';
-    $('token').value = tour ? bt[0] || '' : ''; $('token2').value = tour ? bt[1] || '' : ''; $('token3').value = tour ? bt[2] || '' : '';
-    $('prelims').value = (c.pc || []).join(', ');
-    $('p-guild').value = tour ? '' : c.g || ''; $('p-token').value = tour ? '' : bt[0] || ''; $('p-token2').value = tour ? '' : bt[1] || ''; $('p-token3').value = tour ? '' : bt[2] || '';
+    const bt = c.bt || [];
+    $('token').value = bt[0] || ''; $('token2').value = bt[1] || ''; $('token3').value = bt[2] || '';
     $('p-status').value = c.sw || '';
-    $('advance').value = c.adv || 5; $('refs').value = (c.ref || []).join(', ');
-    $('gpr').value = c.gpr || 3; $('lead').checked = !!c.lead; $('rot').checked = !!c.rot; $('lock').checked = !!c.set;
-    if (c.set) for (const [k, v] of Object.entries(c.set)) { const el = $('s-' + k); if (!el) continue; if (el.type === 'checkbox') el.checked = !!v; else el.value = v; }
-    scoresEl.querySelectorAll('input').forEach(i => { const k = i.id.slice(3); i.value = c.sc && k in c.sc ? c.sc[k] : i.dataset.default; });
-    show('load-bad', ''); build();
+    $('prelims').value = (c.pc || []).join(', '); $('refs').value = (c.ref || []).join(', ');
+    $('advance').value = c.adv || 5; $('gpr').value = c.gpr || 3; $('lead').checked = !!c.lead;
+    $('verify').checked = c.vr !== false;
+    $('rot').checked = !!c.rot; $('rr').value = typeof c.rr === 'number' ? Math.round(c.rr * 10000) / 100 : 2;
+    $('lock').checked = !!c.set;
+    if (c.set) for (const [key, v] of Object.entries(c.set)) { const el = $('s-' + key); if (!el) continue; if (el.type === 'checkbox') el.checked = !!v; else el.value = v; }
+    scoresEl.querySelectorAll('input').forEach(i => { const key = i.id.slice(3); i.value = c.sc && key in c.sc ? c.sc[key] : i.dataset.default; });
+    show('load-bad', ''); $('load-dlg').close(); build();
   } catch (err) { show('load-bad', err instanceof SyntaxError || /atob|decode|base64/i.test(err.message) ? 'That setup code is damaged. Copy the whole code again.' : err.message); }
 });
 build();
