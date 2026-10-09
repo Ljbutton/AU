@@ -65,6 +65,47 @@ namespace TournamentTracker.Discord
             return new WebhookMessage { Username = BotName, Embeds = new List<Embed> { summary, points, timeline } };
         }
 
+        /// <summary>
+        /// The public channel's copy of a game: who won and how, each player's role, result and total, and the
+        /// timeline. Nothing else: no points breakdown, MVP, vote counts, settings warnings or lobby code.
+        /// </summary>
+        public static WebhookMessage PublicReport(GameRecord game)
+        {
+            var full = GameReport(game);
+            var results = new Embed
+            {
+                Title = full.Embeds![0].Title,
+                Color = full.Embeds[0].Color,
+                Description = Clip((game.Voided ? $"**Void{(game.VoidReason.Length > 0 ? ": " + game.VoidReason : "")}.** Not counted.\n" : "") + PublicTable(game), Embed.DescriptionLimit),
+                Fields = new List<EmbedField>
+                {
+                    Field("Result", Outcome.Describe(game.EndReason), true),
+                    Field("Map", game.Map, true),
+                    Field("Length", Clock(game.DurationSeconds), true),
+                },
+                Timestamp = full.Embeds[0].Timestamp,
+            };
+            var timeline = new Embed { Title = "Timeline", Color = NeutralColor, Description = TimelineBlock(game.Timeline, 3500) };
+            return new WebhookMessage { Username = BotName, Embeds = new List<Embed> { results, timeline } };
+        }
+
+        public static string PublicTable(GameRecord game)
+        {
+            var sb = new StringBuilder("```\n");
+            sb.AppendLine("Player           Role          Pts Result");
+            foreach (var p in game.Players.OrderByDescending(p => p.IsImpostor).ThenByDescending(p => p.Points).ThenBy(p => p.ColorId))
+            {
+                string result = (game.Winner == null ? "" : p.Won ? "Won" : "Lost")
+                    + (p.DeathCause == null ? "" : (game.Winner == null ? "" : ", ") + p.DeathCause.ToLowerInvariant());
+                sb.Append(Pad(Colors.Name(p.ColorId) + " " + p.Name, 16)).Append(' ')
+                  .Append(Pad(p.Role, 11)).Append(' ')
+                  .Append((game.Counted ? Signed(p.Points) : "-").PadLeft(5)).Append(' ')
+                  .Append(result).AppendLine();
+            }
+            sb.Append("```");
+            return sb.ToString();
+        }
+
         /// <summary>One line per player: their total, then each rule that scored.</summary>
         public static string PointsBlock(GameRecord game)
         {

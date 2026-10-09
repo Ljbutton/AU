@@ -1118,7 +1118,7 @@ function renderHostDiscord() {
     now.querySelector('[data-hdclear]')?.addEventListener('click', () => { el._cleared = true; el.value = ''; renderHostDiscord(); });
   }
   $('hd-hint').textContent = h.prelim
-    ? 'Preliminary: reports and your lobby\'s standings go to your public channel; the organiser gets their own private copy with the data.'
+    ? 'Preliminary: your public channel gets each game\'s results and timeline only. Points breakdowns, standings, the count and the data go to the organiser\'s private channel.'
     : h.codeBots && !h.bots.length ? `Your setup code has ${h.codeBots} bot${h.codeBots > 1 ? 's' : ''} in it; bots saved here are used instead.` : '';
 }
 $('hd-guild').addEventListener('input', () => { $('hd-guild')._typed = true; });

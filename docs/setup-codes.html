@@ -186,7 +186,7 @@ dialog h2{font:600 16px var(--body);margin:0 0 4px}
     <ol class="howto host-only">
       <li>Download <code>Install-TheButton.bat</code> from the latest release and run it.</li>
       <li>The Button → Settings → <b>Setup code</b>: paste the code, press <b>Use this code</b>.</li>
-      <li>Settings → <b>Your Discord</b>: their own bots (up to 3), server ID and public report channel, checked and saved there. No new code needed to change them.</li>
+      <li>Settings → <b>Your Discord</b>: their own bots (up to 3), server ID and public results channel (results and timeline only), checked and saved there. No new code needed to change them.</li>
       <li>With a bot: link to Discord with <code>/link</code> or the colour menu on the lobby message.</li>
     </ol>
     <ol class="howto admin-only">
@@ -325,7 +325,7 @@ function autoId() {
 const HINTS = {
   prelim: {
     webhook: 'Your private reports channel: every preliminary\'s reports and each lobby\'s impostor/crew points count go here. Use the same one in every preliminary code. Channel settings → Integrations → Webhooks → Copy URL.',
-    bot: 'Usually leave this empty: hosts add their own bots, server and public report channel in The Button (Settings → Your Discord). Without any bot players can use AutoMuteUs.',
+    bot: 'Usually leave this empty: hosts add their own bots, server and public results channel in The Button (Settings → Your Discord). Without any bot players can use AutoMuteUs.',
     status: 'Where the lobby\'s live message goes, with its "pick your colour" menu. Needs the bot.',
   },
   tournament: {

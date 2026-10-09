@@ -310,8 +310,10 @@ namespace TournamentTracker
                         var result = await _rest.ExecuteWebhookWithFileAsync(url, report, SharedResults.FileNameFor(game), SharedResults.FileFor(game)).ConfigureAwait(false);
                         if (!result.Ok) _log.Error("Discord webhook post failed: " + result);
                     });
+                // The standings stay private too; the lobby's count goes last so it sits at the bottom.
+                if (game.Counted) Post(url, LeaderboardMessage());
                 UpdatePrelimCount();
-                PostPublic(report, game.Counted);
+                PostPublic(ReportFormatter.PublicReport(game));
             }
             else
             {

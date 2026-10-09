@@ -620,10 +620,10 @@ public class TournamentModeTests : IDisposable
         var game = Play(s, Lobby());
         await s.PendingPosts;
 
-        Assert.Equal(2, _discord.Webhooks.Count);   // the report, then this lobby's count below it
+        Assert.Equal(3, _discord.Webhooks.Count);   // the report, the standings, then this lobby's count below them
         var report = _discord.Webhooks[0];
         Assert.Contains("Game LJ-1", FakeDiscord.Title(report.Payload));
-        Assert.Equal("October prelims — Count: Sus Squad", FakeDiscord.Title(_discord.Webhooks[1].Payload).Split(" · ")[0]);
+        Assert.Equal("October prelims — Count: Sus Squad", FakeDiscord.Title(_discord.Webhooks[2].Payload).Split(" · ")[0]);
         Assert.Equal(3, report.Payload.GetProperty("embeds").GetArrayLength());
         Assert.Equal(SharedResults.FileNameFor(game), report.Payload.GetProperty("attachments")[0].GetProperty("filename").GetString());
         var sent = JsonSerializer.Deserialize<GameRecord>(report.File!)!;
@@ -645,16 +645,29 @@ public class TournamentModeTests : IDisposable
         Play(s, Lobby(), "ImpostorByKill");
         await s.PendingPosts;
 
-        // Private: report, count; report, (old count deleted) count. Public: report and standings, twice.
+        // Private: report, standings, count; report, standings, (old count deleted) count.
         var mine = _discord.Webhooks.Where(w => w.Url.StartsWith(Webhook)).ToList();
-        Assert.Equal(4, mine.Count);
-        Assert.Contains("Count", FakeDiscord.Title(mine[3].Payload));
-        Assert.Contains("2 games", FakeDiscord.Description(mine[3].Payload).Replace("Games: 2", "2 games"));
+        Assert.Equal(6, mine.Count);
+        Assert.Contains("Count", FakeDiscord.Title(mine[5].Payload));
+        Assert.Contains("2 games", FakeDiscord.Description(mine[5].Payload).Replace("Games: 2", "2 games"));
         Assert.Contains(_discord.WebhookDeletes, u => u.StartsWith(Webhook) && u.EndsWith("/messages/42"));
+        // Public: only each game's results and timeline. No data file, standings, count, points breakdown, MVP or lobby code.
         var pub = _discord.Webhooks.Where(w => w.Url.StartsWith(Public)).ToList();
-        Assert.Equal(4, pub.Count);
-        Assert.All(pub, w => Assert.Null(w.File));                               // no data file in public
-        Assert.DoesNotContain(pub, w => FakeDiscord.Title(w.Payload).Contains("Count"));
+        Assert.Equal(2, pub.Count);
+        Assert.All(pub, w => Assert.Null(w.File));
+        foreach (var w in pub)
+        {
+            var embeds = w.Payload.GetProperty("embeds");
+            Assert.Equal(2, embeds.GetArrayLength());
+            Assert.Contains("Game LJ-", embeds[0].GetProperty("title").GetString());
+            Assert.Equal("Timeline", embeds[1].GetProperty("title").GetString());
+            string all = w.Payload.GetRawText();
+            Assert.DoesNotContain("MVP", all);
+            Assert.DoesNotContain("Count", all);
+            Assert.DoesNotContain("Lobby ", all);
+            Assert.DoesNotContain("\"Points\"", all);
+            Assert.False(embeds[0].TryGetProperty("footer", out _));
+        }
     }
 
     [Fact]

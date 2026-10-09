@@ -119,7 +119,7 @@ _Preliminary code with your private reports webhook; host has a public channel s
 - [ ] After a game: your private channel gets the report with its data file, then the lobby's Count
 - [ ] Next game: the old Count is gone and the new one is at the bottom — numbers include both games.
 - [ ] Count shows impostor % and crew % of points, per-player averages, wins and games
-- [ ] Public channel gets the report and the lobby's standings — no data file, no Count.
+- [ ] Public channel gets the report and the lobby's standings — no data file, no Count. _(changed in 0.1.51: results and timeline only)_
 - [ ] Void a sent game: both channels are told; the Count updates.
 - [ ] Scheduled job (Actions → Preliminary leaderboards → Run): an "all preliminary games" Count next to the leaderboard — one line per lobby.
 
@@ -173,3 +173,9 @@ _A new code from the code maker (old codes keep their old values; new rules use 
 - [ ] Empty box + → one point, as before
 - [ ] 1.234 (4 significant figures) or 0 is refused with a message, and nothing changes
 - [ ] Home → Results channel (administration code): − / + buttons post !adjust with the sign
+
+## New in 0.1.51 — public channel
+- [ ] Public channel: each game is one post with two parts, the results (who won and how, map, length, each player's role, result and total) and the timeline
+- [ ] Public channel never gets: points breakdown, MVP, meetings/vote counts, wrong-settings warning, lobby code, standings, the Count or the data file
+- [ ] Private channel after each game: report with data file, then the lobby's standings, then the Count at the bottom
+- [ ] A void after Submit: public gets the game's results again marked VOID; private gets the note, standings and Count
