@@ -179,3 +179,11 @@ _A new code from the code maker (old codes keep their old values; new rules use 
 - [ ] Public channel never gets: points breakdown, MVP, meetings/vote counts, wrong-settings warning, lobby code, standings, the Count or the data file
 - [ ] Private channel after each game: report with data file, then the lobby's standings, then the Count at the bottom
 - [ ] A void after Submit: public gets the game's results again marked VOID; private gets the note, standings and Count
+
+## New in 0.1.52 — cleanup (nothing should look or work differently)
+_Unused code was removed. If anything below misbehaves, it's likely from the cleanup._
+- [ ] The Button: every page looks as before (Home, Referee, Settings, the administration Organiser card)
+- [ ] The Button ↔ mod: Home shows the lobby; Next round / Void / Submit still answer
+- [ ] Ghost/spectator overlay in game still draws
+- [ ] Red Alert: Live desk, Multiview (no "?" on it now), Graphics, Montages, Lobby health, sponsors and the overlay look as before
+- [ ] An old setup code made before 0.1.49 still loads

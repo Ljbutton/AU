@@ -870,9 +870,6 @@ namespace TournamentTracker.App.Broadcast
                     if (Arg("scope").Length > 0) _desk.StandingsScope = Arg("scope") is "overall" or "round" ? Arg("scope") : "lobby";
                     if (Arg("show").Length > 0) _broadcast?.Settings.Set("standings", Arg("show") == "true");
                     return Ok(new { ok = true, message = Arg("show") == "true" ? "Standings on stream." : Arg("show") == "false" ? "Standings off stream." : $"Standings: {(_desk.StandingsScope == "overall" ? "whole tournament" : _desk.StandingsScope == "round" ? "the round, every lobby" : "the lobby on stream")}." });
-                case ("GET", "/app/admin/gamereplays"):
-                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
-                    return Ok(new { games = _desk.Replays.List() });
                 case ("GET", "/app/admin/gamereplay"):
                 {
                     var file = _desk?.Replays.File(HttpRequest.Query(query, "id"));
