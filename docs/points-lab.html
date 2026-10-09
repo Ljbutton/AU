@@ -201,7 +201,7 @@ const RULES = [
     ['crewOtherLoss', 'Any other loss', -2], ['correctVoteOut', 'Correct vote out (each)', 2], ['incorrectVoteOut', 'Incorrect vote out (each)', -2],
     ['caughtKiller', 'Caught and voted out killer', 1], ['readVotePoints', 'Read on an impostor (each)', 1], ['readVoteBonus', 'Reads bonus (up to)', 4],
     ['taskPercentBonus', 'Task % bonus (up to)', 3], ['longTaskWeight', 'Long task counts as (short tasks)', 2],
-    ['completedTasks', 'Finished every task', 0], ['gotKilled', 'Got killed', 0], ['diedFirstShareOfCrewAverage', 'Died first: share of crew average', 0.9]]],
+    ['completedTasks', 'Finished every task', 1], ['gotKilled', 'Got killed', 0], ['diedFirstShareOfCrewAverage', 'Died first: share of crew average', 0.9]]],
   ['Other', [['disconnectWin', 'Win by disconnect', 0]]],
 ];
 const DEFAULTS = Object.fromEntries(RULES.flatMap(([, rs]) => rs.map(([k, , v]) => [k, v])));

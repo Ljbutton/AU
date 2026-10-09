@@ -150,3 +150,8 @@ _A new code from the code maker (Task bar (players) is "In meetings" by default)
 - [ ] Died first shows 90% of the crew average exactly (e.g. +3.87, not +4)
 - [ ] An old code made before 0.1.47 (it had "round to halves") also scores exactly
 - [ ] Code maker and Points Lab no longer have a rounding box
+
+## New in 0.1.48
+_A new code from the code maker (old codes keep the value they were made with)._
+- [ ] A crewmate who finishes every task gets "Completed tasks +1" in their breakdown — on top of "Tasks 100% +3".
+- [ ] All tasks + task win = +9 before votes and reads

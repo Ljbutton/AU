@@ -204,7 +204,7 @@ namespace TournamentTracker
         public double VotedOutLast { get; set; } = -1;
 
         // Crewmate, during the game
-        public double CompletedTasks { get; set; } = 0;
+        public double CompletedTasks { get; set; } = 1;
         public double CorrectVoteOut { get; set; } = 2;
         public double CaughtKiller { get; set; } = 1;
         public double GotKilled { get; set; } = 0;

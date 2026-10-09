@@ -86,7 +86,7 @@ public class ScoringTests
 
         Assert.Equal(1 + 1 - 3, Pts(g, 0));       // kill, first blood, lost to tasks
         Assert.Equal(-3, Pts(g, 1));
-        Assert.Equal(5, Pts(g, 4));               // task win (finishing tasks is scored by the % bonus, off here)
+        Assert.Equal(5 + 1, Pts(g, 4));           // task win + finished every task (the % bonus is off here)
         Assert.Equal(5, Pts(g, 5));               // died first still wins with the team
         Assert.Equal(5, Pts(g, 2));
     }
