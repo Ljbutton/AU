@@ -21,7 +21,7 @@ namespace TournamentTracker.Plugin
         private static Sprite? _ring, _speaker, _badge;
         private static readonly Dictionary<IntPtr, Light> Cards = new Dictionary<IntPtr, Light>();
         private static readonly Dictionary<byte, Light> Icons = new Dictionary<byte, Light>();
-        private static readonly Dictionary<string, (string Key, Color Colour)> KeyByName = new Dictionary<string, (string, Color)>();
+        private static readonly Dictionary<byte, (string Key, Color Colour)> KeyById = new Dictionary<byte, (string, Color)>();
         private static MeetingHud? _meeting;
 
         private sealed class Light
@@ -62,21 +62,18 @@ namespace TournamentTracker.Plugin
         private static void CheckCards(TournamentSession session, MeetingHud meeting)
         {
             if (meeting.playerStates == null) return;
-            // Names on the cards → players (their game name, or the roster name the referee's nameplates show).
-            KeyByName.Clear();
+            // Cards → players by the card's player ID (its name text can be the roster name, or
+            // changed by the referee's nameplates, so it isn't matched).
+            KeyById.Clear();
             foreach (var p in Frame.Players)
             {
                 if (p.Data == null) continue;
-                string real = p.Data.PlayerName ?? "";
-                string key = PlayerSnapshot.MakeKey(p.Data.FriendCode, real);
-                var colour = ColourOf(p.Data);
-                KeyByName[real] = (key, colour);
-                if (session.DisplayName(key) is string shown) KeyByName[shown] = (key, colour);
+                KeyById[p.Id] = (PlayerSnapshot.MakeKey(p.Data.FriendCode, p.Data.PlayerName ?? ""), ColourOf(p.Data));
             }
             foreach (var area in meeting.playerStates)
             {
-                if (area == null || area.NameText == null) continue;
-                bool talking = KeyByName.TryGetValue(area.NameText.text ?? "", out var who) && session.IsTalking(who.Key)
+                if (area == null) continue;
+                bool talking = KeyById.TryGetValue(area.TargetPlayerId, out var who) && session.IsTalking(who.Key)
                     && area.gameObject.activeInHierarchy && area.transform.localScale != Vector3.zero;
                 if (!Cards.TryGetValue(area.Pointer, out var light) || light.Go == null)
                 {
