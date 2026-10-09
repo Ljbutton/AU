@@ -322,6 +322,24 @@ img.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 .05em;vert
 .phase-pill.Tasks{background:rgba(59,130,246,.2);color:#9cc3ff}.phase-pill.Meeting{background:var(--warn-soft);color:var(--warn)}.phase-pill.Lobby{background:var(--good-soft);color:var(--good)}
 select{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5px solid var(--line);border-radius:9px;padding:6px 10px}
 
+/* ---- Referee ---- */
+.navcount{margin-left:6px;font-size:11px;font-weight:700;background:var(--hi);color:#111;border-radius:99px;padding:1px 7px}
+.ref-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:14px;align-items:start}
+.ref-wait{border-color:var(--hi)}
+.wg{border-top:1px solid var(--line);padding:10px 0 4px}
+.wg:first-child{border-top:0}
+.wg-h{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.wg-h b{font-size:15px}
+.wg-h .grow{flex:1}
+.wg.voided .wg-p{opacity:.5}
+.wg-p{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 14px;margin-top:8px}
+.wp{display:flex;align-items:center;gap:7px;min-width:0;padding:3px 0}
+.wp img{width:22px;height:22px}
+.wp .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wp .imp{font-size:10.5px;color:var(--danger);font-weight:700;letter-spacing:.04em}
+.wp .pt{font-weight:700;font-variant-numeric:tabular-nums;min-width:3.2em;text-align:right;cursor:help}
+.wp button.step{min-width:28px;padding:2px 0;border-radius:8px}
+.danger-zone{border-color:var(--danger-soft)}
 /* ---- Points ---- */
 .points-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,640px),1fr));gap:14px;align-items:start}
 @media (max-width:560px){.points-grid{grid-template-columns:minmax(0,1fr)}}
@@ -399,8 +417,7 @@ details.advanced[open] summary h2::before{content:'▾ '}
 </header>
 <nav id="nav">
   <button data-page="home" class="on">Home</button>
-  <button data-page="points">Points</button>
-  <button data-page="replays">Games</button>
+  <button data-page="points">Referee<span class="navcount" id="nav-waiting" hidden></span></button>
   <button data-page="organiser" id="nav-organiser" hidden>Organiser</button>
   <button data-page="settings">Settings</button>
 </nav>
@@ -448,11 +465,6 @@ details.advanced[open] summary h2::before{content:'▾ '}
             <input id="round-input" type="number" min="1" style="width:64px" aria-label="Round"><button class="b" id="round-set">Set</button></div>
         </div>
         <div class="card">
-          <h2>This game</h2>
-          <p class="muted" id="game-line" style="margin:0 0 8px"></p>
-          <div class="row"><input id="void-reason" placeholder="Reason" style="flex:1;min-width:90px"><button class="b danger" id="void">Void</button><button class="b" id="unvoid">Unvoid</button></div>
-        </div>
-        <div class="card">
           <h2>Tools</h2>
           <div class="toggle"><b>Settings lock</b><button class="b" id="t-lock"></button></div>
           <div class="toggle"><b>Referee ghost slot</b><button class="b" id="t-refslot"></button></div>
@@ -466,18 +478,37 @@ details.advanced[open] summary h2::before{content:'▾ '}
       </div>
     </div>
   </div>
-  <div class="card ref-card" id="home-ref" hidden>
-    <h2>Referee</h2>
+</section>
+
+<section id="points">
+  <div><h1>Referee</h1><p class="sub" id="points-sub">Every game waits here for you to check it: change points or void it, then press <b>Verify</b> to send it to Discord. Players never see these in the game or through the bot.</p></div>
+  <div class="card ref-wait" id="ref-wait" hidden>
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Waiting for you <span class="pill" id="ref-wait-n"></span></h2><button class="b primary" id="ref-verify-all">Verify all</button></div>
+    <div id="ref-wait-list"></div>
+  </div>
+  <div class="ref-grid">
+    <div class="card" id="ref-now" hidden>
+      <h2>This game</h2>
+      <p class="muted" id="game-line" style="margin:0 0 8px"></p>
+      <div class="row"><input id="void-reason" placeholder="Reason" style="flex:1;min-width:90px"><button class="b danger" id="void">Void</button><button class="b" id="unvoid">Unvoid</button></div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between"><h2 style="margin:0">Games</h2><input id="ref-why" placeholder="Reason for a void (optional)" style="flex:1;max-width:260px"></div>
+      <div class="pts-wrap"><table class="games"><tbody id="ref-games"></tbody></table></div>
+    </div>
+  <div class="card ref-card" id="home-ref" style="grid-column:1/-1" hidden>
+    <h2>Results channel</h2>
     <p class="muted" style="margin:0 0 8px;font-size:12.5px">Posted to the private results channel as the administration bot, exactly like typing it there.</p>
     <div class="row"><select id="adj-lobby"></select><input id="adj-player" placeholder="Player (colour or name)" style="width:170px"><input id="adj-points" type="number" step="0.5" placeholder="Points" style="width:90px"><input id="adj-reason" placeholder="Reason" style="flex:1;min-width:120px"><button class="b" id="adj-go">Adjust</button></div>
     <div class="row" style="margin-top:8px"><input id="void-game" placeholder="Game (LJ-3) or lobby (LJ)" style="width:200px"><input id="void-why" placeholder="Reason" style="flex:1;min-width:120px"><button class="b danger" id="void-go">Void</button><button class="b" id="unvoid-go">Unvoid</button></div>
     <div class="row" style="margin-top:8px"><input id="org-cmd" placeholder="Any command: !start 3 in 10, !lobbies 3, !move Soggy B…" class="mono" style="flex:1"><button class="b" id="org-cmd-go">Post</button></div>
   </div>
-</section>
-
-<section id="points">
-  <div><h1>Points</h1><p class="sub" id="points-sub">For you and the referees. Players never see these in the game or through the bot.</p></div>
+  </div>
   <div class="points-grid" id="points-list"></div>
+  <div class="card danger-zone">
+    <div class="toggle"><div><b>Reset all points</b><span>Starts this PC's points from nothing: every game is put away in the games folder (not deleted), the totals and round counts go to zero. Discord isn't touched.</span></div><button class="b danger" id="reset-pts">Reset…</button></div>
+    <p id="reset-pts-confirm" class="note warn" hidden style="margin-top:8px">Type <b>RESET</b> to put every game away: <input id="reset-pts-word" style="width:90px" autocomplete="off"> <button class="b danger" id="reset-pts-go" disabled>Reset all points</button> <button class="b" id="reset-pts-cancel">Cancel</button></p>
+  </div>
 </section>
 
 <section id="organiser">
@@ -504,13 +535,7 @@ details.advanced[open] summary h2::before{content:'▾ '}
 </section>
 
 
-<section id="replays">
-  <div><h1>Games</h1><p class="sub">Every game this PC hosted, newest first. Watch a replay here, or in Among Us itself: open Freeplay on the game's map and press F8.</p></div>
-  <div class="card"><div class="pts-wrap"><table class="games"><tbody id="game-list"></tbody></table></div></div>
-  <div class="card"><h2>Replays from other lobbies</h2>
-    <table><tbody id="replay-list"></tbody></table>
-    <p class="muted" style="margin:10px 0 0;font-size:12.5px">Download them from the results channel into your Downloads folder and they show up here.</p></div>
-</section>
+
 
 <section id="settings">
   <div><h1>Settings</h1></div>
@@ -629,7 +654,6 @@ async function cmd(command) {
 function go(page) {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.page === page));
   document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === page));
-  if (page === 'replays') loadReplays();
   if (page === 'organiser') loadOrganiser();
 }
 $('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (b) go(b.dataset.page); });
@@ -733,7 +757,7 @@ function renderHome() {
     return;
   }
   $('phase-title').textContent = TITLES[st.phase] || st.phase;
-  const facts = [['Lobby', st.lobby || '—'], ['Code', st.lobbyCode || '—'], ['Map', st.map || '—'], st.mode === 'Tournament' && ['Round', st.round || '—'], ['Players', st.players.filter(p => !p.referee).length]].filter(Boolean);
+  const facts = [['Lobby', st.lobby || '—'], ['Code', st.lobbyCode || '—'], st.server && ['Server', st.server], ['Map', st.map || '—'], st.mode === 'Tournament' && ['Round', st.round || '—'], ['Players', st.players.filter(p => !p.referee).length]].filter(Boolean);
   $('facts').innerHTML = facts.map(([k, v]) => `<div class="fact"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join('');
   renderChecks(st);
   $('round-card').hidden = st.mode !== 'Tournament';
@@ -866,6 +890,62 @@ function renderPoints() {
     </tbody></table></div>` : '<p class="empty">No counted games yet.</p>'}</div>`).join('')
     + (pts.voided ? `<p class="muted" style="font-size:12.5px">${pts.voided} voided game${pts.voided === 1 ? '' : 's'} left out.</p>` : '');
 }
+
+// ---- Referee: games waiting for Verify, every game's void, points changes, reset --------------
+let gamesKey = '';
+const pn = v => (v > 0 ? '+' : '') + (Math.round(v * 100) / 100);
+function winLine(g) {
+  return g.voided ? `<span class="pill bad">Void</span>${g.voidReason ? ` <span class="muted">${esc(g.voidReason)}</span>` : ''}`
+    : g.winner ? `<b class="${g.winner === 'Impostors' ? 'imp-win' : 'crew-win'}">${g.winner === 'Impostors' ? 'Impostors win' : 'Crewmates win'}</b>` : '<span class="muted">No result</span>';
+}
+function renderGames() {
+  const st = S.status, G = st && st.games;
+  const waiting = (G && G.waiting) || [], recent = (G && G.recent) || [];
+  $('nav-waiting').hidden = !waiting.length;
+  $('nav-waiting').textContent = waiting.length;
+  $('ref-now').hidden = !st;
+  const key = JSON.stringify(G || null);
+  if (key === gamesKey) return;
+  gamesKey = key;
+  $('ref-wait').hidden = !waiting.length;
+  $('ref-wait-n').textContent = waiting.length;
+  $('ref-verify-all').textContent = `Verify all ${waiting.length}`;
+  $('ref-verify-all').hidden = waiting.length < 2;
+  $('ref-wait-list').innerHTML = waiting.map(g => `<div class="wg${g.voided ? ' voided' : ''}" data-game="${esc(g.name)}">
+    <div class="wg-h"><b>Game ${esc(g.name)}</b>${g.round ? `<span class="pill">Round ${g.round}</span>` : ''}${winLine(g)}<span class="muted">${esc(g.map)} · ${Math.round(g.minutes)} min</span>
+      ${g.settingsIssues && g.settingsIssues.length ? `<span class="pill bad" title="${esc(g.settingsIssues.join(', '))}">Wrong settings</span>` : ''}<span class="grow"></span>
+      ${g.voided ? `<button class="b" data-gact="unvoidgame">Unvoid</button>` : `<button class="b danger" data-gact="voidgame">Void</button>`}
+      <button class="b primary" data-gact="verify">${g.voided ? 'Done (stays off Discord)' : 'Verify & send'}</button></div>
+    <div class="wg-p">${g.players.map(p => `<div class="wp" data-key="${esc(p.key)}">
+      <img src="${head(p.color)}" alt=""><span class="nm">${esc(p.name)}</span>${p.impostor ? '<span class="imp">IMP</span>' : ''}
+      <button class="b step" data-step="-1" title="One point less">−</button>
+      <span class="pt" title="${esc(p.lines.map(l => `${pn(l.points)}  ${l.rule}`).join('\n'))}">${Math.round(p.points * 100) / 100}</span>
+      <button class="b step" data-step="1" title="One point more">+</button></div>`).join('')}</div></div>`).join('');
+  $('ref-games').innerHTML = recent.length ? recent.map(g => `<tr class="${g.voided ? 'voided' : ''}" data-game="${esc(g.name)}">
+      <td><b>Game ${esc(g.name)}</b>${g.round ? `<div class="muted">Round ${g.round}</div>` : ''}</td><td>${winLine(g)}</td>
+      <td class="muted">${esc(g.map)}<div>${new Date(g.ended).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div></td>
+      <td style="text-align:right">${g.voided ? `<button class="b" data-gact="unvoidgame">Unvoid</button>` : `<button class="b danger" data-gact="voidgame">Void</button>`}</td></tr>`).join('')
+    : `<tr><td class="empty">${waiting.length ? 'Sent games show here.' : 'No games yet. Each game you host shows up here when it ends.'}</td></tr>`;
+}
+document.addEventListener('click', e => {
+  const act = e.target.closest('[data-gact]');
+  if (act) {
+    const name = act.closest('[data-game]').dataset.game, a = act.dataset.gact;
+    const why = a === 'voidgame' ? ' ' + $('ref-why').value.trim() : '';
+    cmd(`${a} ${name}${why}`.trim());
+    return;
+  }
+  const step = e.target.closest('[data-step]');
+  if (step) {
+    const name = step.closest('[data-game]').dataset.game, key = step.closest('[data-key]').dataset.key;
+    cmd(`adjust ${name} ${key} ${step.dataset.step} referee`);
+  }
+});
+$('ref-verify-all').addEventListener('click', () => cmd('verify all'));
+$('reset-pts').addEventListener('click', () => { $('reset-pts-confirm').hidden = false; $('reset-pts-word').value = ''; $('reset-pts-go').disabled = true; $('reset-pts-word').focus(); });
+$('reset-pts-cancel').addEventListener('click', () => $('reset-pts-confirm').hidden = true);
+$('reset-pts-word').addEventListener('input', e => $('reset-pts-go').disabled = e.target.value.trim().toUpperCase() !== 'RESET');
+$('reset-pts-go').addEventListener('click', () => { $('reset-pts-confirm').hidden = true; cmd('resetpoints'); });
 
 // ---- Organiser (administration code) -------------------------------------------------------------
 let ORG = null, orgKey = '', showRoles = false;
@@ -1062,33 +1142,13 @@ $('code-details-btn').addEventListener('click', () => { codeDetails = !codeDetai
 $('code-change').addEventListener('click', () => { codeChanging = true; renderSetup(); $('code').focus(); });
 $('code-cancel').addEventListener('click', () => { codeChanging = false; $('code').value = ''; renderSetup(); });
 
-// ---- Replays -------------------------------------------------------------------------------
-async function loadReplays() {
-  const d = await api('GET', '/app/games');
-  const when = w => new Date(w).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-  const watch = name => `<button class="b primary" data-watch="${esc(name)}">Watch</button>`;
-  $('game-list').innerHTML = d.games.length ? d.games.map(g => `<tr class="${g.voided ? 'voided' : ''}">
-      <td><b style="font-size:15px">Game ${esc(g.name)}</b>${g.round ? `<div class="muted">Round ${g.round}</div>` : ''}</td>
-      <td>${g.voided ? `<span class="pill bad">Voided</span>${g.voidReason ? `<div class="muted">${esc(g.voidReason)}</div>` : ''}`
-        : g.winner ? `<b class="${g.winner === 'Impostors' ? 'imp-win' : 'crew-win'}">${g.winner === 'Impostors' ? 'Impostors win' : 'Crewmates win'}</b><div class="muted">${esc(REASONS[g.endReason] || g.endReason || '')}</div>` : '<span class="muted">Didn\'t finish</span>'}</td>
-      <td>${g.mvp ? `<div class="nm" style="display:flex;align-items:center;gap:6px"><img src="${head(g.mvp.color)}" alt="" style="width:20px;height:20px"><span>${esc(g.mvp.name)}</span></div><div class="muted">Top score, ${g.mvp.points}</div>` : ''}</td>
-      <td class="muted">${esc(g.map)}<div>${g.players} players${g.minutes ? ` · ${Math.round(g.minutes)} min` : ''}</div></td>
-      <td class="muted">${when(g.when)}</td>
-      <td style="text-align:right">${g.replay ? watch(g.replay) : '<span class="muted" style="font-size:12px">No replay</span>'}</td></tr>`).join('')
-    : '<tr><td class="empty">No games yet. Each game you host shows up here when it ends.</td></tr>';
-  $('replay-list').innerHTML = d.other.length ? d.other.map(r => `<tr><td><span style="font-size:15px">Game ${esc(r.label)}</span>${r.downloaded ? ' <span class="pill">downloaded</span>' : ''}</td>
-    <td class="muted">${when(r.when)}</td><td style="text-align:right">${watch(r.name)}</td></tr>`).join('')
-    : '<tr><td class="muted" style="font-size:13px">None yet.</td></tr>';
-  document.querySelectorAll('#replays [data-watch]').forEach(btn => btn.onclick = () =>
-    window.open('/viewer?src=' + encodeURIComponent(`/app/replay?name=${encodeURIComponent(btn.dataset.watch)}&token=${TOKEN}`), '_blank'));
-}
 const REASONS = { HumansByTask: 'Tasks done', HumansByVote: 'Impostors voted out', ImpostorByKill: 'Kills', ImpostorByVote: 'Vote', ImpostorBySabotage: 'Sabotage', ImpostorDisconnect: 'Impostor left', HumansDisconnect: 'Crewmates left' };
 
 // ---- Refresh ------------------------------------------------------------------------------
 
 async function refresh() {
   try { S = await api('GET', '/app/state'); } catch (e) { return; }
-  renderAlerts(); renderHome(); renderPoints(); renderSettings(); renderReferee();
+  renderAlerts(); renderHome(); renderPoints(); renderGames(); renderSettings(); renderReferee();
 }
 refresh();
 setInterval(refresh, 1500);

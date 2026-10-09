@@ -50,12 +50,13 @@ namespace TournamentTracker
                 return;
             }
 
-            if (makeVoid && game.Counted) { Store.Remove(game); CountRoundGame(game, -1); CountImpostorGames(game, -1); }
-            game.Voided = makeVoid;
-            game.VoidReason = makeVoid ? reason : "";
-            if (!makeVoid && game.Counted) { Store.Apply(game); CountRoundGame(game, 1); CountImpostorGames(game, 1); }
-            TrySave(() => Store.Save(_statsPath), "stats");
-            TrySave(() => SaveGameFile(game), "game record");
+            SetVoid(game, makeVoid, reason);
+            if (IsWaiting(game))
+            {
+                SaveHeld();
+                Reply(makeVoid ? $"Game {game.Name} is void: it won't count, and won't go to Discord." : $"Game {game.Name} counts again (still waiting for Verify).", false);
+                return;
+            }
 
             string text = makeVoid
                 ? $"Game {game.Name} is void{(reason.Length > 0 ? ": " + reason : "")}. It no longer counts."

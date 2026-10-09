@@ -283,6 +283,19 @@ namespace TournamentTracker
             FinishReplay(game);
 
             _log.Info($"Game {game.Name} over: {game.Winner ?? "no result"} ({reason})");
+            if (_settings.Mode == TrackerMode.Preliminary)
+                foreach (var line in StandingsFormatter.ChatSummary(game)) Reply(line, false);
+            // Nothing goes to Discord until the host has checked the game in The Button (Referee).
+            if (PostsResults && _settings.VerifyResults) Hold(game, roundDone);
+            else PostResults(game, roundDone);
+            BumpLive();
+            ApplyPendingRound();
+            return game;
+        }
+
+        /// <summary>A game's results to Discord: its report, then the standings (and the round's summary when it closed the round).</summary>
+        private void PostResults(GameRecord game, bool roundDone)
+        {
             var report = ReportFormatter.GameReport(game);
             if (_settings.Mode == TrackerMode.Preliminary)
             {
@@ -294,7 +307,6 @@ namespace TournamentTracker
                         var result = await _rest.ExecuteWebhookWithFileAsync(url, report, SharedResults.FileNameFor(game), SharedResults.FileFor(game)).ConfigureAwait(false);
                         if (!result.Ok) _log.Error("Discord webhook post failed: " + result);
                     });
-                foreach (var line in StandingsFormatter.ChatSummary(game)) Reply(line, false);
             }
             else
             {
@@ -321,9 +333,6 @@ namespace TournamentTracker
             }
             // Move the live status below the report so it stays at the bottom of the channel.
             RepostStatus();
-            BumpLive();
-            ApplyPendingRound();
-            return game;
         }
 
         private WebhookMessage LeaderboardMessage(StatsStore? store = null, string? note = null)

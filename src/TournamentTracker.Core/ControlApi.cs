@@ -179,6 +179,7 @@ namespace TournamentTracker
                 Shared = Shared != null,
                 LastGame = last == null ? null : new { last.Name, last.Winner, last.Voided, last.Counted },
                 Points = PointsForApp(),
+                Games = GamesForApp(),
                 Notices = NoticesForApp(),
             };
             Work.Post(() => _statusJson = JsonSerializer.Serialize(status, ApiJson));

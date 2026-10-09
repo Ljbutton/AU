@@ -142,7 +142,7 @@ public class LiveLobbyTests : IDisposable
 
     private TournamentSession Session(Action<TrackerSettings>? configure = null)
     {
-        var settings = new TrackerSettings { TournamentName = "Cup", StatsWebhookUrl = Webhook, LiveStatus = false, PublicChat = true, ControlPort = -1, PostLeaderboardAfterEachGame = false };
+        var settings = new TrackerSettings { TournamentName = "Cup", StatsWebhookUrl = Webhook, LiveStatus = false, PublicChat = true, ControlPort = -1, PostLeaderboardAfterEachGame = false, VerifyResults = false };
         settings.AutoMute.Enabled = true;
         settings.AutoMute.GuildId = "g1";
         settings.AutoMute.BotTokens.Add("tok");

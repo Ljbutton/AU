@@ -117,9 +117,9 @@ public class TournamentModeTests : IDisposable
         _dir.Dispose();
     }
 
-    private TournamentSession Session(SetupCode code)
+    private TournamentSession Session(SetupCode code, bool verify = false)
     {
-        var s = new TournamentSession(new TrackerSettings { LiveStatus = false, PublicChat = true, ControlPort = -1 }, _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now,
+        var s = new TournamentSession(new TrackerSettings { LiveStatus = false, PublicChat = true, ControlPort = -1, VerifyResults = verify }, _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now,
             new FakeVoiceApi(), new VoicePresenceState("g1"), code);
         _sessions.Add(s);
         return s;
@@ -274,6 +274,79 @@ public class TournamentModeTests : IDisposable
         Assert.Equal(2, s.Combined!.GameRecords.Count);             // both on record…
         Assert.Equal(1, s.Combined.Store.GamesRecorded);           // …one counted
         Assert.Contains(_discord.Messages, m => m.Channel == "results" && m.Content.Contains("VOID: lights bug"));
+    }
+
+    [Fact]
+    public async Task A_game_waits_for_the_host_to_verify_it_before_discord_sees_it()
+    {
+        var s = Session(TournamentCode(), verify: true);
+        var lobby = Lobby();
+        s.RunCommand("!r1");
+        var game = Play(s, lobby);
+        await s.PendingPosts;
+        Assert.DoesNotContain(_discord.Messages, m => m.Content?.Contains("LJ-1") == true || m.File?.Contains(game.Id) == true);
+        Assert.Contains(s.Pump(), r => !r.Public && r.Text.StartsWith("Game LJ-1 is waiting for you"));
+        Assert.Equal(new[] { "LJ-1" }, s.WaitingGames.Select(g => g.Name));
+        Assert.Equal(1, s.Store.GamesRecorded);   // counted on this PC already
+
+        // A referee's change before it goes: Red loses 2 points.
+        var red = game.Players.First(p => p.ColorId == 0);
+        double before = red.Points;
+        s.RunCommand($"!adjust LJ-1 {red.Key} -2 left the call");
+        Assert.Equal(before - 2, s.WaitingGames[0].ByKey(red.Key)!.Points);
+        Assert.Contains(s.WaitingGames[0].ByKey(red.Key)!.PointBreakdown, l => l.Rule == "Referee: left the call" && l.Points == -2);
+        await s.PendingPosts;
+        Assert.Equal(0, s.Combined?.Store.GamesRecorded ?? 0);   // still nothing shared
+
+        s.RunCommand("!verify all");
+        await s.PendingPosts;
+        Assert.Empty(s.WaitingGames);
+        Assert.Equal(1, s.Combined!.Store.GamesRecorded);
+        Assert.Equal(before - 2, s.Combined.GameRecords.Single().ByKey(red.Key)!.Points);
+    }
+
+    [Fact]
+    public async Task A_game_voided_before_it_was_verified_never_reaches_discord()
+    {
+        var s = Session(TournamentCode(), verify: true);
+        var lobby = Lobby();
+        s.RunCommand("!r1");
+        Play(s, lobby);
+        s.RunCommand("!void lobby restarted");
+        Assert.Equal(0, s.Store.GamesRecorded);
+        Assert.True(s.WaitingGames.Single().Voided);
+        s.RunCommand("!verify LJ-1");
+        await s.PendingPosts;
+        Assert.Empty(s.WaitingGames);
+        Assert.DoesNotContain(_discord.Messages, m => m.Content?.Contains("LJ-1") == true);
+        Assert.Contains(s.Pump(), r => r.Text.StartsWith("Verified: the voided game stays off Discord"));
+    }
+
+    [Fact]
+    public async Task Waiting_games_survive_a_restart_and_reset_puts_every_game_away()
+    {
+        var s = Session(TournamentCode(), verify: true);
+        var lobby = Lobby();
+        s.RunCommand("!r1");
+        Play(s, lobby);
+        Play(s, lobby);
+        await s.PendingPosts;
+        _sessions.Remove(s);
+        s.Dispose();
+        var again = Session(TournamentCode(), verify: true);
+        Assert.Equal(new[] { "LJ-1", "LJ-2" }, again.WaitingGames.Select(g => g.Name));
+        Assert.Equal(2, again.Store.GamesRecorded);
+
+        int posted = _discord.Messages.Count;
+        again.RunCommand("!resetpoints");
+        await again.PendingPosts;
+        Assert.Empty(again.WaitingGames);
+        Assert.Equal(0, again.Store.GamesRecorded);
+        Assert.Equal(0, again.GamesThisRound);
+        Assert.Equal(posted, _discord.Messages.Count);   // Discord untouched
+        Assert.Empty(Directory.GetFiles(_dir.Path, "game-*.json", SearchOption.TopDirectoryOnly));
+        Assert.Equal(2, Directory.GetFiles(_dir.Path, "game-*.json", SearchOption.AllDirectories).Count(f => f.Contains("reset ")));
+        Assert.Contains(again.Pump(), r => r.Text.StartsWith("All points reset: 2 games put away"));
     }
 
     [Fact]
