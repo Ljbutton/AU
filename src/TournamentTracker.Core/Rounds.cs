@@ -135,16 +135,34 @@ namespace TournamentTracker
         /// <summary>Raised after the setup changed; the plugin then starts a fresh session with it.</summary>
         public event Action? RestartRequested;
 
+        /// <summary>The Button saved a new setup (or the host's Discord) during a game: restart once it ends.</summary>
+        private bool _reloadAfterGame;
+
+        private void ReloadIfSaved()
+        {
+            if (!_reloadAfterGame) return;
+            _reloadAfterGame = false;
+            Reply("Using the setup saved during the game. Restarting the tracker…", false);
+            RestartRequested?.Invoke();
+        }
+
         public SetupCode? Setup { get; private set; }
 
         private void SetupCommand(string[] args)
         {
+            string arg = args.FirstOrDefault()?.ToLowerInvariant() ?? "";
             if (Tracker.InGame)
             {
+                if (arg == "reload")
+                {
+                    // Saved in The Button mid-game: used as soon as this game ends.
+                    _reloadAfterGame = true;
+                    Reply("New setup saved: it's used as soon as this game ends.", false);
+                    return;
+                }
                 Reply("Change the setup in the lobby, between games.", false);
                 return;
             }
-            string arg = args.FirstOrDefault()?.ToLowerInvariant() ?? "";
             if (arg == "clear")
             {
                 SetupCode.Clear(_dataDir);

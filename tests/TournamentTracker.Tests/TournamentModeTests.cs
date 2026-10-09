@@ -649,6 +649,23 @@ public class TournamentModeTests : IDisposable
     }
 
     [Fact]
+    public async Task A_setup_saved_during_a_game_is_used_when_the_game_ends()
+    {
+        var s = Session(TournamentCode());
+        bool restarted = false;
+        s.RestartRequested += () => restarted = true;
+        var lobby = Lobby();
+        s.GameStarted("ABCDEF", "Polus", lobby);
+        s.RunCommand("!setup reload");
+        Assert.False(restarted);
+        Assert.Contains(s.Pump(), r => r.Text.StartsWith("New setup saved: it's used as soon as this game ends."));
+        _clock.Advance(300);
+        s.GameEnded("HumansByTask", lobby);
+        Assert.True(restarted);
+        await s.PendingPosts;
+    }
+
+    [Fact]
     public async Task Setup_reloads_the_code_The_Button_saved_and_asks_for_a_restart()
     {
         var s = Session(TournamentCode());

@@ -292,6 +292,7 @@ namespace TournamentTracker
             else PostResults(game, roundDone);
             BumpLive();
             ApplyPendingRound();
+            ReloadIfSaved();
             return game;
         }
 

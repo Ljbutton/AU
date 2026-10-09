@@ -133,3 +133,7 @@ _A new code from the code maker (Task bar (players) is "In meetings" by default)
 - [ ] Your own screen as host (playing, not referee) shows the real task bar all game — normal size.
 - [ ] As the referee, the small live task bar still shows
 - [ ] Back in the lobby, the task bar is its normal size again
+
+## New in 0.1.45
+- [ ] Your Discord: type a bot token, then click into the webhook box — the token is still there when you press Save and check.
+- [ ] Save Your Discord (or a new setup code) during a game: chat says "used as soon as this game ends" — after the game, the new bots/channels are in use.
