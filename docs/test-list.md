@@ -130,10 +130,17 @@ _Preliminary code with your private reports webhook; host has a public channel s
 ## New in 0.1.44
 _A new code from the code maker (Task bar (players) is "In meetings" by default)._
 - [ ] Players' task bar only fills in meetings
-- [ ] Your own screen as host (playing, not referee) shows the real task bar all game — normal size.
+- [ ] ~~Your own screen as host shows the real task bar~~ — changed in 0.1.46: as a normal player you see what everyone sees.
 - [ ] As the referee, the small live task bar still shows
 - [ ] Back in the lobby, the task bar is its normal size again
 
 ## New in 0.1.45
 - [ ] Your Discord: type a bot token, then click into the webhook box — the token is still there when you press Save and check.
 - [ ] Save Your Discord (or a new setup code) during a game: chat says "used as soon as this game ends" — after the game, the new bots/channels are in use.
+
+## New in 0.1.46
+- [ ] Hosting as a normal player: your task bar only fills in meetings, like everyone else's
+- [ ] As the referee: the small live task bar still shows
+- [ ] Preliminary code with the Red Alert channel and a bot: the lobby shows on Red Alert's Live desk
+- [ ] Same code: "Send my game to the caster" works and the video shows in Red Alert
+- [ ] Same code: reports still go to the private reports channel with the data file and the Count
