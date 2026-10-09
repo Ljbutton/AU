@@ -578,7 +578,7 @@ namespace TournamentTracker.App
             int bots = result.Saved.BotTokens.Count;
             string saved = bots > 0 ? $"Saved: {string.Join(", ", result.BotNames)} online while The Button is open." : "Saved.";
             if (bots > 0 && _settings.SetupCode == null) saved += " Paste your setup code too: the bots start with it.";
-            else if (live) saved += " The mod in Among Us picked it up.";
+            else if (live) saved += " The mod in Among Us uses it now (after the game, if one is running).";
             return new { ok = result.Ok, message = result.Ok ? saved : string.Join(" ", result.Problems) + (bots > 0 || result.Saved.PublicWebhook.Length > 0 ? " Everything else was saved." : "") };
         }
 

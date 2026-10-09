@@ -1070,7 +1070,10 @@ function renderHostDiscord() {
   if (document.activeElement !== $('hd-guild') && !$('hd-guild')._typed) $('hd-guild').value = h.guildId || '';
   $('hd-guild').placeholder = h.codeGuild ? `${h.codeGuild} (from your setup code)` : 'right-click your server → Copy Server ID';
   const box = $('hd-bots');
-  if (!box.contains(document.activeElement)) {
+  // Drawn again only when what's saved (or marked for removal) changes, so a token being typed stays.
+  const botsKey = JSON.stringify([h.bots, [...hdRemove]]);
+  if (box._key !== botsKey) {
+    box._key = botsKey;
     box.innerHTML = [0, 1, 2].map(i => {
       const b = h.bots[i];
       const label = `Bot ${i + 1}` + (i ? ' <i class="muted">(optional: faster muting)</i>' : '');
@@ -1101,7 +1104,7 @@ $('hd-save').addEventListener('click', async () => {
     const n = $('hd-result'); n.hidden = false; n.textContent = r.message; n.className = 'note ' + (r.ok ? 'good' : 'bad');
     hdRemove.clear(); $('hd-guild')._typed = false; $('hd-public').value = ''; $('hd-status').value = '';
     $('hd-public')._cleared = $('hd-status')._cleared = false;
-    $('hd-bots').innerHTML = '';
+    $('hd-bots')._key = '';
     await refresh();
   } finally { $('hd-save').disabled = false; $('hd-save').textContent = 'Save and check'; }
 });
