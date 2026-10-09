@@ -155,3 +155,14 @@ _A new code from the code maker (Task bar (players) is "In meetings" by default)
 _A new code from the code maker (old codes keep the value they were made with)._
 - [ ] A crewmate who finishes every task gets "Completed tasks +1" in their breakdown — on top of "Tasks 100% +3".
 - [ ] All tasks + task win = +9 before votes and reads
+
+## New in 0.1.49 — crew scoring
+_A new code from the code maker (old codes keep their old values; new rules use the new defaults)._
+- [ ] Killed crewmate: "Got killed −0.25"
+- [ ] Crewmate voted out: "Voted out −1"
+- [ ] Crew lose with you alive: "Alive at the loss (N rounds)" = −0.25 × (meetings + 1), never more than −4
+- [ ] "Voted in X/Y meetings" — up to +1; skipping counts as not voting
+- [ ] "Votes right X/Y (Z%)" — up to +2; 0 right = −2
+- [ ] Tasks under 25% go negative (0 tasks = −2); 25% and up as before
+- [ ] No "Reads" line any more
+- [ ] Points Lab shows the new rules; the code maker's Point values… lists them

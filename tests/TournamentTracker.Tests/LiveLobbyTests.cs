@@ -774,7 +774,7 @@ public class LeaderboardOptionTests
         var clock = new FakeClock();
         for (int g = 0; g < 2; g++)
         {
-            var t = new GameTracker(new ScoringRules());
+            var t = new GameTracker(SheetRules.Fixed());
             var lobby = g == 0 ? Players.Lobby() : Players.Lobby().Take(5).ToList();   // Finn plays once
             t.Start(g + 1, "Cup", "X", "Polus", lobby, clock.Now);
             store.Apply(t.End("HumansByTask", Outcome.Crewmates, lobby, clock.Now)!);

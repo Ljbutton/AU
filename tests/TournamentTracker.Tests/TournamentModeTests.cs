@@ -138,7 +138,7 @@ public class TournamentModeTests : IDisposable
 
     private TournamentSession Session(SetupCode code, bool verify = false)
     {
-        var s = new TournamentSession(new TrackerSettings { LiveStatus = false, PublicChat = true, ControlPort = -1, VerifyResults = verify }, _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now,
+        var s = new TournamentSession(new TrackerSettings { LiveStatus = false, PublicChat = true, ControlPort = -1, VerifyResults = verify, Scoring = SheetRules.Fixed() }, _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now,
             new FakeVoiceApi(), new VoicePresenceState("g1"), code);
         _sessions.Add(s);
         return s;

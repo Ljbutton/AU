@@ -86,15 +86,23 @@ namespace TournamentTracker.Stats
                 Add("Correct vote out", r.CorrectVoteOut, p.EjectVotesOnImpostor);
                 Add("Caught and voted out killer", r.CaughtKiller, p.CaughtKiller);
                 if (p.DeathCause == "Killed") Add("Got killed", r.GotKilled);
+                if (p.DeathCause == "Ejected") Add("Voted out", r.EjectedAsCrew);
                 Add("Incorrect vote out", r.IncorrectVoteOut, p.EjectVotesOnCrewmate);
 
-                int reads = p.ReadVotesCorrect + p.ReadVotesIncorrect;
-                if (p.ReadVotesCorrect > 0)
-                    Add($"Reads {p.ReadVotesCorrect}/{reads} on impostors", ReadBonus(p.ReadVotesCorrect, p.ReadVotesIncorrect, r));
+                // Voting: the share of meetings (while alive) where they voted for someone, and the share of those votes on an impostor.
+                int meetings = p.VotesCast + p.Skips + p.MissedVotes;
+                if (meetings > 0)
+                    Add($"Voted in {p.VotesCast}/{meetings} meetings", r.VotingBonus * (double)p.VotesCast / meetings);
+                int graded = p.CorrectVotes + p.IncorrectVotes;
+                if (graded > 0)
+                {
+                    double right = (double)p.CorrectVotes / graded;
+                    Add($"Votes right {p.CorrectVotes}/{graded} ({Percent(right)})", Share(r.CorrectVoteBonus, right, r));
+                }
                 if (p.TasksTotal > 0)
                 {
                     double effort = TaskEffort(p, r.LongTaskWeight);
-                    Add($"Tasks {Percent(effort)}", r.TaskPercentBonus * Math.Clamp(effort, 0, 1));
+                    Add($"Tasks {Percent(effort)}", Share(r.TaskPercentBonus, effort, r));
                 }
 
                 if (game.Winner != null && (!left || !won))
@@ -116,20 +124,30 @@ namespace TournamentTracker.Stats
                     {
                         Add("Lost" + Left(left), r.CrewOtherLoss);
                     }
+                    // Alive when the crew lost: more the longer the game ran, up to the cap.
+                    if (!won && kind != "Disconnect" && (p.DeathCause == null || p.LeftAlive))
+                    {
+                        int rounds = game.Meetings.Count + 1;
+                        double penalty = r.AliveLossPerRound * rounds;
+                        if (r.AliveLossCap != 0 && Math.Abs(penalty) > Math.Abs(r.AliveLossCap)) penalty = r.AliveLossCap;
+                        Add($"Alive at the loss ({rounds} round{(rounds == 1 ? "" : "s")})", penalty);
+                    }
                 }
             }
             return lines;
         }
 
         /// <summary>
-        /// One <see cref="ScoringRules.ReadVotePoints"/> per read on an impostor, capped at
-        /// <see cref="ScoringRules.ReadVoteBonus"/>, times the share of reads that were right.
+        /// A percentage bonus: <paramref name="max"/> times the share from <see cref="ScoringRules.LowPercentBelow"/> (25%)
+        /// up; below that it slides in a straight line down to <see cref="ScoringRules.LowPercentPoints"/> (−2) at 0%.
         /// </summary>
-        public static double ReadBonus(int correct, int incorrect, ScoringRules r)
+        public static double Share(double max, double share, ScoringRules r)
         {
-            if (correct <= 0) return 0;
-            double earned = Math.Min(r.ReadVoteBonus, r.ReadVotePoints * correct);
-            return earned * correct / (correct + incorrect);
+            share = Math.Clamp(share, 0, 1);
+            double below = Math.Clamp(r.LowPercentBelow, 0, 1);
+            if (below <= 0 || share >= below) return max * share;
+            double atBelow = max * below;
+            return r.LowPercentPoints + (atBelow - r.LowPercentPoints) * share / below;
         }
 
         /// <summary>Share of the task work done, a long task counting <paramref name="longWeight"/> times a short one.</summary>

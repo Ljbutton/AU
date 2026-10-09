@@ -8,7 +8,7 @@ public class StatsStoreTests
     private static GameRecord Game(string winner, Action<GameTracker, DateTime>? play = null)
     {
         var clock = new FakeClock();
-        var tracker = new GameTracker(new ScoringRules());
+        var tracker = new GameTracker(SheetRules.Fixed());
         tracker.Start(1, "Cup", "ABCDEF", "Polus", Players.Lobby(), clock.Now);
         play?.Invoke(tracker, clock.Now.AddSeconds(10));
         return tracker.End(winner == Outcome.Impostors ? "ImpostorByKill" : "HumansByTask", winner, Players.Lobby(), clock.Now.AddSeconds(60))!;
@@ -47,7 +47,7 @@ public class StatsStoreTests
     public void Abandoned_games_are_not_counted()
     {
         var store = new StatsStore();
-        var tracker = new GameTracker(new ScoringRules());
+        var tracker = new GameTracker(SheetRules.Fixed());
         tracker.Start(1, "Cup", "X", "Polus", Players.Lobby(), DateTime.UtcNow);
         store.Apply(tracker.End("Abandoned", null, Players.Lobby(), DateTime.UtcNow)!);
         Assert.Equal(0, store.GamesRecorded);

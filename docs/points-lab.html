@@ -199,9 +199,12 @@ const RULES = [
   ['Crewmate', [
     ['crewTaskWin', 'Task win', 5], ['crewVoteWin', 'Vote win', 3], ['crewSabotageLossAlive', 'Alive at a sabotage loss', -5],
     ['crewOtherLoss', 'Any other loss', -2], ['correctVoteOut', 'Correct vote out (each)', 2], ['incorrectVoteOut', 'Incorrect vote out (each)', -2],
-    ['caughtKiller', 'Caught and voted out killer', 1], ['readVotePoints', 'Read on an impostor (each)', 1], ['readVoteBonus', 'Reads bonus (up to)', 4],
+    ['caughtKiller', 'Caught and voted out killer', 1], ['votingBonus', 'Voted every meeting (up to)', 1], ['correctVoteBonus', 'Votes on impostors (up to)', 2],
     ['taskPercentBonus', 'Task % bonus (up to)', 3], ['longTaskWeight', 'Long task counts as (short tasks)', 2],
-    ['completedTasks', 'Finished every task', 1], ['gotKilled', 'Got killed', 0], ['diedFirstShareOfCrewAverage', 'Died first: share of crew average', 0.9]]],
+    ['lowPercentBelow', 'Below this share, % bonuses slide down', 0.25], ['lowPercentPoints', '…to this at 0%', -2],
+    ['completedTasks', 'Finished every task', 1], ['gotKilled', 'Got killed', -0.25], ['ejectedAsCrew', 'Voted out (crewmate)', -1],
+    ['aliveLossPerRound', 'Alive at a loss, per round', -0.25], ['aliveLossCap', 'Alive at a loss, most', -4],
+    ['diedFirstShareOfCrewAverage', 'Died first: share of crew average', 0.9]]],
   ['Other', [['disconnectWin', 'Win by disconnect', 0]]],
 ];
 const DEFAULTS = Object.fromEntries(RULES.flatMap(([, rs]) => rs.map(([k, , v]) => [k, v])));
@@ -248,6 +251,7 @@ function track(game) {
       tasksTotal: total, tasksDone: s.imp ? 0 : Math.min(s.tasksDone, total),
       longTotal, longDone: s.imp ? 0 : Math.min(s.longDone, longTotal),
       ejImp: 0, ejCrew: 0, caught: 0, order: null, readsRight: 0, readsWrong: 0, leftAlive: false,
+      meetings: 0, cast: 0, votesRight: 0, votesWrong: 0,
     });
   }
   for (const e of game.events) {
@@ -265,6 +269,13 @@ function track(game) {
     } else if (e.meeting) {
       const m = e.meeting, exiled = m.ejected == null ? null : P.get(m.ejected);
       const votes = m.votes.filter(([v, t]) => P.has(v) && (t === -1 || P.has(t)));
+      // Every crewmate alive at the meeting: did they vote for someone, and was it an impostor?
+      for (const p of P.values()) {
+        if (p.imp || p.death) continue;
+        p.meetings++;
+        const mine = votes.find(([v]) => v === p.id);
+        if (mine && mine[1] !== -1) { p.cast++; if (P.get(mine[1]).imp) p.votesRight++; else p.votesWrong++; }
+      }
       for (const [v, t] of votes) {
         if (t === -1 || (exiled && t === exiled.id)) continue;
         const voter = P.get(v), target = P.get(t);
@@ -291,10 +302,12 @@ function track(game) {
   return [...P.values()];
 }
 
-function readBonus(correct, incorrect, r) {
-  if (correct <= 0) return 0;
-  const earned = Math.min(r.readVoteBonus, r.readVotePoints * correct);
-  return earned * correct / (correct + incorrect);
+/** A % bonus: max x share from 25% up; below, a straight line down to -2 at 0% (like the mod). */
+function share(max, s, r) {
+  s = clamp01(s);
+  const below = clamp01(r.lowPercentBelow);
+  if (!(below > 0) || s >= below) return max * s;
+  return r.lowPercentPoints + (max * below - r.lowPercentPoints) * s / below;
 }
 function taskEffort(p, longWeight) {
   if (p.tasksTotal <= 0) return 0;
@@ -302,7 +315,7 @@ function taskEffort(p, longWeight) {
   return total <= 0 ? 0 : clamp01((p.tasksDone + extra * p.longDone) / total);
 }
 
-function breakdown(p, winner, kind, r) {
+function breakdown(p, winner, kind, r, meetingsHeld = 0) {
   const lines = [];
   const add = (rule, points, times = 1) => { if (times > 0 && points !== 0) lines.push([times > 1 ? `${rule} x${times}` : rule, points * times]); };
   const left = p.death === 'Disconnected', won = winner != null && p.imp === (winner === 'Impostors');
@@ -328,11 +341,14 @@ function breakdown(p, winner, kind, r) {
     add('Correct vote out', r.correctVoteOut, p.ejImp);
     add('Caught and voted out killer', r.caughtKiller, p.caught);
     if (p.death === 'Killed') add('Got killed', r.gotKilled);
+    if (p.death === 'Ejected') add('Voted out', r.ejectedAsCrew);
     add('Incorrect vote out', r.incorrectVoteOut, p.ejCrew);
-    if (p.readsRight > 0) add(`Reads ${p.readsRight}/${p.readsRight + p.readsWrong} on impostors`, readBonus(p.readsRight, p.readsWrong, r));
+    if (p.meetings > 0) add(`Voted in ${p.cast}/${p.meetings} meetings`, r.votingBonus * p.cast / p.meetings);
+    const graded = p.votesRight + p.votesWrong;
+    if (graded > 0) add(`Votes right ${p.votesRight}/${graded} (${pct(p.votesRight / graded)})`, share(r.correctVoteBonus, p.votesRight / graded, r));
     if (p.tasksTotal > 0) {
       const effort = taskEffort(p, r.longTaskWeight);
-      add(`Tasks ${pct(effort)}`, r.taskPercentBonus * clamp01(effort));
+      add(`Tasks ${pct(effort)}`, share(r.taskPercentBonus, effort, r));
     }
     if (winner != null && (!left || !won)) {
       if (won) {
@@ -341,6 +357,12 @@ function breakdown(p, winner, kind, r) {
         else if (kind === 'Disconnect') add('Win by disconnect', r.disconnectWin);
       } else if (kind === 'Sabotage' && (p.death == null || p.leftAlive)) add('Lost to sabotage while alive', r.crewSabotageLossAlive);
       else if (kind !== 'Disconnect') add('Lost' + (left ? ' (left the game)' : ''), r.crewOtherLoss);
+      if (!won && kind !== 'Disconnect' && (p.death == null || p.leftAlive)) {
+        const rounds = meetingsHeld + 1;
+        let pen = r.aliveLossPerRound * rounds;
+        if (r.aliveLossCap && Math.abs(pen) > Math.abs(r.aliveLossCap)) pen = r.aliveLossCap;
+        add(`Alive at the loss (${rounds} round${rounds === 1 ? '' : 's'})`, pen);
+      }
     }
   }
   return lines;
@@ -350,7 +372,7 @@ function breakdown(p, winner, kind, r) {
 function scoreGame(game, r) {
   const players = track(game), winner = winnerFromReason(game.reason), kind = kindOf(game.reason);
   for (const p of players) {
-    p.lines = winner != null ? breakdown(p, winner, kind, r) : [];
+    p.lines = winner != null ? breakdown(p, winner, kind, r, game.events.filter(e => e.meeting).length) : [];
     p.points = p.lines.reduce((s, l) => s + l[1], 0);
   }
   if (winner == null || !(r.diedFirstShareOfCrewAverage > 0)) return players;
@@ -485,8 +507,9 @@ const fmt = v => (Math.round(v * 100) / 100).toString();
 const signed = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + fmt(Math.abs(v));
 
 // ---- Point value inputs ----------------------------------------------------------------
-let rules = { ...DEFAULTS, ...(store.get('lab-rules') || {}) };
-const HELP = { readVotePoints: 'per vote on an impostor who stayed in', readVoteBonus: 'then × share of reads right',
+let rules = { ...DEFAULTS, ...(store.get('lab-rules-2') || {}) };
+const HELP = { votingBonus: '× share of meetings they voted for someone', correctVoteBonus: '× share of their votes on impostors',
+  lowPercentBelow: '0.25 = 25%; votes right and tasks only', aliveLossPerRound: 'rounds = meetings + 1, on top of the loss',
   diedFirstShareOfCrewAverage: '0.9 = 90%; 0 = off', longTaskWeight: 'in the task %' };
 const rulesEl = $('rules');
 for (const [group, list] of RULES) {
@@ -712,7 +735,7 @@ function renderStories() {
 let timer = null;
 function changed() {
   markChanged();
-  store.set('lab-rules', rules);
+  store.set('lab-rules-2', rules);
   clearTimeout(timer); timer = setTimeout(render, 120);
 }
 function regenerate() {

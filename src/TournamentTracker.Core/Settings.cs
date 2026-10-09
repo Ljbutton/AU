@@ -207,7 +207,9 @@ namespace TournamentTracker
         public double CompletedTasks { get; set; } = 1;
         public double CorrectVoteOut { get; set; } = 2;
         public double CaughtKiller { get; set; } = 1;
-        public double GotKilled { get; set; } = 0;
+        public double GotKilled { get; set; } = -0.25;
+        /// <summary>A crewmate voted out by their own crew.</summary>
+        public double EjectedAsCrew { get; set; } = -1;
 
         /// <summary>
         /// The first crewmate killed ends the game on this share of their crew teammates' average
@@ -221,17 +223,27 @@ namespace TournamentTracker
         public double CrewVoteWin { get; set; } = 3;
         public double CrewSabotageLossAlive { get; set; } = -5;
         public double CrewOtherLoss { get; set; } = -2;
+        /// <summary>
+        /// On top of the loss: a crewmate still alive when the crew loses loses this much for every
+        /// round the game lasted (rounds = meetings + 1), up to <see cref="AliveLossCap"/>.
+        /// </summary>
+        public double AliveLossPerRound { get; set; } = -0.25;
+        public double AliveLossCap { get; set; } = -4;
 
         // Crewmate bonuses
+        /// <summary>Up to this for voting for someone at every meeting they were alive for (a skip or no vote isn't voting).</summary>
+        public double VotingBonus { get; set; } = 1;
+        /// <summary>Up to this for the share of their votes (for a player) that were on an impostor.</summary>
+        public double CorrectVoteBonus { get; set; } = 2;
         /// <summary>
-        /// Reads: votes for someone who was not ejected that meeting (a vote that ejected someone
-        /// already scores as a correct or incorrect vote out). Each read on an impostor is worth
-        /// <see cref="ReadVotePoints"/>, up to this cap, then scaled by the share of reads that
-        /// were on impostors. So 4 right out of 4 beats 1 right out of 1, and guessing at every
-        /// meeting doesn't pay.
+        /// The correct-voting and task bonuses below this share slide down to <see cref="LowPercentPoints"/> at 0%
+        /// (0.25 = 25%). The voting bonus isn't affected.
         /// </summary>
-        public double ReadVoteBonus { get; set; } = 4;
-        public double ReadVotePoints { get; set; } = 1;
+        public double LowPercentBelow { get; set; } = 0.25;
+        public double LowPercentPoints { get; set; } = -2;
+        /// <summary>No longer used (replaced by <see cref="VotingBonus"/> and <see cref="CorrectVoteBonus"/>); kept so older codes still read.</summary>
+        public double ReadVoteBonus { get; set; }
+        public double ReadVotePoints { get; set; }
 
         /// <summary>Scaled by the share of the crewmate's task effort they finished: the full amount at 100%.</summary>
         public double TaskPercentBonus { get; set; } = 3;
