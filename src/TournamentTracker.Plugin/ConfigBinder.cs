@@ -62,10 +62,6 @@ namespace TournamentTracker.Plugin
             m.MuteDeadDuringMeetings = config.Bind("AutoMute", "MuteDeadDuringMeetings", m.MuteDeadDuringMeetings,
                 "Keep dead players muted during meetings.").Value;
 
-            m.DelayGameStart = config.Bind("AutoMute", "DelayGameStart", m.DelayGameStart,
-                "Seconds between the game starting and alive players being muted (time to react to the role reveal).").Value;
-            m.DelayMeetingEnd = config.Bind("AutoMute", "DelayMeetingEnd", m.DelayMeetingEnd,
-                "Seconds between a meeting ending and alive players being muted again.").Value;
             m.DelayGameEnd = config.Bind("AutoMute", "DelayGameEnd", m.DelayGameEnd,
                 "Seconds between the game ending and everyone being unmuted.").Value;
             m.DelayMeetingStart = config.Bind("AutoMute", "DelayMeetingStart", m.DelayMeetingStart,

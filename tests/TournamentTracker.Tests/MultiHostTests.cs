@@ -95,7 +95,6 @@ public class MultiHostTests : IDisposable
         settings.AutoMute.BotTokens.Add("tok");
         settings.AutoMute.AutoLinkByName = false;
         settings.AutoMute.MuteSpectators = true;
-        settings.AutoMute.DelayGameStart = 0;
         using var s = new TournamentSession(settings, _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now, voice, _presence);
         var lobby = Lobby();
         s.Links.Link(lobby[3].Key, "LJ", "300", "lj");        // the host

@@ -36,7 +36,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.53**, a beta.
+The current release is **v0.1.54**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -844,16 +844,16 @@ open, so there's no server to run. The bot shows as offline when no host has the
 
 #### Timing
 
-Voice switches a moment after the game does, so nobody gets cut off mid-word:
+Muting for tasks happens straight away; opening voices up at the end can wait a moment:
 
 | Change | Default | Setting |
 | --- | --- | --- |
-| Game starts → alive players muted | 3 s (time to react to the role reveal) | `DelayGameStart` |
-| Meeting ends → alive players muted again | 3 s | `DelayMeetingEnd` |
+| Game starts → alive players muted and deafened | none | |
+| Meeting ends (after the ejection screen) → alive players muted again | none | |
 | Game ends → everyone unmuted | 3 s | `DelayGameEnd` |
 | Meeting called → alive players unmuted | 0 s, so nobody misses the start of the discussion | `DelayMeetingStart` |
 
-A death applies at once, and **Unmute all** (Home) / **F9** never wait. Muting always goes out
+A death shows at the next meeting (see above), and **Unmute all** (Home) / **F9** never wait. Muting always goes out
 before unmuting: when a meeting starts the dead are muted first, and when it ends the living are
 muted before the dead get their voice back, so nobody who should be quiet is still talking while
 the bot works through everyone else.
@@ -1000,7 +1000,7 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | AutoMute | `DeafenAliveDuringTasks` | true | Alive players can't hear the dead |
 | AutoMute | `DeadCanTalkDuringTasks` | true | From the round after their death is revealed at a meeting |
 | AutoMute | `MuteDeadDuringMeetings` | true | |
-| AutoMute | `DelayGameStart` / `DelayMeetingEnd` / `DelayGameEnd` | 3 / 3 / 3 | Seconds; see *Timing* |
+| AutoMute | `DelayGameEnd` | 3 | Seconds; see *Timing* |
 | AutoMute | `DelayMeetingStart` | 0 | Seconds |
 | AutoMute | `MuteSpectators` | false | See *Spectators* |
 | AutoMute | `VoiceChannelId` | | Empty = where most linked players are |

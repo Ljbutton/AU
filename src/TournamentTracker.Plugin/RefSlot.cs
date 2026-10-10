@@ -114,7 +114,9 @@ namespace TournamentTracker.Plugin
             var centre = MapCentre(out var bounds);
             // Just past the bottom of the map: further than any player's screen reaches from inside it.
             var hideout = new Vector2(centre.x, bounds.min.y - 12f);
-            referee.NetTransform.SnapTo(hideout);
+            // Sent to everyone (a plain SnapTo only moved the referee on the host's screen, so the other
+            // players still saw them standing where the game started).
+            referee.NetTransform.RpcSnapTo(hideout);
             referee.moveable = false;
             _view ??= centre;
             GhostZoom.ZoomOut();
@@ -201,9 +203,17 @@ namespace TournamentTracker.Plugin
             var chat = hud.Chat;
             if (chat == null) return;
             if (!chat.gameObject.activeSelf) chat.gameObject.SetActive(true);
+            // Enter (or T) opens the chat whatever the button is doing.
+            if (!chat.IsOpenOrOpening && Minigame.Instance == null && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.T)))
+            {
+                try { chat.Toggle(); } catch (Exception) { }
+            }
             var button = chat.chatButton;
             if (button == null) return;
             var go = button.gameObject;
+            if (go.activeInHierarchy) return;
+            // The game's own switch for it (it hides the chat from living players during tasks).
+            try { chat.SetVisible(true); } catch (Exception) { }
             if (!go.activeSelf) go.SetActive(true);
             if (go.activeInHierarchy) return;
             // Something above it switched off too (up to the HUD): on again.

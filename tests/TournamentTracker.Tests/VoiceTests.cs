@@ -182,24 +182,28 @@ public class AutoMuteTests : IDisposable
     }
 
     [Fact]
-    public async Task Phase_changes_wait_for_the_delay()
+    public async Task Muting_never_waits_but_the_end_of_the_game_does()
     {
         Enter(VoicePhase.Lobby);
         await Settle();
 
-        _controller.Update(VoicePhase.Tasks, _players);            // game starts
-        _clock.Advance(2.9);
-        _controller.Update(VoicePhase.Tasks, _players);
+        _controller.Update(VoicePhase.Tasks, _players);            // game starts: muted at once
         await Settle();
-        Assert.Equal(VoicePhase.Lobby, _controller.Phase);
-        Assert.Equal(VoiceState.Open, _dispatcher.Applied("100"));
-
-        _clock.Advance(0.2);                                       // 3 seconds in
-        _controller.Update(VoicePhase.Tasks, _players);
-        await Settle();
+        Assert.Equal(VoicePhase.Tasks, _controller.Phase);
         Assert.Equal(new VoiceState(true, true), _dispatcher.Applied("100"));
 
         _controller.Update(VoicePhase.Meeting, _players);          // meetings open at once by default
+        await Settle();
+        Assert.Equal(VoiceState.Open, _dispatcher.Applied("100"));
+        _controller.Update(VoicePhase.Tasks, _players);            // meeting over: muted at once
+        await Settle();
+        Assert.Equal(new VoiceState(true, true), _dispatcher.Applied("100"));
+
+        _controller.Update(VoicePhase.GameOver, _players);         // game over: waits DelayGameEnd
+        await Settle();
+        Assert.Equal(VoicePhase.Tasks, _controller.Phase);
+        _clock.Advance(3.1);
+        _controller.Update(VoicePhase.GameOver, _players);
         await Settle();
         Assert.Equal(VoiceState.Open, _dispatcher.Applied("100"));
     }
@@ -220,12 +224,10 @@ public class AutoMuteTests : IDisposable
     [Fact]
     public void Delays_follow_the_settings()
     {
-        _settings.DelayGameStart = 7;
-        _settings.DelayMeetingEnd = 5;
         _settings.DelayGameEnd = 4;
         _settings.DelayMeetingStart = 1;
-        Assert.Equal(7, _controller.DelayFor(VoicePhase.Lobby, VoicePhase.Tasks));
-        Assert.Equal(5, _controller.DelayFor(VoicePhase.Meeting, VoicePhase.Tasks));
+        Assert.Equal(0, _controller.DelayFor(VoicePhase.Lobby, VoicePhase.Tasks));     // muting never waits
+        Assert.Equal(0, _controller.DelayFor(VoicePhase.Meeting, VoicePhase.Tasks));
         Assert.Equal(1, _controller.DelayFor(VoicePhase.Tasks, VoicePhase.Meeting));
         Assert.Equal(4, _controller.DelayFor(VoicePhase.Meeting, VoicePhase.GameOver));
         Assert.Equal(4, _controller.DelayFor(VoicePhase.Tasks, VoicePhase.Lobby));

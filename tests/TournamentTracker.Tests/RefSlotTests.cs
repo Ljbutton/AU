@@ -26,7 +26,6 @@ public class RefSlotTests : IDisposable
         settings.AutoMute.BotTokens.Add("tok");
         settings.AutoMute.AutoLinkByName = false;
         settings.AutoMute.MuteSpectators = true;
-        settings.AutoMute.DelayGameStart = 0;
         var s = new TournamentSession(settings, _dir.Path, NullLog.Instance, new HttpClient(new FakeHttp()), () => _clock.Now, _voice, _presence);
         _sessions.Add(s);
         return s;
