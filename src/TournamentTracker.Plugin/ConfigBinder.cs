@@ -18,8 +18,6 @@ namespace TournamentTracker.Plugin
                 "Names this host's lobby in Discord and in game numbers (\"Game LJ-3\"). Leave empty to use the host's in-game name. All hosts can then share one TournamentName.").Value.Trim();
             s.PublicChat = config.Bind("General", "PublicChat", d.PublicChat,
                 "Send announcements to everyone's chat. Off: only you (and the app) see them.").Value;
-            s.AnnounceLinks = config.Bind("General", "AnnounceLinks", d.AnnounceLinks,
-                "Say in the lobby chat when a player is linked to Discord (by name automatically, or with /link).").Value;
             s.ControlPort = config.Bind("General", "ControlPort", d.ControlPort,
                 "Port the Tournament Tracker app connects on (this computer only). -1 turns the connection off.").Value;
             s.PublishLive = config.Bind("General", "PublishLive", d.PublishLive,

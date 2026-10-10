@@ -31,7 +31,9 @@ namespace TournamentTracker.Voice
     /// Applies voice states to Discord in the background. Callers only say what each member
     /// should be; the dispatcher works out what still has to change. A state that changes
     /// again before it was sent is simply replaced, so a quick meeting→tasks flip never
-    /// queues stale requests. One worker runs per bot token so extra bots add throughput.
+    /// queues stale requests. Each bot sends a few changes at once (Discord answers each in a
+    /// fraction of a second, so one at a time left a 10-player lobby waiting seconds for the last
+    /// mute); its rate limit is still honoured, and extra bots add more.
     /// </summary>
     public sealed class MuteDispatcher : IDisposable
     {
@@ -48,14 +50,18 @@ namespace TournamentTracker.Voice
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private readonly List<Task> _workers = new List<Task>();
 
-        public MuteDispatcher(IVoiceApi api, IReadOnlyList<string> botTokens, ILog log, Func<DateTime>? clock = null)
+        /// <summary>Changes each bot has on the wire at once.</summary>
+        public const int LanesPerBot = 4;
+
+        public MuteDispatcher(IVoiceApi api, IReadOnlyList<string> botTokens, ILog log, Func<DateTime>? clock = null, int lanesPerBot = LanesPerBot)
         {
             if (botTokens.Count == 0) throw new ArgumentException("At least one bot token is required", nameof(botTokens));
             _api = api;
             _log = log;
             _clock = clock ?? (() => DateTime.UtcNow);
             foreach (var token in botTokens)
-                _workers.Add(Task.Run(() => WorkerAsync(token, _cts.Token)));
+                for (int lane = 0; lane < Math.Max(1, lanesPerBot); lane++)
+                    _workers.Add(Task.Run(() => WorkerAsync(token, _cts.Token)));
         }
 
         /// <summary>First delay after a member turned out not to be in voice; it doubles on each miss.</summary>

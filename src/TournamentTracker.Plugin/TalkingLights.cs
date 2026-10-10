@@ -7,9 +7,8 @@ namespace TournamentTracker.Plugin
 {
     /// <summary>
     /// On the host's screen (and so on stream): who is talking on Discord, for players linked to
-    /// it. In meetings their card lights up in their colour, with a speaker on the outline; in the
-    /// lobby a speaker in their
-    /// colour shows by their name.
+    /// it. In meetings their card's banner is outlined in their colour; in the lobby a speaker in
+    /// their colour shows by their name.
     /// The bot sits muted in the host's voice channel to see it (it never records anyone).
     /// Only drawn in this one game; nothing is sent to the players.
     /// </summary>
@@ -18,7 +17,7 @@ namespace TournamentTracker.Plugin
         private const float Check = 0.1f, Fade = 0.15f;
 
         private static float _next;
-        private static Sprite? _ring, _speaker, _badge;
+        private static Sprite? _ring, _speaker;
         private static readonly Dictionary<IntPtr, Light> Cards = new Dictionary<IntPtr, Light>();
         private static readonly Dictionary<byte, Light> Icons = new Dictionary<byte, Light>();
         private static readonly Dictionary<string, (string Key, Color Colour)> KeyByName = new Dictionary<string, (string, Color)>();
@@ -29,12 +28,12 @@ namespace TournamentTracker.Plugin
         {
             public GameObject Go = null!;
             public SpriteRenderer Sprite = null!;
-            /// <summary>The speaker on a meeting card's outline (its own object: the ring is stretched).</summary>
-            public SpriteRenderer? Badge;
             public float Alpha = -1;
             public bool On;
             public Color Colour = Color.white;
             public Transform? Follow;
+            /// <summary>A lobby speaker: it follows a player around.</summary>
+            public bool Wanders;
             public Vector3 Offset;
         }
 
@@ -114,51 +113,45 @@ namespace TournamentTracker.Plugin
             return sb.ToString().Trim();
         }
 
-        /// <summary>A green ring around a meeting card, sized to the card.</summary>
+        /// <summary>
+        /// A ring in the player's colour around a meeting card's banner. It hangs off the banner
+        /// picture itself, in its own space, so it fits the banner exactly and moves with it (the
+        /// cards slide in when the meeting opens, so measuring them on screen goes wrong).
+        /// </summary>
         private static Light CardLight(PlayerVoteArea area)
         {
+            var bg = area.Background;
             var go = new GameObject("TT Talking");
             // On the card's own layer: the meeting screen is drawn by the screen-overlay camera,
-            // which leaves out the default layer (the ring and speaker never showed on it).
+            // which leaves out the default layer.
             go.layer = area.gameObject.layer;
-            go.transform.SetParent(area.transform, false);
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = Ring();
             sr.color = new Color(1, 1, 1, 0);
-            // The card's size and drawing order, from its own pictures.
-            Bounds? box = null;
-            int layer = 0, order = 0;
-            foreach (var r in area.GetComponentsInChildren<SpriteRenderer>(true))
-            {
-                if (r == null || r == sr || r.sprite == null) continue;
-                if (box is Bounds b) { b.Encapsulate(r.bounds); box = b; } else box = r.bounds;
-                layer = r.sortingLayerID;
-                order = Math.Max(order, r.sortingOrder);
-            }
-            sr.sortingLayerID = layer;
+            int order = 0;
+            foreach (var r in area.GetComponentsInChildren<SpriteRenderer>(false))
+                if (r != null && r != sr) order = Math.Max(order, r.sortingOrder);
             sr.sortingOrder = order + 1;
-            var size = box?.size ?? new Vector3(2.7f, 0.65f, 0);
-            var centre = box?.center ?? area.transform.position;
-            var parent = area.transform.lossyScale;
-            float px = Math.Abs(parent.x) < 1e-4f ? 1 : parent.x, py = Math.Abs(parent.y) < 1e-4f ? 1 : parent.y;
-            // The ring sprite is 1 unit wide and 0.3 high.
-            go.transform.localScale = new Vector3(size.x * 1.04f / px, size.y * 1.12f / 0.3f / py, 1);
-            go.transform.position = new Vector3(centre.x, centre.y, area.transform.position.z - 0.05f);
 
-            // A speaker sitting on the outline's top-right corner.
-            var badgeGo = new GameObject("TT Talking speaker");
-            badgeGo.layer = area.gameObject.layer;
-            badgeGo.transform.SetParent(area.transform, false);
-            var badge = badgeGo.AddComponent<SpriteRenderer>();
-            badge.sprite = Badge();
-            badge.color = new Color(1, 1, 1, 0);
-            badge.sortingLayerID = layer;
-            badge.sortingOrder = order + 2;
-            float across = size.y * 0.62f;   // the badge sprite is 1 unit across
-            badgeGo.transform.localScale = new Vector3(across / Math.Abs(px), across / Math.Abs(py), 1);
-            badgeGo.transform.position = new Vector3(centre.x + size.x * 0.52f - across * 0.35f, centre.y + size.y * 0.56f, area.transform.position.z - 0.06f);
-            badgeGo.SetActive(false);
-            return new Light { Go = go, Sprite = sr, Badge = badge };
+            if (bg != null && bg.sprite != null)
+            {
+                sr.sortingLayerID = bg.sortingLayerID;
+                go.transform.SetParent(bg.transform, false);
+                var size = bg.drawMode != SpriteDrawMode.Simple ? (Vector3)bg.size : bg.sprite.bounds.size;
+                var centre = bg.drawMode != SpriteDrawMode.Simple ? Vector3.zero : bg.sprite.bounds.center;
+                go.transform.localPosition = new Vector3(centre.x, centre.y, -0.05f);
+                // The ring sprite is 1 × 0.3 units, its outline inset by the glow (3% across, 10% up and down).
+                go.transform.localScale = new Vector3(size.x / 0.94f, size.y / 0.8f / 0.3f, 1);
+                go.transform.localRotation = Quaternion.identity;
+            }
+            else
+            {
+                // No banner picture (shouldn't happen): fall back to the card's own position and the usual banner size.
+                go.transform.SetParent(area.transform, false);
+                go.transform.localPosition = new Vector3(0, 0, -0.05f);
+                go.transform.localScale = new Vector3(2.7f / 0.94f, 0.65f / 0.8f / 0.3f, 1);
+            }
+            return new Light { Go = go, Sprite = sr };
         }
 
         // ---- The lobby: a speaker by the talking player's name -----------------------------------
@@ -177,6 +170,8 @@ namespace TournamentTracker.Plugin
                 }
                 if (talking) light.Colour = ColourOf(p.Data);
                 light.On = talking;
+                // The player's body can be swapped (back in the lobby after a game, a rejoin): always follow the current one.
+                light.Follow = p.Pc.transform;
                 Place(p, light);
             }
             foreach (var (id, light) in Icons)
@@ -192,7 +187,7 @@ namespace TournamentTracker.Plugin
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = Speaker();
             sr.color = new Color(1, 1, 1, 0);
-            return new Light { Go = go, Sprite = sr, Follow = p.Pc.transform };
+            return new Light { Go = go, Sprite = sr, Follow = p.Pc.transform, Wanders = true };
         }
 
         /// <summary>Just left of the player's name (measured ten times a second; followed every frame).</summary>
@@ -205,8 +200,9 @@ namespace TournamentTracker.Plugin
                 if (name != null)
                 {
                     var np = name.transform.position;
-                    x = np.x - name.preferredWidth * name.transform.lossyScale.x / 2 - 0.22f - p.Pos.x;
-                    y = np.y - p.Pos.y;
+                    var body = p.Pc.transform.position;
+                    x = np.x - name.preferredWidth * name.transform.lossyScale.x / 2 - 0.22f - body.x;
+                    y = np.y - body.y;
                 }
             }
             catch (Exception) { }
@@ -230,11 +226,14 @@ namespace TournamentTracker.Plugin
                     light.Sprite.color = new Color(light.Colour.r, light.Colour.g, light.Colour.b, a);
                     bool show = a > 0.01f;
                     if (light.Go.activeSelf != show) light.Go.SetActive(show);
-                    if (light.Badge != null)
-                    {
-                        light.Badge.color = new Color(light.Colour.r, light.Colour.g, light.Colour.b, a);
-                        if (light.Badge.gameObject.activeSelf != show) light.Badge.gameObject.SetActive(show);
-                    }
+                }
+                if (light.Wanders && light.Follow == null && light.Alpha > 0)
+                {
+                    // The body it followed is gone: hide it rather than leave it hanging in place.
+                    light.On = false;
+                    light.Alpha = 0;
+                    light.Go.SetActive(false);
+                    continue;
                 }
                 if (light.Follow != null && light.Alpha > 0.01f)
                 {
@@ -267,7 +266,6 @@ namespace TournamentTracker.Plugin
             foreach (var light in Cards.Values)
             {
                 if (light.Go != null) UnityEngine.Object.Destroy(light.Go);
-                if (light.Badge != null) UnityEngine.Object.Destroy(light.Badge.gameObject);
             }
             Cards.Clear();
         }
@@ -325,31 +323,6 @@ namespace TournamentTracker.Plugin
             bool front = fx > 26 && Math.Abs(fy) < (fx - 22) * 1.1f;
             bool wave = front && (Math.Abs(r - 10) < 1.8f || Math.Abs(r - 17) < 1.8f);
             return box || cone || wave;
-        }
-
-        /// <summary>
-        /// The meeting card's speaker: a dark disc with a rim, the speaker on it, 1 unit across. Tinted
-        /// in the player's colour, the rim and speaker take the colour and the disc stays dark.
-        /// </summary>
-        private static Sprite Badge()
-        {
-            if (_badge != null) return _badge;
-            const int s = 64;
-            var px = new Color32[s * s];
-            for (int y = 0; y < s; y++)
-                for (int x = 0; x < s; x++)
-                {
-                    float dx = x + 0.5f - s / 2f, dy = y + 0.5f - s / 2f;
-                    float r = (float)Math.Sqrt(dx * dx + dy * dy);
-                    Color32 c = new Color32(0, 0, 0, 0);
-                    if (r <= 31) c = r >= 27.5f ? new Color32(255, 255, 255, 255) : new Color32(22, 22, 28, 240);
-                    // The speaker, 48 wide scaled to 36 and centred on the disc.
-                    if (r < 27.5f && IsSpeaker((dx + 18) * 48 / 36f, dy * 48 / 36f)) c = new Color32(255, 255, 255, 255);
-                    if (r > 31 && r < 32) c = new Color32(255, 255, 255, (byte)((32 - r) * 255));
-                    px[y * s + x] = c;
-                }
-            _badge = Make(px, s, s, s);
-            return _badge;
         }
 
         private static Sprite Make(Color32[] px, int w, int h, float ppu)

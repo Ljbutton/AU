@@ -12,7 +12,9 @@ their Discord account with **/link** in the Discord server. It:
   leaderboard.
 * **Automutes Discord voice**: alive players are muted (and deafened) during tasks, everyone
   alive can talk in meetings, and dead players talk among themselves during tasks, with a
-  short delay at each change. It can also mute spectators. Players link themselves with
+  short delay at each change. A player killed mid-round keeps the same voice state as the
+  living until the next meeting, so Discord never gives away who died or when. Voices change as
+  soon as a meeting is called, and each bot sends several changes at once. It can also mute spectators. Players link themselves with
   `/link` in Discord, the host links them from The Button, or they're linked automatically when their name matches. It works like AutoMuteUs, but the host's game drives it directly, so no
   capture app is needed.
 
@@ -34,7 +36,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.52**, a beta.
+The current release is **v0.1.53**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -870,9 +872,8 @@ message shows when the referee is speaking.
 While you host, the first bot sits in your voice channel, muted, and follows you when you
 move. When you leave voice or stop hosting, it leaves too. It only looks at which people are
 sending sound; it never records or plays anything. On your screen (and so on stream), a linked
-player's meeting card lights up in their colour while they talk, with a speaker on the outline's
-corner, and in the lobby a speaker in
-their colour shows by their name. Players' own games don't change. Turn it off with `ShowTalking = false` under
+player's meeting banner is outlined in their colour while they talk, and in the lobby a speaker
+in their colour shows by their name. Players' own games don't change. Turn it off with `ShowTalking = false` under
 `[AutoMute]`.
 
 #### Spectators
@@ -920,8 +921,7 @@ colour changes, and they're saved in `BepInEx/config/TournamentTracker/links.jso
 * If no open lobby can match the name (the player isn't in the Among Us lobby yet, or used a
   colour from outside the lobby's voice channel), they're told why instead of getting no
   answer. `/link` only works while a host has Among Us open, since the host's game is the bot.
-* Every new link is announced in the lobby chat ("Linked Red (Soggy) to @soggy"), so a
-  wrong one gets noticed. `AnnounceLinks = false` turns that off.
+* New links show on The Button's Home ("Linked Red (Soggy) to @soggy"), not in the game chat.
 * **Referees** (anyone who can mute members in the server) link someone else by adding
   `user`: `/link player:Red user:@Soggy`, `/unlink user:@Soggy`. The host can too, once linked.
 * **Automatically:** in the lobby, a player whose in-game name matches exactly one person in
@@ -967,7 +967,7 @@ brings the old standings back.
 
 Everything the host does is a button in The Button; players link in Discord. The mod never
 reads the lobby chat. It only writes to it: the host sees its notes (round progress, a
-player who left), and links are announced to everyone (`AnnounceLinks`). `PublicChat = true`
+player who left); links only show on The Button's Home. `PublicChat = true`
 sends the other notes to everyone too.
 
 When the game closes, the mod unmutes everyone it muted before it exits.
@@ -984,7 +984,6 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | General | `OverlayPort` | 8765 | Stream overlay port (this computer only) |
 | General | `GamesPerRound` | 3 | Tournament rounds; a setup code overrides it |
 | General | `PublicChat` | false | Send announcements to everyone's chat |
-| General | `AnnounceLinks` | true | Say in the lobby chat when a player is linked to Discord |
 | General | `ControlPort` | 8766 | The app's private connection; -1 turns it off |
 | Discord | `StatsWebhookUrl` | | Game reports and leaderboard |
 | Discord | `PostLeaderboardAfterEachGame` | true | |
@@ -999,7 +998,7 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | AutoMute | `BotTokens` | | Comma separated |
 | AutoMute | `GuildId` | | |
 | AutoMute | `DeafenAliveDuringTasks` | true | Alive players can't hear the dead |
-| AutoMute | `DeadCanTalkDuringTasks` | true | |
+| AutoMute | `DeadCanTalkDuringTasks` | true | From the round after their death is revealed at a meeting |
 | AutoMute | `MuteDeadDuringMeetings` | true | |
 | AutoMute | `DelayGameStart` / `DelayMeetingEnd` / `DelayGameEnd` | 3 / 3 / 3 | Seconds; see *Timing* |
 | AutoMute | `DelayMeetingStart` | 0 | Seconds |

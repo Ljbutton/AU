@@ -245,6 +245,7 @@ namespace TournamentTracker.Plugin.Patches
         public static void Record(PlayerControl caller, NetworkedPlayerInfo body) => Hook.Run("Meeting", () =>
         {
             if (caller == null) return;
+            Game.MeetingCalledAt = UnityEngine.Time.unscaledTime;
             Driver.StartGame();
             TournamentPlugin.Session.MeetingCalled(caller.PlayerId, body == null ? null : body.PlayerId);
         });

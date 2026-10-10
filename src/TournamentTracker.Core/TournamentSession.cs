@@ -429,6 +429,13 @@ namespace TournamentTracker
 
         private void Reply(string text, bool isPublic) => Reply(text, isPublic, false);
 
+        /// <summary>Worth knowing but not worth a chat line (links): the log and The Button's Home only.</summary>
+        private void Note(string text)
+        {
+            Log(text);
+            AddNotice(text);
+        }
+
         /// <summary>How the host does something, for messages: the button in The Button ("press Void in The Button").</summary>
         private static string HowTo(string button) => $"press {button} in The Button";
 
