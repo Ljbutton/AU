@@ -140,11 +140,8 @@ namespace TournamentTracker
         /// <summary>Dead players stay muted during meetings.</summary>
         public bool MuteDeadDuringMeetings { get; set; } = true;
 
-        // Seconds to wait before switching voice to a new phase.
-        /// <summary>Lobby to tasks: lets everyone react to the role reveal before the mute.</summary>
-        public double DelayGameStart { get; set; } = 3;
-        /// <summary>Meeting to tasks: the end of the ejection screen.</summary>
-        public double DelayMeetingEnd { get; set; } = 3;
+        // Seconds to wait before switching voice to a new phase. Muting for tasks (game start,
+        // meeting end) never waits: the meeting phase already lasts through the ejection screen.
         /// <summary>Tasks or meeting to the end screen or lobby.</summary>
         public double DelayGameEnd { get; set; } = 3;
         /// <summary>Tasks to meeting. 0 so nobody loses the start of the discussion.</summary>

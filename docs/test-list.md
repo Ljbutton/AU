@@ -197,3 +197,9 @@ _Unused code was removed. If anything below misbehaves, it's likely from the cle
 - [ ] Report a body: Discord voices open as the report animation plays, not after it
 - [ ] Automute feels quicker: 10 players switch within about a second with one bot
 - [ ] Host playing (not referee), dead, zoomed out: open a task — it's full size and works; close it and the zoom comes back. Same for the map
+
+## New in 0.1.54 — referee and automute timing
+- [ ] Referee mode: a few seconds into the game, other players no longer see the referee standing on the map (ask a player, or check a second PC)
+- [ ] Referee mode: the chat button shows during tasks; Enter or T also opens the chat
+- [ ] Game start: alive players are muted and deafened straight away (no 3-second wait)
+- [ ] Meeting end: alive players are muted again as soon as the ejection screen finishes

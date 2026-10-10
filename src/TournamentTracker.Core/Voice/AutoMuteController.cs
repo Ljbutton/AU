@@ -144,7 +144,7 @@ namespace TournamentTracker.Voice
             switch (to)
             {
                 case VoicePhase.Tasks:
-                    return from == VoicePhase.Meeting ? _settings.DelayMeetingEnd : _settings.DelayGameStart;
+                    return 0;   // muting for tasks never waits
                 case VoicePhase.Meeting:
                     return from == VoicePhase.Tasks ? _settings.DelayMeetingStart : 0;
                 default:

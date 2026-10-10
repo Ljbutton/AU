@@ -350,7 +350,6 @@ public class LiveLobbyTests : IDisposable
         {
             c.AutoMute.MuteSpectators = true;
             c.AutoMute.AutoLinkByName = false;
-            c.AutoMute.DelayGameStart = 0;
         });
         s.Links.Link(_lobby[0].Key, "Alice", "100", "alice");
         s.Links.Link(_lobby[2].Key, "Carl", "102", "carl");
@@ -379,7 +378,6 @@ public class LiveLobbyTests : IDisposable
         {
             c.AutoMute.MuteSpectators = true;
             c.AutoMute.AutoLinkByName = false;
-            c.AutoMute.DelayGameStart = 0;
             c.AutoMute.VoiceChannelId = "vc";
         });
         s.Links.Link(_lobby[0].Key, "Alice", "100", "alice");
