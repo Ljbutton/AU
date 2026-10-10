@@ -682,6 +682,8 @@ public class TournamentModeTests : IDisposable
         // The report still goes to the organiser's private webhook with its data; Red Alert's copy goes to the results channel.
         Assert.Contains(_discord.Webhooks, w => w.File != null);
         Assert.Contains(_discord.Messages, m => m.Channel == "results");
+        // The Referee page's board is reloaded from the channel, so the new game is on it.
+        Assert.Equal(1, streamed.Combined?.GameRecords.Count);
         await plain.PendingPosts;
     }
 

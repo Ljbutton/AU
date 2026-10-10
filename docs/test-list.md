@@ -203,3 +203,9 @@ _Unused code was removed. If anything below misbehaves, it's likely from the cle
 - [ ] Referee mode: the chat button shows during tasks; Enter or T also opens the chat
 - [ ] Game start: alive players are muted and deafened straight away (no 3-second wait)
 - [ ] Meeting end: alive players are muted again as soon as the ejection screen finishes
+
+## New in 0.1.55 — leaderboard, chat, zoom
+- [ ] Referee page: press Submit on a game → within a few seconds the leaderboard includes it (also after Void / Unvoid and point changes after Submit)
+- [ ] Host just playing (not referee), dead: no zoom at all (scroll and +/− do nothing)
+- [ ] Referee mode: zoom still works; typing "-" or scrolling in the chat doesn't zoom
+- [ ] Referee mode: open the chat, send, close it — it closes normally every time
