@@ -14,6 +14,29 @@ namespace TournamentTracker
         /// <summary>The referee's player key while the slot is on; null when off. Saved.</summary>
         public string? RefSlotKey { get; private set; }
 
+        /// <summary>
+        /// Experimental: tell the other players' games the referee is dead too (an exile message,
+        /// sent once the game is under way), so their meeting screens cross the referee out. Off by
+        /// default: an exile message at the very start of a game got the host kicked. Saved.
+        /// </summary>
+        public bool RefDeadForAll { get; private set; }
+
+        /// <summary>!refdead on|off.</summary>
+        private void RefDeadCommand(string[] args)
+        {
+            string arg = string.Join(" ", args).Trim().ToLowerInvariant();
+            if (arg != "on" && arg != "off")
+            {
+                Reply($"Show the referee as dead to players is {(RefDeadForAll ? "ON" : "OFF")}.", false);
+                return;
+            }
+            RefDeadForAll = arg == "on";
+            SaveState();
+            Reply(RefDeadForAll
+                ? "Show the referee as dead to players ON (experimental): about 10 seconds into each game, the other players' games are told the referee died. If the host gets kicked when it's sent, turn this off."
+                : "Show the referee as dead to players OFF.", false);
+        }
+
         /// <summary>The referee's player ID in this lobby, if the slot is on and they're here.</summary>
         public byte? RefSlotPlayerId(IReadOnlyList<PlayerSnapshot> players) =>
             RefSlotKey == null ? null : players.FirstOrDefault(p => p.Key == RefSlotKey)?.PlayerId;

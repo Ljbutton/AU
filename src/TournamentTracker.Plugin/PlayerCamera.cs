@@ -69,11 +69,13 @@ namespace TournamentTracker.Plugin
             var cam = _cam!;
             cam.transform.position = new Vector3(_at.x, _at.y, main!.transform.position.z);
             MiniChat.Hide(true);
+            MiniVitals.Hide(true);
             bool shade = Shade(who, cam);
             try { cam.Render(); }
             finally
             {
                 MiniChat.Hide(false);
+                MiniVitals.Hide(false);
                 if (shade) _shadeGo!.SetActive(false);
             }
 

@@ -68,6 +68,31 @@ namespace TournamentTracker.Plugin
             referee.Data.SetDirtyBit(uint.MaxValue);
             TournamentPlugin.Logger.Info($"Referee ghost: {referee.Data.PlayerName} is now a ghost (marked dead in the player record, no exile sent).");
             CentreSoon(1f);
+            _tellDeadAt = Time.unscaledTime + 10f;
+        }
+
+        private static float _tellDeadAt = -1;
+
+        /// <summary>
+        /// Experimental (Show the referee as dead to players): once the game is under way, an exile
+        /// message for the referee to everyone else, so their games mark the referee dead and their
+        /// meetings cross them out. Sent once a game, never during the intro or a meeting.
+        /// </summary>
+        private static void TellOthersDead(bool meeting)
+        {
+            if (_tellDeadAt < 0 || Time.unscaledTime < _tellDeadAt) return;
+            if (meeting || UnityEngine.Object.FindObjectOfType<IntroCutscene>() != null) { _tellDeadAt = Time.unscaledTime + 1f; return; }
+            _tellDeadAt = -1;
+            if (TournamentPlugin.Session?.RefDeadForAll != true) return;
+            var referee = Referee();
+            if (referee == null || !referee.AmOwner) return;
+            try
+            {
+                var writer = AmongUsClient.Instance.StartRpcImmediately(referee.NetId, (byte)RpcCalls.Exiled, SendOption.Reliable, -1);
+                AmongUsClient.Instance.FinishRpcImmediately(writer);
+                TournamentPlugin.Logger.Info("Referee ghost: told the other players the referee is dead (exile message).");
+            }
+            catch (Exception e) { TournamentPlugin.Logger.Warn("Referee ghost: couldn't send the exile message: " + e.Message); }
         }
 
         // ---- Out of sight, watching the middle of the map ----------------------------------------
@@ -91,6 +116,7 @@ namespace TournamentTracker.Plugin
                 || AmongUsClient.Instance == null || AmongUsClient.Instance.GameState != InnerNetClient.GameStates.Started)
             {
                 _centreAt = -1;
+                _tellDeadAt = -1;
                 _wasMeeting = false;
                 _view = null;
                 RoomName(true);
@@ -100,6 +126,7 @@ namespace TournamentTracker.Plugin
             bool meeting = MeetingHud.Instance != null || ExileController.Instance != null;
             KeepHud(meeting);
             KeepOutOfSight(meeting);
+            TellOthersDead(meeting);
             if (_wasMeeting && !meeting) CentreSoon(0.5f);
             _wasMeeting = meeting;
             if (_centreAt < 0 || Time.unscaledTime < _centreAt) return;

@@ -68,6 +68,7 @@ namespace TournamentTracker
         /// <summary>Tells Discord, and republishes the game so the combined standings pick it up.</summary>
         private void AnnounceVoid(GameRecord game, string text)
         {
+            if (Shared != null) ShowInCombinedNow(game);
             var message = new WebhookMessage { Username = ReportFormatter.BotName, Content = text };
             string url = _settings.StatsWebhookUrl;
             if (_settings.Mode == TrackerMode.Preliminary)
