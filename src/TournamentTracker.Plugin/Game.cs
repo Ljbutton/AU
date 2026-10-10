@@ -19,6 +19,13 @@ namespace TournamentTracker.Plugin
             }
         }
 
+        /// <summary>
+        /// When someone last called a meeting (report or button), by the game's clock. The meeting
+        /// screen only appears after the report animation, a couple of seconds later; automute
+        /// follows the call so voices open sooner.
+        /// </summary>
+        public static float MeetingCalledAt = -100f;
+
         public static VoicePhase Phase()
         {
             if (!IsHost) return VoicePhase.Menu;
@@ -30,6 +37,7 @@ namespace TournamentTracker.Plugin
                     return VoicePhase.GameOver;
                 case InnerNetClient.GameStates.Started:
                     return MeetingHud.Instance != null || ExileController.Instance != null
+                           || UnityEngine.Time.unscaledTime - MeetingCalledAt < 6f
                         ? VoicePhase.Meeting
                         : VoicePhase.Tasks;
                 default:

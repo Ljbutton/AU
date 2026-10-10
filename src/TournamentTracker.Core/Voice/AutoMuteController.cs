@@ -7,7 +7,9 @@ namespace TournamentTracker.Voice
     /// <summary>
     /// Maps the game's phase and who is alive onto the Discord voice state of every linked
     /// player (and, optionally, spectators), and hands only the changes to the dispatcher.
-    /// Phase changes take effect after the configured delay; deaths apply at once.
+    /// Phase changes take effect after the configured delay. A death during tasks only changes
+    /// that player's voice at the next meeting: a deafen icon going away mid-round would tell
+    /// everyone watching Discord who died, and when.
     /// </summary>
     public sealed class AutoMuteController
     {
@@ -17,6 +19,8 @@ namespace TournamentTracker.Voice
         private readonly Func<DateTime> _clock;
         private readonly Dictionary<string, VoiceState> _sent = new Dictionary<string, VoiceState>();
         private bool _enabled = true;
+        /// <summary>Players whose death is public: everyone dead when the current tasks round began (or at any meeting).</summary>
+        private readonly HashSet<string> _knownDead = new HashSet<string>();
         private VoicePhase? _pending;
         private DateTime _pendingAt;
 
@@ -72,7 +76,13 @@ namespace TournamentTracker.Voice
         /// <param name="spectators">Discord users in the game's voice channel who aren't playing.</param>
         public void Update(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, IReadOnlyCollection<string>? spectators = null)
         {
+            var before = Phase;
             AdvancePhase(phase);
+            // Deaths become known when tasks begin (ejections, earlier kills) and at every meeting;
+            // outside a game nobody is dead.
+            if (Phase == VoicePhase.Meeting || (Phase == VoicePhase.Tasks && before != VoicePhase.Tasks))
+                foreach (var p in players) { if (!p.IsAlive) _knownDead.Add(p.Key); }
+            else if (Phase != VoicePhase.Tasks) _knownDead.Clear();
             if (!_enabled) return;
 
             var present = new HashSet<string>();
@@ -80,7 +90,8 @@ namespace TournamentTracker.Voice
             {
                 var link = _links.Find(p.Key);
                 if (link == null || !present.Add(link.DiscordUserId)) continue;
-                Send(link.DiscordUserId, RefereeMode ? RefereeState(link.DiscordUserId) : MutePlanner.Plan(Phase, p.IsAlive, _settings));
+                bool alive = p.IsAlive || (Phase == VoicePhase.Tasks && !_knownDead.Contains(p.Key));
+                Send(link.DiscordUserId, RefereeMode ? RefereeState(link.DiscordUserId) : MutePlanner.Plan(Phase, alive, _settings));
             }
 
             if (spectators != null)

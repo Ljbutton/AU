@@ -424,6 +424,15 @@ namespace TournamentTracker.Plugin
             }
             if (_wide) { _size = Wide; _wide = false; }
 
+            // A task (or the map) is open: the game hangs it off the camera, so it needs the normal
+            // size to be usable. The zoom comes back when it closes; the wheel belongs to the task meanwhile.
+            bool busy = Minigame.Instance != null || (MapBehaviour.Instance != null && MapBehaviour.Instance.IsOpen);
+            if (busy)
+            {
+                if (Mathf.Abs(camera.orthographicSize - Normal) > 0.01f) camera.orthographicSize = Normal;
+                return;
+            }
+
             float step = Input.mouseScrollDelta.y;
             if (Input.GetKeyDown(KeyCode.Equals) || Input.GetKeyDown(KeyCode.KeypadPlus)) step += 1;
             if (Input.GetKeyDown(KeyCode.Minus) || Input.GetKeyDown(KeyCode.KeypadMinus)) step -= 1;

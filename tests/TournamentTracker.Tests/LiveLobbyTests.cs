@@ -171,7 +171,7 @@ public class LiveLobbyTests : IDisposable
         Assert.Equal("102", s.Links.Find(_lobby[2].Key)?.DiscordUserId);
         Assert.Null(s.Links.Find(_lobby[3].Key));             // "Dana" matches neither exactly
         var replies = s.Pump();
-        Assert.Contains(replies, r => r.Public && r.Text == "Auto-linked Red (Alice) to @alice. Wrong? Use /unlink in Discord.");
+        Assert.DoesNotContain(replies, r => r.Text.StartsWith("Auto-linked"));   // Home only, never the game chat
     }
 
     [Fact]
@@ -304,20 +304,15 @@ public class LiveLobbyTests : IDisposable
     }
 
     [Fact]
-    public void Links_are_announced_in_the_lobby_chat_even_with_public_chat_off()
+    public void Links_never_go_to_the_game_chat()
     {
-        var s = Session(c => { c.PublicChat = false; c.AutoMute.VoiceChannelId = "vc"; });
+        var s = Session(c => { c.PublicChat = true; c.AutoMute.VoiceChannelId = "vc"; });
         InVoice("vc", ("100", "alice"), ("101", "someone"));
         s.VoiceTick(VoicePhase.Lobby, _lobby);
-        Assert.Contains(s.Pump(), r => r.Public && r.Text.StartsWith("Auto-linked Red (Alice) to @alice"));
-
+        Assert.Equal("100", s.Links.Find(_lobby[0].Key)?.DiscordUserId);
         s.HandleSlashCommand(Slash("link", "101", "someone", "bob"));
-        Assert.Contains(s.Pump(), r => r.Public && r.Text == "Linked Blue (Bob) to @someone.");
-
-        var quiet = Session(c => { c.PublicChat = false; c.AnnounceLinks = false; });
-        InVoice("vc", ("100", "alice"));
-        quiet.VoiceTick(VoicePhase.Lobby, _lobby);
-        Assert.DoesNotContain(quiet.Pump(), r => r.Public);
+        Assert.Equal("101", s.Links.Find(_lobby[1].Key)?.DiscordUserId);
+        Assert.DoesNotContain(s.Pump(), r => r.Text.Contains("inked"));
     }
 
     [Fact]
@@ -600,7 +595,7 @@ public class LiveLobbyTests : IDisposable
         pick.Values.Add("2");
         Assert.Equal("Linked you to Green (Carl). Automute will follow you from now on.", s.HandleLinkMenu(pick));
         Assert.Equal("300", s.Links.Find(_lobby[2].Key)?.DiscordUserId);
-        Assert.Contains(s.Pump(), r => r.Public && r.Text == "Linked Green (Carl) to @carl.au.");
+        Assert.DoesNotContain(s.Pump(), r => r.Text.StartsWith("Linked"));
 
         var steal = new Interaction { Command = "menu", CustomId = s.LinkMenuId, UserId = "301", UserName = "someone" };
         steal.Values.Add("2");

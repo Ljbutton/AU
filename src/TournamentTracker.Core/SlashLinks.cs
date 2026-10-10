@@ -114,7 +114,7 @@ namespace TournamentTracker
             string was = taken != null ? $" (replacing @{taken.DiscordName})" : "";
             Links.Link(player.Key, player.Name, i.UserId, i.UserName);
             RefreshStatus(force: true);
-            Reply($"Linked {player} to @{i.UserName}{was}.", true, _settings.AnnounceLinks);
+            Note($"Linked {player} to @{i.UserName}{was}.");
             return $"Linked you to {player}{was}. Automute will follow you from now on.";
         }
 
@@ -223,7 +223,7 @@ namespace TournamentTracker
             string was = taken != null && taken.DiscordUserId != userId ? $" (replacing @{taken.DiscordName})" : "";
             Links.Link(player.Key, player.Name, userId, userName);
             RefreshStatus(force: true);
-            Reply($"Linked {player} to @{userName}{was}.", true, _settings.AnnounceLinks);
+            Note($"Linked {player} to @{userName}{was}.");
             return $"Linked {(other != null ? "@" + userName : "you")} to {player} in {lobbyName}{was}. Automute will follow {(other != null ? "them" : "you")} from now on.";
         }
     
@@ -292,7 +292,7 @@ namespace TournamentTracker
             string was = taken != null && taken.DiscordUserId != pick.Id ? $" (replacing @{taken.DiscordName})" : "";
             Links.Link(player.Key, player.Name, pick.Id, pick.Username);
             RefreshStatus(force: true);
-            Reply($"Linked {player} to @{pick.Username}{was}.", true, _settings.AnnounceLinks);
+            Reply($"Linked {player} to @{pick.Username}{was}.", false);   // the host's own button: answered to The Button
         }
 
         /// <summary>unlink &lt;player id&gt;, from The Button.</summary>

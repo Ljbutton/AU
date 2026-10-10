@@ -213,7 +213,7 @@ namespace TournamentTracker
                 var member = matches[0];
                 Links.Link(p.Key, p.Name, member.UserId, member.DisplayName);
                 candidates.Remove(member);
-                Reply($"Auto-linked {p} to @{member.DisplayName}. Wrong? Use /unlink in Discord.", true, _settings.AnnounceLinks);
+                Note($"Auto-linked {p} to @{member.DisplayName}. Wrong? Use /unlink in Discord.");
             }
         }
 

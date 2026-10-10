@@ -79,12 +79,16 @@ public class AutoMuteTests : IDisposable
         _players[2].IsDead = true;
         Enter(VoicePhase.Tasks, _players);
         await Settle();
-        Assert.Equal(VoiceState.Open, _dispatcher.Applied("102"));   // dead talk freely
+        Assert.Equal(new VoiceState(true, true), _dispatcher.Applied("102"));   // killed: nothing changes until the meeting
 
         Enter(VoicePhase.Meeting, _players);
         await Settle();
         Assert.Equal(VoiceState.Open, _dispatcher.Applied("100"));
         Assert.Equal(new VoiceState(true, false), _dispatcher.Applied("102"));
+
+        Enter(VoicePhase.Tasks, _players);
+        await Settle();
+        Assert.Equal(VoiceState.Open, _dispatcher.Applied("102"));   // after the meeting the dead talk freely
 
         Enter(VoicePhase.GameOver, _players);
         await Settle();
@@ -97,9 +101,9 @@ public class AutoMuteTests : IDisposable
     [Fact]
     public async Task Muting_goes_before_unmuting_so_the_dead_are_quiet_from_the_start_of_a_meeting()
     {
-        // One bot, so requests go one at a time (as Discord's rate limit makes them).
+        // One bot sending one at a time (as when Discord's rate limit holds it back): the order shows.
         var api = new FakeVoiceApi();
-        using var one = new MuteDispatcher(api, new[] { "only" }, NullLog.Instance);
+        using var one = new MuteDispatcher(api, new[] { "only" }, NullLog.Instance, lanesPerBot: 1);
         one.SetDesired("100", new VoiceState(true, true));         // during tasks: alive deafened
         one.SetDesired("103", new VoiceState(true, true));
         one.SetDesired("102", new VoiceState(true, false));
@@ -134,10 +138,24 @@ public class AutoMuteTests : IDisposable
     [Fact]
     public async Task Work_is_spread_over_every_bot_token()
     {
-        _api.Latency = TimeSpan.FromMilliseconds(50);
-        Enter(VoicePhase.Tasks, _players);
-        await Settle();
-        Assert.Equal(2, _api.Calls.Select(c => c.Token).Distinct().Count());
+        var api = new FakeVoiceApi { Latency = TimeSpan.FromMilliseconds(50) };
+        using var two = new MuteDispatcher(api, new[] { "token-a", "token-b" }, NullLog.Instance, lanesPerBot: 1);
+        foreach (var id in new[] { "100", "101", "102", "103" }) two.SetDesired(id, new VoiceState(true, true));
+        Assert.True(await two.WaitIdleAsync(TimeSpan.FromSeconds(3)));
+        Assert.Equal(2, api.Calls.Select(c => c.Token).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task One_bot_sends_several_changes_at_once()
+    {
+        // Ten players, each answer taking 200 ms: one at a time that's 2 s; in parallel well under 1 s.
+        var api = new FakeVoiceApi { Latency = TimeSpan.FromMilliseconds(200) };
+        using var one = new MuteDispatcher(api, new[] { "only" }, NullLog.Instance);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        for (int i = 0; i < 10; i++) one.SetDesired("10" + i, new VoiceState(true, true));
+        Assert.True(await one.WaitIdleAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(10, api.Calls.Count);
+        Assert.True(watch.Elapsed < TimeSpan.FromMilliseconds(1200), $"took {watch.Elapsed.TotalMilliseconds:0} ms");
     }
 
     [Fact]
@@ -187,13 +205,16 @@ public class AutoMuteTests : IDisposable
     }
 
     [Fact]
-    public async Task Deaths_apply_without_waiting()
+    public async Task A_death_during_tasks_only_shows_in_discord_at_the_next_meeting()
     {
         Enter(VoicePhase.Tasks);
         _players[2].IsDead = true;
         _controller.Update(VoicePhase.Tasks, _players);
         await Settle();
-        Assert.Equal(VoiceState.Open, _dispatcher.Applied("102"));
+        Assert.Equal(new VoiceState(true, true), _dispatcher.Applied("102"));    // looks like everyone else
+        Enter(VoicePhase.Meeting, _players);
+        await Settle();
+        Assert.Equal(new VoiceState(true, false), _dispatcher.Applied("102"));   // the meeting reveals it
     }
 
     [Fact]

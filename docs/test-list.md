@@ -187,3 +187,13 @@ _Unused code was removed. If anything below misbehaves, it's likely from the cle
 - [ ] Ghost/spectator overlay in game still draws
 - [ ] Red Alert: Live desk, Multiview (no "?" on it now), Graphics, Montages, Lobby health, sponsors and the overlay look as before
 - [ ] An old setup code made before 0.1.49 still loads
+
+## New in 0.1.53 — chat, talking lights, automute, ghost zoom
+- [ ] Lobby chat: no "Auto-linked…" / "Linked…" lines when players /link or match by name (they show on The Button's Home)
+- [ ] Meeting: a talking player's banner gets a coloured outline that fits the banner exactly; no speaker icon
+- [ ] Lobby: the speaker by a talking player's name follows them when they walk around, also after a game ends and everyone is back in the lobby
+- [ ] Kill someone during tasks: their Discord icons don't change (still muted + deafened like the living) until the meeting
+- [ ] At the meeting the dead are muted (can hear); after it, the dead talk among themselves
+- [ ] Report a body: Discord voices open as the report animation plays, not after it
+- [ ] Automute feels quicker: 10 players switch within about a second with one bot
+- [ ] Host playing (not referee), dead, zoomed out: open a task — it's full size and works; close it and the zoom comes back. Same for the map
