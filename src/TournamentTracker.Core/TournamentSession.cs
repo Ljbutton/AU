@@ -330,6 +330,7 @@ namespace TournamentTracker
                         await Shared.PublishAsync(game).ConfigureAwait(false);
                         if (_settings.Mode == TrackerMode.Tournament) await PostLobbyStandingsAsync().ConfigureAwait(false);
                         else if (_settings.PostLeaderboardAfterEachGame) await PostCombinedAsync().ConfigureAwait(false);
+                        else await RefreshCombinedAsync().ConfigureAwait(false);   // the Referee page's board
                         if (roundDone) await PostRoundSummaryAsync(round).ConfigureAwait(false);
                     });
                 }

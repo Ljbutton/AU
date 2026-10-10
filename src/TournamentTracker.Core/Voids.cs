@@ -82,7 +82,7 @@ namespace TournamentTracker
                 Post(url, LeaderboardMessage());
                 UpdatePrelimCount();
                 PostPublic(ReportFormatter.PublicReport(game));
-                if (Shared != null) Chain(() => Shared.PublishAsync(game));      // Red Alert's copy
+                if (Shared != null) Chain(async () => { await Shared.PublishAsync(game).ConfigureAwait(false); await RefreshCombinedAsync().ConfigureAwait(false); });   // Red Alert's copy, then the Referee page's board
                 return;
             }
 
@@ -94,6 +94,7 @@ namespace TournamentTracker
                     await Shared.PublishAsync(game).ConfigureAwait(false);
                     if (_settings.Mode == TrackerMode.Tournament) await PostLobbyStandingsAsync().ConfigureAwait(false);
                     else if (_settings.PostLeaderboardAfterEachGame) await PostCombinedAsync().ConfigureAwait(false);
+                    else await RefreshCombinedAsync().ConfigureAwait(false);
                 });
             }
             else if (_settings.PostLeaderboardAfterEachGame)

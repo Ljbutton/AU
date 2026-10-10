@@ -203,8 +203,10 @@ namespace TournamentTracker.Plugin
             var chat = hud.Chat;
             if (chat == null) return;
             if (!chat.gameObject.activeSelf) chat.gameObject.SetActive(true);
+            // Open (or opening/closing): leave it to the game, or it can't close.
+            if (chat.IsOpenOrOpening) return;
             // Enter (or T) opens the chat whatever the button is doing.
-            if (!chat.IsOpenOrOpening && Minigame.Instance == null && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.T)))
+            if (Minigame.Instance == null && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.T)))
             {
                 try { chat.Toggle(); } catch (Exception) { }
             }
@@ -422,9 +424,8 @@ namespace TournamentTracker.Plugin
         {
             var camera = Camera.main;
             if (camera == null) return;
-            var local = PlayerControl.LocalPlayer;
-            bool ghost = local != null && local.Data != null && local.Data.IsDead && Game.IsHost
-                         && AmongUsClient.Instance.GameState == InnerNetClient.GameStates.Started;
+            // Only the referee zooms; a host who is just playing keeps the normal view.
+            bool ghost = RefSlot.LocalIsRefereeGhost();
             if (!ghost)
             {
                 if (_size != Normal) camera.orthographicSize = Normal;
@@ -440,6 +441,15 @@ namespace TournamentTracker.Plugin
             if (busy)
             {
                 if (Mathf.Abs(camera.orthographicSize - Normal) > 0.01f) camera.orthographicSize = Normal;
+                return;
+            }
+
+            // Typing or scrolling in the chat isn't zooming ("-" in a message zoomed the camera out).
+            bool chatOpen = false;
+            try { chatOpen = HudManager.InstanceExists && HudManager.Instance.Chat != null && HudManager.Instance.Chat.IsOpenOrOpening; } catch (Exception) { }
+            if (chatOpen)
+            {
+                if (_size != Normal && Mathf.Abs(camera.orthographicSize - _size) > 0.01f) camera.orthographicSize = _size;
                 return;
             }
 
