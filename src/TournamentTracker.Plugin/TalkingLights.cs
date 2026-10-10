@@ -73,11 +73,13 @@ namespace TournamentTracker.Plugin
                 KeyByName[real.Trim()] = (key, colour);
                 if (session.DisplayName(key) is string shown) KeyByName[shown.Trim()] = (key, colour);
             }
+            // The map open over the meeting: no outlines on top of it.
+            bool mapOpen = MapBehaviour.Instance != null && MapBehaviour.Instance.IsOpen;
             foreach (var area in meeting.playerStates)
             {
                 if (area == null || area.NameText == null) continue;
                 bool talking = KeyByName.TryGetValue(Plain(area.NameText.text), out var who) && session.IsTalking(who.Key)
-                    && area.gameObject.activeInHierarchy && area.transform.localScale != Vector3.zero;
+                    && area.gameObject.activeInHierarchy && area.transform.localScale != Vector3.zero && !mapOpen;
                 if (!Cards.TryGetValue(area.Pointer, out var light) || light.Go == null)
                 {
                     if (!talking) continue;
@@ -128,10 +130,8 @@ namespace TournamentTracker.Plugin
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = Ring();
             sr.color = new Color(1, 1, 1, 0);
-            int order = 0;
-            foreach (var r in area.GetComponentsInChildren<SpriteRenderer>(false))
-                if (r != null && r != sr) order = Math.Max(order, r.sortingOrder);
-            sr.sortingOrder = order + 1;
+            // Just above the banner, below everything drawn over the meeting (the map).
+            sr.sortingOrder = (bg != null ? bg.sortingOrder : 0) + 1;
 
             if (bg != null && bg.sprite != null)
             {
@@ -140,8 +140,9 @@ namespace TournamentTracker.Plugin
                 var size = bg.drawMode != SpriteDrawMode.Simple ? (Vector3)bg.size : bg.sprite.bounds.size;
                 var centre = bg.drawMode != SpriteDrawMode.Simple ? Vector3.zero : bg.sprite.bounds.center;
                 go.transform.localPosition = new Vector3(centre.x, centre.y, -0.05f);
-                // The ring sprite is 1 × 0.3 units, its outline inset by the glow (3% across, 10% up and down).
-                go.transform.localScale = new Vector3(size.x / 0.94f, size.y / 0.8f / 0.3f, 1);
+                // The ring sprite is 1 unit wide and RingHigh high, its outline inset by the glow; a touch
+                // larger than the banner so its corners sit inside the outline.
+                go.transform.localScale = new Vector3(size.x / (1 - 2 * RingGlow / RingW) * 1.02f, size.y / (1 - 2 * RingGlow / RingH) / RingHigh * 1.06f, 1);
                 go.transform.localRotation = Quaternion.identity;
             }
             else
@@ -149,7 +150,7 @@ namespace TournamentTracker.Plugin
                 // No banner picture (shouldn't happen): fall back to the card's own position and the usual banner size.
                 go.transform.SetParent(area.transform, false);
                 go.transform.localPosition = new Vector3(0, 0, -0.05f);
-                go.transform.localScale = new Vector3(2.7f / 0.94f, 0.65f / 0.8f / 0.3f, 1);
+                go.transform.localScale = new Vector3(2.7f / (1 - 2 * RingGlow / RingW) * 1.02f, 0.65f / (1 - 2 * RingGlow / RingH) / RingHigh * 1.06f, 1);
             }
             return new Light { Go = go, Sprite = sr };
         }
@@ -279,12 +280,16 @@ namespace TournamentTracker.Plugin
 
         // ---- The pictures, drawn once ----------------------------------------------------------------
 
-        /// <summary>A rounded green outline with a soft glow, 1 unit wide and 0.3 high, empty inside.</summary>
+        // The ring picture: banner-shaped (about 4.3 : 1, like a meeting card), small corners.
+        private const int RingW = 260, RingH = 60;
+        private const float RingGlow = 6f, RingHigh = (float)RingH / RingW;
+
+        /// <summary>A rounded outline with a soft glow, 1 unit wide and <see cref="RingHigh"/> high, empty inside.</summary>
         private static Sprite Ring()
         {
             if (_ring != null) return _ring;
-            const int w = 200, h = 60;
-            float radius = 14, edge = 3.5f, glow = 6;
+            const int w = RingW, h = RingH;
+            float radius = 7, edge = 3.5f, glow = RingGlow;
             var px = new Color32[w * h];
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)

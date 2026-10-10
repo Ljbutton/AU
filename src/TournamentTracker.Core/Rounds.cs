@@ -18,6 +18,7 @@ namespace TournamentTracker
         {
             public int Round { get; set; }
             public string? RefSlotKey { get; set; }
+            public bool RefDead { get; set; }
             public Dictionary<int, int> RoundGames { get; set; } = new Dictionary<int, int>();
             /// <summary>The last counted game's impostors, for the rotation.</summary>
             public List<string> LastImpostors { get; set; } = new List<string>();
@@ -65,6 +66,7 @@ namespace TournamentTracker
                     var state = JsonSerializer.Deserialize<SavedState>(File.ReadAllText(StatePath));
                     Round = state?.Round ?? 0;
                     RefSlotKey = state?.RefSlotKey;
+                    RefDeadForAll = state?.RefDead ?? false;
                     _roundGames = state?.RoundGames ?? new Dictionary<int, int>();
                     _lastImpostors = state?.LastImpostors ?? new List<string>();
                     Plan = state?.Plan;
@@ -92,7 +94,7 @@ namespace TournamentTracker
         private void SaveState() => TrySave(() =>
         {
             Directory.CreateDirectory(_dataDir);
-            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames, LastImpostors = _lastImpostors, Plan = Plan, OverlayOn = _overlayOn, StatusChannel = _statusChosen, AutoMuteOff = _autoMuteOff, FeedId = _feedId, FeedKey = _feedKey, FeedOn = _feedOn, Spectator = Spectator }));
+            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RefDead = RefDeadForAll, RoundGames = _roundGames, LastImpostors = _lastImpostors, Plan = Plan, OverlayOn = _overlayOn, StatusChannel = _statusChosen, AutoMuteOff = _autoMuteOff, FeedId = _feedId, FeedKey = _feedKey, FeedOn = _feedOn, Spectator = Spectator }));
         }, "state");
 
         /// <summary>!r3 or !round 3 sets the round; !round on its own says which it is.</summary>

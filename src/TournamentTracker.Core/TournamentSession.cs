@@ -322,6 +322,7 @@ namespace TournamentTracker
 
             if (Shared != null)
             {
+                ShowInCombinedNow(game);
                 if (game.Counted || game.Voided)
                 {
                     int round = game.Round;
@@ -349,6 +350,21 @@ namespace TournamentTracker
                 _settings.LeaderboardMinGames, _settings.LeaderboardMentions ? key => Links.Find(key)?.DiscordUserId : null);
             if (note != null && message.Embeds?.FirstOrDefault()?.Footer is EmbedFooter footer) footer.Text = note + " · " + footer.Text;
             return message;
+        }
+
+        /// <summary>
+        /// The Referee page's board straight away: the game goes into the combined games now, ahead
+        /// of reading it back from the results channel (which takes a few seconds).
+        /// </summary>
+        private void ShowInCombinedNow(GameRecord game)
+        {
+            var combined = Combined;
+            if (combined == null) return;
+            int at = combined.GameRecords.FindIndex(g => g.Id.Length > 0 && g.Id == game.Id);
+            if (at >= 0) combined.GameRecords[at] = game;
+            else combined.GameRecords.Add(game);
+            _points = null;
+            _nextPoints = default;
         }
 
         private async Task RefreshCombinedAsync()

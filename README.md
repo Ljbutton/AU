@@ -36,7 +36,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.55**, a beta.
+The current release is **v0.1.56**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -392,6 +392,11 @@ For an 11-player lobby that plays like 10 while the host referees: the host turn
 referee. At the start of every game the host becomes a ghost: never an impostor, no tasks, not in stats, points or automute (they can
 always talk). The host can zoom out with the **mouse wheel** or **+ / −** to see the
 whole map (for refereeing and streaming). The same switch turns it off; the choice is remembered.
+During play a small list down the left edge of the referee's screen shows who is alive, dead or
+gone (no roles). Other players' games don't know the referee is dead, so their meeting screens show
+the referee's card as alive; **Show the referee as dead to players** (Home → Tools, experimental,
+off by default) sends them an exile message about 10 seconds into each game so they cross it out.
+If the host gets kicked when it's sent, turn it off.
 The mod sends each player's role and task list once, as the game itself does, and never sends an
 "exiled" message outside a meeting (that got the host kicked from the room): the referee is marked
 dead in the player record the host keeps, and the host's own game makes them a ghost. As the

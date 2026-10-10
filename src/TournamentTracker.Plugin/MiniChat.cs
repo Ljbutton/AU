@@ -97,13 +97,14 @@ namespace TournamentTracker.Plugin
                 text.text = Text.ToString();
             }
 
-            // Along the bottom edge, below the name plates, the same size whatever the camera's zoom.
-            float size = camera.orthographicSize, scale = size / 3f;
+            // On the meeting tablet, in the empty space right of the last row of name cards (10–11
+            // players leave it free), the same size whatever the camera's zoom.
+            float size = camera.orthographicSize, scale = size / 3f, wide = 3f * camera.aspect;
             text.transform.localScale = new Vector3(scale, scale, 1);
-            text.rectTransform.sizeDelta = new Vector2(3f * camera.aspect * 2f * 0.72f, 1.2f);
+            text.rectTransform.sizeDelta = new Vector2(wide * 2f * 0.5f, 1.0f);
             // In front of the meeting screen, but not so close the camera cuts it off.
             float z = Math.Max(camera.nearClipPlane + 0.2f, meeting!.transform.position.z - camera.transform.position.z - 3f);
-            text.transform.localPosition = new Vector3(0, -size + 0.08f * scale, z);
+            text.transform.localPosition = new Vector3(wide * 0.36f * scale, -size + 0.36f * size, z);
         }
 
         /// <summary>The camera that draws the meeting screen (the HUD's; the game camera if it draws both).</summary>

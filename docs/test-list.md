@@ -209,3 +209,12 @@ _Unused code was removed. If anything below misbehaves, it's likely from the cle
 - [ ] Host just playing (not referee), dead: no zoom at all (scroll and +/− do nothing)
 - [ ] Referee mode: zoom still works; typing "-" or scrolling in the chat doesn't zoom
 - [ ] Referee mode: open the chat, send, close it — it closes normally every time
+
+## New in 0.1.56 (Red Alert 0.3.10)
+- [ ] Meeting: open the map while someone talks — the coloured outline is hidden under/behind the map
+- [ ] Meeting: the outline fits the banner, corners included (nothing sticks out at the top corners)
+- [ ] Meeting (referee): the mini chat sits in the empty space right of the last row of cards, not at the bottom
+- [ ] Referee during play: a list down the left edge — "Alive N/M", each player in their colour; dead crossed out with "dead", leavers "left"; gone in meetings; not in the player camera
+- [ ] Referee page: Submit a game → it's on the leaderboard at once (Discord catches up a few seconds later)
+- [ ] Home → Tools: "Show the referee as dead to players" (shows when the referee slot is on). On: ~10 s into a game, ask a player — the referee is crossed out in their next meeting. If the host gets kicked when it's sent, turn it off
+- [ ] Red Alert → Settings: "Administration code" card — paste another code and Change (or Lock); works after the first code
