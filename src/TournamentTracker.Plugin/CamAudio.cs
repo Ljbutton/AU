@@ -10,8 +10,8 @@ namespace TournamentTracker.Plugin
     /// The host's game sound while the player camera is on stream: what the followed player
     /// would hear. Sounds are measured from where they stand (room ambience, vents, doors: the
     /// game measures from the local player, and the referee's position is answered with
-    /// theirs), their own footsteps play (the game only plays your own), and a kill is heard
-    /// only by the killer and the victim, as in the game. With the whole map on stream it's the
+    /// theirs) and their own footsteps play (the game only plays your own); every kill is still
+    /// heard (KillSound). With the whole map on stream it's the
     /// referee's: alarms and every kill. Only on the host, as the referee ghost; Red Alert says
     /// which view is on stream.
     /// </summary>

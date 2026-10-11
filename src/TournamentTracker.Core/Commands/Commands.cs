@@ -29,9 +29,6 @@ namespace TournamentTracker
                 case "refslot" when fromHost:
                     RefSlotCommand(sender, args);
                     return true;
-                case "refdead" when fromHost:
-                    RefDeadCommand(args);
-                    return true;
                 case "setup" when fromHost:
                     SetupCommand(args);
                     return true;

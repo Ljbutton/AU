@@ -47,7 +47,7 @@ namespace TournamentTracker.Plugin
             if (ReplayTheater.Active) return;
             try { using (FrameProfiler.Time(FrameProfiler.Part.OverlayLate)) SpectatorOverlay.LateUpdate(); }
             catch (Exception e) { if (!_loggedOverlay) TournamentPlugin.Logger.Error("Spectator view failed: " + e); _loggedOverlay = true; }
-            try { using (FrameProfiler.Time(FrameProfiler.Part.Referee)) RefSlot.KeepChat(); }
+            try { using (FrameProfiler.Time(FrameProfiler.Part.Referee)) { RefSlot.KeepChat(); RefSlot.KeepHidden(); } }
             catch (Exception e) { if (!_loggedReferee) TournamentPlugin.Logger.Error("Referee chat failed: " + e); _loggedReferee = true; }
         }
         private static bool _loggedCam;

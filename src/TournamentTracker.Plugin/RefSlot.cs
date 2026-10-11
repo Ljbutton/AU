@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AmongUs.GameOptions;
-using Hazel;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using InnerNet;
 using UnityEngine;
@@ -68,32 +67,12 @@ namespace TournamentTracker.Plugin
             referee.Data.SetDirtyBit(uint.MaxValue);
             TournamentPlugin.Logger.Info($"Referee ghost: {referee.Data.PlayerName} is now a ghost (marked dead in the player record, no exile sent).");
             CentreSoon(1f);
-            _tellDeadAt = Time.unscaledTime + 10f;
         }
 
-        private static float _tellDeadAt = -1;
-
-        /// <summary>
-        /// Experimental (Show the referee as dead to players): once the game is under way, an exile
-        /// message for the referee to everyone else, so their games mark the referee dead and their
-        /// meetings cross them out. Sent once a game, never during the intro or a meeting.
-        /// </summary>
-        private static void TellOthersDead(bool meeting)
-        {
-            if (_tellDeadAt < 0 || Time.unscaledTime < _tellDeadAt) return;
-            if (meeting || UnityEngine.Object.FindObjectOfType<IntroCutscene>() != null) { _tellDeadAt = Time.unscaledTime + 1f; return; }
-            _tellDeadAt = -1;
-            if (TournamentPlugin.Session?.RefDeadForAll != true) return;
-            var referee = Referee();
-            if (referee == null || !referee.AmOwner) return;
-            try
-            {
-                var writer = AmongUsClient.Instance.StartRpcImmediately(referee.NetId, (byte)RpcCalls.Exiled, SendOption.Reliable, -1);
-                AmongUsClient.Instance.FinishRpcImmediately(writer);
-                TournamentPlugin.Logger.Info("Referee ghost: told the other players the referee is dead (exile message).");
-            }
-            catch (Exception e) { TournamentPlugin.Logger.Warn("Referee ghost: couldn't send the exile message: " + e.Message); }
-        }
+        // No exile message for the referee, ever: sent at the start of a game it got the host kicked,
+        // and sent later in the game (the old "Show the referee as dead to players" switch) it got the
+        // host banned from their own room. A player's game without the mod may still show the
+        // referee's card in meetings; the host turns any vote for them into a skip (RefereeNoVotePatch).
 
         // ---- Out of sight, watching the middle of the map ----------------------------------------
         // The referee's ghost is parked off the edge of the map, where no player (dead ones see
@@ -116,7 +95,6 @@ namespace TournamentTracker.Plugin
                 || AmongUsClient.Instance == null || AmongUsClient.Instance.GameState != InnerNetClient.GameStates.Started)
             {
                 _centreAt = -1;
-                _tellDeadAt = -1;
                 _wasMeeting = false;
                 _view = null;
                 RoomName(true);
@@ -126,7 +104,6 @@ namespace TournamentTracker.Plugin
             bool meeting = MeetingHud.Instance != null || ExileController.Instance != null;
             KeepHud(meeting);
             KeepOutOfSight(meeting);
-            TellOthersDead(meeting);
             if (_wasMeeting && !meeting) CentreSoon(0.5f);
             _wasMeeting = meeting;
             if (_centreAt < 0 || Time.unscaledTime < _centreAt) return;
@@ -248,6 +225,18 @@ namespace TournamentTracker.Plugin
             // Something above it switched off too (up to the HUD): on again.
             for (var t = go.transform.parent; t != null && t != hud.transform; t = t.parent)
                 if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
+        }
+
+        /// <summary>
+        /// After every update this frame (the game's own included, some in FixedUpdate): the referee's
+        /// ghost stays undrawn on the host's screen. Set only in Update, the game won some frames and
+        /// the ghost flickered in and out around meetings.
+        /// </summary>
+        public static void KeepHidden()
+        {
+            if (!LocalIsRefereeGhost()) return;
+            var local = PlayerControl.LocalPlayer;
+            if (local != null && local.Visible) local.Visible = false;
         }
 
         /// <summary>This game's player is the referee ghost (the host, dead, in the referee slot).</summary>
