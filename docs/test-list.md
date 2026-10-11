@@ -250,3 +250,6 @@ _Unused code was removed. If anything below misbehaves, it's likely from the cle
 - [ ] Host's send page: if the browser is holding the sound back, it says "Click anywhere on this page…"; Red Alert → Lobby voice shows a "Sent" meter
 - [ ] Lobby voice heard but silent in OBS while the host sends sound for 20 s → Red Alert reloads that voice source and says so
 - [ ] Referee's player list: dark rounded panel like The Button, PLAYERS header with the alive count in green, IMP/DEAD/LEFT tags
+
+## New in 0.1.60
+- [ ] Settings lock on: start a game while players join and leave during the countdown → the game starts normally (the lock doesn't send settings during the countdown or as the game starts)

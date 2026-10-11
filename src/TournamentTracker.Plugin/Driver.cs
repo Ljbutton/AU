@@ -125,6 +125,9 @@ namespace TournamentTracker.Plugin
             _tickPhase = phase;
 
             if (phase == VoicePhase.Lobby || phase == VoicePhase.Menu) _roundOver = false;
+            // Not during the start countdown (or for a few seconds after it stops): putting settings
+            // back sends them to every player, and none should go out as the game starts.
+            if (phase == VoicePhase.Lobby && Game.IsHost && Game.Starting()) _nextLockCheck = Time.unscaledTime + 3f;
             if (phase == VoicePhase.Lobby && Game.IsHost && Time.unscaledTime >= _nextLockCheck)
             {
                 _nextLockCheck = Time.unscaledTime + 1f;

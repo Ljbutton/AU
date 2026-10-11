@@ -26,6 +26,20 @@ namespace TournamentTracker.Plugin
         /// </summary>
         public static float MeetingCalledAt = -100f;
 
+        /// <summary>
+        /// The lobby's start countdown is running, or the game is starting: nothing is sent to the
+        /// players then (a settings message as the game started is a likely way to have the server
+        /// drop the room).
+        /// </summary>
+        public static bool Starting()
+        {
+            try
+            {
+                return GameStartManager.InstanceExists && GameStartManager.Instance.startState != GameStartManager.StartingStates.NotStarting;
+            }
+            catch (System.Exception) { return true; }
+        }
+
         public static VoicePhase Phase()
         {
             if (!IsHost) return VoicePhase.Menu;
