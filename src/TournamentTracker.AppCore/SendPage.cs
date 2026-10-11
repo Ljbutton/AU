@@ -99,7 +99,7 @@ function resend(){
 }
 async function pump(){
   try{
-    const d=await getJson('/app/sendfeed?since='+(since??0));
+    const d=await getJson('/app/sendfeed?since='+(since??0)+'&video='+video);
     feedOk();
     if(d.last<0)return;
     if(since===null||d.last<since){since=d.last;return;}   // start from now (and again if Among Us restarted)

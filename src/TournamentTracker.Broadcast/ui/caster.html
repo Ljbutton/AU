@@ -521,7 +521,7 @@ main.ldmode>section#caster.on{flex:1;min-height:0;display:flex;flex-direction:co
 </header>
 <nav id="side" aria-label="Red Alert sections">
   <div class="grp">On air</div>
-  <button data-go="live" class="on">Live desk <span class="st count" id="st-live"></span></button>
+  <button data-go="live" class="on">Live desk <span class="st count" id="st-live"></span><span class="st dot" id="st-org" title=""></span></button>
   <button data-go="health">Lobby health <span class="st dot" id="st-health"></span></button>
   <button data-go="replays">Montages <span class="st count" id="st-replays" title="Montages ready"></span></button>
   <div class="grp">On stream</div>
@@ -552,6 +552,7 @@ main.ldmode>section#caster.on{flex:1;min-height:0;display:flex;flex-direction:co
 
 
   <div class="ld" data-page="live">
+    <p class="note bad org-prob" hidden></p>
     <div class="ld-top">
     <div class="onair none" id="onair" aria-live="polite">
       <div class="oa-tag" id="oa-tag">OFF AIR</div>
@@ -629,7 +630,8 @@ main.ldmode>section#caster.on{flex:1;min-height:0;display:flex;flex-direction:co
     <div class="urls" id="org-cast-url"></div>
     <div class="row" id="org-cast-list"></div>
     <div class="muted help" style="font-size:12px">OBS Browser sources. The overlay, video and multiview follow what's on stream (the full-screen lobby, or slot 1 of a multi-view); Pin keeps them on one lobby. On the Live desk, keys 1–9 put that lobby number full screen and N jumps to the action. Overlay 380×720, add <span class="mono">?full=1</span> on a delayed stream for roles and kills. Video (with the game sound of the lobby on air) and multiview (silent) 1920×1080: hosts turn on "Send my game to the caster" in their Button.</div>
-  </div>  <div class="card hl-card" id="hl-card" hidden data-page="health">
+  </div>  <p class="note bad org-prob" data-page="health" hidden></p>
+  <div class="card hl-card" id="hl-card" hidden data-page="health">
     <div class="row" style="justify-content:space-between"><div><b>Lobby health</b> <span class="muted" id="hl-line"></span></div>
       <div class="row"><button class="b sw-onoff" id="hl-auto" title="When a lobby on stream drops, switch away from it once (a lobby you put on yourself while it's down stays on)">Auto switch: OFF</button><button class="b" id="hl-slate" title="Every lobby down: the be-right-back screen (off: intermission)">BRB screen</button><button class="b" id="hl-open" title="Thresholds and timings (health.json)">Thresholds</button></div></div>
     <div class="hl-list" id="hl-list"></div>
@@ -676,6 +678,7 @@ main.ldmode>section#caster.on{flex:1;min-height:0;display:flex;flex-direction:co
       <div class="notes" id="notes"></div>
     </div>
   </details>
+  <p class="note bad org-prob" data-page="voice" hidden></p>
   <details class="card roster-card" id="vo-card" open data-page="voice">
     <summary><div><b>Lobby voice</b> <span class="muted" id="vo-line"></span></div>
       <div class="row"><button class="b" id="vo-mute" title="Mute every lobby voice (key U)">Mute all</button><button class="b" id="vo-on" title="Lobby voice on stream at all">On stream</button></div></summary>
@@ -754,6 +757,8 @@ main.ldmode>section#caster.on{flex:1;min-height:0;display:flex;flex-direction:co
   <div class="card" id="code-card" data-page="settings">
     <div class="row" style="justify-content:space-between"><div><b>Administration code</b> <span class="muted" id="code-line"></span></div></div>
     <form class="row" id="code-form" style="margin-top:8px"><input id="code-new" placeholder="Paste a new administration code" class="mono" style="flex:1;min-width:240px" autocomplete="off" spellcheck="false"><button class="b primary">Change</button><button class="b" type="button" id="code-lock">Lock</button></form>
+    <form class="row" id="hostchk-form" style="margin-top:10px"><input id="hostchk-code" placeholder="Paste a host's setup code to check it matches" class="mono" style="flex:1;min-width:240px" autocomplete="off" spellcheck="false"><button class="b">Check</button></form>
+    <div id="hostchk-out" hidden style="margin-top:8px;display:grid;gap:6px"></div>
   </div>
   <div class="card" id="cam-card" data-page="settings">
     <div class="row" style="justify-content:space-between"><div><b>Player camera</b> <span class="muted" id="cam-line"></span></div>
@@ -2025,6 +2030,15 @@ $('code-form').addEventListener('submit', async e => {
   const r = await api('POST', '/app/admin/code', { code });
   toast(r.message); if (r.ok) $('code-new').value = ''; refresh();
 });
+$('hostchk-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const code = $('hostchk-code').value.trim(); if (!code) return toast("Paste a host's setup code first.");
+  const r = await api('POST', '/app/admin/checkhost', { code });
+  const out = $('hostchk-out'); out.hidden = false;
+  out.innerHTML = r.ok === false && r.message ? `<p class="note bad">${esc(r.message)}</p>`
+    : (r.warnings || []).length ? r.warnings.map(w => `<p class="note bad">${esc(w)}</p>`).join('')
+    : `<p class="note good">${esc(r.message || 'Matches.')}</p>`;
+});
 $('code-lock').addEventListener('click', async () => { const r = await api('POST', '/app/admin/code', { code: '' }); toast(r.message); refresh(); });
 $('lock-form').addEventListener('submit', async e => {
   e.preventDefault();
@@ -2034,7 +2048,14 @@ $('lock-form').addEventListener('submit', async e => {
 async function loadOrganiser() {
   if (!S || !S.admin) { ORG = null; return; }
   try { ORG = await api('GET', '/app/admin'); } catch (e) { ORG = null; }
+  renderOrgProblem();
   renderCast();
+}
+// Why the lobbies can't be read (the results channel), on every page that needs them and on the sidebar.
+function renderOrgProblem() {
+  const p = ORG && ORG.problem || '';
+  document.querySelectorAll('.org-prob').forEach(el => { el.hidden = !p; el.textContent = p ? 'Discord: ' + p : ''; });
+  const dot = $('st-org'); dot.className = 'st dot ' + (p ? 'bad' : ''); dot.textContent = p ? '•' : ''; dot.title = p;
 }
 function castLobby(label, pin) { api('POST', '/app/admin/cast', { lobby: label || '', pin: pin === false ? 'false' : 'true' }).then(r => { toast(r.message); castKey = ''; loadOrganiser(); }); }
 $('org-roles').addEventListener('change', e => { showRoles = e.target.checked; });

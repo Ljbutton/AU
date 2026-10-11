@@ -128,6 +128,10 @@ namespace TournamentTracker.App.Broadcast
             try { _settings.Save(_env.SettingsFile); } catch (Exception) { }
         }
 
+        private FileLog? _logFile;
+        /// <summary>Red Alert's own log (red-alert.log next to its settings).</summary>
+        public FileLog Log => _logFile ??= new FileLog(SideFolder(), "red-alert.log");
+
         private string? SideFolder() => string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.GetDirectoryName(_env.SettingsFile);
 
         private string? SideFile(string name) =>
@@ -153,7 +157,7 @@ namespace TournamentTracker.App.Broadcast
             if (oldObs != null) _ = oldObs.DisposeAsync().AsTask();
             if (_settings.AdminCode != null && SetupCode.TryParse(_settings.AdminCode, out var code, out _) && code.IsAdmin)
             {
-                _organizer = new Organizer(code, _http);
+                _organizer = new Organizer(code, _http, log: Log);
                 var organizer = _organizer;
                 var caster = _caster = new CasterServer(organizer, _env.CasterPort);
                 var desk = _desk = new CasterDesk(DeskConfigPath, rosterPath: SideFile(Roster.FileName), dataFolder: SideFolder())
@@ -297,6 +301,34 @@ namespace TournamentTracker.App.Broadcast
         }
 
 
+        /// <summary>
+        /// A host's setup code against the administration code: does the host's live data go to the
+        /// channel Red Alert reads, and can Red Alert's bot read what the host's bot posts?
+        /// </summary>
+        public object CheckHostCode(string text)
+        {
+            if (_organizer == null) return new { ok = false, message = "Unlock Red Alert with the administration code first." };
+            if (!SetupCode.TryParse(text, out var host, out var error)) return new { ok = false, message = error };
+            if (host.IsAdmin) return new { ok = false, message = "That's an administration code. Paste a host's setup code." };
+            var warnings = new List<string>();
+            string mine = _organizer.ResultsChannelId ?? "";
+            if (string.IsNullOrEmpty(host.ResultsChannelId))
+                warnings.Add(host.Mode == "prelim"
+                    ? "This preliminary code has no Red Alert channel: its lobby won't show in Red Alert. Make the code with the Red Alert channel ID filled in."
+                    : "This code has no results channel: its lobby won't show in Red Alert.");
+            else if (host.ResultsChannelId != mine)
+                warnings.Add($"This host's live data goes to channel {host.ResultsChannelId}, but Red Alert reads channel {mine}. Make the host's code (or the administration code) with the same channel.");
+            if (!string.IsNullOrEmpty(host.GuildId) && !string.IsNullOrEmpty(_organizer.GuildId) && host.GuildId != _organizer.GuildId)
+                warnings.Add($"This code is for server {host.GuildId}, the administration code for server {_organizer.GuildId}.");
+            var hostBots = (host.BotTokens ?? new List<string>()).Select(SetupCode.BotIdOf).Where(id => id.Length > 0).ToList();
+            if (hostBots.Count > 0 && !hostBots.Contains(_organizer.BotId))
+                warnings.Add("The host's bot isn't the administration bot. That works only if the administration bot has Message Content Intent on (Discord Developer Portal → Bot) and can read the channel.");
+            else if (hostBots.Count == 0 && !string.IsNullOrEmpty(host.ResultsChannelId))
+                warnings.Add("This code has no bot: the host adds their own in The Button. Their live data reaches Red Alert only if the administration bot has Message Content Intent on.");
+            string ok = $"Matches: this {(host.Mode == "prelim" ? "preliminary" : "host")} code's live data goes to the channel Red Alert reads, with the same bot.";
+            return new { ok = true, warnings, message = warnings.Count == 0 ? ok : null };
+        }
+
         private object SetAdminCode(string text)
         {
             if (text.Trim().Length == 0)
@@ -431,6 +463,7 @@ namespace TournamentTracker.App.Broadcast
                     _ = Task.Run(async () => { await Task.Delay(300).ConfigureAwait(false); _env.Restart(); });
                     return Ok(new { ok = true, message = "Restarting Red Alert…" });
                 case ("POST", "/app/admin/code"): return Ok(SetAdminCode(Arg("code")));
+                case ("POST", "/app/admin/checkhost"): return Ok(CheckHostCode(Arg("code")));
                 case ("GET", "/app/admin"):
                 {
                     // The tournament's lobbies (for casting the overlay), with what the caster pages show.
