@@ -231,7 +231,11 @@ namespace TournamentTracker.Discord
         }
 
         /// <summary>Up to 100 messages, newest first, older than <paramref name="before"/> when given.</summary>
-        public async Task<IReadOnlyList<ChannelMessage>?> GetMessagesAsync(string botToken, string channelId, string? before = null, CancellationToken ct = default)
+        public async Task<IReadOnlyList<ChannelMessage>?> GetMessagesAsync(string botToken, string channelId, string? before = null, CancellationToken ct = default) =>
+            (await ReadMessagesAsync(botToken, channelId, before, ct).ConfigureAwait(false)).Messages;
+
+        /// <summary>The channel's newest messages, or null with Discord's answer saying why not.</summary>
+        public async Task<(IReadOnlyList<ChannelMessage>? Messages, DiscordResult Result)> ReadMessagesAsync(string botToken, string channelId, string? before = null, CancellationToken ct = default)
         {
             var result = await SendAsync(() =>
             {
@@ -243,10 +247,28 @@ namespace TournamentTracker.Discord
             if (!result.Ok)
             {
                 _log.Warn($"Could not read Discord channel {channelId}: {result}");
-                return null;
+                return (null, result);
             }
             using var doc = JsonDocument.Parse(result.Body);
-            return doc.RootElement.EnumerateArray().Select(ChannelMessage.Parse).ToList();
+            return (doc.RootElement.EnumerateArray().Select(ChannelMessage.Parse).ToList(), result);
+        }
+
+        /// <summary>The bot's own name (for messages), or null.</summary>
+        public async Task<string?> BotNameAsync(string botToken, CancellationToken ct = default)
+        {
+            var result = await SendAsync(() =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Get, $"{_apiBase}/users/@me");
+                Authorize(req, botToken);
+                return req;
+            }, "me:" + botToken.GetHashCode(), ct).ConfigureAwait(false);
+            if (!result.Ok) return null;
+            try
+            {
+                var e = JsonDocument.Parse(result.Body).RootElement;
+                return e.TryGetProperty("username", out var u) && u.ValueKind == JsonValueKind.String ? u.GetString() : null;
+            }
+            catch (JsonException) { return null; }
         }
 
         /// <summary>Downloads an attachment from Discord's CDN (the URL carries its own signature).</summary>

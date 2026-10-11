@@ -218,3 +218,13 @@ _Unused code was removed. If anything below misbehaves, it's likely from the cle
 - [ ] Referee page: Submit a game → it's on the leaderboard at once (Discord catches up a few seconds later)
 - [ ] Home → Tools: "Show the referee as dead to players" (shows when the referee slot is on). On: ~10 s into a game, ask a player — the referee is crossed out in their next meeting. If the host gets kicked when it's sent, turn it off
 - [ ] Red Alert → Settings: "Administration code" card — paste another code and Change (or Lock); works after the first code
+
+## New in 0.1.57 (Red Alert 0.3.11)
+- [ ] The Button: the top bar's update button updates The Button and the mod together
+- [ ] Sending video on, then close the VDO.Ninja tab → within ~15 s The Button shows Not sending video (and says why)
+- [ ] Sending video on, then press Stop sharing in VDO.Ninja → within ~20 s it turns off
+- [ ] Home shows "Live data posted N s ago", or "Live data not posting" with the reason (e.g. the bot can't post in the results channel)
+- [ ] Red Alert with a bad admin code / channel: a red "Discord: …" banner on Live desk, Lobby health and Lobby voice, and a red dot by Live desk. The message says what to fix (invalid token, missing channel permissions, channel doesn't exist, Message Content Intent off)
+- [ ] Red Alert writes red-alert.log next to its settings (problems and recoveries are logged)
+- [ ] Red Alert → Settings → paste a host's setup code → Check: says Matches, or what's different (channel, server, bot)
+- [ ] Player camera works (no "AsyncGPUReadbackRequest" error in the mod log); at about 12 pictures a second

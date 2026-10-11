@@ -52,6 +52,47 @@ public class OrganizerTests : IDisposable
     private bool HasLive(string label) =>
         _discord.Messages.ToList().Any(m => m.Embeds.HasValue && m.Embeds.Value.GetArrayLength() > 0 && FakeDiscord.Title(JsonDocument.Parse("{\"embeds\":" + m.Embeds.Value.GetRawText() + "}").RootElement) == TournamentSession.LiveTitlePrefix + label);
 
+    [Theory]
+    [InlineData(401, 0, "bot token in the administration code is invalid")]
+    [InlineData(403, 50001, "add the bot with View Channel and Read Message History")]
+    [InlineData(404, 10003, "results channel in the administration code doesn't exist")]
+    public async Task A_channel_discord_refuses_says_what_to_fix(int status, int code, string says)
+    {
+        _http.Default = r => r.RequestUri!.AbsolutePath.Contains("/channels/results/messages")
+            ? FakeHttp.Json((HttpStatusCode)status, $"{{\"message\":\"no\",\"code\":{code}}}")
+            : FakeHttp.Json(HttpStatusCode.OK, "{}");
+        var o = Organiser();
+        await o.PollLiveAsync();
+        Assert.Contains(says, o.Problem);
+
+        // Fixed: the problem goes away on the next read.
+        _http.Default = r => FakeHttp.Json(HttpStatusCode.OK, "[]");
+        await o.PollLiveAsync();
+        Assert.Null(o.Problem);
+    }
+
+    [Fact]
+    public async Task Empty_messages_from_the_hosts_bots_mean_the_message_content_intent_is_off()
+    {
+        // With the intent off, other bots' messages come back with no content, embeds or files.
+        _http.Default = r => r.RequestUri!.AbsolutePath.EndsWith("/users/@me")
+            ? FakeHttp.Json(HttpStatusCode.OK, "{\"id\":\"9\",\"username\":\"Fall Cup Admin\"}")
+            : FakeHttp.Json(HttpStatusCode.OK, "[{\"id\":\"1\",\"content\":\"\",\"embeds\":[],\"attachments\":[],\"author\":{\"id\":\"5\",\"bot\":true}}]");
+        var o = Organiser();
+        await o.PollLiveAsync();
+        Assert.Contains("turn on Message Content Intent for Fall Cup Admin", o.Problem);
+    }
+
+    [Fact]
+    public void A_bot_id_is_read_from_its_token_without_the_secret()
+    {
+        string id = "123456789012345678";
+        string token = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(id)).TrimEnd('=') + ".abc.def";
+        Assert.Equal(id, SetupCode.BotIdOf(token));
+        Assert.Equal(id, SetupCode.BotIdOf("Bot " + token));
+        Assert.Equal("", SetupCode.BotIdOf("not-a-token"));
+    }
+
     [Fact]
     public void Awards_list_the_top_three_in_each_category()
     {

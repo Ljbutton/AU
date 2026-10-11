@@ -85,6 +85,27 @@ namespace TournamentTracker.Setup
                 ? $"{TournamentName} (tournament host{(BotTokens?.Count > 0 ? ", automute on" : "")})"
                 : $"{TournamentName} (preliminary{(string.IsNullOrWhiteSpace(Server) ? "" : " in " + Server)}{(BotTokens?.Count > 0 ? ", automute on" : "")})";
 
+        /// <summary>
+        /// The bot's user ID, read from the first part of its token (that part is the ID in base64),
+        /// so two codes can be compared without showing either token. Empty if it can't be read.
+        /// </summary>
+        public static string BotIdOf(string? token)
+        {
+            if (string.IsNullOrWhiteSpace(token)) return "";
+            string t = token!.Trim();
+            if (t.StartsWith("Bot ", StringComparison.OrdinalIgnoreCase)) t = t.Substring(4);
+            int dot = t.IndexOf('.');
+            if (dot <= 0) return "";
+            string part = t.Substring(0, dot).Replace('-', '+').Replace('_', '/');
+            part = part.PadRight(part.Length + (4 - part.Length % 4) % 4, '=');
+            try
+            {
+                string id = Encoding.UTF8.GetString(Convert.FromBase64String(part));
+                return id.Length > 0 && id.All(char.IsDigit) ? id : "";
+            }
+            catch (FormatException) { return ""; }
+        }
+
         public string Encode()
         {
             byte[] bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(this, Json));

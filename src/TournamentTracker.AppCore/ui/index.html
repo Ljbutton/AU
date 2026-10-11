@@ -220,6 +220,7 @@ select{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5p
 .checks{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .chk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;padding:2px 10px 2px 8px;border-radius:99px;background:var(--sunk);color:var(--muted)}
 .chk i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.chk .why{font-weight:400;opacity:.85;white-space:normal}
 .chk.ok i{background:var(--good)}.chk.warn{color:var(--warn)}.chk.warn i{background:var(--warn)}
 .chk.bad{color:var(--danger);background:var(--danger-soft)}.chk.bad i{background:var(--danger)}
 .chk[data-go]{cursor:pointer}
@@ -519,7 +520,7 @@ document.addEventListener('click', e => {
   const g = e.target.closest('[data-go]'); if (g) go(g.dataset.go);
   const a = e.target.closest('[data-app]');
   if (a && a.dataset.app === 'restart') api('POST', '/app/restart').then(r => toast(r.message));
-  if (a && a.dataset.app === 'update') api('POST', '/app/update').then(r => { toast(r.message); refresh(); });
+  if (a && a.dataset.app === 'update') api('POST', '/app/updateall').then(r => { toast(r.message); refresh(); });
 });
 
 // ---- Top bar: only what needs attention ----------------------------------------------------
@@ -574,7 +575,7 @@ const TITLES = { Menu: 'Main menu', Lobby: 'Lobby', Tasks: 'Tasks', Meeting: 'Di
 let playersKey = '';
 // Host checklist: everything a lobby needs before a round, in one line.
 function renderChecks(st) {
-  const m = S.mod, s = S.setup, a = st.autoMute || {}, feed = st.feed || {};
+  const m = S.mod, s = S.setup, a = st.autoMute || {}, feed = st.feed || {}, ld = st.liveData || {}, sp = S.sendPage || {};
   const players = (st.players || []).filter(p => !p.referee && !p.disconnected);
   const linked = players.filter(p => p.discordId).length;
   const items = [
@@ -584,10 +585,16 @@ function renderChecks(st) {
     a.configured && ['Voice', a.voiceConnected && !a.voiceProblem, a.voiceProblem ? 'Discord bot problem' : a.voiceConnected ? 'Discord voice connected' : 'Connecting to Discord', a.voiceProblem ? 'bad' : a.voiceConnected ? 'ok' : 'warn'],
     a.configured && players.length > 0 && ['Links', linked === players.length, `${linked}/${players.length} linked`, linked === players.length ? 'ok' : 'warn'],
     a.liveProblem && ['Live', false, 'Lobby message can\'t post', 'bad'],
-    feed.available && ['Video', !!feed.on, feed.on ? 'Sending video' : 'Not sending video', feed.on ? 'ok' : 'off'],
+    feed.available && ['Video', !!feed.on, feed.on ? (sp.open ? 'Sending video' : 'Sending video (page not open yet)') : 'Not sending video', feed.on ? (sp.open ? 'ok' : 'warn') : 'off'],
+    ld.on && (ld.problem ? ['Data', false, 'Live data not posting', 'bad', null, 'Live data: ' + ld.problem]
+      : ld.ago == null ? ['Data', false, 'Live data: not posted yet', 'warn']
+      : ['Data', true, `Live data posted ${ld.ago < 60 ? ld.ago + ' s' : Math.round(ld.ago / 60) + ' min'} ago`, ld.ago < 180 ? 'ok' : 'warn']),
   ].filter(Boolean);
-  $('checks').innerHTML = items.map(([k, , text, cls, go]) => `<span class="chk ${cls}"${go ? ` data-go="${go}"` : ''}><i></i>${esc(text)}</span>`).join('');
+  $('checks').innerHTML = items.map(([k, , text, cls, go, why]) => `<span class="chk ${cls}"${go ? ` data-go="${go}"` : ''}${why ? ` title="${esc(why)}"` : ''}><i></i>${esc(text)}${why ? ` <span class="why">${esc(why.replace(/^Live data: /, ''))}</span>` : ''}</span>`).join('');
+  if (sp.note && sp.note !== lastFeedNote) toast(sp.note);
+  lastFeedNote = sp.note || '';
 }
+let lastFeedNote = '';
 function renderHome() {
   const st = S.status;
   $('home-wait').hidden = !!st; $('home-live').hidden = !st;

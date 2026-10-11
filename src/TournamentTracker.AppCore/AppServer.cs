@@ -137,7 +137,7 @@ namespace TournamentTracker.App
             _organizer?.Dispose();
             _organizer = null;
             if (_settings.AdminCode != null && SetupCode.TryParse(_settings.AdminCode, out var code, out _) && code.IsAdmin)
-                _organizer = new Organizer(code, _http);
+                _organizer = new Organizer(code, _http, log: new FileLog(string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.GetDirectoryName(_env.SettingsFile), "the-button.log"));
         }
 
         private object SetAdminCode(string text)
@@ -377,6 +377,10 @@ namespace TournamentTracker.App
                 }
                 case ("GET", "/app/sendfeed"):
                 {
+                    // The send page is open and says whether VDO.Ninja is still sending its picture.
+                    _sendSeen = DateTime.UtcNow;
+                    _sendVideo = HttpRequest.Query(query, "video");
+                    if (_sendVideo == "ok") _sendVideoOkAt = _sendSeen;
                     string? feed = GamePath == null ? null : await _mod.FeedAsync(GamePath, long.TryParse(HttpRequest.Query(query, "since"), out var since) ? since : 0).ConfigureAwait(false);
                     return Text(200, "application/json", feed ?? "{\"last\":-1,\"items\":[]}");
                 }
@@ -441,8 +445,16 @@ namespace TournamentTracker.App
             AutoUpdateMod(mod);
             KeepConsoleSetting(mod);
             string? status = mod.Installed && GamePath != null ? await _mod.StatusAsync(GamePath).ConfigureAwait(false) : null;
+            if (await WatchSendPageAsync(status).ConfigureAwait(false) && GamePath != null)
+                status = await _mod.StatusAsync(GamePath).ConfigureAwait(false) ?? status;
             return new
             {
+                SendPage = new
+                {
+                    Open = _sendSeen != DateTime.MinValue && DateTime.UtcNow - _sendSeen < SendPageGone,
+                    Video = _sendVideo,
+                    Note = _feedNote,
+                },
                 App = _env.Version,
                 Twitch = _settings.Twitch,
                 ModConsole = _settings.ShowModConsole,
@@ -733,8 +745,41 @@ namespace TournamentTracker.App
         /// "Send my game to the caster": switches it in the mod, then opens the private VDO.Ninja
         /// page in the host's browser, where they pick the Among Us window.
         /// </summary>
+        // The VDO.Ninja send page: when it last asked for the feed, and whether its video is going out.
+        private DateTime _sendSeen = DateTime.MinValue, _sendVideoOkAt = DateTime.MinValue;
+        private string _sendVideo = "";
+        private string? _feedNote;
+        private static readonly TimeSpan SendPageGone = TimeSpan.FromSeconds(15), VideoGone = TimeSpan.FromSeconds(20);
+
+        /// <summary>
+        /// Sending video is on but the send page was closed (no asks for 15 s) or VDO.Ninja stopped
+        /// sending its picture (20 s): turn it off, so The Button never says "Sending" when nothing is.
+        /// </summary>
+        private async Task<bool> WatchSendPageAsync(string? status)
+        {
+            if (status == null || _sendSeen == DateTime.MinValue) return false;
+            bool on;
+            try { on = JsonDocument.Parse(status).RootElement.TryGetProperty("feed", out var f) && f.TryGetProperty("on", out var o) && o.ValueKind == JsonValueKind.True; }
+            catch (JsonException) { return false; }
+            if (!on) return false;
+            var now = DateTime.UtcNow;
+            string? why = now - _sendSeen > SendPageGone ? "the VDO.Ninja page was closed"
+                : _sendVideoOkAt != DateTime.MinValue && _sendVideo != "ok" && now - _sendVideoOkAt > VideoGone ? "VDO.Ninja stopped sending the picture"
+                : null;
+            if (why == null) return false;
+            _sendSeen = DateTime.MinValue;
+            _sendVideoOkAt = DateTime.MinValue;
+            await FeedAsync(false).ConfigureAwait(false);
+            _feedNote = $"Sending video turned off: {why}. Turn it on again to send.";
+            return true;
+        }
+
         private async Task<object> FeedAsync(bool on)
         {
+            _sendSeen = DateTime.MinValue;
+            _sendVideoOkAt = DateTime.MinValue;
+            _sendVideo = "";
+            if (on) _feedNote = null;
             if (GamePath == null) return new { ok = false, replies = new[] { "Find Among Us first." } };
             string? answer = await _mod.CommandAsync(GamePath, on ? "feed on" : "feed off").ConfigureAwait(false);
             if (answer == null) return new { ok = false, replies = new[] { "Among Us isn't running with the mod, so that can't be done right now." } };

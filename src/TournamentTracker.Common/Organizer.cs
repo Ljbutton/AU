@@ -44,18 +44,39 @@ namespace TournamentTracker.App
         /// <summary>After each read of the live lobbies (the broadcast app's caster pages follow).</summary>
         public event Action? LiveChanged;
 
-        public Organizer(SetupCode code, HttpClient http, Func<DateTime>? clock = null, bool start = true)
+        private readonly ILog _log;
+        private string? _botName;
+
+        public Organizer(SetupCode code, HttpClient http, Func<DateTime>? clock = null, bool start = true, ILog? log = null)
         {
             _code = code;
             _clock = clock ?? (() => DateTime.UtcNow);
+            _log = log ?? NullLog.Instance;
             _token = code.BotTokens![0];
-            _rest = new DiscordRest(http, NullLog.Instance);
-            _shared = new SharedResults(_rest, _token, code.ResultsChannelId!, NullLog.Instance);
+            _rest = new DiscordRest(http, _log);
+            _shared = new SharedResults(_rest, _token, code.ResultsChannelId!, _log);
             if (start) Task.Run(LoopAsync);
         }
 
         public string Tournament => _code.TournamentName;
-        public string? Problem { get; private set; }
+        public string? ResultsChannelId => _code.ResultsChannelId;
+        public string? GuildId => _code.GuildId;
+        /// <summary>The administration bot (its token's ID part), to compare with a host's code.</summary>
+        public string BotId => SetupCode.BotIdOf(_token);
+
+        /// <summary>What's stopping the live lobbies from showing, in words (null: nothing).</summary>
+        public string? Problem
+        {
+            get => _problem;
+            private set
+            {
+                if (value == _problem) return;
+                _problem = value;
+                if (value != null) _log.Warn("Organiser: " + value);
+                else _log.Info("Organiser: reading the results channel again.");
+            }
+        }
+        private string? _problem;
 
         /// <summary>The tournament's scored games since the last reset (shared results), for the broadcast.</summary>
         public IReadOnlyList<GameRecord> Games { get { lock (_lock) return _load?.GameRecords.ToList() ?? new List<GameRecord>(); } }
@@ -76,7 +97,7 @@ namespace TournamentTracker.App
                         await LoadStandingsAsync().ConfigureAwait(false);
                     }
                 }
-                catch (Exception e) { Problem = "Couldn't reach Discord: " + e.Message; }
+                catch (Exception e) { Problem = "Couldn't reach Discord: " + e.Message; _log.Error("Organiser poll failed: " + e); }
                 try { await Task.Delay(LivePoll, _cts.Token).ConfigureAwait(false); }
                 catch (OperationCanceledException) { return; }
             }
@@ -85,35 +106,60 @@ namespace TournamentTracker.App
         /// <summary>Reads the newest messages in the results channel for each lobby's live data.</summary>
         public async Task PollLiveAsync()
         {
-            var messages = await _rest.GetMessagesAsync(_token, _code.ResultsChannelId!).ConfigureAwait(false);
+            var (messages, result) = await _rest.ReadMessagesAsync(_token, _code.ResultsChannelId!).ConfigureAwait(false);
             if (messages == null)
             {
-                Problem = "The administration bot can't read the private results channel. Give it View Channel and Read Message History there, and turn on its Message Content Intent (Discord Developer Portal → Bot).";
+                Problem = ReadProblem(result, _code.ResultsChannelId!);
                 return;
             }
-            Problem = null;
+            int read = 0, blank = 0;
             foreach (var m in messages)
-                if (m.AuthorIsBot) Take(m.EmbedTitle, m.EmbedDescription);
+            {
+                if (!m.AuthorIsBot) continue;
+                if (Take(m.EmbedTitle, m.EmbedDescription)) read++;
+                // Another bot's message that came back with nothing in it: the Message Content Intent is off.
+                else if (m.Embeds == 0 && m.Content.Length == 0 && m.Attachments.Count == 0) blank++;
+            }
+            if (blank > 0 && read == 0)
+            {
+                _botName ??= await _rest.BotNameAsync(_token).ConfigureAwait(false);
+                Problem = $"The hosts' messages in the results channel come back empty: turn on Message Content Intent for {(_botName != null ? _botName : "the administration bot")} (Discord Developer Portal → your app → Bot → Privileged Gateway Intents), then restart Red Alert.";
+            }
+            else Problem = null;
             LiveChanged?.Invoke();
         }
 
-        /// <summary>Takes one "Live data" message (title and description). Public for tests.</summary>
-        public void Take(string? title, string? description)
+        /// <summary>Discord's refusal to read the results channel, in words that say what to do.</summary>
+        public static string ReadProblem(DiscordResult result, string channelId)
         {
-            if (title == null || description == null || !title.StartsWith(TournamentSession.LiveTitlePrefix, StringComparison.Ordinal)) return;
+            if (result.Status == 401)
+                return "The bot token in the administration code is invalid (was it reset?). Make a new administration code with the bot's current token.";
+            if (result.Status == 403 || result.ErrorCode == 50001 || result.ErrorCode == 50013)
+                return "The administration bot can't see the results channel: in that channel's permissions, add the bot with View Channel and Read Message History.";
+            if (result.Status == 404 || result.ErrorCode == 10003)
+                return $"The results channel in the administration code doesn't exist (channel ID {channelId}). Check the ID and make a new administration code.";
+            if (result.Status == 0)
+                return "Couldn't reach Discord: " + (result.Body.Length > 0 ? result.Body : "no answer") + ".";
+            return $"Discord wouldn't let the administration bot read the results channel (HTTP {result.Status}{(result.ErrorCode != 0 ? ", code " + result.ErrorCode : "")}).";
+        }
+
+        /// <summary>Takes one "Live data" message (title and description). Public for tests. True: it was one.</summary>
+        public bool Take(string? title, string? description)
+        {
+            if (title == null || description == null || !title.StartsWith(TournamentSession.LiveTitlePrefix, StringComparison.Ordinal)) return false;
             string json = description.Trim();
             if (json.StartsWith("```")) json = json.Substring(json.IndexOf('\n') + 1);
             if (json.EndsWith("```")) json = json.Substring(0, json.Length - 3);
             JsonElement data;
             try { data = JsonDocument.Parse(json).RootElement.Clone(); }
-            catch (JsonException) { return; }
+            catch (JsonException) { return true; }
             string lobby = data.TryGetProperty("lobby", out var l) ? l.GetString() ?? "" : "";
             long sent = data.TryGetProperty("t", out var t) && t.ValueKind == JsonValueKind.Number ? t.GetInt64() : 0;
-            if (lobby.Length == 0) return;
+            if (lobby.Length == 0) return true;
             lock (_lock)
             {
                 bool known = _lobbies.TryGetValue(lobby, out var have);
-                if (known && have.Sent >= sent) return;
+                if (known && have.Sent >= sent) return true;
                 _lobbies[lobby] = (data, _clock(), sent);
                 if (data.TryGetProperty("f", out var f) && f.ValueKind == JsonValueKind.Array && f.GetArrayLength() > 0)
                 {
@@ -124,6 +170,7 @@ namespace TournamentTracker.App
                         _lastEvent[lobby] = (key, last[1].GetString() ?? "", known ? _clock() : DateTime.MinValue);
                 }
             }
+            return true;
         }
 
         public async Task LoadStandingsAsync()

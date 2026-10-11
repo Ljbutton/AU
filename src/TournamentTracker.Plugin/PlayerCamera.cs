@@ -4,7 +4,6 @@ using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using InnerNet;
 using TournamentTracker.PlayerCam;
 using UnityEngine;
-using UnityEngine.Rendering;
 using Object = UnityEngine.Object;
 
 namespace TournamentTracker.Plugin
@@ -12,9 +11,15 @@ namespace TournamentTracker.Plugin
     /// <summary>
     /// The player camera, on the host's game: a second camera, never shown on the host's screen,
     /// that follows one player up close (the caster's pick, or one it picks itself) and is read
-    /// back 30 times a second for The Button to send to the caster as its own stream. Only drawn
-    /// while Red Alert has it on and The Button's send page is asking for pictures.
+    /// back for The Button to send to the caster as its own stream. Only drawn while Red Alert has
+    /// it on and The Button's send page is asking for pictures.
     /// </summary>
+    /// <remarks>
+    /// Read back with ReadPixels a few times a second: the graphics card's asynchronous read-back
+    /// (AsyncGPUReadback) isn't in the game's interop assemblies, and merely naming it made the
+    /// whole class fail to load. A failure here turns the camera off for the session (logged once);
+    /// the host's main video is separate and carries on.
+    /// </remarks>
     internal static class PlayerCamera
     {
         /// <summary>How much of the map it shows: a little wider than a player's own screen.</summary>
@@ -36,13 +41,30 @@ namespace TournamentTracker.Plugin
         /// (skins, hats and pets have caught up with the body), where drawn after this frame's own
         /// updates some of them were a frame behind and looked broken.
         /// </summary>
+        /// <summary>Pictures a second: ReadPixels waits for the graphics card, so not every frame.</summary>
+        private const float Fps = 12f;
+        private static bool _broken;
+
         public static void Tick()
+        {
+            if (_broken) return;
+            try { Draw(); }
+            catch (Exception e)
+            {
+                _broken = true;
+                _placed = false;
+                if (_shadeGo != null) _shadeGo.SetActive(false);
+                TournamentPlugin.Logger.Error("Player camera turned off for this session (the main video carries on): " + e);
+            }
+        }
+
+        private static void Draw()
         {
             var session = TournamentPlugin.Session;
             var main = Camera.main;
             bool on = session != null && Game.IsHost && main != null && session.Spectator.Cam && session.Cam.Wanted
                       && AmongUsClient.Instance != null && AmongUsClient.Instance.GameState == InnerNetClient.GameStates.Started;
-            if (!on) { _placed = false; Pending.Clear(); if (_shadeGo != null && _shadeGo.activeSelf) _shadeGo.SetActive(false); return; }
+            if (!on) { _placed = false; if (_shadeGo != null && _shadeGo.activeSelf) _shadeGo.SetActive(false); return; }
 
             float now = Time.unscaledTime;
             if (now >= _nextPick)
@@ -59,11 +81,8 @@ namespace TournamentTracker.Plugin
             else _at = Vector2.Lerp(_at, to, 1f - Mathf.Exp(-Time.unscaledDeltaTime * 9f));
             _placed = true;
 
-            Collect(session!);
             if (now < _nextShot) return;
-            _nextShot = now + 1f / PlayerCamFeed.Fps;
-            bool async = UseAsync();
-            if (async && Pending.Count >= 3) return;     // the graphics card is behind: this frame is skipped
+            _nextShot = now + 1f / Math.Min(Fps, PlayerCamFeed.Fps);
             if (!Ready(main!)) return;
 
             var cam = _cam!;
@@ -79,13 +98,6 @@ namespace TournamentTracker.Plugin
                 if (shade) _shadeGo!.SetActive(false);
             }
 
-            if (async)
-            {
-                // Read back a few frames later, without waiting for the graphics card (waiting
-                // for it here cost 17–35 ms a picture and made the game stutter).
-                try { Pending.Enqueue(AsyncGPUReadback.Request(_rt, 0, TextureFormat.RGBA32)); return; }
-                catch (Exception e) { NoAsync(e); }
-            }
             var buffer = session!.Cam.Take(PlayerCamFeed.Width * PlayerCamFeed.Height * 4);
             if (buffer == null) return;     // still making the last one: this frame is skipped
             var before = RenderTexture.active;
@@ -97,48 +109,6 @@ namespace TournamentTracker.Plugin
             // The pixels start after the array's header (4 pointers in IL2CPP).
             Marshal.Copy(IntPtr.Add(raw.Pointer, 4 * IntPtr.Size), buffer, 0, bytes);
             session.Cam.Submit(PlayerCamFeed.Width, PlayerCamFeed.Height, bottomUp: true);
-        }
-
-        private static readonly System.Collections.Generic.Queue<AsyncGPUReadbackRequest> Pending = new System.Collections.Generic.Queue<AsyncGPUReadbackRequest>();
-        private static bool? _async;
-
-        private static bool UseAsync()
-        {
-            if (_async == null)
-            {
-                try { _async = SystemInfo.supportsAsyncGPUReadback; }
-                catch (Exception e) { NoAsync(e); }
-            }
-            return _async == true;
-        }
-
-        private static void NoAsync(Exception e)
-        {
-            if (_async != false) TournamentPlugin.Logger.Warn("Player camera: reading pictures back the slow way (" + e.Message + ").");
-            _async = false;
-            Pending.Clear();
-        }
-
-        /// <summary>Pictures the graphics card has finished reading back go to The Button.</summary>
-        private static void Collect(TournamentSession session)
-        {
-            while (Pending.Count > 0)
-            {
-                var request = Pending.Peek();
-                try
-                {
-                    if (!request.done) return;
-                    Pending.Dequeue();
-                    if (request.hasError) continue;
-                    var buffer = session.Cam.Take(PlayerCamFeed.Width * PlayerCamFeed.Height * 4);
-                    if (buffer == null) continue;     // still making the last one: this picture is skipped
-                    var data = request.GetDataRaw(0);
-                    if (data == IntPtr.Zero) continue;
-                    Marshal.Copy(data, buffer, 0, buffer.Length);
-                    session.Cam.Submit(PlayerCamFeed.Width, PlayerCamFeed.Height, bottomUp: true);
-                }
-                catch (Exception e) { NoAsync(e); return; }
-            }
         }
 
         // ---- The followed player's sight ------------------------------------------------------

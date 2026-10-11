@@ -166,6 +166,7 @@ namespace TournamentTracker
                 Rotation = RotationOn,
                 RefSlot = RefSlotKey != null,
                 RefDead = RefDeadForAll,
+                LiveData = LiveDataState(),
                 Overlay = new { On = _overlay != null, Url = _overlay?.Url },
                 Feed = new { Available = FeedAvailable, On = _feedOn && FeedAvailable, PushUrl = _feedOn && FeedAvailable ? FeedPushUrl : null, Cam = _feedOn && FeedAvailable && Spectator.Cam },
                 Lead = IsLead,

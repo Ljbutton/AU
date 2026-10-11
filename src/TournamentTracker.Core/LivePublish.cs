@@ -26,6 +26,28 @@ namespace TournamentTracker
         private string _liveDesired = "", _liveSent = "";
         private DateTime _liveNextBuild, _liveNextSend, _liveLastSent;
         private bool _liveBusy, _liveRepost;
+        /// <summary>The live data's last good post (UTC) and, when the last try failed, why (for The Button's Home).</summary>
+        private DateTime? _liveOkAt;
+        private string? _liveProblem;
+
+        /// <summary>The live data message for The Button: is it going out, and if not, why.</summary>
+        public object LiveDataState() => new
+        {
+            On = LivePublishOn,
+            Ago = _liveOkAt.HasValue ? (int?)Math.Max(0, (int)(DateTime.UtcNow - _liveOkAt.Value).TotalSeconds) : null,
+            Problem = _liveProblem,
+        };
+
+        /// <summary>Discord's refusal of the live data message, in words that say what to do.</summary>
+        public static string LiveProblemOf(DiscordResult r)
+        {
+            if (r.Status == 401) return "the bot token is invalid (was it reset?). Put the bot's current token in The Button (Settings → Your Discord) or ask for a new code.";
+            if (r.Status == 403 || r.ErrorCode == 50001 || r.ErrorCode == 50013)
+                return "the bot can't post in the results channel: add it to that channel's permissions with View Channel, Send Messages and Embed Links.";
+            if (r.Status == 404 || r.ErrorCode == 10003) return "the results channel in the setup code doesn't exist.";
+            if (r.Status == 0) return "couldn't reach Discord" + (r.Body.Length > 0 ? ": " + r.Body : "") + ".";
+            return $"Discord said HTTP {r.Status}{(r.ErrorCode != 0 ? " (code " + r.ErrorCode + ")" : "")}.";
+        }
 
         private bool LivePublishOn =>
             _settings.PublishLive && _settings.Mode != TrackerMode.Standard && Shared != null && _settings.AutoMute.BotTokens.Count > 0;
@@ -146,13 +168,14 @@ namespace TournamentTracker
                         {
                             var edit = await _rest.EditEmbedsAsync(token, channel, id, message).ConfigureAwait(false);
                             if (edit.Status == 404) id = null;
-                            else if (!edit.Ok) _log.Warn("Could not update the live data: " + edit);
+                            else if (!edit.Ok) { _log.Warn("Could not update the live data: " + edit); _liveProblem = LiveProblemOf(edit); }
+                            else { _liveOkAt = DateTime.UtcNow; _liveProblem = null; }
                         }
                         if (id == null)
                         {
                             var made = await _rest.PostEmbedsAsync(token, channel, message).ConfigureAwait(false);
-                            if (made.Ok) id = DiscordRest.MessageIdOf(made);
-                            else _log.Warn("Could not post the live data: " + made);
+                            if (made.Ok) { id = DiscordRest.MessageIdOf(made); _liveOkAt = DateTime.UtcNow; _liveProblem = null; }
+                            else { _log.Warn("Could not post the live data: " + made); _liveProblem = LiveProblemOf(made); }
                         }
                         lock (_liveLock)
                         {
@@ -163,7 +186,7 @@ namespace TournamentTracker
                         }
                     }
                 }
-                catch (Exception e) { _log.Warn("Live data failed: " + e.Message); }
+                catch (Exception e) { _log.Warn("Live data failed: " + e.Message); _liveProblem = "it failed: " + e.Message; }
                 finally
                 {
                     bool again;
