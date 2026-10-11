@@ -282,7 +282,31 @@ namespace TournamentTracker.Plugin.Patches
     [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.RpcStartMeeting))]
     internal static class RpcStartMeetingPatch
     {
-        public static void Prefix(PlayerControl __instance, NetworkedPlayerInfo __0) => MeetingHook.Record(__instance, __0);
+        public static void Prefix(PlayerControl __instance, NetworkedPlayerInfo __0)
+        {
+            // The referee's record dead again just before the host starts the meeting, so players'
+            // games (without the mod) build its card crossed out. Only the record, never an RPC.
+            try { RefSlot.KeepDead("meeting starting"); }
+            catch (Exception e) { TournamentPlugin.Logger.Error("Referee record before the meeting failed: " + e.Message); }
+            MeetingHook.Record(__instance, __0);
+        }
+    }
+
+    // Debug (config Debug.RefereeRecordSync): each time the host writes the referee's player record
+    // for sending, what it says. Shows whether IsDead=true actually leaves the host.
+    [HarmonyPatch(typeof(NetworkedPlayerInfo), nameof(NetworkedPlayerInfo.Serialize))]
+    internal static class RefereeRecordSyncLog
+    {
+        public static void Postfix(NetworkedPlayerInfo __instance, bool __1, bool __result)
+        {
+            if (!RefSlot.DebugSync || __instance == null) return;
+            try
+            {
+                if (!Game.IsHost || RefSlot.RefereeId() != __instance.PlayerId) return;
+                TournamentPlugin.Logger.Info($"Referee record written for sending: IsDead={__instance.IsDead}, full={__1}, wrote={__result}, owner={__instance.OwnerId}, host owns it={__instance.AmOwner}.");
+            }
+            catch (Exception) { }
+        }
     }
 
     [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.StartMeeting))]

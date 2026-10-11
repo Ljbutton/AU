@@ -65,8 +65,74 @@ namespace TournamentTracker.Plugin
             referee.Die(DeathReason.Exile, false);
             referee.Data.IsDead = true;
             referee.Data.SetDirtyBit(uint.MaxValue);
-            TournamentPlugin.Logger.Info($"Referee ghost: {referee.Data.PlayerName} is now a ghost (marked dead in the player record, no exile sent).");
+            TournamentPlugin.Logger.Info($"Referee ghost: {referee.Data.PlayerName} is now a ghost (marked dead in the player record, no exile sent; record net id {referee.Data.NetId}, owner {referee.Data.OwnerId}, host owns it: {referee.Data.AmOwner}).");
+            _ghostMade = true;
+            _lastDead = true;
             CentreSoon(1f);
+        }
+
+        // ---- The referee's player record kept dead ------------------------------------------------
+        // Players without the mod only know the referee is dead from the player record the host keeps
+        // and syncs (NetworkedPlayerInfo, its dirty-bit update: never an exile, kill, role or task
+        // message, which got the host kicked or banned). It's put back to dead and marked for sync once
+        // the intro is over, as each meeting starts, and every 5 s during play; any change is logged.
+
+        /// <summary>Debug (config Debug.RefereeRecordSync): log each time the referee's record is sent, with its dead flag.</summary>
+        public static bool DebugSync;
+        private static bool _ghostMade, _introSeen, _introDone;
+        private static bool? _lastDead;
+        private static float _nextIntroCheck, _nextKeep;
+
+        /// <summary>
+        /// The referee's record dead again (if anything set it back) and marked to be sent to everyone.
+        /// <paramref name="onlyIfClean"/>: not marked again while a send is already pending (the 5 s safety net).
+        /// </summary>
+        public static void KeepDead(string why, bool onlyIfClean = false)
+        {
+            if (!_ghostMade || !Game.IsHost || AmongUsClient.Instance == null || AmongUsClient.Instance.GameState != InnerNetClient.GameStates.Started) return;
+            var referee = Referee();
+            var data = referee != null ? referee.Data : null;
+            if (data == null || data.Disconnected) return;
+            bool wasDead = data.IsDead;
+            if (!wasDead)
+            {
+                data.IsDead = true;
+                TournamentPlugin.Logger.Warn($"Referee record: found alive ({why}); set back to dead.");
+            }
+            if (onlyIfClean && wasDead && data.IsDirty) return;
+            data.SetDirtyBit(uint.MaxValue);
+            _lastDead = true;
+            if (DebugSync) TournamentPlugin.Logger.Info($"Referee record: marked for sync ({why}); IsDead={data.IsDead}.");
+        }
+
+        /// <summary>Every frame while the referee is a ghost: the intro's end, the 5 s safety net, and any change to the dead flag.</summary>
+        private static void WatchRecord(bool meeting)
+        {
+            if (!_ghostMade) return;
+            var referee = Referee();
+            var data = referee != null ? referee.Data : null;
+            if (data == null) return;
+            bool dead = data.IsDead;
+            if (_lastDead != dead)
+            {
+                if (!dead) TournamentPlugin.Logger.Warn("Referee record: IsDead changed to false (something in the game reset it); putting it back.");
+                else if (DebugSync) TournamentPlugin.Logger.Info("Referee record: IsDead changed to true.");
+                _lastDead = dead;
+                if (!dead) KeepDead("reset seen");
+            }
+            float now = Time.unscaledTime;
+            if (!_introDone && now >= _nextIntroCheck)
+            {
+                _nextIntroCheck = now + 0.5f;
+                bool intro = UnityEngine.Object.FindObjectOfType<IntroCutscene>() != null;
+                if (intro) _introSeen = true;
+                else if (_introSeen) { _introDone = true; KeepDead("intro finished"); _nextKeep = now + 5f; }
+            }
+            if (!meeting && _introDone && now >= _nextKeep)
+            {
+                _nextKeep = now + 5f;
+                KeepDead("every 5 s", onlyIfClean: true);
+            }
         }
 
         // No exile message for the referee, ever: sent at the start of a game it got the host kicked,
@@ -95,6 +161,8 @@ namespace TournamentTracker.Plugin
                 || AmongUsClient.Instance == null || AmongUsClient.Instance.GameState != InnerNetClient.GameStates.Started)
             {
                 _centreAt = -1;
+                _ghostMade = _introSeen = _introDone = false;
+                _lastDead = null;
                 _wasMeeting = false;
                 _view = null;
                 RoomName(true);
@@ -104,6 +172,7 @@ namespace TournamentTracker.Plugin
             bool meeting = MeetingHud.Instance != null || ExileController.Instance != null;
             KeepHud(meeting);
             KeepOutOfSight(meeting);
+            WatchRecord(meeting);
             if (_wasMeeting && !meeting) CentreSoon(0.5f);
             _wasMeeting = meeting;
             if (_centreAt < 0 || Time.unscaledTime < _centreAt) return;

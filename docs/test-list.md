@@ -253,3 +253,8 @@ _Unused code was removed. If anything below misbehaves, it's likely from the cle
 
 ## New in 0.1.60
 - [ ] Settings lock on: start a game while players join and leave during the countdown → the game starts normally (the lock doesn't send settings during the countdown or as the game starts)
+
+## New in 0.1.61
+- [ ] Host with the mod on PC (referee slot on), join from a phone without the mod, start a game, call a meeting → the referee's card is crossed out (dead) on the phone
+- [ ] With `[Debug] RefereeRecordSync = true` in BepInEx/config/com.ljbutton.tournamenttracker.cfg: the log shows "Referee record written for sending: IsDead=True…" after the intro and before each meeting, and no "found alive" / "changed to false" warnings
+- [ ] The Button → Home → Tools: the Referee ghost slot says players without the mod see a crossed-out card
