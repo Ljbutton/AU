@@ -668,20 +668,21 @@ namespace TournamentTracker.App.Broadcast
             return false;
         }
 
-        // ---- Player cameras: back to the whole map when the game ends -------------------------------
+        // ---- Player cameras: back to the whole map at a meeting or when the game ends --------------
 
         private readonly HashSet<string> _camPlayed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
-        /// On a player camera, once its lobby's game is over the picture goes back to that lobby's
-        /// whole map (several cameras: once none of their games is still on, the same lobbies side by side).
+        /// On a player camera, once its lobby goes into a meeting (the host's game stops drawing the
+        /// camera then) or its game is over, the picture goes back to that lobby's whole map (several
+        /// cameras: once none of their games is still in play, the same lobbies side by side).
         /// </summary>
         private bool CamTick(OnAir air)
         {
             if (!air.IsCam) { _camPlayed.Clear(); return false; }
             var lobbies = air.Slots.Where(s => s != null).Select(s => s!).ToList();
             var phase = Board.Ranking().ToDictionary(r => r.Lobby, r => r.Phase, StringComparer.OrdinalIgnoreCase);
-            bool Playing(string l) => phase.TryGetValue(l, out var p) && p is "ingame" or "meeting";
+            bool Playing(string l) => phase.TryGetValue(l, out var p) && p == "ingame";
             foreach (var l in lobbies) if (Playing(l)) _camPlayed.Add(l);
             var over = lobbies.Where(l => _camPlayed.Contains(l) && !Playing(l)).ToList();
             if (over.Count == 0 || lobbies.Any(Playing)) return false;

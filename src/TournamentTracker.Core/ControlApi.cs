@@ -40,6 +40,9 @@ namespace TournamentTracker
             }
         }
 
+        /// <summary>The notices' words, newest last (tests).</summary>
+        internal List<string> NoticeTexts() { lock (_activityLock) return _notices.Select(n => n.Text).ToList(); }
+
         private List<object> NoticesForApp()
         {
             var now = _clock();
@@ -165,7 +168,6 @@ namespace TournamentTracker
                 Lock = new { Available = _settings.LobbySettings != null && _settings.Mode != TrackerMode.Standard, On = LockedSettings != null, Settings = _settings.LobbySettings },
                 Rotation = RotationOn,
                 RefSlot = RefSlotKey != null,
-                RefDead = RefDeadForAll,
                 LiveData = LiveDataState(),
                 Overlay = new { On = _overlay != null, Url = _overlay?.Url },
                 Feed = new { Available = FeedAvailable, On = _feedOn && FeedAvailable, PushUrl = _feedOn && FeedAvailable ? FeedPushUrl : null, Cam = _feedOn && FeedAvailable && Spectator.Cam },

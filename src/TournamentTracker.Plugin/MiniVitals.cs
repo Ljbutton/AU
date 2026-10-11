@@ -7,9 +7,10 @@ using Object = UnityEngine.Object;
 namespace TournamentTracker.Plugin
 {
     /// <summary>
-    /// The referee's screen (and so the stream's wide view): a small list down the left edge of who
-    /// is alive, dead or gone, in each player's colour. Only on the referee's own screen, during
-    /// play (meetings show the cards). Nothing about roles, and nothing is sent to the players.
+    /// The referee's screen (and so the stream's wide view): a small list down the left edge of the
+    /// players, in each one's colour, with who is dead or gone and a red IMP by the impostors (the
+    /// referee's screen already shows them). Only on the referee's own screen, during play (meetings
+    /// show the cards), and nothing is sent to the players.
     /// </summary>
     internal static class MiniVitals
     {
@@ -29,10 +30,22 @@ namespace TournamentTracker.Plugin
         }
         private static bool _hidden;
 
+        private static bool _intro;
+        private static float _introAt;
+
+        /// <summary>The role intro (or the black screen before it) is up: checked four times a second.</summary>
+        private static bool Intro()
+        {
+            if (Time.unscaledTime < _introAt) return _intro;
+            _introAt = Time.unscaledTime + 0.25f;
+            _intro = Object.FindObjectOfType<IntroCutscene>() != null || ShipStatus.Instance == null;
+            return _intro;
+        }
+
         public static void Update()
         {
             bool show = RefSlot.LocalIsRefereeGhost() && MeetingHud.Instance == null && ExileController.Instance == null
-                        && HudManager.InstanceExists && !ReplayTheater.Active;
+                        && HudManager.InstanceExists && !ReplayTheater.Active && !Intro();
             if (!show)
             {
                 if (_text != null && _text.gameObject.activeSelf) _text.gameObject.SetActive(false);
@@ -72,11 +85,12 @@ namespace TournamentTracker.Plugin
                 string shown = session?.DisplayName(PlayerSnapshot.MakeKey(p.Data.FriendCode, name)) ?? name;
                 shown = shown.Replace("<", "‹").Replace(">", "›");
                 string colour = Colour(p.Data);
-                if (p.Disconnected) lines.Append($"<color=#6E7781><s>{shown}</s> left</color>\n");
-                else if (p.Dead) lines.Append($"<color=#{colour}><alpha=#70><s>{shown}</s></color> <color=#FF5C5C>dead</color>\n");
-                else { alive++; lines.Append($"<color=#{colour}>{shown}</color>\n"); }
+                string imp = p.Impostor ? " <color=#FF3B30><b>IMP</b></color>" : "";
+                if (p.Disconnected) lines.Append($"<color=#6E7781><s>{shown}</s> left</color>{imp}\n");
+                else if (p.Dead) lines.Append($"<color=#{colour}><alpha=#70><s>{shown}</s></color>{imp} <color=#FF5C5C>dead</color>\n");
+                else { alive++; lines.Append($"<color=#{colour}>{shown}</color>{imp}\n"); }
             }
-            Text.Append($"<color=#FFFFFF><b>Alive {alive}/{total}</b></color>\n").Append(lines);
+            Text.Append($"<color=#FFFFFF><b>Players</b> <alpha=#B0>{alive} of {total} alive</color>\n").Append(lines);
             return Text.ToString().TrimEnd('\n');
         }
 
@@ -118,7 +132,7 @@ namespace TournamentTracker.Plugin
                 _text.alignment = TextAlignmentOptions.MidlineLeft;
                 _text.enableWordWrapping = false;
                 _text.richText = true;
-                _text.fontSize = 1.25f;
+                _text.fontSize = 1.5f;
                 _text.lineSpacing = -8f;
                 _text.color = Color.white;
                 _text.outlineWidth = 0.15f;

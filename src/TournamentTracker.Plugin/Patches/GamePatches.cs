@@ -149,6 +149,27 @@ namespace TournamentTracker.Plugin.Patches
         }
     }
 
+    // Referee ghost: a player's game without the mod can still show the referee's card in meetings
+    // (alive). The host counts the votes, so a vote for the referee counts as a skip: they can't be
+    // voted out. 253 is the game's "skipped" vote (PlayerVoteArea.SkippedVote).
+    [HarmonyPatch(typeof(MeetingHud), nameof(MeetingHud.CastVote))]
+    internal static class RefereeNoVotePatch
+    {
+        private const byte Skipped = 253;
+
+        public static void Prefix(byte __0, ref byte __1)
+        {
+            if (!Game.IsHost || TournamentPlugin.Session?.RefSlotKey == null) return;
+            try
+            {
+                if (RefSlot.RefereeId(fresh: true) != __1) return;
+                __1 = Skipped;
+                TournamentPlugin.Logger.Info($"Referee ghost: a vote for the referee (from player {__0}) counted as a skip.");
+            }
+            catch (Exception e) { TournamentPlugin.Logger.Error("Referee vote hook failed: " + e); }
+        }
+    }
+
     // Referee ghost: the chat stays (the game hides it for a player whose role isn't a ghost role,
     // which the referee's isn't).
     [HarmonyPatch(typeof(ChatController), nameof(ChatController.SetVisible))]

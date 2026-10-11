@@ -240,7 +240,8 @@ namespace TournamentTracker
             }
             else
             {
-                Reply($"{p.Name} left at {at}. The game plays on: they keep the points they'd earned and take the loss if their team loses. (To throw the game out instead, {HowTo("Void")}.)", false);
+                // Nothing to do mid-game: kept out of the chat (the referee's screen shows it), on Home only.
+                Note($"{p.Name} left at {at}. The game plays on: they keep the points they'd earned and take the loss if their team loses. (To throw the game out instead, {HowTo("Void")}.)");
             }
             if (Shared != null && _settings.Mode == TrackerMode.Tournament)
             {

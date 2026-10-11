@@ -445,7 +445,8 @@ public class TournamentModeTests : IDisposable
         Assert.Contains(s.Pump(), r => !r.Public && r.Text.StartsWith("Eve left at 1:12, before the first meeting. To restart, press Void in The Button"));
         s.MeetingCalled(0, null);
         s.PlayerLeft(5);
-        Assert.Contains(s.Pump(), r => r.Text.StartsWith("Finn left at 1:12. The game plays on"));
+        Assert.Empty(s.Pump());                                     // after the first meeting: not in the chat…
+        Assert.Contains(s.NoticeTexts(), n => n.StartsWith("Finn left at 1:12. The game plays on"));   // …on Home
         s.PlayerLeft(5);                                            // reported twice by the game: once is enough
         Assert.Empty(s.Pump());
         await s.PendingPosts;

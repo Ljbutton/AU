@@ -12,8 +12,8 @@ namespace TournamentTracker.PlayerCam
     /// </summary>
     public sealed class PlayerCamFeed : IDisposable
     {
-        /// <summary>The picture's size: 720p, sharp on a full-screen stream.</summary>
-        public const int Width = 1280, Height = 720;
+        /// <summary>The picture's size: 540p (half the pixels of 720p, so more pictures a second for the same work).</summary>
+        public const int Width = 960, Height = 540;
         public const int Fps = 30;
         public const int Quality = 82;
         private static readonly TimeSpan WantedFor = TimeSpan.FromSeconds(3);

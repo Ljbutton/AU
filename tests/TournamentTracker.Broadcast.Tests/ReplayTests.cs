@@ -359,6 +359,18 @@ public class PlayerCamReplayTests : IAsyncLifetime
     }
 
     [Fact]
+    public void A_meeting_takes_the_camera_back_to_the_whole_map()
+    {
+        _desk.Show("LJ", "cam");
+        _desk.Tick();
+        Assert.Equal("cam", _desk.OnAir.Layout);
+        Send("snap", null, new { phase = "meeting", spec = new { cam = true } });
+        _desk.Tick();
+        Assert.Equal("full", _desk.OnAir.Layout);
+        Assert.Equal("LJ", _desk.OnAir.Slots[0]);
+    }
+
+    [Fact]
     public void Several_cameras_share_the_screen_with_no_whole_map_pictures()
     {
         var two = new OnAir { Layout = "cams", Slots = new List<string?> { "LJ", "MAL", null, null } };

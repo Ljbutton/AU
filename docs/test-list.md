@@ -216,7 +216,6 @@ _Unused code was removed. If anything below misbehaves, it's likely from the cle
 - [ ] Meeting (referee): the mini chat sits in the empty space right of the last row of cards, not at the bottom
 - [ ] Referee during play: a list down the left edge — "Alive N/M", each player in their colour; dead crossed out with "dead", leavers "left"; gone in meetings; not in the player camera
 - [ ] Referee page: Submit a game → it's on the leaderboard at once (Discord catches up a few seconds later)
-- [ ] Home → Tools: "Show the referee as dead to players" (shows when the referee slot is on). On: ~10 s into a game, ask a player — the referee is crossed out in their next meeting. If the host gets kicked when it's sent, turn it off
 - [ ] Red Alert → Settings: "Administration code" card — paste another code and Change (or Lock); works after the first code
 
 ## New in 0.1.57 (Red Alert 0.3.11)
@@ -228,3 +227,13 @@ _Unused code was removed. If anything below misbehaves, it's likely from the cle
 - [ ] Red Alert writes red-alert.log next to its settings (problems and recoveries are logged)
 - [ ] Red Alert → Settings → paste a host's setup code → Check: says Matches, or what's different (channel, server, bot)
 - [ ] Player camera works (no "AsyncGPUReadbackRequest" error in the mod log); at about 12 pictures a second
+
+## New in 0.1.58 (Red Alert 0.3.12)
+- [ ] Referee mode, a player leaves before the first meeting → the chat says so and how to void; after the first meeting → nothing in the chat (Home shows it)
+- [ ] Player cam on stream, a meeting is called → Red Alert goes back to that lobby's whole map; the host's game stops drawing the camera during the meeting
+- [ ] Player cam is smoother on stream (about 20 pictures a second while on stream, 3 while only ready; 960×540)
+- [ ] Referee ghost doesn't flicker on the host's screen around meetings
+- [ ] A player (without the mod) votes for the referee's card → it counts as a skip; the referee is never voted out
+- [ ] No more "Show the referee as dead to players" switch; the host isn't banned from the room during referee games
+- [ ] Every kill is heard on the host's game, and on stream, whether the whole map or a player cam is on
+- [ ] Mini vitals: "Players · N of M alive", red IMP by impostors, hidden during the role intro

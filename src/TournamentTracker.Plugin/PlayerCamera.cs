@@ -15,10 +15,13 @@ namespace TournamentTracker.Plugin
     /// it on and The Button's send page is asking for pictures.
     /// </summary>
     /// <remarks>
-    /// Read back with ReadPixels a few times a second: the graphics card's asynchronous read-back
-    /// (AsyncGPUReadback) isn't in the game's interop assemblies, and merely naming it made the
-    /// whole class fail to load. A failure here turns the camera off for the session (logged once);
-    /// the host's main video is separate and carries on.
+    /// Read back with ReadPixels: the graphics card's asynchronous read-back (AsyncGPUReadback)
+    /// isn't in the game's interop assemblies, and merely naming it made the whole class fail to
+    /// load. A picture is drawn one frame and read at the start of the next, once the graphics card
+    /// has finished it (read straight after drawing, the game waited for the card every time). Not
+    /// drawn in meetings (Red Alert goes back to the whole map then), and only a few times a second
+    /// while the camera isn't on stream. A failure turns the camera off for the session (logged
+    /// once); the host's main video is separate and carries on.
     /// </remarks>
     internal static class PlayerCamera
     {
@@ -36,14 +39,9 @@ namespace TournamentTracker.Plugin
         private static Vector2 _at;
         private static bool _placed, _logged;
 
-        /// <summary>
-        /// Drawn at the start of a frame, before anything moves: the last frame is then finished
-        /// (skins, hats and pets have caught up with the body), where drawn after this frame's own
-        /// updates some of them were a frame behind and looked broken.
-        /// </summary>
-        /// <summary>Pictures a second: ReadPixels waits for the graphics card, so not every frame.</summary>
-        private const float Fps = 12f;
-        private static bool _broken;
+        /// <summary>Pictures a second while the camera is on stream (Red Alert has its sound on), and while it's only ready.</summary>
+        private const float OnAirFps = 20f, ReadyFps = 3f;
+        private static bool _broken, _readPending;
 
         public static void Tick()
         {
@@ -58,13 +56,21 @@ namespace TournamentTracker.Plugin
             }
         }
 
+        /// <summary>
+        /// Drawn at the start of a frame, before anything moves: the last frame is then finished
+        /// (skins, hats and pets have caught up with the body), where drawn after this frame's own
+        /// updates some of them were a frame behind and looked broken.
+        /// </summary>
         private static void Draw()
         {
             var session = TournamentPlugin.Session;
             var main = Camera.main;
             bool on = session != null && Game.IsHost && main != null && session.Spectator.Cam && session.Cam.Wanted
-                      && AmongUsClient.Instance != null && AmongUsClient.Instance.GameState == InnerNetClient.GameStates.Started;
-            if (!on) { _placed = false; if (_shadeGo != null && _shadeGo.activeSelf) _shadeGo.SetActive(false); return; }
+                      && AmongUsClient.Instance != null && AmongUsClient.Instance.GameState == InnerNetClient.GameStates.Started
+                      && MeetingHud.Instance == null && ExileController.Instance == null;
+            if (!on) { _placed = false; _readPending = false; if (_shadeGo != null && _shadeGo.activeSelf) _shadeGo.SetActive(false); return; }
+            // Last frame's picture, finished by now.
+            if (_readPending) { _readPending = false; Read(session!); }
 
             float now = Time.unscaledTime;
             if (now >= _nextPick)
@@ -82,7 +88,7 @@ namespace TournamentTracker.Plugin
             _placed = true;
 
             if (now < _nextShot) return;
-            _nextShot = now + 1f / Math.Min(Fps, PlayerCamFeed.Fps);
+            _nextShot = now + 1f / Math.Min(session!.Spectator.CamAudio ? OnAirFps : ReadyFps, PlayerCamFeed.Fps);
             if (!Ready(main!)) return;
 
             var cam = _cam!;
@@ -97,12 +103,18 @@ namespace TournamentTracker.Plugin
                 MiniVitals.Hide(false);
                 if (shade) _shadeGo!.SetActive(false);
             }
+            _readPending = true;
+        }
 
-            var buffer = session!.Cam.Take(PlayerCamFeed.Width * PlayerCamFeed.Height * 4);
+        /// <summary>The picture drawn last frame, from the graphics card to The Button's encoder.</summary>
+        private static void Read(TournamentSession session)
+        {
+            if (_rt == null || _tex == null) return;
+            var buffer = session.Cam.Take(PlayerCamFeed.Width * PlayerCamFeed.Height * 4);
             if (buffer == null) return;     // still making the last one: this frame is skipped
             var before = RenderTexture.active;
             RenderTexture.active = _rt;
-            _tex!.ReadPixels(new Rect(0, 0, PlayerCamFeed.Width, PlayerCamFeed.Height), 0, 0, false);
+            _tex.ReadPixels(new Rect(0, 0, PlayerCamFeed.Width, PlayerCamFeed.Height), 0, 0, false);
             RenderTexture.active = before;
             var raw = _tex.GetRawTextureData();
             int bytes = Math.Min(buffer.Length, raw.Length);

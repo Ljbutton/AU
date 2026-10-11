@@ -270,7 +270,7 @@ function camStream(){
     const gen=new MediaStreamTrackGenerator({kind:'video'});camWriter=gen.writable.getWriter();camCanvas=null;
     return new MediaStream([gen]);
   }
-  camWriter=null;camCanvas=document.createElement('canvas');camCanvas.width=1280;camCanvas.height=720;
+  camWriter=null;camCanvas=document.createElement('canvas');camCanvas.width=960;camCanvas.height=540;
   return camCanvas.captureStream(30);
 }
 function gotCam(e){
