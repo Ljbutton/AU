@@ -233,6 +233,7 @@ namespace TournamentTracker.App.Broadcast
                 {
                     await AddSourcesAsync().ConfigureAwait(false);
                     await EnsureVoiceAsync().ConfigureAwait(false);
+                    await VoiceHealAsync().ConfigureAwait(false);
                 }
             }
             catch (Exception e) { Problem = e.Message; }
@@ -457,7 +458,12 @@ namespace TournamentTracker.App.Broadcast
                             }).ConfigureAwait(false);
                         }
                         if (item.Enabled != showCam)
+                        {
                             await obs.RequestAsync("SetSceneItemEnabled", new { sceneName = scene, sceneItemId = item.Id, sceneItemEnabled = showCam }).ConfigureAwait(false);
+                            // Hidden, the camera's Source Record buffer got no pictures (and never wrote a
+                            // file): started as it goes on stream, so a replay has the camera angle.
+                            if (showCam) await StartCamBufferAsync(obs, camLobby).ConfigureAwait(false);
+                        }
                         continue;
                     }
                     string? lobby = LobbyOf(item.Source);

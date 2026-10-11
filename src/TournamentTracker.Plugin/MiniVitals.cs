@@ -67,7 +67,66 @@ namespace TournamentTracker.Plugin
             if (Time.unscaledTime < _next) return;
             _next = Time.unscaledTime + Every;
             string now = Build();
-            if (now != _last) { _last = now; text.text = now; }
+            if (now != _last) { _last = now; text.text = now; FitPanel(text); }
+        }
+
+        // ---- The panel behind the list, in The Button's look: a dark see-through card with rounded
+        // corners and a faint light edge (its --panel and --line colours).
+
+        private static SpriteRenderer? _panel;
+        private static Sprite? _panelSprite;
+        private const float Pad = 0.12f;
+
+        private static void FitPanel(TextMeshPro text)
+        {
+            try
+            {
+                if (_panel == null) MakePanel(text);
+                if (_panel == null) return;
+                text.ForceMeshUpdate();
+                var b = text.textBounds;
+                _panel.transform.localPosition = new Vector3(b.center.x, b.center.y, 0.01f);
+                _panel.size = new Vector2(b.size.x + Pad * 2, b.size.y + Pad * 2);
+            }
+            catch (Exception e)
+            {
+                if (!_panelFailed) TournamentPlugin.Logger.Warn("Mini vitals: no panel behind the list (" + e.Message + ").");
+                _panelFailed = true;
+            }
+        }
+        private static bool _panelFailed;
+
+        private static void MakePanel(TextMeshPro text)
+        {
+            if (_panelFailed) return;
+            if (_panelSprite == null)
+            {
+                const int n = 32, r = 9;
+                var tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+                var fill = new Color(14 / 255f, 17 / 255f, 24 / 255f, 0.82f);
+                var edge = new Color(1f, 1f, 1f, 0.16f);
+                for (int y = 0; y < n; y++)
+                    for (int x = 0; x < n; x++)
+                    {
+                        // Distance outside the rounded rectangle's inner corner circles (0 inside the straight parts).
+                        float dx = Math.Max(Math.Max(r - x - 0.5f, x + 0.5f - (n - r)), 0), dy = Math.Max(Math.Max(r - y - 0.5f, y + 0.5f - (n - r)), 0);
+                        float d = Mathf.Sqrt(dx * dx + dy * dy);
+                        var c = d > r ? new Color(0, 0, 0, 0) : d > r - 1.2f ? edge : fill;
+                        if (d > r - 1f && d <= r) c.a *= r - d;        // soft outer edge
+                        tex.SetPixel(x, y, c);
+                    }
+                tex.Apply();
+                _panelSprite = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, new Vector4(r + 1, r + 1, r + 1, r + 1));
+                _panelSprite.hideFlags = HideFlags.DontUnloadUnusedAsset;
+                tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
+            }
+            var go = new GameObject("TT Mini vitals panel");
+            go.layer = text.gameObject.layer;
+            go.transform.SetParent(text.transform, false);
+            _panel = go.AddComponent<SpriteRenderer>();
+            _panel.sprite = _panelSprite;
+            _panel.drawMode = SpriteDrawMode.Sliced;
+            _panel.sortingOrder = text.sortingOrder - 1;
         }
 
         private static string Build()
@@ -85,12 +144,13 @@ namespace TournamentTracker.Plugin
                 string shown = session?.DisplayName(PlayerSnapshot.MakeKey(p.Data.FriendCode, name)) ?? name;
                 shown = shown.Replace("<", "‹").Replace(">", "›");
                 string colour = Colour(p.Data);
-                string imp = p.Impostor ? " <color=#FF3B30><b>IMP</b></color>" : "";
-                if (p.Disconnected) lines.Append($"<color=#6E7781><s>{shown}</s> left</color>{imp}\n");
-                else if (p.Dead) lines.Append($"<color=#{colour}><alpha=#70><s>{shown}</s></color>{imp} <color=#FF5C5C>dead</color>\n");
+                // The Button's colours: its pink-red for impostors and deaths, its grey for the gone.
+                string imp = p.Impostor ? " <size=75%><color=#FF2D55><b>IMP</b></color></size>" : "";
+                if (p.Disconnected) lines.Append($"<color=#9AA4B2><s>{shown}</s></color>{imp} <size=75%><color=#9AA4B2>LEFT</color></size>\n");
+                else if (p.Dead) lines.Append($"<color=#{colour}><alpha=#80><s>{shown}</s></color>{imp} <size=75%><color=#FF2D55>DEAD</color></size>\n");
                 else { alive++; lines.Append($"<color=#{colour}>{shown}</color>{imp}\n"); }
             }
-            Text.Append($"<color=#FFFFFF><b>Players</b> <alpha=#B0>{alive} of {total} alive</color>\n").Append(lines);
+            Text.Append($"<size=80%><color=#9AA4B2>PLAYERS</color></size>  <color=#46C28B><b>{alive}</b></color><color=#9AA4B2>/{total} alive</color>\n").Append(lines);
             return Text.ToString().TrimEnd('\n');
         }
 
@@ -102,7 +162,8 @@ namespace TournamentTracker.Plugin
             if (id < 0 || id >= colors.Length) return "FFFFFF";
             Color c = colors[id];
             float light = 0.299f * c.r + 0.587f * c.g + 0.114f * c.b;
-            if (light < 0.25f) c = Color.Lerp(c, Color.white, 0.3f);
+            // Lifted so every colour reads on the dark panel (black, brown, purple, dark green).
+            if (light < 0.45f) c = Color.Lerp(c, Color.white, 0.45f - light + 0.15f);
             return ColorUtility.ToHtmlStringRGB(c);
         }
 
@@ -135,7 +196,7 @@ namespace TournamentTracker.Plugin
                 _text.fontSize = 1.5f;
                 _text.lineSpacing = -8f;
                 _text.color = Color.white;
-                _text.outlineWidth = 0.15f;
+                _text.outlineWidth = 0.1f;
                 _text.outlineColor = new Color32(0, 0, 0, 255);
                 _text.sortingOrder = 500;
                 _text.rectTransform.pivot = new Vector2(0, 0.5f);

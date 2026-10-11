@@ -40,7 +40,7 @@ namespace TournamentTracker.Plugin
         private static bool _placed, _logged;
 
         /// <summary>Pictures a second while the camera is on stream (Red Alert has its sound on), and while it's only ready.</summary>
-        private const float OnAirFps = 20f, ReadyFps = 3f;
+        private const float OnAirFps = 30f, ReadyFps = 3f;
         private static bool _broken, _readPending;
 
         public static void Tick()
@@ -87,8 +87,12 @@ namespace TournamentTracker.Plugin
             else _at = Vector2.Lerp(_at, to, 1f - Mathf.Exp(-Time.unscaledDeltaTime * 9f));
             _placed = true;
 
-            if (now < _nextShot) return;
-            _nextShot = now + 1f / Math.Min(session!.Spectator.CamAudio ? OnAirFps : ReadyFps, PlayerCamFeed.Fps);
+            // Evenly spaced: a picture is due within half a game frame of its time (else a 60 Hz game
+            // took one every 2 or 3 frames at random, and the camera looked jerky), and the next time
+            // counts on from this one's, not from whenever this frame happened to come.
+            if (now + Time.unscaledDeltaTime * 0.5f < _nextShot) return;
+            float interval = 1f / Math.Min(session!.Spectator.CamAudio ? OnAirFps : ReadyFps, PlayerCamFeed.Fps);
+            _nextShot = Math.Max(_nextShot + interval, now);
             if (!Ready(main!)) return;
 
             var cam = _cam!;

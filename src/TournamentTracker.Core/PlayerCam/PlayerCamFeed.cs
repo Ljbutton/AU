@@ -6,9 +6,10 @@ namespace TournamentTracker.PlayerCam
 {
     /// <summary>
     /// The player camera's pictures on their way out of the host's game: the game hands over a
-    /// frame's pixels (when this isn't still busy with the last one), a thread of its own turns them
-    /// into a JPEG, and The Button asks for the newest one (GET /api/pov on the mod's connection).
-    /// The game only draws the camera while someone has asked in the last few seconds.
+    /// frame's pixels, one of two threads of their own turns them into a JPEG (two, so a picture
+    /// is never dropped just because the last one is still being made), and The Button asks for
+    /// the newest one (GET /api/pov on the mod's connection). The game only draws the camera while
+    /// someone has asked in the last few seconds.
     /// </summary>
     public sealed class PlayerCamFeed : IDisposable
     {
@@ -18,17 +19,25 @@ namespace TournamentTracker.PlayerCam
         public const int Quality = 82;
         private static readonly TimeSpan WantedFor = TimeSpan.FromSeconds(3);
 
+        private sealed class Slot
+        {
+            public byte[]? Buffer;
+            public bool Busy;
+            public int W, H;
+            public bool BottomUp;
+            public long Frame;
+            public readonly JpegEncoder Encoder = new JpegEncoder();
+            public readonly AutoResetEvent Work = new AutoResetEvent(false);
+            public Thread? Thread;
+        }
+
         private readonly Func<DateTime> _clock;
         private readonly object _lock = new object();
-        private readonly AutoResetEvent _work = new AutoResetEvent(false);
-        private readonly JpegEncoder _encoder = new JpegEncoder();
+        private readonly Slot[] _slots = { new Slot(), new Slot() };
         private readonly bool _inline;
-        private Thread? _thread;
         private volatile bool _stop;
-        private byte[]? _buffer;
-        private bool _busy;
-        private int _w, _h;
-        private bool _bottomUp;
+        private Slot? _taken;
+        private long _submitted, _published;
         private DateTime _asked = DateTime.MinValue;
         private long _seq;
         private byte[]? _latest;
@@ -51,61 +60,71 @@ namespace TournamentTracker.PlayerCam
         public long Seq { get { lock (_lock) return _seq; } }
 
         /// <summary>
-        /// A buffer for the next frame's pixels, or null while the last frame is still being made
-        /// (the game then skips this one).
+        /// A buffer for the next frame's pixels, or null while both threads are still making
+        /// pictures (the game then skips this one).
         /// </summary>
         public byte[]? Take(int bytes)
         {
             lock (_lock)
             {
-                if (_busy) return null;
-                if (_buffer == null || _buffer.Length != bytes) _buffer = new byte[bytes];
-                return _buffer;
+                foreach (var slot in _slots)
+                {
+                    if (slot.Busy) continue;
+                    if (slot.Buffer == null || slot.Buffer.Length != bytes) slot.Buffer = new byte[bytes];
+                    _taken = slot;
+                    return slot.Buffer;
+                }
+                return null;
             }
         }
 
         /// <summary>The pixels in the buffer from <see cref="Take"/> are a frame: make it a JPEG.</summary>
         public void Submit(int width, int height, bool bottomUp)
         {
+            Slot slot;
             lock (_lock)
             {
-                if (_buffer == null || _busy) return;
-                _busy = true;
-                _w = width;
-                _h = height;
-                _bottomUp = bottomUp;
+                if (_taken == null || _taken.Busy || _taken.Buffer == null) return;
+                slot = _taken;
+                _taken = null;
+                slot.Busy = true;
+                slot.W = width;
+                slot.H = height;
+                slot.BottomUp = bottomUp;
+                slot.Frame = ++_submitted;
             }
-            if (_inline) { Encode(); return; }
-            if (_thread == null)
+            if (_inline) { Encode(slot); return; }
+            if (slot.Thread == null)
             {
-                _thread = new Thread(Loop) { IsBackground = true, Name = "TT player cam", Priority = ThreadPriority.BelowNormal };
-                _thread.Start();
+                slot.Thread = new Thread(() => Loop(slot)) { IsBackground = true, Name = "TT player cam", Priority = ThreadPriority.Normal };
+                slot.Thread.Start();
             }
-            _work.Set();
+            slot.Work.Set();
         }
 
-        private void Loop()
+        private void Loop(Slot slot)
         {
             while (!_stop)
             {
-                _work.WaitOne(500);
+                slot.Work.WaitOne(500);
                 if (_stop) return;
                 bool busy;
-                lock (_lock) busy = _busy;
-                if (busy) Encode();
+                lock (_lock) busy = slot.Busy;
+                if (busy) Encode(slot);
             }
         }
 
-        private void Encode()
+        private void Encode(Slot slot)
         {
             byte[]? jpeg = null;
-            try { jpeg = _encoder.Encode(_buffer!, _w, _h, Quality, _bottomUp); }
+            try { jpeg = slot.Encoder.Encode(slot.Buffer!, slot.W, slot.H, Quality, slot.BottomUp); }
             catch (Exception) { }
             TaskCompletionSource<bool> done;
             lock (_lock)
             {
-                if (jpeg != null) { _latest = jpeg; _seq++; }
-                _busy = false;
+                // The two threads can finish out of order: an older picture never replaces a newer one.
+                if (jpeg != null && slot.Frame > _published) { _published = slot.Frame; _latest = jpeg; _seq++; }
+                slot.Busy = false;
                 done = _next;
                 _next = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             }
@@ -140,7 +159,7 @@ namespace TournamentTracker.PlayerCam
         public void Dispose()
         {
             _stop = true;
-            _work.Set();
+            foreach (var slot in _slots) slot.Work.Set();
         }
     }
 }

@@ -120,6 +120,43 @@ namespace TournamentTracker.App.Broadcast
             if (_voiceAir != null) await SetVoicesAsync(_voiceAir).ConfigureAwait(false);
         }
 
+        private readonly Dictionary<string, DateTime> _silentSince = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, DateTime> _reloadedAt = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>The last time a silent voice source was reloaded (shown on the Lobby voice page), or null.</summary>
+        public string? VoiceNote { get; private set; }
+        public static TimeSpan SilentFor { get; set; } = TimeSpan.FromSeconds(20);
+
+        /// <summary>
+        /// The lobby voice on stream silent in OBS while its host's page is sending sound: its VDO.Ninja
+        /// source in OBS is reloaded (it can sit connected but silent, e.g. after the host's page
+        /// reconnected), at most once a minute. Only the voice that's heard, and only while OBS sends meters.
+        /// </summary>
+        public async Task VoiceHealAsync(DateTime? now = null)
+        {
+            var obs = _obs;
+            if (obs == null || !Settings.Voice.On) return;
+            var t = now ?? DateTime.UtcNow;
+            string? loud = LoudVoice(_voiceAir ?? _desk.OnAir);
+            foreach (var name in _voiceInputs.ToList())
+            {
+                string lobby = VoiceLobby(name);
+                bool suspect = string.Equals(lobby, loud, StringComparison.OrdinalIgnoreCase)
+                    && _desk.VoiceSentDb(lobby) is double sent && sent > -50
+                    && Level(name) is double heard && heard <= -90;
+                if (!suspect) { _silentSince.Remove(name); continue; }
+                if (!_silentSince.TryGetValue(name, out var since)) { _silentSince[name] = t; continue; }
+                if (t - since < SilentFor || (_reloadedAt.TryGetValue(name, out var at) && (t - at).TotalSeconds < 60)) continue;
+                _silentSince.Remove(name);
+                _reloadedAt[name] = t;
+                try
+                {
+                    await obs.RequestAsync("PressInputPropertiesButton", new { inputName = name, propertyName = "refreshnocache" }).ConfigureAwait(false);
+                    VoiceNote = $"{lobby}'s voice was silent in OBS while their Button was sending sound: its source was reloaded at {t.ToLocalTime():HH:mm:ss}.";
+                }
+                catch (ObsException e) { VoiceNote = $"{lobby}'s voice is silent in OBS while their Button sends sound, and reloading it failed: {e.Message}"; }
+            }
+        }
+
         /// <summary>The caster's mic among OBS's inputs: an audio input capture, preferring one called mic.</summary>
         public static string? PickMic(IEnumerable<(string Name, string Kind)> inputs)
         {
@@ -225,6 +262,7 @@ namespace TournamentTracker.App.Broadcast
             Hotkey = MuteHotkey,
             Sources = _voiceInputs.Select(VoiceLobby).OrderBy(x => x).ToList(),
             Problem = VoiceProblem,
+            Note = VoiceNote,
             Inputs = InputNames,
         };
     }

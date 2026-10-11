@@ -158,7 +158,7 @@ addEventListener('message',e=>{
 // The Button captures Discord's sound (the lobby as you hear it, never your own voice) and Among Us's
 // sound separately; this page mixes them (plus your microphone if you want) and sends the mix to the
 // caster as its own stream next to your screen. Nothing is played back here or to the players.
-let ctx=null,node=null,dest=null,micNode=null,micStream=null,vdo=null,publishing=null,voiceProblem='',VS=null,noticeSent=false,retryAt=0,retryWait=5000;
+let an=null,anBuf=null,ctx=null,node=null,dest=null,micNode=null,micStream=null,vdo=null,publishing=null,voiceProblem='',VS=null,noticeSent=false,retryAt=0,retryWait=5000;
 const WORKLET=`class TTMix extends AudioWorkletProcessor{constructor(){super();this.q=[];this.off=0;this.buffered=0;this.started=false;
   this.port.onmessage=e=>{this.q.push(e.data);this.buffered+=e.data.length/2;while(this.buffered>48000*0.6&&this.q.length>1){const d=this.q.shift();this.buffered-=(d.length-this.off)/2;this.off=0;}};}
   process(_,outs){const L=outs[0][0],R=outs[0][1]||outs[0][0];
@@ -176,6 +176,8 @@ async function audio(){
   node=new AudioWorkletNode(ctx,'tt-mix',{numberOfInputs:0,outputChannelCount:[2]});
   dest=ctx.createMediaStreamDestination();
   node.connect(dest);                       // only to the stream: never to the speakers
+  // What actually leaves this page (for Red Alert: sound sent but silent in OBS means OBS's side).
+  an=ctx.createAnalyser();an.fftSize=2048;anBuf=new Float32Array(an.fftSize);node.connect(an);
   pull();
 }
 async function pull(){
@@ -228,8 +230,9 @@ async function voiceTick(){
     document.getElementById('mg').style.width=pct(s.game.level)+'%';
     const working=r.on&&s.supported&&s.voice.state==='capturing';
     const st=document.getElementById('vstate');
-    st.textContent=!r.on?'Lobby voice: off':!s.supported?'Lobby voice needs Windows 10 2004 or later':voiceProblem||`Lobby voice: Discord ${STATE[s.voice.state]||s.voice.state} · Among Us ${STATE[s.game.state]||s.game.state}${vdo?' · sending':''}`;
-    st.className='st '+(voiceProblem||!working&&r.on?'bad':vdo?'ok':'');
+    const held=ctx&&ctx.state!=='running';
+    st.textContent=held&&r.on?'Click anywhere on this page to start the lobby sound (the browser holds it back until you do).':!r.on?'Lobby voice: off':!s.supported?'Lobby voice needs Windows 10 2004 or later':voiceProblem||`Lobby voice: Discord ${STATE[s.voice.state]||s.voice.state} · Among Us ${STATE[s.game.state]||s.game.state}${vdo?' · sending':''}`;
+    st.className='st '+(voiceProblem||held&&r.on||!working&&r.on?'bad':vdo?'ok':'');
     // With The Button sending the game sound, the screen share must not carry it too.
     document.getElementById('howto').innerHTML=r.on&&s.supported
       ?'Sending your game to the caster. Below, press the share button, pick <b>Entire screen</b> and leave <b>Share system audio</b> unticked: The Button sends the game sound and the lobby voice itself. Then leave this tab open while you play.'
@@ -237,7 +240,9 @@ async function voiceTick(){
     if(ctx) await mic(r.on&&r.mic);
     if(r.on&&!vdo) publishVoice();
     // The caster's tab shows this lobby's voice status.
-    if(lobby) send([{v:PROTOCOL,type:'voice',lobby,t:Date.now(),on:r.on,sending:!!vdo,problem:voiceProblem||null,discord:s.voice.state,game:s.game.state,voiceDb:s.voice.level,gameDb:s.game.level,mic:!!micNode}]);
+    let outDb=-100;
+    if(an&&ctx&&ctx.state==='running'){an.getFloatTimeDomainData(anBuf);let pk=0;for(let i=0;i<anBuf.length;i++){const a=Math.abs(anBuf[i]);if(a>pk)pk=a;}outDb=pk>0?Math.max(-100,Math.round(20*Math.log10(pk))):-100;}
+    if(lobby) send([{v:PROTOCOL,type:'voice',lobby,t:Date.now(),on:r.on,sending:!!vdo,problem:voiceProblem||(held&&r.on?'The host\'s send page is waiting for a click to start the sound':null),discord:s.voice.state,game:s.game.state,voiceDb:s.voice.level,gameDb:s.game.level,outDb,mic:!!micNode}]);
   }catch(e){}
 }
 function save(body){ fetch(q('/app/voice'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(voiceTick); }
@@ -274,13 +279,31 @@ function camStream(){
   return camCanvas.captureStream(30);
 }
 function gotCam(e){
-  const bmp=e.data;camFrames++;
+  const bmp=e.data;camFrames++;lastCamAt=Date.now();
   try{
     if(camWriter){const f=new VideoFrame(bmp,{timestamp:Math.round(performance.now()*1000)});camWriter.write(f).catch(()=>{});}
     else if(camCanvas)camCanvas.getContext('2d').drawImage(bmp,0,0,camCanvas.width,camCanvas.height);
   }catch(x){}
   bmp.close();
 }
+// No new picture for a moment (a meeting, the game over: the game stops drawing the camera): a clean
+// card goes out instead of the last picture sitting frozen on stream.
+let lastCamAt=0,pausedCard=null;
+function pausedPicture(){
+  if(pausedCard)return pausedCard;
+  const c=document.createElement('canvas');c.width=960;c.height=540;const g=c.getContext('2d');
+  g.fillStyle='#0b0e13';g.fillRect(0,0,960,540);g.textAlign='center';
+  g.fillStyle='#5eead4';g.font='600 40px Segoe UI, system-ui, sans-serif';g.fillText('Player camera paused',480,262);
+  g.fillStyle='#9aa6b2';g.font='24px Segoe UI, system-ui, sans-serif';g.fillText('Back when play resumes',480,306);
+  return pausedCard=c;
+}
+setInterval(()=>{
+  if(!camVdo||Date.now()-lastCamAt<1500)return;
+  try{
+    if(camWriter){const f=new VideoFrame(pausedPicture(),{timestamp:Math.round(performance.now()*1000)});camWriter.write(f).catch(()=>{});}
+    else if(camCanvas)camCanvas.getContext('2d').drawImage(pausedPicture(),0,0,camCanvas.width,camCanvas.height);
+  }catch(x){}
+},500);
 function publishCam(){
   if(!pushUrl||!camOn||camVdo||camPublishing||Date.now()<camRetryAt)return;
   const u=new URL(pushUrl),id=u.searchParams.get('push'),pw=u.searchParams.get('password');

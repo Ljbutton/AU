@@ -150,23 +150,30 @@ namespace TournamentTracker.Plugin.Patches
     }
 
     // Referee ghost: a player's game without the mod can still show the referee's card in meetings
-    // (alive). The host counts the votes, so a vote for the referee counts as a skip: they can't be
-    // voted out. 253 is the game's "skipped" vote (PlayerVoteArea.SkippedVote).
-    [HarmonyPatch(typeof(MeetingHud), nameof(MeetingHud.CastVote))]
-    internal static class RefereeNoVotePatch
+    // (alive), and players can vote for it. The host decides the result, so just before it's sent
+    // (RpcVotingComplete) votes for the referee count as skips: if that changes who goes, the
+    // result is worked out again the game's way (most votes; a tie or skip on top sends nobody).
+    // Votes themselves aren't touched (an earlier hook on CastVote had the wrong parameter types for
+    // this game version, PlayerId rather than byte, and every vote on the host failed).
+    [HarmonyPatch(typeof(MeetingHud), nameof(MeetingHud.RpcVotingComplete))]
+    internal static class RefereeNotVotedOutPatch
     {
-        private const byte Skipped = 253;
-
-        public static void Prefix(byte __0, ref byte __1)
+        public static void Prefix(Il2CppStructArray<MeetingHud.VoterState> __0, ref NetworkedPlayerInfo __1, ref bool __2)
         {
-            if (!Game.IsHost || TournamentPlugin.Session?.RefSlotKey == null) return;
             try
             {
-                if (RefSlot.RefereeId(fresh: true) != __1) return;
-                __1 = Skipped;
-                TournamentPlugin.Logger.Info($"Referee ghost: a vote for the referee (from player {__0}) counted as a skip.");
+                if (!Game.IsHost || __0 == null || TournamentPlugin.Session?.RefSlotKey == null) return;
+                var refId = RefSlot.RefereeId(fresh: true);
+                if (refId == null) return;
+                var votes = new List<VoteCast>();
+                for (int i = 0; i < __0.Length; i++) votes.Add(new VoteCast(__0[i].VoterId, __0[i].VotedForId));
+                if (!VoteTally.AnyFor(votes, refId.Value)) return;
+                var (exiled, tie) = VoteTally.Result(votes, refId.Value);
+                __1 = exiled.HasValue && GameData.Instance != null ? GameData.Instance.GetPlayerById(exiled.Value) : null;
+                __2 = tie;
+                TournamentPlugin.Logger.Info($"Referee ghost: votes for the referee counted as skips; {(exiled.HasValue ? "player " + exiled.Value + " goes" : tie ? "a tie, nobody goes" : "nobody goes")}.");
             }
-            catch (Exception e) { TournamentPlugin.Logger.Error("Referee vote hook failed: " + e); }
+            catch (Exception e) { TournamentPlugin.Logger.Error("Referee vote hook failed (the game's own result stands): " + e); }
         }
     }
 

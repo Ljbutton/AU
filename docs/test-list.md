@@ -237,3 +237,16 @@ _Unused code was removed. If anything below misbehaves, it's likely from the cle
 - [ ] No more "Show the referee as dead to players" switch; the host isn't banned from the room during referee games
 - [ ] Every kill is heard on the host's game, and on stream, whether the whole map or a player cam is on
 - [ ] Mini vitals: "Players · N of M alive", red IMP by impostors, hidden during the role intro
+
+## New in 0.1.59 (Red Alert 0.3.13)
+- [ ] Votes count again: vote for a player in a referee game → the results show every vote and the right player goes
+- [ ] A player without the mod votes for the referee's card → shown as their vote, but counted as a skip (the referee never goes)
+- [ ] Mod log at start: "Self-check: every hook is in place." (or which hook was skipped and why)
+- [ ] A player leaves mid-game → no NullReferenceException in the log; the referee view and player cam carry on
+- [ ] Replays with Source Record 0.4.8: saving a lobby's replay works (found by its file in TT Replays); with the player cam on stream, the camera angle is saved too
+- [ ] Player cam on stream, then a meeting / game over / lobby → Red Alert cuts to the whole map; the cam source shows "Player camera paused", not a frozen picture
+- [ ] Player cam runs at full rate even with the Live desk not showing (Red Alert decides, not the page)
+- [ ] Player cam smoother on stream (about 30 pictures a second, evenly spaced)
+- [ ] Host's send page: if the browser is holding the sound back, it says "Click anywhere on this page…"; Red Alert → Lobby voice shows a "Sent" meter
+- [ ] Lobby voice heard but silent in OBS while the host sends sound for 20 s → Red Alert reloads that voice source and says so
+- [ ] Referee's player list: dark rounded panel like The Button, PLAYERS header with the alive count in green, IMP/DEAD/LEFT tags
