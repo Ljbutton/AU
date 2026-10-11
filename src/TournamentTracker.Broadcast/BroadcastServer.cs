@@ -169,6 +169,7 @@ namespace TournamentTracker.App.Broadcast
                 // The overlay, video and multiview pages follow what's on stream (unless pinned).
                 caster.Follow = () => desk.OnAir.Slots.FirstOrDefault(x => x != null);
                 desk.AirChangedInObs += _ => caster.Refresh();
+                desk.HostCommand += SpecOut;
                 var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(caster, desk)) { VoiceFeeds = () => VoiceFeeds(caster, desk), MuteHotkey = MuteHotkey, CamFeeds = () => caster.CamLinks() };
                 obs.ImpostorTagsOn = () => _broadcast?.Settings.Current.Elements.GetValueOrDefault("impostorTags") == true;
                 // The overlay and video page follow the lobby in the first slot; OBS (when connected) shows the whole layout.

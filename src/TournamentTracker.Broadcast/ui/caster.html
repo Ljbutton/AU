@@ -1238,7 +1238,6 @@ function specQuiet(lobby, command) {
   else if (/^SIM-/.test(lobby)) fetch('/app/admin/spec', { method: 'POST', headers: { 'X-App-Token': TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ lobby, command }) }).catch(() => { });
 }
 let camKeepAt = 0;
-const AUDIO_SENT = {};
 setInterval(async () => {
   if (!S || !S.admin) return;
   try { for (const x of await api('GET', '/app/admin/specout')) specQuiet(x.lobby, x.command); } catch (e) { }
@@ -1247,15 +1246,7 @@ setInterval(async () => {
     camKeepAt = Date.now() + 10000;
     for (const l of DESK.lobbies || []) if (l.online && l.spec && l.spec.cam === false) specQuiet(l.lobby, 'spec cam on');
   }
-  // The host's game sound follows what's on stream: the followed player's ears while their camera is up, else the whole map's.
-  if (DESK && DESK.onAir) {
-    const camOn = DESK.onAir.layout === 'cam' || DESK.onAir.layout === 'cams' ? DESK.onAir.slots[0] : null;
-    for (const l of DESK.lobbies || []) {
-      if (!l.online || !l.spec || l.spec.audio == null) continue;          // an older host: no camera sound
-      const want = l.lobby === camOn ? 'cam' : 'wide';
-      if (l.spec.audio !== want && Date.now() - (AUDIO_SENT[l.lobby] || 0) > 2000) { AUDIO_SENT[l.lobby] = Date.now(); specQuiet(l.lobby, 'spec audio ' + want); }
-    }
-  }
+  // (Each host's game sound and camera rate following what's on stream is decided by Red Alert's server and comes through specout.)
 }, 500);
 // The host's ghost view (the picture sent to you): what's drawn on it. Only on that one game, never sent to players.
 const VISION = { off: 'Vision: off', focus: 'Vision: crewmates', rings: 'Vision: outlines' };
@@ -1500,7 +1491,7 @@ function renderVoice(force) {
   $('vo-mute').classList.toggle('on', !!o.muteAll); $('vo-mute').textContent = o.muteAll ? 'Muted' : 'Mute all';
   $('vo-on').classList.toggle('on', o.on !== false);
   const sending = v.status.filter(x => x.online && x.sending).length;
-  $('vo-line').textContent = `${sending} of ${v.status.length} lobbies sending voice${o.heard ? ' · heard: ' + o.heard : ' · none heard'}${o.problem ? ' · ' + o.problem : ''}`;
+  $('vo-line').textContent = `${sending} of ${v.status.length} lobbies sending voice${o.heard ? ' · heard: ' + o.heard : ' · none heard'}${o.problem ? ' · ' + o.problem : ''}${o.note ? ' · ' + o.note : ''}`;
   if (!$('vo-duck').contains(document.activeElement)) {
     const names = [...new Set([...(o.inputs || []), ...(o.duckUnder ? [o.duckUnder] : [])])];
     $('vo-duck').innerHTML = `<option value="">No ducking</option>` + names.map(n => `<option${n === o.duckUnder ? ' selected' : ''}>${esc(n)}</option>`).join('');
@@ -1513,7 +1504,7 @@ function renderVoice(force) {
     return `<div class="vo${heard ? ' heard' : ''}">
       <div class="nm">${esc(x.lobby)} ${chip}${heard ? '<span class="chip on">HEARD</span>' : ''}${x.mic ? '<span class="chip" title="The referee\'s own mic is in">MIC</span>' : ''}</div>
       <div class="obsm"><span>On stream (OBS)</span>${obsMeter(o, x.lobby, true)}<span class="mono" data-dbt="${esc(x.lobby)}">${dbText(o, x.lobby)}</span></div>
-      <div class="lv">${x.reported ? `<span>Discord ${esc(VO_STATE[x.discord] || x.discord || '')}</span><span class="mtr"><i style="width:${meterPct(x.voiceDb)}%"></i></span><span>Among Us ${esc(VO_STATE[x.game] || x.game || '')}</span><span class="mtr"><i style="width:${meterPct(x.gameDb)}%"></i></span>` : '<span style="grid-column:1/-1">Their Button reports here once they send their game.</span>'}</div>
+      <div class="lv">${x.reported ? `<span>Discord ${esc(VO_STATE[x.discord] || x.discord || '')}</span><span class="mtr"><i style="width:${meterPct(x.voiceDb)}%"></i></span><span>Among Us ${esc(VO_STATE[x.game] || x.game || '')}</span><span class="mtr"><i style="width:${meterPct(x.gameDb)}%"></i></span>${x.outDb != null ? `<span title="The mix as it leaves the host's page: moving here but silent in OBS means OBS's side">Sent</span><span class="mtr"><i style="width:${meterPct(x.outDb)}%"></i></span>` : ''}` : '<span style="grid-column:1/-1">Their Button reports here once they send their game.</span>'}</div>
       <div class="ctl"><label title="Volume (dB)">Vol <input type="range" min="-30" max="12" step="1" value="${o.volume[x.lobby] ?? 0}" data-vovol="${esc(x.lobby)}"></label>
         <label title="Delay to line the voice up with the picture">Delay <input type="number" min="0" max="5000" step="50" value="${o.offset[x.lobby] ?? 0}" data-vooff="${esc(x.lobby)}"> ms</label>
         <button class="b${o.pin && o.pin.toLowerCase() === x.lobby.toLowerCase() ? ' on' : ''}" data-vopin="${esc(x.lobby)}" title="Keep this lobby's voice up whatever is on screen">Listen</button></div></div>`;

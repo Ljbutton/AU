@@ -371,6 +371,52 @@ public class PlayerCamReplayTests : IAsyncLifetime
     }
 
     [Fact]
+    public void Back_in_the_lobby_with_the_camera_up_goes_straight_to_the_whole_map()
+    {
+        Send("snap", null, new { phase = "lobby", spec = new { cam = true } });
+        _desk.Show("LJ", "cam");
+        _desk.Tick();
+        Assert.Equal("full", _desk.OnAir.Layout);
+    }
+
+    [Fact]
+    public void The_host_on_camera_is_told_to_follow_the_players_ears_without_the_desk_page()
+    {
+        var sent = new List<(string Lobby, string Command)>();
+        _desk.HostCommand += (l, c) => sent.Add((l, c));
+        Send("snap", null, new { phase = "ingame", spec = new { cam = true, audio = "wide" } });
+        _desk.Show("LJ", "cam");
+        _desk.Tick();
+        Assert.Contains(("LJ", "spec audio cam"), sent);
+        // Reported back: nothing more to send. Off the camera: back to the whole map's sound.
+        Send("snap", null, new { phase = "ingame", spec = new { cam = true, audio = "cam" } });
+        sent.Clear();
+        _desk.Tick();
+        Assert.Empty(sent);
+        _desk.Show("LJ");
+        _desk.Tick();
+        Assert.Contains(("LJ", "spec audio wide"), sent);
+    }
+
+    [Fact]
+    public async Task A_saved_clip_is_found_by_its_file_when_obs_sends_no_event()
+    {
+        var folder = Path.Combine(_dir.Path, "clips");
+        Directory.CreateDirectory(folder);
+        var asked = DateTime.UtcNow;
+        File.WriteAllText(Path.Combine(folder, "TT LJ 2026-01-01 00-00-00.mp4"), "old");          // from before the save: not it
+        File.SetLastWriteTimeUtc(Path.Combine(folder, "TT LJ 2026-01-01 00-00-00.mp4"), asked.AddMinutes(-5));
+        var wait = ClipFiles.WaitForNewAsync(folder, ObsDirector.ClipPrefix("LJ"), asked, TimeSpan.FromSeconds(5));
+        await Task.Delay(300);
+        File.WriteAllText(Path.Combine(folder, "TT Cam-LJ 2026-10-11 10-00-00.mp4"), "the camera's");
+        var path = Path.Combine(folder, "TT LJ 2026-10-11 10-00-00.mp4");
+        File.WriteAllText(path, "written");
+        Assert.Equal(path, await wait);
+        // Nothing new: none, once the wait is over.
+        Assert.Null(await ClipFiles.WaitForNewAsync(folder, ObsDirector.ClipPrefix("MAL"), DateTime.UtcNow, TimeSpan.FromMilliseconds(500)));
+    }
+
+    [Fact]
     public void Several_cameras_share_the_screen_with_no_whole_map_pictures()
     {
         var two = new OnAir { Layout = "cams", Slots = new List<string?> { "LJ", "MAL", null, null } };

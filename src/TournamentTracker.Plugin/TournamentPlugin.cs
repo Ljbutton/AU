@@ -15,7 +15,7 @@ namespace TournamentTracker.Plugin
     public sealed class TournamentPlugin : BasePlugin
     {
         public const string Id = "com.ljbutton.tournamenttracker";
-        public const string Version = "0.1.58";
+        public const string Version = "0.1.59";
 
         internal static TournamentSession Session = null!;
         internal static ILog Logger = NullLog.Instance;
@@ -39,6 +39,15 @@ namespace TournamentTracker.Plugin
             {
                 try
                 {
+                    // A hook whose parameters don't match the game's method compiles into a broken
+                    // method that throws on every call (and the game's own code never runs): skipped.
+                    var mismatch = HookCheck.Mismatch(type);
+                    if (mismatch != null)
+                    {
+                        failed++;
+                        Log.LogError($"Not hooking {type.Name}: {mismatch} That part of the mod is off; the game runs as normal.");
+                        continue;
+                    }
                     _harmony.CreateClassProcessor(type).Patch();
                 }
                 catch (Exception e)
@@ -47,6 +56,8 @@ namespace TournamentTracker.Plugin
                     Log.LogError($"Could not hook {type.Name}; that part of tracking is off. {e.Message}");
                 }
             }
+            if (failed > 0) Log.LogError($"Self-check: {failed} hook(s) not in place (see above). Everything else works.");
+            else Log.LogInfo("Self-check: every hook is in place.");
 
             AddComponent<TrackerBehaviour>();
             Log.LogInfo($"Tournament Tracker {Version} loaded. Data in {DataDir}.{(failed > 0 ? $" {failed} hook(s) failed." : "")}");

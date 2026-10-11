@@ -77,6 +77,24 @@ public class PlayerCamTests
         Assert.False(feed.Wanted);                             // nobody asked lately: the game stops drawing it
     }
 
+    [Fact]
+    public async Task Two_pictures_can_be_in_the_making_and_the_newest_wins()
+    {
+        using var feed = new PlayerCamFeed(() => DateTime.UtcNow);
+        var a = feed.Take(16 * 16 * 4);
+        Assert.NotNull(a);
+        Array.Copy(Picture(16, 16), a!, a!.Length);
+        feed.Submit(16, 16, bottomUp: false);
+        var b = feed.Take(16 * 16 * 4);
+        Assert.NotNull(b);                                     // the second thread takes the next one
+        Assert.NotSame(a, b);
+        Array.Copy(Picture(16, 16), b!, b!.Length);
+        feed.Submit(16, 16, bottomUp: false);
+        var (seq, jpeg) = await feed.NextAsync(0, TimeSpan.FromSeconds(5));
+        Assert.True(seq >= 1);
+        Assert.NotNull(jpeg);
+    }
+
     private static int IndexOf(byte[] data, byte a, byte b)
     {
         for (int i = 0; i + 1 < data.Length; i++) if (data[i] == a && data[i + 1] == b) return i;

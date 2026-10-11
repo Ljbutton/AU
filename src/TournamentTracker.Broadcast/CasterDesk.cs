@@ -144,11 +144,28 @@ namespace TournamentTracker.App.Broadcast
                     {
                         Lobby = l, Online = (now - v.At).TotalSeconds < 5, Reported = true,
                         On = B("on"), Sending = B("sending"), Problem = S("problem"),
-                        Discord = S("discord"), Game = S("game"), VoiceDb = N("voiceDb"), GameDb = N("gameDb"), Mic = B("mic"),
+                        Discord = S("discord"), Game = S("game"), VoiceDb = N("voiceDb"), GameDb = N("gameDb"), OutDb = d.TryGetProperty("outDb", out var o) && o.ValueKind == JsonValueKind.Number ? o.GetDouble() : (double?)null, Mic = B("mic"),
                         Ago = Math.Max(0, (int)(now - v.At).TotalSeconds),
                     };
                 }).ToList();
         }
+        /// <summary>
+        /// How loud the lobby's voice stream is as its host's page sends it (dB; the level leaving the
+        /// page, or for an older Button the louder of its Discord and Among Us levels), or null when
+        /// the host isn't sending it or hasn't reported lately.
+        /// </summary>
+        public double? VoiceSentDb(string lobby)
+        {
+            lock (_lock)
+            {
+                if (!_voice.TryGetValue(lobby, out var v) || (_clock() - v.At).TotalSeconds > 5) return null;
+                var d = v.Data;
+                if (!d.TryGetProperty("sending", out var s) || s.ValueKind != JsonValueKind.True) return null;
+                double N(string p) => d.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.Number ? x.GetDouble() : -100;
+                return d.TryGetProperty("outDb", out var o) && o.ValueKind == JsonValueKind.Number ? o.GetDouble() : Math.Max(N("voiceDb"), N("gameDb"));
+            }
+        }
+
         /// <summary>The tournament's scored game records (the organiser view's shared results).</summary>
         public Func<IReadOnlyList<GameRecord>>? ExternalGames { get; set; }
         public Func<int> Advance { get; set; } = () => 5;
@@ -670,26 +687,49 @@ namespace TournamentTracker.App.Broadcast
 
         // ---- Player cameras: back to the whole map at a meeting or when the game ends --------------
 
-        private readonly HashSet<string> _camPlayed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
         /// <summary>
-        /// On a player camera, once its lobby goes into a meeting (the host's game stops drawing the
-        /// camera then) or its game is over, the picture goes back to that lobby's whole map (several
-        /// cameras: once none of their games is still in play, the same lobbies side by side).
+        /// On a player camera, once its lobby isn't in play (a meeting, the game over, back in the lobby:
+        /// the host's game stops drawing the camera then, and its last picture would sit frozen on
+        /// stream), the picture goes back to that lobby's whole map (several cameras: once none of
+        /// their games is in play, the same lobbies side by side).
         /// </summary>
         private bool CamTick(OnAir air)
         {
-            if (!air.IsCam) { _camPlayed.Clear(); return false; }
+            if (!air.IsCam) return false;
             var lobbies = air.Slots.Where(s => s != null).Select(s => s!).ToList();
             var phase = Board.Ranking().ToDictionary(r => r.Lobby, r => r.Phase, StringComparer.OrdinalIgnoreCase);
             bool Playing(string l) => phase.TryGetValue(l, out var p) && p == "ingame";
-            foreach (var l in lobbies) if (Playing(l)) _camPlayed.Add(l);
-            var over = lobbies.Where(l => _camPlayed.Contains(l) && !Playing(l)).ToList();
-            if (over.Count == 0 || lobbies.Any(Playing)) return false;
-            _camPlayed.Clear();
+            if (!lobbies.Any(phase.ContainsKey) || lobbies.Any(Playing)) return false;
             if (lobbies.Count == 1) Show(lobbies[0], "full", null, null, "auto");
             else ShowPicked(lobbies, "auto");
             return true;
+        }
+
+        /// <summary>A command for a host's game (sent over the desk page's link to that host): lobby, command.</summary>
+        public event Action<string, string>? HostCommand;
+        private readonly Dictionary<string, (string Want, DateTime At)> _audioSent = new Dictionary<string, (string, DateTime)>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Every second, here rather than in the desk page (so it doesn't depend on which page is open):
+        /// each host's game sound, and its player camera's picture rate, follow what's on stream. The
+        /// lobby whose camera is up hears with the followed player's ears ("cam", and the camera runs
+        /// at full rate); every other lobby hears the whole map ("wide"). Only hosts that report it.
+        /// </summary>
+        private void CamAudioTick(OnAir air)
+        {
+            string? camOn = air.IsCam ? air.Slots.FirstOrDefault(x => x != null) : null;
+            var now = _clock();
+            foreach (var r in Board.Ranking())
+            {
+                if (!r.Online || Board.Lobby(r.Lobby)?.Spec is not JsonElement spec) continue;
+                if (!spec.TryGetProperty("audio", out var a) || a.ValueKind != JsonValueKind.String) continue;    // an older host
+                string want = string.Equals(r.Lobby, camOn, StringComparison.OrdinalIgnoreCase) ? "cam" : "wide";
+                if (a.GetString() == want) continue;
+                // The same ask again only after 2 s (the host's answer comes with its next snapshot).
+                if (_audioSent.TryGetValue(r.Lobby, out var last) && last.Want == want && (now - last.At).TotalSeconds < 2) continue;
+                _audioSent[r.Lobby] = (want, now);
+                HostCommand?.Invoke(r.Lobby, "spec audio " + want);
+            }
         }
 
         // ---- Win counter (Part 20) and player cards (Part 21) ------------------------------------
@@ -1018,6 +1058,7 @@ namespace TournamentTracker.App.Broadcast
             if (HealthTick()) return;
             OnAir air;
             lock (_lock) air = _onAir;
+            CamAudioTick(air);
             if (air.Layout is "replay" or "slate") return;
             if (CamTick(air)) return;
             if (IntermissionTick(air)) return;

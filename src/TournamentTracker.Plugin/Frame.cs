@@ -81,9 +81,17 @@ namespace TournamentTracker.Plugin
             _posFrame = -2 - now;
             foreach (var p in List)
             {
-                var pos = p.Pc.transform.position;
-                p.Pos = new Vector2(pos.x, pos.y);
-                p.InVent = p.Pc.inVent;
+                // A player who left since Refresh: their PlayerControl is destroyed (or its native object
+                // collected). Their last position stands; everything else carries on.
+                var pc = p.Pc;
+                if (pc == null || pc.WasCollected) continue;
+                try
+                {
+                    var pos = pc.transform.position;
+                    p.Pos = new Vector2(pos.x, pos.y);
+                    p.InVent = pc.inVent;
+                }
+                catch (System.Exception) { }
             }
         }
     }

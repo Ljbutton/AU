@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace TournamentTracker.App.Broadcast
@@ -64,8 +65,11 @@ namespace TournamentTracker.App.Broadcast
 
         /// <summary>Saves the lobby's player camera buffer to a file now (like <see cref="SaveClipAsync"/>).</summary>
         public Task<string> SaveCamClipAsync(string lobby) =>
-            Settings.CamSources.TryGetValue(lobby, out var source) ? SaveSourceAsync(source)
+            Settings.CamSources.TryGetValue(lobby, out var source) ? SaveSourceAsync(source, ClipPrefix("Cam " + lobby))
                 : throw new InvalidOperationException($"{lobby} has no player camera in OBS.");
+
+        /// <summary>The start of a clip's file name for a lobby (or "Cam " + lobby), as its Source Record filter names it.</summary>
+        public static string ClipPrefix(string name) => $"TT {SafeName(name)} ";
 
         /// <summary>The Source Record filter that keeps this lobby's last few seconds, on its source.</summary>
         private async Task EnsureReplayFilterAsync(ObsClient obs, string lobby, string source)
@@ -82,7 +86,7 @@ namespace TournamentTracker.App.Broadcast
                     replay_duration = Settings.Replay.BufferSeconds,
                     path = ClipFolder,
                     rec_format = Settings.Replay.Format,
-                    replay_filename_formatting = $"TT {SafeName(lobby)} %CCYY-%MM-%DD %hh-%mm-%ss",
+                    replay_filename_formatting = ClipPrefix(lobby) + "%CCYY-%MM-%DD %hh-%mm-%ss",
                     // Kept sharp enough to zoom into for a replay (Source Record's own default is much lower).
                     rate_control = "CBR",
                     bitrate = Settings.Replay.Kbps,
@@ -136,13 +140,22 @@ namespace TournamentTracker.App.Broadcast
             finally { _busy.Release(); }
         }
 
-        /// <summary>Saves the lobby's buffer to a file now; answers with the file once Source Record says it's written.</summary>
+        /// <summary>Saves the lobby's buffer to a file now; answers with the file once it's written.</summary>
         public Task<string> SaveClipAsync(string lobby) =>
-            Settings.Sources.TryGetValue(lobby, out var source) ? SaveSourceAsync(source)
+            Settings.Sources.TryGetValue(lobby, out var source) ? SaveSourceAsync(source, ClipPrefix(lobby))
                 : throw new InvalidOperationException($"{lobby} has no source in OBS yet.");
 
-        private async Task<string> SaveSourceAsync(string source)
+        /// <summary>How long a save may take before it's reported as failed.</summary>
+        public static TimeSpan ClipWait { get; set; } = TimeSpan.FromSeconds(10);
+
+        /// <summary>
+        /// Asks Source Record to write the source's buffer, then answers with the file: from its
+        /// "replay_buffer_saved" event, or (Source Record 0.4.8 and earlier never send that event) the
+        /// new file in the clip folder named for this source, once its size stops changing.
+        /// </summary>
+        private async Task<string> SaveSourceAsync(string source, string prefix)
         {
+            var asked = DateTime.UtcNow;
             var obs = _obs ?? throw new InvalidOperationException("Not connected to OBS.");
             var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             _saving[source] = tcs;
@@ -156,9 +169,13 @@ namespace TournamentTracker.App.Broadcast
                     await RestartBufferAsync(obs, source).ConfigureAwait(false);
                     throw new InvalidOperationException($"The lobby's replay buffer wasn't running ({why ?? "OBS said no"}), so it's been started again: it has the next {Settings.Replay.BufferSeconds}s from now. Try again in a few seconds.");
                 }
-                var done = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
-                if (done != tcs.Task) throw new TimeoutException("OBS didn't say the clip was written. Update the replay plugin in OBS (an older version doesn't say), or press Rebuild TT scenes.");
-                return await tcs.Task.ConfigureAwait(false);
+                using var stop = new CancellationTokenSource();
+                var file = ClipFiles.WaitForNewAsync(ClipFolder, prefix, asked, ClipWait, stop.Token);
+                var done = await Task.WhenAny(tcs.Task, file, Task.Delay(ClipWait)).ConfigureAwait(false);
+                stop.Cancel();
+                if (done == tcs.Task) return await tcs.Task.ConfigureAwait(false);
+                if (done == file && await file.ConfigureAwait(false) is string path) return path;
+                throw new TimeoutException($"No clip was written within {ClipWait.TotalSeconds:0} s (nothing new starting \"{prefix.Trim()}\" in {ClipFolder}). Check the TT Replay filter on the source in OBS (Source Record), or press Rebuild TT scenes.");
             }
             catch (ObsException e) when (e.Message.IndexOf("vendor", StringComparison.OrdinalIgnoreCase) >= 0 && e.Message.IndexOf("found", StringComparison.OrdinalIgnoreCase) >= 0)
             {
@@ -176,6 +193,13 @@ namespace TournamentTracker.App.Broadcast
             if (data.ValueKind != JsonValueKind.Object || !data.TryGetProperty("success", out var ok) || ok.ValueKind != JsonValueKind.False) return true;
             why = data.TryGetProperty("error", out var e) && e.ValueKind == JsonValueKind.String ? e.GetString() : "its buffer isn't running";
             return false;
+        }
+
+        /// <summary>Starts the player camera's buffer as it goes on stream (a hidden source records nothing).</summary>
+        private async Task StartCamBufferAsync(ObsClient obs, string lobby)
+        {
+            if (Settings.Replay.On && Settings.CamSources.TryGetValue(lobby, out var source) && _filtered.Contains(source))
+                await RestartBufferAsync(obs, source).ConfigureAwait(false);
         }
 
         /// <summary>Stops and starts Source Record's buffer on the source (what makes a stuck one run).</summary>
