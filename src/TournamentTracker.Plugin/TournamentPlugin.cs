@@ -15,7 +15,7 @@ namespace TournamentTracker.Plugin
     public sealed class TournamentPlugin : BasePlugin
     {
         public const string Id = "com.ljbutton.tournamenttracker";
-        public const string Version = "0.1.60";
+        public const string Version = "0.1.61";
 
         internal static TournamentSession Session = null!;
         internal static ILog Logger = NullLog.Instance;
@@ -28,6 +28,8 @@ namespace TournamentTracker.Plugin
             Logger = new DelegateLog(m => Log.LogInfo(m), m => Log.LogWarning(m), m => Log.LogError(m));
             FrameProfiler.Enabled = Config.Bind("Debug", "FrameProfiler", false,
                 "Log frames where the mod takes over 8 ms, with a breakdown, to LogOutput.log. F10 switches it on and off in the game.").Value;
+            RefSlot.DebugSync = Config.Bind("Debug", "RefereeRecordSync", false,
+                "Log each time the referee ghost's player record is sent to the players (and whether it says dead), plus anything that changes it.").Value;
             StartSession();
 
             // Patch class by class: if a game update renames one method, only that stat

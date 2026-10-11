@@ -36,7 +36,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.60**, a beta.
+The current release is **v0.1.61**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -393,9 +393,10 @@ referee. At the start of every game the host becomes a ghost: never an impostor,
 always talk). The host can zoom out with the **mouse wheel** or **+ / −** to see the
 whole map (for refereeing and streaming). The same switch turns it off; the choice is remembered.
 During play a small list down the left edge of the referee's screen shows the players, who is dead
-or gone, and a red IMP by each impostor. Other players' games without the mod may show the referee's
-card as alive in meetings; the host counts the votes, so a vote for the referee counts as a skip and
-the referee can't be voted out. (An earlier experimental switch sent the players an exile message
+or gone, and a red IMP by each impostor. Players without the mod see the referee as a dead (crossed-out) card in meetings; only modded games
+hide it completely. The host keeps the referee's player record dead (re-sent after the intro, before
+each meeting and every 5 seconds; never an exile, kill or role message), and counts the votes, so a
+vote for the referee counts as a skip and the referee can't be voted out. (An earlier experimental switch sent the players an exile message
 for the referee; it got the host banned from their own room and was removed.)
 The mod sends each player's role and task list once, as the game itself does, and never sends an
 "exiled" message outside a meeting (that got the host kicked from the room): the referee is marked
