@@ -211,19 +211,27 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden;font:700 3
 const CREW=['#c51111','#132ed1','#117f2d','#ed54ba','#ef7d0d','#f5f557','#3f474e','#d6e0f0','#6b2fbb','#71491e','#38fedc','#50ef39','#5f1d2e','#ecc0d3','#f0e7a8','#758593','#918877','#d76464'];
 const esc=s=>String(s??'').replace(/[&<>""]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','""':'&quot;'}[c]));
 const rich=s=>esc(s).replace(/\[\[(\d+)\|([^\]]*)\]\]/g,(m,c,n)=>`<img class=""sw"" src=""/crew/${+c>=0&&+c<18?+c:15}.png"" alt="""">${n}`);
+// One request at a time, and the tag is only written when the replay changes (rewriting it every
+// 400 ms made its crewmate heads and the sponsor's logo again each time, on stream).
+let busy=false,shownKey='';
 async function tick(){
+  if(busy)return;
+  busy=true;
   try{
     const d=await (await fetch('/replaynow',{cache:'no-store'})).json();
     document.getElementById('tag').classList.toggle('on',!!d.on);
     if(!d.on)return;
     const kind=d.kind||'replay';
+    const key=JSON.stringify([kind,d.lobby,d.title,d.sponsor,d.sponsorLogo]);
+    if(key===shownKey)return;
+    shownKey=key;
     document.getElementById('label').textContent=kind==='montage'?'MONTAGE':kind==='killcam'?'KILL CAM':'REPLAY';
     document.getElementById('badge').className='badge '+kind;
     document.getElementById('what').innerHTML=kind==='montage'?rich(d.title):(d.lobby?esc(d.lobby)+' · ':'')+rich(d.title);
     const by=document.getElementById('by');
     by.hidden=!d.sponsor;
-    if(d.sponsor) by.innerHTML=`${kind==='montage'?'PRESENTED BY':'PRESENTED BY'} ${d.sponsorLogo?`<img src=""${esc(d.sponsorLogo)}"" alt="""">`:''}<b>${esc(d.sponsor)}</b>`;
-  }catch(e){}
+    if(d.sponsor) by.innerHTML=`PRESENTED BY ${d.sponsorLogo?`<img src=""${esc(d.sponsorLogo)}"" alt="""">`:''}<b>${esc(d.sponsor)}</b>`;
+  }catch(e){}finally{busy=false;}
 }
 tick();setInterval(tick,400);
 </script></body></html>";
