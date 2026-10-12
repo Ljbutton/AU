@@ -28,8 +28,13 @@ namespace TournamentTracker
         private readonly object _feedLock = new object();
         private readonly List<(long Seq, string Json)> _feed = new List<(long, string)>();
         private long _feedSeq;
-        /// <summary>This run of the mod: with each message's number, lets the caster drop repeats when the referee's page sends again after a drop.</summary>
-        private static readonly string FeedSource = Guid.NewGuid().ToString("N").Substring(0, 10);
+        /// <summary>
+        /// This run of the tracker: with each message's number, lets the caster drop repeats when the
+        /// referee's page sends again after a drop. One per session, like the numbers: a tracker
+        /// restarted inside the same game (a new setup) counts from 1 again, and under the old run's
+        /// name Red Alert took every message as a repeat until the count passed the old one.
+        /// </summary>
+        private readonly string FeedSource = Guid.NewGuid().ToString("N").Substring(0, 10);
 
         public FeedTuning Tuning { get; set; } = new FeedTuning();
 

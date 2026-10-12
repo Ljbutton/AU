@@ -527,16 +527,21 @@ namespace TournamentTracker
             return safe.Length == 0 ? "host" : safe;
         }
 
-        /// <summary>Gives everyone their voice back and waits briefly for Discord, for when the game closes.</summary>
         /// <summary>JSON work kept off the game's main thread (inline until <see cref="BackgroundWork.Start"/>).</summary>
         public BackgroundWork Work { get; }
 
+        /// <summary>Gives everyone their voice back and waits briefly for Discord, for when the game closes.</summary>
+        /// <remarks>
+        /// The "lobby closed" status goes first: it's made on the background thread, which is what
+        /// queues its edit with the posts. Asked for last, the edit wasn't queued yet when the posts
+        /// were waited for, and closing the game usually lost it (the status stayed on the old lobby).
+        /// </remarks>
         public async Task ShutdownAsync(TimeSpan timeout)
         {
+            CloseStatus();
             Work.Flush(timeout);
             AutoMute?.ReleaseAll();
             if (_dispatcher != null) await _dispatcher.WaitIdleAsync(timeout).ConfigureAwait(false);
-            CloseStatus();
             await Task.WhenAny(PendingPosts, Task.Delay(timeout)).ConfigureAwait(false);
         }
 
