@@ -57,8 +57,58 @@ namespace TournamentTracker.App.Broadcast
 
         public IReadOnlyList<GameRecord> Games => _games();
 
+        // ---- Worked out once per set of games ------------------------------------------------------
+        // The overlay asks for the standings 4 times a second and the Live desk on every poll; each was
+        // a full scoring of every game. They are kept until the games behind them change (another
+        // game counted, an edit, a game held back or let in), the roster changes, or the cut does.
+        private readonly object _memoLock = new object();
+        // The games the kept answers came from (a copy of the list: the one handed in may be changed in place).
+        private GameRecord[]? _memoGames;
+        private (int Advance, int PerRound, int Roster) _memoKey;
+        private readonly Dictionary<string, object> _memo = new Dictionary<string, object>(StringComparer.Ordinal);
+
+        /// <summary>Goes up each time the games, the roster or the cut changed (what's worked out from them is new).</summary>
+        public int Version { get; private set; }
+
+        private T Memo<T>(string key, Func<IReadOnlyList<GameRecord>, T> make) where T : class
+        {
+            var games = Games;
+            var stamp = (_advance(), _perRound(), _roster.Version);
+            lock (_memoLock)
+            {
+                if (_memoGames == null || stamp != _memoKey || !SameGames(games, _memoGames))
+                {
+                    _memo.Clear();
+                    _memoGames = games.ToArray();
+                    _memoKey = stamp;
+                    Version++;
+                }
+                if (_memo.TryGetValue(key, out var hit)) return (T)hit;
+            }
+            var made = make(games);
+            lock (_memoLock) if (stamp == _memoKey && _memoGames != null && SameGames(games, _memoGames)) _memo[key] = made;
+            return made;
+        }
+
+        /// <summary>The same games, record for record (the organiser's records are new objects whenever they're read again).</summary>
+        private static bool SameGames(IReadOnlyList<GameRecord> a, IReadOnlyList<GameRecord> b)
+        {
+            if (a.Count != b.Count) return false;
+            for (int i = 0; i < a.Count; i++) if (!ReferenceEquals(a[i], b[i])) return false;
+            return true;
+        }
+
         /// <summary>The round being played (the latest with games).</summary>
-        public int CurrentRound => Games.Where(g => g.Counted).Select(g => g.Round).DefaultIfEmpty(0).Max();
+        public int CurrentRound => Memo("current", g => new int[] { g.Where(x => x.Counted).Select(x => x.Round).DefaultIfEmpty(0).Max() })[0];
+
+        /// <summary>Each player's Discord ID from the games (for roster names), worked out once per set of games.</summary>
+        private Dictionary<string, string> Discords() => Memo("discord", games =>
+        {
+            var map = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var p in games.SelectMany(g => g.Players))
+                if (!string.IsNullOrEmpty(p.DiscordId) && !map.ContainsKey(p.Key)) map[p.Key] = p.DiscordId!;
+            return map;
+        });
 
         private List<TableRow> Rows(IEnumerable<StandingRow> rows) => rows.Select((r, i) => new TableRow
         {
@@ -75,13 +125,13 @@ namespace TournamentTracker.App.Broadcast
             Advancing = r.Advancing,
         }).ToList();
 
-        private string? DiscordOf(string key) => Games.SelectMany(g => g.Players).FirstOrDefault(p => p.Key == key && !string.IsNullOrEmpty(p.DiscordId))?.DiscordId;
+        private string? DiscordOf(string key) => Discords().TryGetValue(key, out var d) ? d : null;
 
         /// <summary>The whole round, every lobby.</summary>
-        public List<TableRow> Round(int round) => Rows(Standings.Round(Games.ToList(), round, _advance(), _perRound()));
+        public List<TableRow> Round(int round) => Memo("round|" + round, g => Rows(Standings.Round(g.ToList(), round, _advance(), _perRound()))).ToList();
 
         /// <summary>One lobby's table for the round (who moves on is decided per lobby).</summary>
-        public List<TableRow> Lobby(string lobby, int round) => Rows(Standings.Lobby(Games.ToList(), lobby, round, _advance(), _perRound()));
+        public List<TableRow> Lobby(string lobby, int round) => Memo("lobby|" + lobby.ToLowerInvariant() + "|" + round, g => Rows(Standings.Lobby(g.ToList(), lobby, round, _advance(), _perRound()))).ToList();
 
         /// <summary>
         /// A lobby's table for its own round. Lobbies can be in different rounds (a big tournament starts
@@ -103,7 +153,10 @@ namespace TournamentTracker.App.Broadcast
         /// Leader boards for the stats ticker: the top ten in each, over the tournament's counted games
         /// (vote % needs 3 votes, impostor win % 2 impostor games).
         /// </summary>
-        public List<(string Title, string Unit, List<(string Name, int Color, string Value)> Rows)> Leaders(int top = 10)
+        public List<(string Title, string Unit, List<(string Name, int Color, string Value)> Rows)> Leaders(int top = 10) =>
+            Memo("leaders|" + top, _ => MakeLeaders(top)).ToList();
+
+        private List<(string Title, string Unit, List<(string Name, int Color, string Value)> Rows)> MakeLeaders(int top)
         {
             var all = Standings.Build(Games.Where(g => g.Counted), "").Leaderboard().ToList();
             string Name(PlayerTotals p) => _roster.Match(p.Key, DiscordOf(p.Key), p.Name).Entry?.Name ?? p.Name;
@@ -123,7 +176,7 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>Every counted game of the tournament.</summary>
-        public List<TableRow> Overall() => Rows(Standings.Build(Games.Where(g => g.Counted), "").Leaderboard().Select(t => new StandingRow { Stats = t, Total = t.Points }));
+        public List<TableRow> Overall() => Memo("overall", g => Rows(Standings.Build(g.Where(x => x.Counted), "").Leaderboard().Select(t => new StandingRow { Stats = t, Total = t.Points }))).ToList();
 
         /// <summary>
         /// "If impostors win: Jake moves to 1st": each ending's points (from the referee's mod) added
@@ -175,7 +228,7 @@ namespace TournamentTracker.App.Broadcast
             int round = CurrentRound;
             foreach (var lobby in lobbies)
             {
-                int count = Games.Count(g => g.Counted && g.Round == round && string.Equals(g.Host, lobby, StringComparison.OrdinalIgnoreCase));
+                int count = Memo("count|" + lobby.ToLowerInvariant() + "|" + round, g => new int[] { g.Count(x => x.Counted && x.Round == round && string.Equals(x.Host, lobby, StringComparison.OrdinalIgnoreCase)) })[0];
                 var table = Lobby(lobby, round);
                 var ranks = table.ToDictionary(r => r.Key, r => r.Rank);
                 lock (_lock)

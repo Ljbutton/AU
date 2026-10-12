@@ -6,11 +6,14 @@
 :root{--primary:#1fa143;--accent:#ffc15a;--danger:#ff2d55;--text:#fff;--panel:rgba(8,10,14,.82);--font:"Rajdhani";--head:"Teko"}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}
 #stage{position:absolute;left:0;top:0;transform-origin:0 0;color:var(--text);font:700 26px/1.15 var(--font),"Segoe UI",system-ui,sans-serif}
-.el{position:absolute;transition:opacity .45s ease,left .6s cubic-bezier(.22,.8,.24,1),top .6s cubic-bezier(.22,.8,.24,1),right .6s cubic-bezier(.22,.8,.24,1),bottom .6s cubic-bezier(.22,.8,.24,1),font-size .6s cubic-bezier(.22,.8,.24,1)}
+/* Only opacity is transitioned: a piece moving to a new place glides there with a transform (put() below),
+   so a switch doesn't lay out and redraw every graphic's text each frame. */
+.el{position:absolute;transition:opacity .45s ease}
 /* New pieces fade and slide in (on the inner box: the outer one may be centred with a transform). */
 .el.enter>*{animation:elin .55s cubic-bezier(.22,.8,.24,1)}
 .el.instant{transition:none}.el.instant>*{animation:none}
-.codehide{width:100%;height:100%;display:grid;place-items:center;background:var(--panel);backdrop-filter:blur(14px);border:2px solid var(--danger);border-radius:6px;box-shadow:0 0 0 9999px transparent}
+/* Solid: the browser source can't blur the game picture under it, and a see-through cover let the code show. */
+.codehide{width:100%;height:100%;display:grid;place-items:center;background:#0b0d12;border:2px solid var(--danger);border-radius:6px}
 .codehide span{font:700 1em/1 var(--head),sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--text)}
 @keyframes elin{from{opacity:0;transform:translateY(.5em)}}
 @media (prefers-reduced-motion:reduce){.el{transition:opacity .3s}.el.enter>*{animation:none}}
@@ -30,21 +33,24 @@ img.sw{display:inline-block;height:1.1em;width:auto;margin-right:.25em;vertical-
 .imps .p{margin-right:.55em}
 .imps .p.dead{text-decoration:line-through;text-decoration-thickness:.12em;opacity:.6}
 /* Sabotage countdown */
-.sab{display:flex;flex-direction:column;align-items:center;gap:.15em;padding:.3em .9em .45em;border-radius:.35em;background:rgba(40,0,6,.78);border:.12em solid var(--danger);box-shadow:0 0 1.2em rgba(255,45,85,.55);animation:alarm 1s infinite}
+.sab{position:relative;display:flex;flex-direction:column;align-items:center;gap:.15em;padding:.3em .9em .45em;border-radius:.35em;background:rgba(40,0,6,.78);border:.12em solid var(--danger);box-shadow:0 0 1.2em rgba(255,45,85,.55)}
+/* The alarm pulse is a glow layer fading in and out (opacity only), not a box-shadow redrawn every frame. */
+.sab::after{content:"";position:absolute;inset:-.12em;border-radius:.35em;border:.12em solid #ff7a90;box-shadow:0 0 2.2em rgba(255,45,85,.9);opacity:0;animation:pulseop 1s infinite;pointer-events:none}
+@keyframes pulseop{50%{opacity:1}}
 .sab .what{font:700 .9em/1 var(--head),sans-serif;letter-spacing:.12em;color:#ffd0d8;text-transform:uppercase}
 .sab .left{font:700 3.6em/0.95 var(--head),sans-serif;color:#fff;text-shadow:0 0 .3em var(--danger);font-variant-numeric:tabular-nums}
 .sab .fix{width:7em;height:.42em;border-radius:.21em;background:rgba(255,255,255,.18);overflow:hidden}
-.sab .fix i{display:block;height:100%;background:#fff}
+.sab .fix i{display:block;height:100%;width:0;background:#fff;transition:width .3s}
 .sab .fixl{font-size:.55em;color:#ffd0d8;letter-spacing:.06em}
-@keyframes alarm{50%{box-shadow:0 0 2.2em rgba(255,45,85,.9);border-color:#ff7a90}}
 .sabicon{display:flex;align-items:center;gap:.3em;padding:.2em .45em;border-radius:.3em;background:var(--panel);font-size:.7em;color:var(--accent)}
 .sabicon svg{width:1.2em;height:1.2em}
 /* Grid tiles */
-.tile{box-sizing:border-box;border:.12em solid rgba(255,255,255,.18);border-radius:.25em}
+.tile{position:relative;box-sizing:border-box;border:.12em solid rgba(255,255,255,.18);border-radius:.25em}
 .tile.high{border-color:var(--accent)}
-.tile.hot{border-color:var(--danger);animation:tilepulse 1s infinite}
-@keyframes tilepulse{50%{box-shadow:0 0 1.2em var(--danger),inset 0 0 .8em rgba(255,45,85,.6)}}
+.tile.hot{border-color:var(--danger)}
+.tile.hot::after{content:"";position:absolute;inset:-.12em;border-radius:.25em;box-shadow:0 0 1.2em var(--danger),inset 0 0 .8em rgba(255,45,85,.6);opacity:0;animation:pulseop 1s infinite}
 .mini{display:flex;gap:.6em;align-items:center;padding:.18em .5em;border-radius:.3em;background:var(--panel);font-size:.72em;white-space:nowrap;font-variant-numeric:tabular-nums}
+.mini em{font-style:normal}
 .mini svg{width:.85em;height:.95em}
 .mini .ph{font:700 .9em/1 var(--head),sans-serif;letter-spacing:.08em}
 .mini .ph.meeting{color:var(--accent)}
@@ -194,15 +200,37 @@ const sabIcon = s => ({ Reactor: ICON.reactor, 'Seismic stabilizers': ICON.react
 const PH = { ingame: 'In game', meeting: 'Meeting', ended: 'Game over', lobby: 'Lobby', menu: 'Offline' };
 
 // Each piece of the overlay is kept by id and only rewritten when it changes, so animations don't restart.
+// Numbers that tick (countdowns, percentages) are written into the piece as it is (setT, setW), never
+// as part of its html, so a bar's transition can run and a pulse keeps its rhythm.
 const shown = {};
+// Where a piece sits: when one of these changes on a piece that's showing, it glides to its new place.
+const POS = ['left', 'top', 'right', 'bottom', 'width', 'fontSize', 'transform'];
+let GEN = 0, SCALE = 1;
+const STILL = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 function put(id, html, css) {
-  let el = shown[id];
-  if (!el) { el = document.createElement('div'); el.className = 'el enter'; el.dataset.id = id; stage.appendChild(el); shown[id] = el; el.dataset.html = ''; setTimeout(() => el.classList.remove('enter'), 700); }
-  if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
-  Object.assign(el.style, css || {});
-  el.classList.remove('hide');
-  el.dataset.seen = '1';
+  let el = shown[id], fresh = false;
+  if (!el) { el = document.createElement('div'); el.className = 'el enter'; el.dataset.id = id; stage.appendChild(el); shown[id] = el; el._html = null; fresh = true; setTimeout(() => el.classList.remove('enter'), 700); }
+  if (el._html !== html) { el.innerHTML = html; el._html = html; }
+  css = css || {};
+  const pos = POS.map(k => css[k] ?? '').join('|');
+  // Moved (a new layout): the inner box starts where it was and slides over with a transform, which the
+  // compositor animates; animating left/top/font-size laid out and redrew the text every frame instead.
+  const inner = el.firstElementChild;
+  const before = !fresh && !STILL && el._pos != null && el._pos !== pos && !el.classList.contains('hide') && !el.classList.contains('instant') && inner ? inner.getBoundingClientRect() : null;
+  Object.assign(el.style, css);
+  el._pos = pos;
+  if (before && before.width) {
+    const after = inner.getBoundingClientRect();
+    if (after.width && (Math.abs(before.left - after.left) > 1 || Math.abs(before.top - after.top) > 1 || Math.abs(before.width - after.width) > 1))
+      inner.animate([{ transformOrigin: '0 0', transform: `translate(${(before.left - after.left) / SCALE}px,${(before.top - after.top) / SCALE}px) scale(${before.width / after.width})` },
+        { transformOrigin: '0 0', transform: 'none' }], { duration: 600, easing: 'cubic-bezier(.22,.8,.24,1)' });
+  }
+  if (el.classList.contains('hide')) el.classList.remove('hide');
+  el._gen = GEN;
+  return el;
 }
+const setT = (el, sel, t) => { const x = el && el.querySelector(sel); if (x && x.textContent !== t) x.textContent = t; };
+const setW = (el, sel, pct) => { const x = el && el.querySelector(sel); if (x && x.style.width !== pct + '%') x.style.width = pct + '%'; };
 const stage = document.getElementById('stage');
 let S = null;
 
@@ -237,9 +265,14 @@ const ELEMENTS = {
     if (!l || !l.sabotage || !(l.phase === 'ingame')) return;
     const s = l.sabotage;
     if (s.critical && s.left != null) {
-      const fix = s.fixing != null ? `<div class="fix"><i style="width:${Math.round(s.fixing * 100)}%"></i></div><div class="fixl">${s.fixing >= 1 ? 'FIXED' : s.fixing > 0 ? 'FIXING ' + Math.round(s.fixing * 2) + '/2' : 'NOBODY FIXING'}</div>` : '';
-      put(`sab-${slot.slot}`, `<div class="sab${l.reconnecting ? ' frozen' : ''}"><div class="what">${esc(s.system)}</div><div class="left">${Math.max(0, Math.ceil(s.left))}</div>${l.reconnecting ? '<div class="fixl">RECONNECTING</div>' : fix}</div>`,
+      const fixing = s.fixing != null && !l.reconnecting;
+      const el = put(`sab-${slot.slot}`, `<div class="sab${l.reconnecting ? ' frozen' : ''}"><div class="what">${esc(s.system)}</div><div class="left"></div>${l.reconnecting ? '<div class="fixl">RECONNECTING</div>' : fixing ? '<div class="fix"><i></i></div><div class="fixl"></div>' : ''}</div>`,
         { left: slot.x + slot.w / 2 + 'px', top: slot.y + slot.h * 0.2 + 'px', transform: 'translateX(-50%)', fontSize: 30 * Math.max(k, 0.55) + 'px' });
+      setT(el, '.left', String(Math.max(0, Math.ceil(s.left))));
+      if (fixing) {
+        setW(el, '.fix i', Math.round(s.fixing * 100));
+        setT(el, '.fixl', s.fixing >= 1 ? 'FIXED' : s.fixing > 0 ? 'FIXING ' + Math.round(s.fixing * 2) + '/2' : 'NOBODY FIXING');
+      }
     } else {
       put(`sabi-${slot.slot}`, `<div class="sabicon">${sabIcon(s.system)}${esc(s.system)}</div>`,
         { left: slot.x + 18 * k + 'px', top: slot.y + 62 * k + 'px', fontSize: 34 * k + 'px' });
@@ -252,9 +285,11 @@ ELEMENTS.gridTiles = (slot, l, k) => {
   if (S.layout !== 'grid' || !l) return;
   const hot = l.tier === 'must' || l.tier === 'veryHigh', high = l.tier === 'high';
   put(`tile-${slot.slot}`, `<div class="tile${hot ? ' hot' : high ? ' high' : ''}" style="width:${slot.w}px;height:${slot.h}px"></div>`, { left: slot.x + 'px', top: slot.y + 'px', fontSize: 30 + 'px' });
-  const playing = l.phase === 'ingame' || l.phase === 'meeting';
-  put(`mini-${slot.slot}`, `<div class="mini${l.reconnecting ? ' frozen' : ''}">${l.reconnecting ? '<span class="ph rc">RECONNECTING</span>' : `<span class="ph ${l.phase}">${(PH[l.phase] || l.phase).toUpperCase()}</span>`}${playing && l.crew != null ? `<span>${CNT.crew} ${l.crew}</span><span>${CNT.imp} ${l.imps}</span><span>tasks ${l.tasks ?? 0}%</span>` : ''}${l.sabotage ? `<span style="color:var(--danger)">${esc(l.sabotage.system)}${l.sabotage.left != null ? ' ' + Math.ceil(l.sabotage.left) + 's' : ''}</span>` : ''}</div>`,
+  const playing = l.phase === 'ingame' || l.phase === 'meeting', counts = playing && l.crew != null;
+  const el = put(`mini-${slot.slot}`, `<div class="mini${l.reconnecting ? ' frozen' : ''}">${l.reconnecting ? '<span class="ph rc">RECONNECTING</span>' : `<span class="ph ${l.phase}">${(PH[l.phase] || l.phase).toUpperCase()}</span>`}${counts ? `<span>${CNT.crew} <em class="c"></em></span><span>${CNT.imp} <em class="m"></em></span><span>tasks <em class="t"></em>%</span>` : ''}${l.sabotage ? `<span style="color:var(--danger)">${esc(l.sabotage.system)}<em class="s"></em></span>` : ''}</div>`,
     { left: slot.x + 14 * k + 'px', top: slot.y + slot.h - 52 * k + 'px', fontSize: 34 * k + 'px' });
+  if (counts) { setT(el, '.c', String(l.crew)); setT(el, '.m', String(l.imps)); setT(el, '.t', String(l.tasks ?? 0)); }
+  if (l.sabotage) setT(el, '.s', l.sabotage.left != null ? ' ' + Math.ceil(l.sabotage.left) + 's' : '');
 };
 function emptyTile(slot) {
   if (S.layout !== 'grid' || !S.elements.gridTiles) return;
@@ -340,15 +375,17 @@ function sponsorBreak() {
   if (b.video) put('brk-video', `<div class="brkv" style="width:${w}px;height:${vh}px"><video src="${esc(b.video)}" autoplay playsinline></video></div>`, { left: x + 'px', top: top + 'px' });
   put('brk-panel', `<div class="brk" style="width:${w}px;height:${slot.h - vh - (b.video ? 16 : 0) - 50}px"><div class="top">PRESENTED BY</div>${b.logo ? `<img src="${esc(b.logo)}" alt="">` : ''}<div class="nm">${esc(b.name)}</div>${b.tagline ? `<div class="tl">${esc(b.tagline)}</div>` : ''}</div>`,
     { left: x + 'px', top: top + vh + (b.video ? 16 : 0) + 'px', fontSize: '30px' });
-  put('brk-time', `<div class="brkt" style="width:${w}px"><span>BACK IN ${b.left}s</span><span class="b"><i style="width:${Math.round(100 * b.left / b.total)}%;transition:width 1s linear"></i></span></div>`,
+  const bt = put('brk-time', `<div class="brkt" style="width:${w}px"><span class="t"></span><span class="b"><i style="transition:width 1s linear"></i></span></div>`,
     { left: x + 'px', top: slot.y + slot.h - 30 + 'px', fontSize: '30px' });
+  setT(bt, '.t', `BACK IN ${b.left}s`);
+  setW(bt, '.b i', Math.round(100 * b.left / b.total));
 }
 
 // Banners for plays in lobbies that aren't on screen, stacked at the top.
 const ALERT_KIND = { kill: 'KILL', win: 'GAME OVER', report: 'BODY REPORTED', button: 'EMERGENCY' };
 function alerts() {
   (S.alerts || []).forEach((a, i) => put(`alert-${a.id}`, `<div class="alrt ${a.kind}"><span class="k">${ALERT_KIND[a.kind] || a.kind}</span><span class="lb">${a.number != null ? '#' + a.number + ' ' : ''}${esc(a.lobby)}</span><span>${rich(a.text)}</span>${a.count > 1 ? `<span class="x2">×${a.count}</span>` : ''}</div>`,
-    { left: '50%', top: 22 + i * 64 + 'px', transform: 'translateX(-50%)', fontSize: '30px', transition: 'opacity .45s ease, top .3s ease' }));
+    { left: '50%', top: 22 + i * 64 + 'px', transform: 'translateX(-50%)', fontSize: '30px' }));
 }
 
 // Intermission: the whole screen between rounds (the status bar stays along the bottom).
@@ -360,15 +397,18 @@ function intermission() {
   const st = S.standingsChange ? null : it.standings;      // a saved after-game table takes the table's place
   const table = st && st.rows.length ? `<div class="panel"><h2>${esc(st.title)}</h2><table class="st">${st.rows.map(r => `<tr class="${r.advancing ? 'adv' : ''}"><td class="r">${r.rank}</td><td>${sw(r.color)}${esc(r.name)}</td><td class="p">${r.points}</td></tr>`).join('')}</table></div>` : '';
   const sp = S.extras && S.extras.standingsSponsor;
-  put('inter-bg', `<div class="inter" style="width:${S.canvas.w}px;height:${S.canvas.h}px"><div>
+  // The storyline note takes turns every few seconds: only its own line is replaced (and fades in), not the whole screen.
+  const el = put('inter-bg', `<div class="inter" style="width:${S.canvas.w}px;height:${S.canvas.h}px"><div>
       <div class="tn">${esc(it.title || '')}</div>${it.slate ? '<div class="td">TECHNICAL DIFFICULTIES</div><h1>Be right back</h1>' : '<h1>Intermission</h1>'}
       ${it.nextRoundIn != null && !it.slate ? `<div class="cd"><small>Round ${(it.round || 0) + 1} starts in</small><b id="inter-cd"></b></div>` : ''}
-      ${it.note ? `<div class="nt" data-note="${esc(it.note)}"><b>Storyline</b><span>${rich(it.note)}</span></div>` : ''}
+      <div class="ntslot"></div>
       ${it.montage ? `<div class="nx"><b style="color:var(--accent)">UP NEXT</b> ${rich(it.montage)}</div>` : ''}
       ${det && det.length ? `<div class="panel det"><h2>Chat Detectives</h2><table class="st">${det.map((d, i) => `<tr><td class="r">${i + 1}</td><td>${esc(d.name)}</td><td class="p">${d.n}</td></tr>`).join('')}</table></div>` : ''}
     </div><div class="side">${table}${sp ? `<div class="by">Presented by ${sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : ''}<b>${esc(sp.name)}</b></div>` : ''}</div></div>`,
     { left: '0px', top: '0px', fontSize: '34px', zIndex: '-1' });
-  const cd = document.getElementById('inter-cd'); if (cd && it.nextRoundIn != null) cd.textContent = mmss(it.nextRoundIn);
+  const ns = el.querySelector('.ntslot');
+  if (ns && ns._note !== (it.note || '')) { ns._note = it.note || ''; ns.innerHTML = it.note ? `<div class="nt"><b>Storyline</b><span>${rich(it.note)}</span></div>` : ''; }
+  const cd = document.getElementById('inter-cd'); if (cd && it.nextRoundIn != null) setT(el, '#inter-cd', mmss(it.nextRoundIn));
 }
 // Impostor wins v crewmate wins (today or this round), in the corner and in intermission; the number that changed jumps.
 const winsSeen = { i: null, c: null, at: { i: 0, c: 0 } };
@@ -378,7 +418,7 @@ function winCounter() {
   for (const [k, v] of [['i', w.impostors], ['c', w.crew]]) { if (winsSeen[k] !== null && winsSeen[k] !== v) winsSeen.at[k] = now; winsSeen[k] = v; }
   const b = k => now - winsSeen.at[k] < 1300 ? ' class="bump"' : '';
   const html = `<div class="wins"><span class="i">IMPOSTOR WINS<b${b('i')}>${w.impostors}</b></span><span class="sep">·</span><span class="c">CREWMATE WINS<b${b('c')}>${w.crew}</b></span><small>${w.scope === 'round' ? 'THIS ROUND' : 'TODAY'}</small></div>`;
-  if (S.layout === 'intermission' || S.layout === 'slate') put('wins', html, { left: '110px', bottom: '150px', right: 'auto', top: 'auto', fontSize: '40px' });
+  if (S.layout === 'intermission' || S.layout === 'slate') put('wins', html, { left: '110px', bottom: '150px', right: 'auto', top: 'auto', transform: '', fontSize: '40px' });
   // On the player camera the lobby's picture sits in the bottom-right corner (its chat): the counter goes top middle there.
   else if (S.elements.winCounter && S.layout === 'cam') put('wins', html, { left: S.canvas.w / 2 + 'px', top: '22px', right: 'auto', bottom: 'auto', transform: 'translateX(-50%)', fontSize: '26px' });
   else if (S.elements.winCounter) put('wins', html, { right: '40px', bottom: (BOTTOM() || 10) + 20 + 'px', left: 'auto', top: 'auto', transform: '', fontSize: '28px' });
@@ -419,11 +459,19 @@ function twitch() {
   }
   if (!a) return;
   const max = Math.max(...a.options.map(o => o.pct));
-  // A !sus vote can have ten names: the five chat suspects most.
+  // A !sus vote can have ten names: the five chat suspects most (their order is part of the box; the bars and numbers aren't).
   const opts = a.type === 'chat' ? a.options.slice().sort((x, y) => y.pct - x.pct).slice(0, 5) : a.options;
-  const rows = opts.map(o => `<div class="row${o.pct === max && max > 0 ? ' top' : ''}"><i style="width:${o.pct}%"></i>${twIcon(o)}<span>${esc(o.title)}</span><b>${o.pct}%</b></div>`).join('');
-  const foot = a.type === 'chat' ? `TYPE <b>!sus NAME</b> IN CHAT · ${a.voters} VOTED` : a.type === 'prediction' ? `${a.voters} PREDICTED · ${Number(a.total).toLocaleString()} CHANNEL POINTS` : `${a.total} VOTES`;
-  put('twitch', `<div class="tw"><div class="hd"><span class="k">${TWK[a.type] || 'TWITCH'}</span>${a.lobby ? esc(a.lobby) : ''}<span class="cd">${a.status === 'locked' ? 'LOCKED' : mmss(a.left)}</span></div><h3>${esc(a.type === 'chat' ? 'Chat thinks…' : a.title)}</h3>${rows}<div class="ft">${foot}</div></div>`, css);
+  const rows = opts.map(o => `<div class="row"><i></i>${twIcon(o)}<span>${esc(o.title)}</span><b></b></div>`).join('');
+  const foot = a.type === 'chat' ? 'TYPE <b>!sus NAME</b> IN CHAT · <span class="n"></span> VOTED' : a.type === 'prediction' ? '<span class="n"></span> PREDICTED · <span class="pts"></span> CHANNEL POINTS' : '<span class="n"></span> VOTES';
+  const el = put('twitch', `<div class="tw"><div class="hd"><span class="k">${TWK[a.type] || 'TWITCH'}</span>${a.lobby ? esc(a.lobby) : ''}<span class="cd"></span></div><h3>${esc(a.type === 'chat' ? 'Chat thinks…' : a.title)}</h3>${rows}<div class="ft">${foot}</div></div>`, css);
+  setT(el, '.cd', a.status === 'locked' ? 'LOCKED' : mmss(a.left));
+  el.querySelectorAll('.row').forEach((r, i) => {
+    const o = opts[i]; if (!o) return;
+    setW(r, 'i', o.pct); setT(r, 'b', o.pct + '%');
+    r.classList.toggle('top', o.pct === max && max > 0);
+  });
+  setT(el, '.ft .n', String(a.type === 'poll' ? a.total : a.voters));
+  if (a.type === 'prediction') setT(el, '.ft .pts', Number(a.total).toLocaleString());
 }
 
 // More elements are added by later parts (sponsors, alerts, counters…).
@@ -438,17 +486,28 @@ function render() {
   root.setProperty('--font', `"${th.font || 'Rajdhani'}"`); root.setProperty('--head', `"${th.headingFont || 'Teko'}"`);
   loadFonts(th);
   stage.style.width = S.canvas.w + 'px'; stage.style.height = S.canvas.h + 'px';
-  const scale = Math.min(innerWidth / S.canvas.w, innerHeight / S.canvas.h);
-  stage.style.transform = `scale(${scale})`;
-  for (const el of Object.values(shown)) el.dataset.seen = '';
+  SCALE = Math.min(innerWidth / S.canvas.w, innerHeight / S.canvas.h) || 1;
+  stage.style.transform = `scale(${SCALE})`;
+  GEN++;
+  // Each graphic draws on its own: one going wrong (odd data from a lobby) leaves the rest of the overlay working.
+  const draw = (name, fn) => { try { fn(); } catch (e) { console.error(name, e); } };
   for (const slot of S.slots) {
-    if (!slot.lobby) { emptyTile(slot); continue; }
-    const l = S.lobbies[slot.lobby], k = slot.w / S.canvas.w;
-    for (const [name, draw] of Object.entries(ELEMENTS)) if (S.elements[name]) draw(slot, l, Math.max(k, 0.42));
-    reconnecting(slot, l, Math.max(k, 0.42));
+    if (!slot.lobby) { draw('empty', () => emptyTile(slot)); continue; }
+    const l = S.lobbies[slot.lobby], k = Math.max(slot.w / S.canvas.w, 0.42);
+    for (const [name, fn] of Object.entries(ELEMENTS)) if (S.elements[name]) draw(name, () => fn(slot, l, k));
+    draw('reconnecting', () => reconnecting(slot, l, k));
   }
-  for (const [name, draw] of Object.entries(GLOBAL)) if (S.elements[name] || ALWAYS.has(name)) draw();
-  for (const el of Object.values(shown)) if (!el.dataset.seen) el.classList.add('hide');
+  for (const [name, fn] of Object.entries(GLOBAL)) if (S.elements[name] || ALWAYS.has(name)) draw(name, fn);
+  // Pieces not drawn this time fade out, and are removed once faded (alerts and player cards used to pile up
+  // hidden, their animations still running). The break's video goes at once: that stops it and its sound,
+  // and the next break plays it from the start.
+  const now = Date.now();
+  for (const [id, el] of Object.entries(shown)) {
+    if (el._gen === GEN) continue;
+    if (id === 'brk-video') { el.remove(); delete shown[id]; continue; }
+    if (!el.classList.contains('hide')) { el.classList.add('hide'); el._hiddenAt = now; }
+    else if (now - el._hiddenAt > 2000) { el.remove(); delete shown[id]; }
+  }
 }
 let fontKey = '';
 function loadFonts(th) {
@@ -459,8 +518,12 @@ function loadFonts(th) {
   link.href = 'https://fonts.googleapis.com/css2?' + fams.map(f => 'family=' + encodeURIComponent(f) + ':wght@400;700').join('&') + '&display=swap';
   document.head.appendChild(link);
 }
+// One request at a time: a slow answer is never overtaken by a newer one and then drawn over it.
+let ticking = false;
 async function tick() {
-  try { S = await (await fetch('/broadcast/state', { cache: 'no-store' })).json(); render(); } catch (e) { }
+  if (ticking) return;
+  ticking = true;
+  try { S = await (await fetch('/broadcast/state', { cache: 'no-store' })).json(); render(); } catch (e) { console.error(e); } finally { ticking = false; }
 }
 tick(); setInterval(tick, 250);
 addEventListener('resize', () => S && render());

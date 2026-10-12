@@ -39,6 +39,9 @@ namespace TournamentTracker.App.Broadcast
         public string? Interruption { get; set; }
         /// <summary>A button on a desk card: "show:LJ" puts that lobby on (e.g. chat's pick for the next lobby).</summary>
         public string? Action { get; set; }
+
+        /// <summary>A copy as it is now (taken under the desk's lock, read after it's let go).</summary>
+        internal Card Snapshot() => (Card)MemberwiseClone();
     }
 
     /// <summary>What's on stream: one lobby full screen, two side by side, or four.</summary>
@@ -54,6 +57,9 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Where each slot is on the canvas, when the layout has its own (the grid); otherwise the standard slots.</summary>
         public List<Box>? Boxes { get; set; }
         public DateTime Since { get; set; }
+        /// <summary>How this switch goes on: "cut", "swoosh" or "fade" (null: as usual, a swoosh for lobbies and a cut for cameras). Not kept.</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string? Transition { get; set; }
 
         public static int SlotsFor(string layout) => layout is "4up" or "cams" ? 4 : layout == "2up" ? 2 : layout is "full" or "grid" or "break" or "cam" ? 1 : 0;
 
@@ -112,6 +118,39 @@ namespace TournamentTracker.App.Broadcast
 
         /// <summary>Called to put lobbies on stream (Part 4 drives OBS here). Gets the new on-air state.</summary>
         public Action<OnAir>? Switch { get; set; }
+        private readonly object _switchLock = new object();
+
+        /// <summary>
+        /// Hands a new on-air state to <see cref="Switch"/>, in the order the desk took them: two presses
+        /// at once (the Stream Deck and the desk, say) are served on two threads, and the older one
+        /// could otherwise reach OBS last. One that's already been replaced isn't sent at all.
+        /// </summary>
+        private void Raise(OnAir next)
+        {
+            lock (_switchLock)
+            {
+                if (!ReferenceEquals(next, OnAir)) return;
+                // What was on before a switch by hand, for Undo.
+                if (next.By is "button" or "deck" && _raised != null && _raised.Layout is not ("none" or "replay") && !SameAir(_raised, next)) _previous = _raised;
+                _raised = next;
+                Switch?.Invoke(next);
+            }
+        }
+
+        private OnAir? _raised, _previous;
+
+        private static bool SameAir(OnAir a, OnAir b) => a.Layout == b.Layout && a.Slots.SequenceEqual(b.Slots, StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Nothing to undo from here on (after Panic's own undo, say).</summary>
+        public void ForgetBack() { lock (_switchLock) _previous = null; }
+
+        /// <summary>Undo a switch by hand: what was on before it, on stream again. Null when there's nothing to go back to.</summary>
+        public OnAir? Back(string by = "deck")
+        {
+            OnAir? back;
+            lock (_switchLock) { back = _previous; _previous = null; }
+            return back == null ? null : Restore(back, by);
+        }
 
         /// <summary>The tournament's players: real names for everyone in the lobbies.</summary>
         public Roster Roster { get; }
@@ -209,26 +248,21 @@ namespace TournamentTracker.App.Broadcast
             }
             Board = new LobbyBoard(_config, _clock) { RosterName = (key, discord, name) => Roster.Match(key, discord, name).Entry?.Name };
             Board.PlayChanged += OnPlay;
-            if (clock == null) _tick = new Timer(_ => { try { Tick(); } catch (Exception) { } }, null, 1000, 1000);
+            _numbersPath = dataFolder == null ? null : System.IO.Path.Combine(dataFolder, NumbersFile);
+            LoadNumbers();
+            // One tick at a time: a slow one (the 5 s standings update late in the day) is skipped over,
+            // not run twice at once, or two ticks would make the same automatic switch together.
+            if (clock == null) _tick = new Timer(_ =>
+            {
+                if (Interlocked.Exchange(ref _ticking, 1) == 1) return;
+                try { Tick(); } catch (Exception) { }
+                finally { Volatile.Write(ref _ticking, 0); }
+            }, null, 1000, 1000);
         }
+
+        private int _ticking, _simTicking;
 
         public string? ConfigPath => _file?.Path;
-
-        // ---- One fixed order: each lobby's number, given when it first connects ------------------
-        private readonly Dictionary<string, int> _numbers = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-        /// <summary>A lobby's number (1, 2, 3… in the order they connected; the lowest free one). Kept for the session.</summary>
-        public int NumberOf(string lobby)
-        {
-            lock (_numbers)
-            {
-                if (_numbers.TryGetValue(lobby, out int n)) return n;
-                n = 1;
-                while (_numbers.ContainsValue(n)) n++;
-                _numbers[lobby] = n;
-                return n;
-            }
-        }
 
         public bool Simulating => _sim != null;
 
@@ -368,7 +402,7 @@ namespace TournamentTracker.App.Broadcast
             }
             if (made != null) CardMade?.Invoke(made);
             // A MUST SHOW play cuts a sponsor break short: straight back to full screen on it.
-            if (made != null && made.Tier == "must" && OnAir.Layout == "break") Show(lobby);
+            if (made != null && made.Tier == "must" && OnAir.Layout == "break" && !HoldBack($"A MUST SHOW play in {lobby} ending the sponsor break")) Show(lobby);
         }
 
         /// <summary>Notes a card's replay clip.</summary>
@@ -417,7 +451,12 @@ namespace TournamentTracker.App.Broadcast
                 _sim = on ? new FeedSimulator(_clock(), 4, Environment.TickCount) : null;
                 Roster.Extra.Clear();
                 if (on) Roster.Extra.AddRange(FeedSimulator.SimRoster());
-                if (_sim != null) _simTimer = new Timer(_ => SimTick(), null, 0, 500);
+                if (_sim != null) _simTimer = new Timer(_ =>
+                {
+                    if (Interlocked.Exchange(ref _simTicking, 1) == 1) return;
+                    try { SimTick(); } catch (Exception) { }
+                    finally { Volatile.Write(ref _simTicking, 0); }
+                }, null, 0, 500);
             }
             if (!on && was) ForgetSim();
         }
@@ -427,7 +466,7 @@ namespace TournamentTracker.App.Broadcast
         {
             Func<string, bool> sim = IsSimLobby;
             Board.Forget(sim);
-            lock (_numbers) foreach (var k in _numbers.Keys.Where(sim).ToList()) _numbers.Remove(k);
+            lock (_numbered) foreach (var k in _numbered.Keys.Where(sim).ToList()) _numbered.Remove(k);
             Tracks.Forget(sim);
             Health.Forget(sim);
             Alerts.Forget(sim);
@@ -444,6 +483,9 @@ namespace TournamentTracker.App.Broadcast
                 foreach (var k in _received.Keys.Where(k => sim(k.Split('|')[0])).ToList()) _received.Remove(k);
                 _interruptions.RemoveAll(i => sim(i.Lobby));
                 _offerDismissed.RemoveWhere(x => sim(x));
+                foreach (var d in new System.Collections.IDictionary[] { _camWant, _camSent, _armed })
+                    foreach (var k in d.Keys.Cast<string>().Where(sim).ToList()) d.Remove(k);
+                if (_preview.Slots.Any(sim)) _preview = new PreviewState { Slots = _preview.Slots.Where(x => !sim(x)).ToList(), Chosen = _preview.Chosen };
                 // Whatever on stream was theirs: the desk forgets it, OBS stays where it is.
                 if (_onAir.Slots.Any(x => sim(x ?? "")))
                 {
@@ -493,15 +535,27 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>The players a card is about (the key player first), for its Card buttons.</summary>
-        private List<object> CardPeople(Card card)
+        private List<object> CardPeople(Card card) => CardWho(card).Select(w => (object)new { w.Key, w.Name, w.Color }).ToList();
+
+        private List<(string Key, string Name, int Color)> CardWho(Card card)
         {
-            var list = new List<object>();
+            var list = new List<(string, string, int)>();
             if (card.Source is not { } src || src.ValueKind != JsonValueKind.Object) return list;
             var seen = new HashSet<string>();
             foreach (var prop in new[] { "killer", "impostor", "caller", "ejected", "player", "witness", "victim", "body", "crewmate" })
                 if (src.TryGetProperty(prop, out var p) && p.ValueKind == JsonValueKind.Object && WhoIs(card.Lobby, p) is { } w && seen.Add(w.Key))
-                    list.Add(new { w.Key, w.Name, w.Color });
+                    list.Add(w);
             return list;
+        }
+
+        /// <summary>The top notification's key player (the desk's C key, the Stream Deck's card key), or null.</summary>
+        public (string Key, string Lobby)? TopCardPlayer()
+        {
+            List<Card> cards;
+            lock (_lock) cards = _cards.Where(c => !c.Dismissed && !c.System).OrderByDescending(c => c.Value).ThenByDescending(c => c.Updated).Select(c => c.Snapshot()).ToList();
+            foreach (var c in cards)
+                if (CardWho(c) is { Count: > 0 } who) return (who[0].Key, c.Lobby);
+            return null;
         }
 
         /// <summary>Roster names for a lobby's players (player key → name), for its referee's nameplates and events.</summary>
@@ -577,11 +631,11 @@ namespace TournamentTracker.App.Broadcast
         /// Puts a lobby on stream. Full screen by default; 2-up or 4-up put it in the given slot (or
         /// the first) and fill the other slots with the top-ranked lobbies.
         /// </summary>
-        public OnAir Show(string lobby, string layout = "full", int? slot = null, IList<string>? slots = null, string by = "button")
+        public OnAir Show(string lobby, string layout = "full", int? slot = null, IList<string>? slots = null, string by = "button", string? transition = null)
         {
-            if (layout == "grid") return ShowGrid(by);
-            if (layout == "intermission") return ShowIntermission(by);
-            if (layout == "slate") return ShowSlate(by);
+            if (layout == "grid") return ShowGrid(by, null, transition);
+            if (layout == "intermission") return ShowIntermission(by, transition);
+            if (layout == "slate") return ShowSlate(by, transition);
             layout = OnAir.SlotsFor(layout) > 0 && layout != "break" ? layout : "full";
             int n = OnAir.SlotsFor(layout);
             var ranked = Board.Ranking().Where(r => r.Online && !IsDown(r.Lobby)).Select(r => r.Lobby).ToList();
@@ -606,12 +660,13 @@ namespace TournamentTracker.App.Broadcast
                     if (free < 0) break;
                     if (!filled.Any(f => string.Equals(f, top, StringComparison.OrdinalIgnoreCase))) filled[free] = top;
                 }
-                next = new OnAir { Layout = layout, Slots = filled, By = by, Since = _clock() };
+                next = new OnAir { Layout = layout, Slots = filled, By = by, Since = _clock(), Transition = transition };
                 _onAir = next;
                 MarkShown(next);
             }
             Left(next);
-            Switch?.Invoke(next);
+            Raise(next);
+            Touch();
             return next;
         }
 
@@ -633,19 +688,20 @@ namespace TournamentTracker.App.Broadcast
         private OnAir? _beforeIntermission;
         private readonly HashSet<string> _offerDismissed = new HashSet<string>();
 
-        public OnAir ShowIntermission(string by = "button")
+        public OnAir ShowIntermission(string by = "button", string? transition = null)
         {
             OnAir next;
             lock (_lock)
             {
                 if (_onAir.Layout is not ("intermission" or "replay" or "none" or "slate")) _beforeIntermission = _onAir;
-                next = new OnAir { Layout = "intermission", Slots = new List<string?>(), By = by, Since = _clock() };
+                next = new OnAir { Layout = "intermission", Slots = new List<string?>(), By = by, Since = _clock(), Transition = transition };
                 _onAir = next;
                 IntermissionOffer = false;
                 LiveDuringIntermission = null;
             }
             Left(next);
-            Switch?.Invoke(next);
+            Raise(next);
+            Touch();
             return next;
         }
 
@@ -674,13 +730,13 @@ namespace TournamentTracker.App.Broadcast
             {
                 if (playing.Count == 0) { LiveDuringIntermission = null; return true; }
                 LiveDuringIntermission ??= playing.OrderByDescending(r => r.Score).First().Lobby;
-                if (AutoIntermission && air.By == "auto") EndIntermission();
+                if (AutoIntermission && air.By == "auto" && !HoldBack("Auto intermission going back to the game")) EndIntermission();
                 return true;
             }
             if (online.Count == 0 || playing.Count > 0) { _quietSince = null; IntermissionOffer = false; return false; }
             _quietSince ??= now;
             if ((now - _quietSince.Value).TotalSeconds < IntermissionAfterSeconds || air.Layout is "replay" or "break") return false;
-            if (AutoIntermission) { ShowIntermission("auto"); return true; }
+            if (AutoIntermission && !HoldBack("Auto intermission")) { ShowIntermission("auto"); return true; }
             IntermissionOffer = true;
             return false;
         }
@@ -700,6 +756,7 @@ namespace TournamentTracker.App.Broadcast
             var phase = Board.Ranking().ToDictionary(r => r.Lobby, r => r.Phase, StringComparer.OrdinalIgnoreCase);
             bool Playing(string l) => phase.TryGetValue(l, out var p) && p == "ingame";
             if (!lobbies.Any(phase.ContainsKey) || lobbies.Any(Playing)) return false;
+            if (HoldBack("The player camera going back to the whole map")) return false;
             if (lobbies.Count == 1) Show(lobbies[0], "full", null, null, "auto");
             else ShowPicked(lobbies, "auto");
             return true;
@@ -913,7 +970,8 @@ namespace TournamentTracker.App.Broadcast
             }
             Sponsors.EndAll("grid:");
             Sponsors.Begin("break", sp, "break", lobby);
-            Switch?.Invoke(next);
+            Raise(next);
+            Touch();
             return $"Sponsor break: {sp.Name} for {Math.Max(5, sp.BreakSeconds)}s.";
         }
 
@@ -960,23 +1018,23 @@ namespace TournamentTracker.App.Broadcast
         /// The lobbies picked on the Live desk, sent: in <paramref name="layout"/> when a view was chosen
         /// (extra lobbies left out, empty slots left empty), else the layout for how many there are.
         /// </summary>
-        public OnAir ShowPicked(IList<string> lobbies, string by = "button", string? layout = null)
+        public OnAir ShowPicked(IList<string> lobbies, string by = "button", string? layout = null, string? transition = null)
         {
             var pick = lobbies.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (pick.Count == 0) return OnAir;
             List<string?> Fill(int n) { var s = pick.Take(n).Cast<string?>().ToList(); while (s.Count < n) s.Add(null); return s; }
-            if (layout == "cams") return pick.Count == 1 ? Show(pick[0], "cam", null, null, by) : Show("", "cams", null, Fill(4)!, by);
+            if (layout == "cams") return pick.Count == 1 ? Show(pick[0], "cam", null, null, by, transition) : Show("", "cams", null, Fill(4)!, by, transition);
             return (layout is "full" or "2up" or "4up" or "grid" ? layout : LayoutFor(pick.Count)) switch
             {
-                "full" => Show(pick[0], "full", null, null, by),
-                "2up" => Show("", "2up", null, Fill(2)!, by),     // empty slots are null: Show takes them
-                "4up" => Show("", "4up", null, Fill(4)!, by),
-                _ => ShowGrid(by, pick),
+                "full" => Show(pick[0], "full", null, null, by, transition),
+                "2up" => Show("", "2up", null, Fill(2)!, by, transition),     // empty slots are null: Show takes them
+                "4up" => Show("", "4up", null, Fill(4)!, by, transition),
+                _ => ShowGrid(by, pick, transition),
             };
         }
 
         /// <summary>The grid on stream: one tile per active lobby (or the ones picked), empty tiles left for sponsors or the logo.</summary>
-        public OnAir ShowGrid(string by = "button", IList<string>? pick = null)
+        public OnAir ShowGrid(string by = "button", IList<string>? pick = null, string? transition = null)
         {
             var lobbies = pick?.ToList() ?? GridLobbies();
             var (cols, rows) = ObsDirector.GridShape(lobbies.Count);
@@ -985,12 +1043,13 @@ namespace TournamentTracker.App.Broadcast
             OnAir next;
             lock (_lock)
             {
-                next = new OnAir { Layout = "grid", Slots = slots, By = by, Since = _clock() };
+                next = new OnAir { Layout = "grid", Slots = slots, By = by, Since = _clock(), Transition = transition };
                 _onAir = next;
                 MarkShown(next);
             }
             Left(next);
-            Switch?.Invoke(next);
+            Raise(next);
+            Touch();
             return next;
         }
 
@@ -1059,19 +1118,21 @@ namespace TournamentTracker.App.Broadcast
             OnAir air;
             lock (_lock) air = _onAir;
             CamAudioTick(air);
+            CamFollowTick();
             if (air.Layout is "replay" or "slate") return;
+            if (ArmedTick(air)) return;
             if (CamTick(air)) return;
             if (IntermissionTick(air)) return;
             if (air.Layout == "break")
             {
-                if (Break is { } b && _clock() >= b.Until) Show(b.Lobby ?? "");
+                if (Break is { } b && _clock() >= b.Until && !HoldBack("The sponsor break ending")) Show(b.Lobby ?? "");
                 return;
             }
             var ranking = Board.Ranking().Where(r => r.Online && r.Phase != "menu").ToList();
             bool quiet = ranking.Count > 0 && ranking.All(r => r.Phase != "ingame");
             if (air.Layout == "grid")
             {
-                if (AutoGrid && _beforeGrid != null && !quiet)
+                if (AutoGrid && _beforeGrid != null && !quiet && !HoldBack("Auto grid going back to the game"))
                 {
                     var back = _beforeGrid;
                     _beforeGrid = null;
@@ -1081,10 +1142,10 @@ namespace TournamentTracker.App.Broadcast
                 }
                 var want = GridLobbies();
                 var have = air.Slots.Where(x => x != null).ToList();
-                if (!want.SequenceEqual(have!, StringComparer.OrdinalIgnoreCase)) ShowGrid(air.By);
+                if (!want.SequenceEqual(have!, StringComparer.OrdinalIgnoreCase) && !HoldBack("The grid closing up")) ShowGrid(air.By);
                 return;
             }
-            if (AutoGrid && quiet && air.Layout != "none")
+            if (AutoGrid && quiet && air.Layout != "none" && !HoldBack("Auto grid"))
             {
                 _beforeGrid = air;
                 ShowGrid("auto");
@@ -1106,6 +1167,7 @@ namespace TournamentTracker.App.Broadcast
             }
             Left(state);
             AirChangedInObs?.Invoke(state);
+            Touch();
         }
 
         /// <summary>OBS made the switch the desk asked for (or showed it's on what the desk has): note its scene.</summary>
@@ -1150,6 +1212,12 @@ namespace TournamentTracker.App.Broadcast
                 .GroupBy(x => x.Key).ToDictionary(g => g.Key, g => g.First().Value);
             var online = ranking.ToDictionary(r => r.Lobby, r => r.Online, StringComparer.OrdinalIgnoreCase);
             var now = _clock();
+            // Under the desk's lock only the card lists are tidied and copied. Everything that asks the
+            // board, the archive or the roster (names, players, wins) is worked out after it is let go:
+            // the feed holds those while it hands the desk new plays, so asking them under the desk's
+            // lock could deadlock the two.
+            List<Card> cards, history;
+            OnAir air;
             lock (_lock)
             {
                 // A card whose play has faded (or was dismissed) moves to the history.
@@ -1170,57 +1238,71 @@ namespace TournamentTracker.App.Broadcast
                     _history.Insert(0, card);
                 }
                 if (_history.Count > KeepHistory) _history.RemoveRange(KeepHistory, _history.Count - KeepHistory);
+                cards = _cards.OrderByDescending(x => x.Value).ThenByDescending(x => x.Updated).Select(x => x.Snapshot()).ToList();
+                history = _history.OrderByDescending(x => x.At).Take(60).Select(x => x.Snapshot()).ToList();
+                air = _onAir;
+            }
 
-                object View(Card x) => new
+            object View(Card x) => new
+            {
+                x.Id, x.Lobby, x.Rule, x.Tier, x.Text, x.Repeats, x.Crew, x.Imps, x.TaskPct,
+                Value = Math.Round(x.Value, 1),
+                Ago = Math.Max(0, (int)(now - x.At).TotalSeconds),
+                UpdatedAgo = Math.Max(0, (int)(now - x.Updated).TotalSeconds),
+                At = x.At.ToString("o"),
+                Shown = x.ShownAt?.ToString("o"),
+                x.ShownHow,
+                OnAir = air.Label(x.Lobby),
+                Clip = x.ClipId == null ? null : new { Id = x.ClipId, State = x.ClipState },
+                People = CardPeople(x),
+                Offline = online.TryGetValue(x.Lobby, out var on) && !on,
+                x.System,
+                x.Interruption,
+                x.Action,
+            };
+            var wins = Wins();
+            var preview = Preview;
+            return new
+            {
+                Simulating,
+                ConfigPath,
+                Problem = _file?.Problem,
+                AutoGrid,
+                Health = HealthState(),
+                AutoSwitched = AutoSwitched is { } asw ? new { asw.Lobby, asw.Text, At = asw.At.ToString("o") } : null,
+                Intermission = new { On = air.Layout == "intermission", Offer = IntermissionOffer, Auto = AutoIntermission, Live = LiveDuringIntermission, NextRoundAt = NextRoundAt?.ToString("o"), Montage = QueuedMontage?.Title },
+                WinScope, Wins = new { Impostors = wins.Impostors, Crew = wins.Crew },
+                Break = Break is { } br ? new { Sponsor = br.Sponsor.Name, Left = Math.Max(0, (int)Math.Ceiling((br.Until - now).TotalSeconds)), br.Lobby } : null,
+                OnAir = new { air.Layout, air.Slots, air.By, air.Scene, Since = air.Since == default ? null : air.Since.ToString("o") },
+                Preview = new { Layout = preview.Layout, preview.Slots },
+                Hold = HoldState(),
+                Lobbies = ranking.OrderBy(r => NumberOf(r.Lobby)).Select(r =>
                 {
-                    x.Id, x.Lobby, x.Rule, x.Tier, x.Text, x.Repeats, x.Crew, x.Imps, x.TaskPct,
-                    Value = Math.Round(x.Value, 1),
-                    Ago = Math.Max(0, (int)(now - x.At).TotalSeconds),
-                    UpdatedAgo = Math.Max(0, (int)(now - x.Updated).TotalSeconds),
-                    At = x.At.ToString("o"),
-                    Shown = x.ShownAt?.ToString("o"),
-                    x.ShownHow,
-                    OnAir = _onAir.Label(x.Lobby),
-                    Clip = x.ClipId == null ? null : new { Id = x.ClipId, State = x.ClipState },
-                    People = CardPeople(x),
-                    Offline = online.TryGetValue(x.Lobby, out var on) && !on,
-                    x.System,
-                    x.Interruption,
-                    x.Action,
-                };
-                return new
-                {
-                    Simulating,
-                    ConfigPath,
-                    Problem = _file?.Problem,
-                    AutoGrid,
-                    Health = HealthState(),
-                    AutoSwitched = AutoSwitched is { } asw ? new { asw.Lobby, asw.Text, At = asw.At.ToString("o") } : null,
-                    Intermission = new { On = _onAir.Layout == "intermission", Offer = IntermissionOffer, Auto = AutoIntermission, Live = LiveDuringIntermission, NextRoundAt = NextRoundAt?.ToString("o"), Montage = QueuedMontage?.Title },
-                    WinScope, Wins = new { Impostors = Wins().Impostors, Crew = Wins().Crew },
-                    Break = Break is { } br ? new { Sponsor = br.Sponsor.Name, Left = Math.Max(0, (int)Math.Ceiling((br.Until - now).TotalSeconds)), br.Lobby } : null,
-                    OnAir = new { _onAir.Layout, _onAir.Slots, _onAir.By, _onAir.Scene, Since = _onAir.Since == default ? null : _onAir.Since.ToString("o") },
-                    Lobbies = ranking.OrderBy(r => NumberOf(r.Lobby)).Select(r => new
+                    var live = Board.Lobby(r.Lobby);
+                    return new
                     {
                         No = NumberOf(r.Lobby),
-                        People = r.People.Where(p => p.Key.Length > 0).Select(p => { var l = Board.Lobby(r.Lobby); return new { p.Key, Name = l == null ? p.Name : Board.DisplayName(l, p.Id, p.Name), p.Color }; }).ToList(),
+                        People = r.People.Where(p => p.Key.Length > 0).Select(p => new { p.Key, Name = live == null ? p.Name : Board.DisplayName(live, p.Id, p.Name), p.Color }).ToList(),
                         r.Lobby, r.Online, r.Score, r.Tier, r.Line, r.Phase, r.Crew, r.Imps, r.TaskPct, r.Game, r.Round, r.Spec,
+                        r.Map, r.Sabotage, r.SabotageLeft, r.SabotageCritical, r.Danger,
                         Players = r.Players.Select(p => new
                         {
                             Id = p.TryGetProperty("id", out var i) ? i.GetInt32() : 0,
                             Name = p.TryGetProperty("name", out var n) ? n.GetString() : "",
-                            Colour = p.TryGetProperty("colorName", out var c) ? c.GetString() : "",
+                            Colour = p.TryGetProperty("colorName", out var co2) ? co2.GetString() : "",
                             Imp = p.TryGetProperty("imp", out var im) && im.ValueKind == JsonValueKind.True,
                             Color = p.TryGetProperty("color", out var co) && co.ValueKind == JsonValueKind.Number ? co.GetInt32() : (int?)null,
                             Dead = p.TryGetProperty("dead", out var de) && de.ValueKind == JsonValueKind.True,
                         }).ToList(),
-                        OnAir = _onAir.Label(r.Lobby),
+                        OnAir = air.Label(r.Lobby),
+                        Tally = Tally(r.Lobby, air, preview),
+                        Cam = CamView(r.Lobby, r.Spec),
                         Health = Health.Status(r.Lobby).Level,
-                    }).ToList(),
-                    Cards = _cards.OrderByDescending(x => x.Value).ThenByDescending(x => x.Updated).Select(View).ToList(),
-                    History = _history.OrderByDescending(x => x.At).Take(60).Select(View).ToList(),
-                };
-            }
+                    };
+                }).ToList(),
+                Cards = cards.Select(View).ToList(),
+                History = history.Select(View).ToList(),
+            };
         }
 
         public void Dispose()

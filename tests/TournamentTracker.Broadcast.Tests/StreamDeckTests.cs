@@ -1,0 +1,287 @@
+using System.Net;
+using System.Text;
+using System.Text.Json;
+using TournamentTracker.App.Broadcast;
+using TournamentTracker.Setup;
+using Xunit;
+
+namespace TournamentTracker.Tests;
+
+/// <summary>
+/// The Stream Deck's links as the Red Alert plugin uses them: status codes a key can show, Preview
+/// and Take, player cameras by lobby and slot (armed while a lobby is in a meeting), the long-polled
+/// state, hold, panic and undo.
+/// </summary>
+public class StreamDeckTests : IAsyncLifetime
+{
+    private readonly TempDir _dir = new();
+    private BroadcastServer _server = null!;
+    private HttpClient _app = null!, _deck = null!;
+    private string _key = "";
+    private FakeObs? _obs;
+
+    public async Task InitializeAsync()
+    {
+        // A swoosh video already there (none made with ffmpeg), and switches at once.
+        string folder = Path.Combine(_dir.Path, "RedAlert");
+        Directory.CreateDirectory(folder);
+        File.WriteAllBytes(Path.Combine(folder, "swoosh.webm"), new byte[] { 1 });
+        File.WriteAllText(Path.Combine(folder, ObsSettings.FileName), JsonSerializer.Serialize(new { swoosh = new { path = Path.Combine(folder, "swoosh.webm"), transitionPointMs = 0 } }));
+        _server = new BroadcastServer(new BroadcastEnvironment { SettingsFile = Path.Combine(_dir.Path, "RedAlert", "settings.json"), Port = 0, CasterPort = 0, Version = "0.1.0" }, new HttpClient(new FakeHttp()));
+        _app = new HttpClient { BaseAddress = new Uri(_server.Url) };
+        _app.DefaultRequestHeaders.Add("X-App-Token", _server.Token);
+        _deck = new HttpClient { BaseAddress = new Uri(_server.Url) };
+        var admin = new SetupCode { Mode = "admin", TournamentId = "c", TournamentName = "Cup", BotTokens = new() { "admin" }, ResultsChannelId = "results" };
+        Assert.True((await Post("app/admin/code", new { code = admin.Encode() })).GetProperty("ok").GetBoolean());
+        string link = (await Get("app/admin/deck")).GetProperty("links")[0].GetProperty("url").GetString()!;
+        _key = link.Substring(link.IndexOf("key=") + 4);
+    }
+
+    public async Task DisposeAsync()
+    {
+        _server.Dispose();
+        if (_obs != null) await _obs.DisposeAsync();
+        _dir.Dispose();
+    }
+
+    private async Task<JsonElement> Get(string path) => JsonDocument.Parse(await _app.GetStringAsync(path)).RootElement.Clone();
+
+    private async Task<JsonElement> Post(string path, object body)
+    {
+        var r = await _app.PostAsync(path, new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"));
+        return JsonDocument.Parse(await r.Content.ReadAsStringAsync()).RootElement.Clone();
+    }
+
+    /// <summary>A Stream Deck press (POST, like the plugin; the key in the query).</summary>
+    private async Task<(HttpStatusCode Status, JsonElement Body)> Press(string path, string more = "")
+    {
+        var r = await _deck.PostAsync($"deck/{path}?key={_key}{more}", new StringContent(""));
+        var text = await r.Content.ReadAsStringAsync();
+        return (r.StatusCode, text.Length > 0 && text[0] == '{' ? JsonDocument.Parse(text).RootElement.Clone() : default);
+    }
+
+    private async Task<JsonElement> State(string more = "") => JsonDocument.Parse(await _deck.GetStringAsync($"deck/state?key={_key}{more}")).RootElement.Clone();
+
+    private CasterDesk Desk => _server.Desk!;
+
+    /// <summary>A lobby's snapshot as its host's mod sends it.</summary>
+    private void Snap(string lobby, string phase, bool cam = true, int? camOn = 2)
+    {
+        Desk.Apply(JsonSerializer.Serialize(new
+        {
+            type = "snap", lobby, round = 1, game = lobby + "-1", phase, crewAlive = 6, impAlive = 2, taskPct = 40,
+            spec = new { cam, camPick = (int?)null, camOn, on = true, audio = "wide" },
+            // Colour order is the slot order: red (0), blue (1), green (2, dead).
+            players = new object[]
+            {
+                new { id = 2, name = "Bob", color = 1, key = "bob#1" },
+                new { id = 1, name = "Ann", color = 0, key = "ann#1", imp = true },
+                new { id = 3, name = "Cy", color = 2, key = "cy#1", dead = true },
+            },
+        }));
+    }
+
+    private async Task ConnectObs()
+    {
+        _obs = new FakeObs();
+        var r = await Post("app/admin/obs", new { host = "127.0.0.1", port = _obs.Port.ToString(), password = "secret" });
+        Assert.True(r.GetProperty("ok").GetBoolean(), r.GetProperty("message").GetString());
+    }
+
+    private static async Task Until(Func<bool> done, int ms = 5000)
+    {
+        for (int i = 0; i < ms / 20 && !done(); i++) await Task.Delay(20);
+        Assert.True(done());
+    }
+
+    [Fact]
+    public async Task Every_answer_says_with_its_status_whether_it_happened()
+    {
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _deck.PostAsync("deck/lobby/1?key=wrong", new StringContent(""))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await Press("nonsense")).Status);
+        Assert.Equal(HttpStatusCode.NotFound, (await Press("lobby/1")).Status);                 // no live lobbies yet
+        Snap("Lobby 3", "ingame");
+        // OBS isn't connected (and this isn't simulation): nothing switches, and the key says so.
+        var (noObs, body) = await Press("lobby/3");
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, noObs);
+        Assert.False(body.GetProperty("ok").GetBoolean());
+        Assert.Equal("none", Desk.OnAir.Layout);
+        Assert.Equal(HttpStatusCode.NotFound, (await Press("lobby/9")).Status);
+        Assert.Equal(HttpStatusCode.Conflict, (await Press("take")).Status);                    // nothing in Preview
+        // Preview needs no OBS; the same press straight after counts once.
+        Assert.Equal(HttpStatusCode.OK, (await Press("pvw/lobby/3")).Status);
+        var again = await Press("pvw/lobby/3");
+        Assert.Equal(HttpStatusCode.OK, again.Status);
+        Assert.Equal("ignored repeat", again.Body.GetProperty("message").GetString());
+        // Switching held: where the action is waits (locked), and says why.
+        Assert.Equal(HttpStatusCode.OK, (await Press("hold/on")).Status);
+        Assert.Equal(HttpStatusCode.Locked, (await Press("lobby/action")).Status);
+        Assert.True((await State()).GetProperty("hold").GetBoolean());
+
+        // Locked (no administration code): 423 for the plugin to say so.
+        await Post("app/admin/code", new { code = "" });
+        Assert.Equal(HttpStatusCode.Locked, (await Press("lobby/3")).Status);
+        Assert.Equal(HttpStatusCode.Locked, (await _deck.GetAsync($"deck/state?key={_key}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Player_slots_are_every_player_in_colour_order_and_a_pick_is_sent_until_the_host_has_it()
+    {
+        Snap("Lobby 3", "ingame");
+        // Slot 2 is blue (Bob, id 2): red is slot 1, the dead green player is still slot 3.
+        var (status, body) = await Press("cam/3/slot2", "&arm=1");
+        Assert.Equal(HttpStatusCode.Accepted, status);
+        Assert.Contains("Bob", body.GetProperty("message").GetString());
+        Assert.Equal(2, Desk.CamPick("Lobby 3"));
+        var lobby = (await State()).GetProperty("lobbies")[0];
+        Assert.Equal(3, lobby.GetProperty("no").GetInt32());
+        Assert.Equal(new[] { (1, "red", "Ann", false), (2, "blue", "Bob", false), (3, "green", "Cy", true) },
+            lobby.GetProperty("players").EnumerateArray().Select(p => (p.GetProperty("slot").GetInt32(), p.GetProperty("colour").GetString()!, p.GetProperty("name").GetString()!, p.GetProperty("dead").GetBoolean())));
+        Assert.Equal(2, lobby.GetProperty("cam").GetProperty("pick").GetInt32());
+        // The host is told (over the desk page's link), once per kind: the newest pick replaces an older one.
+        await Press("cam/3/red", "&arm=1");
+        var sent = (await Get("app/admin/specout")).EnumerateArray().Where(x => x.GetProperty("command").GetString()!.StartsWith("spec cam")).ToList();
+        Assert.Equal("spec cam 1", Assert.Single(sent).GetProperty("command").GetString());
+        // Not taken by the host (its snapshot still says it picks by itself): asked again within a few seconds.
+        bool again = false;
+        for (int i = 0; i < 60 && !again; i++)
+        {
+            await Task.Delay(100);
+            again = (await Get("app/admin/specout")).EnumerateArray().Any(x => x.GetProperty("command").GetString() == "spec cam 1");
+        }
+        Assert.True(again);
+        Assert.Equal(HttpStatusCode.NotFound, (await Press("cam/3/slot9")).Status);
+        Assert.Equal(HttpStatusCode.NotFound, (await Press("cam/7/slot1")).Status);
+    }
+
+    [Fact]
+    public async Task A_camera_is_refused_when_cameras_are_off_and_armed_in_a_meeting_until_play_resumes()
+    {
+        await ConnectObs();
+        Snap("Lobby 3", "ingame", cam: false, camOn: null);
+        Assert.Equal(HttpStatusCode.Conflict, (await Press("cam/3/slot1")).Status);            // the host isn't sending one
+        await Post("app/admin/cam", new { all = "off" });
+        Snap("Lobby 3", "ingame");
+        Assert.Equal(HttpStatusCode.Conflict, (await Press("cam/3/slot2")).Status);            // player cameras off
+        await Post("app/admin/cam", new { all = "on" });
+
+        // In a meeting: armed, not on stream; the state shows it.
+        Snap("Lobby 3", "meeting");
+        await Task.Delay(350);                              // the same press straight after would count once
+        var (status, body) = await Press("cam/3/slot2");
+        Assert.Equal(HttpStatusCode.Accepted, status);
+        Assert.Contains("meeting", body.GetProperty("message").GetString());
+        Assert.NotEqual("cam", Desk.OnAir.Layout);
+        var cam = (await State()).GetProperty("lobbies")[0].GetProperty("cam");
+        Assert.True(cam.GetProperty("armed").GetBoolean());
+        Assert.Equal(2, cam.GetProperty("pick").GetInt32());
+        // Pressed again: taken back.
+        await Task.Delay(350);
+        Assert.Equal(HttpStatusCode.OK, (await Press("cam/3/slot2")).Status);
+        Assert.False(Desk.Armed("Lobby 3").Armed);
+        await Task.Delay(350);
+        await Press("cam/3/slot2");
+
+        // Play resumes: the camera goes on stream by itself, following Bob.
+        Snap("Lobby 3", "ingame");
+        await Until(() => Desk.OnAir.Layout == "cam");
+        Assert.Equal("Lobby 3", Desk.OnAir.Slots[0]);
+        Assert.False(Desk.Armed("Lobby 3").Armed);
+        Assert.Equal(2, Desk.CamPick("Lobby 3"));
+    }
+
+    [Fact]
+    public async Task Preview_is_shared_with_the_desk_and_Take_puts_it_on_stream()
+    {
+        await ConnectObs();
+        Snap("Lobby 1", "ingame");
+        Snap("Lobby 2", "ingame");
+        Snap("Lobby 3", "meeting");
+        Assert.Equal(HttpStatusCode.OK, (await Press("pvw/lobby/1")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await Press("pvw/add/3")).Status);
+        var state = await State();
+        Assert.Equal("2up", state.GetProperty("preview").GetProperty("layout").GetString());
+        Assert.Equal(new[] { "Lobby 1", "Lobby 3" }, state.GetProperty("preview").GetProperty("slots").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal("pvw", state.GetProperty("lobbies").EnumerateArray().Single(l => l.GetProperty("no").GetInt32() == 3).GetProperty("tally").GetString());
+        // The desk page sees the same Preview.
+        Assert.Equal(new[] { "Lobby 1", "Lobby 3" }, (await Get("app/admin/live")).GetProperty("desk").GetProperty("preview").GetProperty("slots").EnumerateArray().Select(x => x.GetString()));
+
+        // Take as a quad, with a straight cut: on stream, Preview empty, tally red.
+        Assert.Equal(HttpStatusCode.OK, (await Press("take", "&as=quad&t=cut")).Status);
+        Assert.Equal("4up", Desk.OnAir.Layout);
+        Assert.Equal(new[] { "Lobby 1", "Lobby 3" }, Desk.OnAir.Slots.Take(2));
+        Assert.Empty(Desk.Preview.Slots);
+        await Until(() => _obs!.Program == "TT Quad");
+        state = await State();
+        Assert.Equal("pgm", state.GetProperty("lobbies").EnumerateArray().Single(l => l.GetProperty("no").GetInt32() == 1).GetProperty("tally").GetString());
+        Assert.Equal("4up", state.GetProperty("program").GetProperty("layout").GetString());
+
+        // Layout with nothing staged: what's on, in that layout (and Take puts it on).
+        Assert.Equal(HttpStatusCode.OK, (await Press("layout/2up")).Status);
+        Assert.Equal("2up", Desk.Preview.Layout);
+        Assert.Equal(HttpStatusCode.OK, (await Press("take")).Status);
+        Assert.Equal("2up", Desk.OnAir.Layout);
+    }
+
+    [Fact]
+    public async Task The_state_waits_for_a_change_and_leaves_out_impostors_unless_asked()
+    {
+        Snap("Lobby 3", "ingame");
+        var first = await State();
+        int rev = first.GetProperty("rev").GetInt32();
+        Assert.All(first.GetProperty("lobbies")[0].GetProperty("players").EnumerateArray(), p => Assert.False(p.TryGetProperty("imp", out _)));
+        var withImp = await State("&imp=1");
+        Assert.True(withImp.GetProperty("lobbies")[0].GetProperty("players").EnumerateArray().Single(p => p.GetProperty("id").GetInt32() == 1).GetProperty("imp").GetBoolean());
+
+        // Nothing new: the request waits.
+        var started = DateTime.UtcNow;
+        var waiting = State($"&since={rev}");
+        await Task.Delay(400);
+        Assert.False(waiting.IsCompleted);
+        // A press changes it: the answer comes at once, with a newer revision.
+        await Press("pvw/lobby/3");
+        var changed = await waiting.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.NotEqual(rev, changed.GetProperty("rev").GetInt32());
+        Assert.Equal("Lobby 3", changed.GetProperty("preview").GetProperty("slots")[0].GetString());
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(5));
+        Assert.Equal(_server.Port, changed.GetProperty("port").GetInt32());
+
+        // Key pictures.
+        var svg = await _deck.GetStringAsync($"deck/img/lobby/3.svg?key={_key}");
+        Assert.StartsWith("<svg", svg);
+        Assert.Contains("Lobby 3", svg);
+        Assert.Contains("stroke=\"#1fbf4a\" stroke-width=\"8\"", svg);      // a green border: in Preview
+        var head = await _deck.GetStringAsync($"deck/img/cam/3/slot2.svg?key={_key}");
+        Assert.Contains("data:image/png;base64,", head);
+        Assert.Contains("Bob", head);
+        Assert.Contains("OFF", await _deck.GetStringAsync($"deck/img/toggle/mute.svg?key={_key}"));
+    }
+
+    [Fact]
+    public async Task Panic_fades_to_be_right_back_mutes_and_holds_and_undo_puts_it_back()
+    {
+        await ConnectObs();
+        Snap("Lobby 3", "ingame");
+        Assert.Equal(HttpStatusCode.OK, (await Press("lobby/3", "&t=cut")).Status);
+        Assert.Equal("full", Desk.OnAir.Layout);
+        var (status, _) = await Press("panic");
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal("slate", Desk.OnAir.Layout);
+        Assert.True(Desk.Held);
+        Assert.True(Desk.Alerts.Settings.Paused);
+        var state = await State();
+        Assert.True(state.GetProperty("voice").GetProperty("muteAll").GetBoolean());
+        Assert.True(state.GetProperty("hold").GetBoolean());
+        await Until(() => _obs!.Program == "TT Be Right Back");
+
+        Assert.Equal(HttpStatusCode.OK, (await Press("undo")).Status);
+        Assert.Equal("full", Desk.OnAir.Layout);
+        Assert.Equal("Lobby 3", Desk.OnAir.Slots[0]);
+        Assert.False(Desk.Held);
+        Assert.False(Desk.Alerts.Settings.Paused);
+        Assert.False((await State()).GetProperty("voice").GetProperty("muteAll").GetBoolean());
+        // Nothing else to undo.
+        await Task.Delay(350);
+        Assert.Equal(HttpStatusCode.Conflict, (await Press("undo")).Status);
+    }
+}

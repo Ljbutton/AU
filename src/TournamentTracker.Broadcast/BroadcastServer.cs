@@ -103,6 +103,7 @@ namespace TournamentTracker.App.Broadcast
             if (obs == null) return;
             obs.Settings.Voice.MuteAll = !obs.Settings.Voice.MuteAll;
             _ = obs.VoiceChangedAsync();
+            DeckPoke();
         }
         public string Url => $"http://127.0.0.1:{Port}/";
         public CasterDesk? Desk => _desk;
@@ -116,11 +117,29 @@ namespace TournamentTracker.App.Broadcast
             var bytes = new byte[18];
             using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(bytes);
             Token = Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_');
-            try { _listener = new TcpListener(IPAddress.Loopback, env.Port); _listener.Start(); }
-            catch (SocketException) { _listener = new TcpListener(IPAddress.Loopback, 0); _listener.Start(); }     // the usual port is taken
+            _listener = Listen(env.Port);
             Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
             Task.Run(AcceptLoop);
             StartDesk();
+        }
+
+        /// <summary>
+        /// Listens on the usual port, else the next three (8769–8771, so the Stream Deck plugin can find
+        /// it by trying them), else any free one. Settings and the Stream Deck's state say when it isn't
+        /// the usual one: links copied before point at 8768.
+        /// </summary>
+        private static TcpListener Listen(int port)
+        {
+            var tries = port == DefaultPort ? Enumerable.Range(DefaultPort, 4).ToList() : new List<int> { port };
+            foreach (int p in tries)
+            {
+                var l = new TcpListener(IPAddress.Loopback, p);
+                try { l.Start(); return l; }
+                catch (SocketException) { }
+            }
+            var any = new TcpListener(IPAddress.Loopback, 0);
+            any.Start();
+            return any;
         }
 
         private void TrySave()
@@ -128,9 +147,9 @@ namespace TournamentTracker.App.Broadcast
             try { _settings.Save(_env.SettingsFile); } catch (Exception) { }
         }
 
-        private FileLog? _logFile;
-        /// <summary>Red Alert's own log (red-alert.log next to its settings).</summary>
-        public FileLog Log => _logFile ??= new FileLog(SideFolder(), "red-alert.log");
+        private RotatingLog? _logFile;
+        /// <summary>Red Alert's own log (red-alert.log next to its settings; the one before is kept as red-alert.log.1).</summary>
+        public RotatingLog Log => _logFile ??= new RotatingLog(SideFolder(), "red-alert.log");
 
         private string? SideFolder() => string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.GetDirectoryName(_env.SettingsFile);
 
@@ -155,6 +174,7 @@ namespace TournamentTracker.App.Broadcast
             var oldObs = _obs;
             _obs = null;
             if (oldObs != null) _ = oldObs.DisposeAsync().AsTask();
+            _panic = null;
             if (_settings.AdminCode != null && SetupCode.TryParse(_settings.AdminCode, out var code, out _) && code.IsAdmin)
             {
                 _organizer = new Organizer(code, _http, log: Log);
@@ -170,13 +190,17 @@ namespace TournamentTracker.App.Broadcast
                 caster.Follow = () => desk.OnAir.Slots.FirstOrDefault(x => x != null);
                 desk.AirChangedInObs += _ => caster.Refresh();
                 desk.HostCommand += SpecOut;
+                desk.CamsOn = () => !_settings.CamOff;
+                desk.Changed += DeckPoke;
                 var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(caster, desk)) { VoiceFeeds = () => VoiceFeeds(caster, desk), MuteHotkey = MuteHotkey, CamFeeds = () => caster.CamLinks() };
                 obs.ImpostorTagsOn = () => _broadcast?.Settings.Current.Elements.GetValueOrDefault("impostorTags") == true;
-                // The overlay and video page follow the lobby in the first slot; OBS (when connected) shows the whole layout.
+                obs.OutputChanged += DeckPoke;
+                // The overlay and video page follow the lobby in the first slot; OBS (when connected) shows the
+                // whole layout. OBS first: the caster pages' refresh can't hold up (or, throwing, stop) the switch.
                 desk.Switch = air =>
                 {
-                    caster.Refresh();
-                    if (obs.Connected) _ = obs.ApplyAsync(air);
+                    if (obs.Connected) _ = obs.ApplyAsync(air, air.Transition);
+                    try { caster.Refresh(); } catch (Exception) { }
                 };
                 if (caster.Url != null) obs.TagUrl = caster.Url + "replaytag";
                 var broadcast = _broadcast = new BroadcastApp(desk, () => _obs, SideFile(BroadcastSettings.FileName));
@@ -194,6 +218,10 @@ namespace TournamentTracker.App.Broadcast
                 obs.MakeSwoosh = builder.SwooshAsync;
                 var replays = _replays = new ReplayManager(desk, obs) { TagChanged = json => caster.ReplayNow = json, Builder = builder, Sponsors = desk.Sponsors };
                 _montages = new MontageManager(desk, replays, builder, desk.Sponsors, () => obs.Settings.Replay, archivePath: SideFile(MontageManager.ArchiveFile));
+                var made = _montages;
+                replays.Protected = made.ClipFiles;
+                replays.Saved += _ => DeckPoke();
+                replays.OnChanged += _ => DeckPoke();
                 // Part 23: Twitch (predictions, polls, !sus, channel points), shown on stream by the graphics app.
                 var twitch = _twitch = new TwitchDirector(desk, SideFolder(), _http) { Clips = replays.ReadyClips, PlayReplay = replays.PlayAsync };
                 broadcast.Extras["twitch"] = twitch.Overlay;
@@ -256,7 +284,7 @@ namespace TournamentTracker.App.Broadcast
         {
             if (_desk == null) return null;
             var list = _desk.Sponsors.Sponsors;
-            var log = _desk.Sponsors.Appearances();
+            var tally = _desk.Sponsors.Tallies();
             return new
             {
                 Path = _desk.Sponsors.Path,
@@ -267,9 +295,9 @@ namespace TournamentTracker.App.Broadcast
                 {
                     x.Name, x.Tagline, x.Placements, x.BreakSeconds, Logo = x.Logo.Length > 0,
                     Read = x.HasRead ? (x.ReadEveryMinutes > 0 ? $"read every {x.ReadEveryMinutes} min" : x.ReadEveryGames > 0 ? $"read every {x.ReadEveryGames} games" : $"read every {x.ReadEveryRounds} rounds") : null,
-                    Reads = log.Count(a => a.Sponsor == x.Name && a.Placement == "read"),
-                    Shown = log.Count(a => a.Sponsor == x.Name && a.Placement != "read"),
-                    Seconds = Math.Round(log.Where(a => a.Sponsor == x.Name).Sum(a => a.Seconds)),
+                    Reads = tally.TryGetValue(x.Name, out var t) ? t.Reads : 0,
+                    Shown = tally.TryGetValue(x.Name, out var t2) ? t2.Shown : 0,
+                    Seconds = Math.Round(tally.TryGetValue(x.Name, out var t3) ? t3.Seconds : 0),
                 }).ToList(),
             };
         }
@@ -356,6 +384,7 @@ namespace TournamentTracker.App.Broadcast
                 HotkeyProblem,
                 Update = UpdateState(),
                 Cam = _desk == null ? null : CamState(),
+                Port, PortWarning,
             };
         }
 
@@ -445,11 +474,13 @@ namespace TournamentTracker.App.Broadcast
                 return png.Length > 0 ? (200, "image/png", png) : Text(404, "text/plain", "Not found");
             }
             // Stream Deck links: their own key (they can't send the app's header, and must survive restarts).
-            if (route.StartsWith("/deck/", StringComparison.Ordinal) && (method == "GET" || method == "POST")) return Deck(route, query);
+            if (route.StartsWith("/deck/", StringComparison.Ordinal) && (method == "GET" || method == "POST")) return await Deck(route, query).ConfigureAwait(false);
             if (!route.StartsWith("/app/", StringComparison.Ordinal)) return Text(404, "text/plain", "Not found");
 
             headers.TryGetValue("x-app-token", out var token);
             if (token != Token && HttpRequest.Query(query, "token") != Token) return Text(401, "application/json", "{\"error\":\"bad token\"}");
+            // An action: the desk's next answer is new (it shows what the click did).
+            if (method == "POST") Interlocked.Increment(ref _postVersion);
 
             JsonElement input = default;
             if (body.Length > 0) { try { input = JsonDocument.Parse(body).RootElement; } catch (Exception) { } }
@@ -483,13 +514,26 @@ namespace TournamentTracker.App.Broadcast
                     return Ok(new { ok = true, message = _caster.Pinned is { } p ? $"Overlay pinned to {p}." : "Overlay follows what's on stream." });
                 case ("GET", "/app/admin/desk"):
                     if (_desk == null || _organizer == null) return Text(404, "application/json", "{\"error\":\"locked\"}");
-                    return Ok(new { desk = _desk.State(), obs = _obs?.Status(), replay = _replays?.State(), roster = _desk.RosterState(), story = _desk.StoryState(),
-                        montages = _montages?.State(), moments = _replays?.Moments(), sponsors = SponsorState(),
-                        voice = new { status = _desk.VoiceState(), obs = _obs?.VoiceStatus() },
-                        twitch = _twitch?.State(),
-                        broadcast = _broadcast == null ? null : new { url = _caster?.Url == null ? null : _caster.Url + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem, alerts = _desk.Alerts.Settings, alertsWaiting = _desk.Alerts.Waiting, queue = _desk.Graphics.State(), afterGame = _desk.PromptState(), afterGameAuto = _broadcast.Settings.Current.AfterGameAuto, hold = _broadcast.Settings.Current.GraphicSeconds },
-                        names = _caster!.DataLinks().ToDictionary(d => d.Lobby, d => _desk.NamesFor(d.Lobby)), receivers = _caster.DataLinks().Select(d => new { lobby = d.Lobby, url = d.Url }).ToList(),
-                        previews = Previews(), gameReplays = _desk.Replays.List(), twitchHandles = _desk.Board.Ranking().ToDictionary(r => r.Lobby, r => _desk.TwitchOf(r.Lobby)) });
+                    return Json200(await DeskAnswerAsync().ConfigureAwait(false));
+                case ("GET", "/app/admin/live"):
+                    if (_desk == null || _organizer == null) return Text(404, "application/json", "{\"error\":\"locked\"}");
+                    return Json200(await LiveAnswerAsync().ConfigureAwait(false));
+                case ("GET", "/app/admin/program.jpg"):
+                {
+                    // What's on stream, as OBS draws it (a small picture, about twice a second at most).
+                    var jpg = _obs == null ? null : await _obs.ProgramShotAsync(int.TryParse(HttpRequest.Query(query, "w"), out var w) ? w : 448).ConfigureAwait(false);
+                    return jpg == null ? (204, "image/jpeg", Array.Empty<byte>()) : (200, "image/jpeg", jpg);
+                }
+                case ("POST", "/app/admin/do"):
+                {
+                    // Any Stream Deck action from the desk page (Preview, Take, hold, panic, replays…), with its answer.
+                    string doPath = Arg("path").Trim('/');
+                    string doQuery = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("query", out var dq) && dq.ValueKind == JsonValueKind.Object
+                        ? string.Join("&", dq.EnumerateObject().Where(p => p.Value.ValueKind == JsonValueKind.String).Select(p => p.Name + "=" + Uri.EscapeDataString(p.Value.GetString() ?? ""))) : "";
+                    var (status, message) = await DeckActionAsync(doPath.Split('/', StringSplitOptions.RemoveEmptyEntries), doQuery).ConfigureAwait(false);
+                    DeckPoke();
+                    return Ok(new { ok = status is >= 200 and < 300, status, message });
+                }
                 case ("POST", "/app/admin/feedin"):
                     if (_desk == null) return Ok(new { ok = false });
                 {
@@ -642,7 +686,7 @@ namespace TournamentTracker.App.Broadcast
                             int? port = int.TryParse(Arg("port"), out var pt) ? pt : (int?)null;
                             string? password = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("password", out var pw) && pw.ValueKind == JsonValueKind.String ? pw.GetString() : null;
                             string message = await _obs.ConnectAsync(Arg("host").Length > 0 ? Arg("host") : null, port, password).ConfigureAwait(false);
-                            if (_obs.Connected && _desk != null && _desk.OnAir.Layout != "none" && _desk.OnAir.By == "button") await _obs.ApplyAsync(_desk.OnAir).ConfigureAwait(false);
+                            if (_obs.Connected && _desk != null && _desk.OnAir.Layout != "none" && _desk.OnAir.By is "button" or "deck") await _obs.ApplyAsync(_desk.OnAir).ConfigureAwait(false);
                             return Ok(new { ok = _obs.Connected, message });
                         }
                     }
@@ -936,7 +980,7 @@ namespace TournamentTracker.App.Broadcast
                     double Num(string name) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty(name, out var n)
                         ? n.ValueKind == JsonValueKind.Number ? n.GetDouble() : double.TryParse(n.GetString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0 : 0;
                     string said;
-                    bool duck = false;
+                    bool duck = false, rebuild = false;
                     switch (Arg("action"))
                     {
                         case "mute":
@@ -975,10 +1019,12 @@ namespace TournamentTracker.App.Broadcast
                         case "on":
                             v.On = Arg("on") == "true";
                             said = v.On ? "Lobby voice on stream." : "Lobby voice off stream.";
+                            rebuild = true;
                             break;
                         default: return Ok(new { ok = false, message = "Unknown voice action." });
                     }
-                    await _obs.VoiceChangedAsync(duck).ConfigureAwait(false);
+                    await _obs.VoiceChangedAsync(duck, rebuild).ConfigureAwait(false);
+
                     return Ok(new { ok = true, message = said });
                 }
                 case ("POST", "/app/admin/intermission"):
@@ -1071,6 +1117,7 @@ namespace TournamentTracker.App.Broadcast
             _twitch?.Dispose();
             _caster?.Dispose();
             _organizer?.Dispose();
+            try { _desk?.Replays.Flush(); } catch (Exception) { }
             _desk?.Dispose();
             _replays?.Dispose();
             if (_obs != null) try { _obs.DisposeAsync().AsTask().Wait(1500); } catch (Exception) { }

@@ -126,6 +126,7 @@ namespace TournamentTracker.App.Broadcast
                 added = true;
                 name = Creatable(name, root, inputs);
                 ids[list[0]] = await Create(name, list[0]).ConfigureAwait(false);
+                ForgetItems(list[0]);
                 inputs.Add(name);
             }
             for (int renames = 0; ; renames++)
@@ -133,9 +134,11 @@ namespace TournamentTracker.App.Broadcast
                 bool moved = false;
                 foreach (var scene in list)
                 {
-                    var mine = (await ItemsAsync(obs, scene).ConfigureAwait(false)).FirstOrDefault(i => i.Source == name);
+                    // Each scene's items are read once and kept until OBS says that scene changed (not once per lobby).
+                    var mine = (await SceneItemsAsync(obs, scene).ConfigureAwait(false)).FirstOrDefault(i => i.Source == name);
                     if (mine != null) { ids[scene] = mine.Id; continue; }
                     var (id, placed) = await PlaceAsync(obs, scene, name, root, enabled, inputs, Create).ConfigureAwait(false);
+                    ForgetItems(scene);
                     ids[scene] = id;
                     added = true;
                     if (placed != name) { name = placed; moved = true; break; }

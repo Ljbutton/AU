@@ -109,6 +109,21 @@ namespace TournamentTracker.App.Broadcast
         }
 
         public List<Montage> All { get { lock (_lock) return _list.ToList(); } }
+
+        /// <summary>Every clip file a montage or the montage archive still needs (old clips are never cleared away from under them).</summary>
+        public ISet<string> ClipFiles()
+        {
+            var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            void Add(string? f) { if (f != null) try { files.Add(Path.GetFullPath(f)); } catch (Exception) { } }
+            lock (_lock)
+            {
+                foreach (var a in _archive) foreach (var c in a.Clips) Add(c.File);
+                foreach (var m in _list)
+                    foreach (var id in m.ClipIds)
+                        if (_replays.Find(id) is { } c) { Add(c.File); Add(c.CamFile); }
+            }
+            return files;
+        }
         public Montage? Find(string id) { lock (_lock) return _list.FirstOrDefault(m => m.Id == id); }
 
         private Montage New(string kind, string title, string? lobby, int round)
@@ -430,6 +445,24 @@ namespace TournamentTracker.App.Broadcast
             return gone.Select(m => m.Id).ToHashSet();
         }
 
+        // Whether each archived file is still there, looked at again every 10 s: the desk asks on every
+        // poll, and each montage and clip was a disk look each time.
+        private readonly Dictionary<string, (bool There, DateTime At)> _exists = new Dictionary<string, (bool, DateTime)>(StringComparer.OrdinalIgnoreCase);
+
+        private bool Exists(string? file)
+        {
+            if (file == null) return false;
+            var now = DateTime.UtcNow;
+            lock (_exists)
+            {
+                if (_exists.TryGetValue(file, out var e) && now - e.At < TimeSpan.FromSeconds(10)) return e.There;
+                if (_exists.Count > 2000) _exists.Clear();
+            }
+            bool there = File.Exists(file);
+            lock (_exists) _exists[file] = (there, now);
+            return there;
+        }
+
         public object State()
         {
             var now = _clock();
@@ -450,9 +483,9 @@ namespace TournamentTracker.App.Broadcast
                         a.Id, a.Kind, a.Title, a.Lobby, a.Round, a.Sponsor, a.Duration,
                         Created = a.Created.ToString("o"), Played = a.PlayedAt.ToString("o"),
                         Game = a.Clips.Select(c => c.Game).FirstOrDefault(g => g != null),
-                        HasFile = a.File != null && File.Exists(a.File),
+                        HasFile = Exists(a.File),
                         Playing = _replays.Now?.Id == a.Id,
-                        Clips = a.Clips.Select(c => new { c.Id, c.Lobby, c.Title, c.Rule, Have = c.File != null && File.Exists(c.File) }).ToList(),
+                        Clips = a.Clips.Select(c => new { c.Id, c.Lobby, c.Title, c.Rule, Have = Exists(c.File) }).ToList(),
                     }).ToList(),
                 };
         }

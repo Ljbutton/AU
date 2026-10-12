@@ -57,6 +57,9 @@ namespace TournamentTracker.App.Broadcast
 
         public bool Has(string kind) { lock (_lock) return _now?.Kind == kind || _waiting.Any(x => x.Kind == kind); }
 
+        /// <summary>How many graphics are waiting their turn.</summary>
+        public int Waiting { get { lock (_lock) return _waiting.Count; } }
+
         /// <summary>Takes every graphic of a kind off (on stream or waiting).</summary>
         public void Remove(string kind) => Remove(g => g.Kind == kind);
 

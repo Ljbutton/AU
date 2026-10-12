@@ -333,11 +333,17 @@ namespace TournamentTracker.App.Broadcast
                 standingsChange = big?.Kind == "afterGame" ? new { change = big.Data, at = Place(big.Lobby, w, h, slots) } : null,
                 storyline = big?.Kind == "storyline" ? big.Data as string : null,
                 intermission = air.Layout is "intermission" or "slate" ? Intermission(round, air.Layout == "slate") : null,
-                wins = s.Elements.GetValueOrDefault("winCounter") || air.Layout is "intermission" or "slate" ? new { impostors = _desk.Wins().Impostors, crew = _desk.Wins().Crew, scope = _desk.WinScope } : null,
+                wins = s.Elements.GetValueOrDefault("winCounter") || air.Layout is "intermission" or "slate" ? Wins() : null,
                 playerCard = s.Elements.GetValueOrDefault("playerCards") || air.Layout == "replay" ? PlayerCard(air, w, h, slots) : null,
                 alerts = s.Elements.GetValueOrDefault("alerts") ? _desk.Alerts.Active().Select(a => new { a.Id, a.Lobby, number = numbers.GetValueOrDefault(a.Lobby), a.Kind, a.Text, a.Count }).ToList() : null,
                 extras = Extras.ToDictionary(kv => kv.Key, kv => { try { return kv.Value(); } catch (Exception) { return null; } }),
             };
+        }
+
+        private object Wins()
+        {
+            var (impostors, crew) = _desk.Wins();
+            return new { impostors, crew, scope = _desk.WinScope };
         }
 
         /// <summary>The intermission screen: countdown to the next round, standings, notes taking turns, the montage up next.</summary>

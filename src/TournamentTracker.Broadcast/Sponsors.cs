@@ -218,12 +218,33 @@ namespace TournamentTracker.App.Broadcast
         public void Log(string sponsor, string placement, DateTime start, DateTime end, string? lobby, string? moment)
         {
             if (_logPath == null || Held) return;
-            var line = JsonSerializer.Serialize(new { sponsor, placement, start = start.ToString("o"), end = end.ToString("o"), seconds = Math.Round((end - start).TotalSeconds, 1), lobby, moment });
+            double seconds = Math.Round((end - start).TotalSeconds, 1);
+            var line = JsonSerializer.Serialize(new { sponsor, placement, start = start.ToString("o"), end = end.ToString("o"), seconds, lobby, moment });
             lock (_lock)
             {
-                try { File.AppendAllText(_logPath, line + "\n"); } catch (Exception) { }
+                try
+                {
+                    File.AppendAllText(_logPath, line + "\n");
+                    // What's read already doesn't need reading again: the new line joins it, and the file's
+                    // size and time as it is now go with it (an edit by hand still makes it read again).
+                    if (_log is { } log)
+                    {
+                        var info = new FileInfo(_logPath);
+                        if (log.Length + Encoding.UTF8.GetByteCount(line + "\n") == info.Length)
+                        {
+                            log.List.Add(new Appearance { Sponsor = sponsor, Placement = placement, Start = start, End = end, Seconds = seconds, Lobby = lobby, Moment = moment });
+                            _log = (info.Length, info.LastWriteTimeUtc, log.List);
+                        }
+                        else _log = null;
+                    }
+                }
+                catch (Exception) { _log = null; }
             }
         }
+
+        private static readonly JsonSerializerOptions ReadJson = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        // The log as last read, with the file's size and time then: read again only when the file changed.
+        private (long Length, DateTime Stamp, List<Appearance> List)? _log;
 
         public sealed class Appearance
         {
@@ -236,13 +257,41 @@ namespace TournamentTracker.App.Broadcast
             public string? Moment { get; set; }
         }
 
+        /// <summary>
+        /// Every appearance logged. The Live desk asks for the counts several times a second: the file
+        /// is read only when its size or time changed (a new line here is added without reading it all
+        /// again), so emptying or editing it by hand still shows at once.
+        /// </summary>
         public List<Appearance> Appearances()
         {
-            var list = new List<Appearance>();
-            if (_logPath == null || !File.Exists(_logPath)) return list;
-            foreach (var line in File.ReadAllLines(_logPath))
-                try { if (JsonSerializer.Deserialize<Appearance>(line, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) is { } a) list.Add(a); } catch (Exception) { }
-            return list;
+            if (_logPath == null) return new List<Appearance>();
+            lock (_lock)
+            {
+                try
+                {
+                    var info = new FileInfo(_logPath);
+                    if (!info.Exists) { _log = null; return new List<Appearance>(); }
+                    if (_log is { } log && log.Length == info.Length && log.Stamp == info.LastWriteTimeUtc) return log.List.ToList();
+                    var list = new List<Appearance>();
+                    foreach (var line in File.ReadAllLines(_logPath))
+                        try { if (JsonSerializer.Deserialize<Appearance>(line, ReadJson) is { } a) list.Add(a); } catch (Exception) { }
+                    _log = (info.Length, info.LastWriteTimeUtc, list);
+                    return list.ToList();
+                }
+                catch (Exception) { return new List<Appearance>(); }
+            }
+        }
+
+        /// <summary>Each sponsor's totals from the log: reads, other appearances and seconds on screen (one pass over it).</summary>
+        public Dictionary<string, (int Reads, int Shown, double Seconds)> Tallies()
+        {
+            var tally = new Dictionary<string, (int Reads, int Shown, double Seconds)>(StringComparer.Ordinal);
+            foreach (var a in Appearances())
+            {
+                tally.TryGetValue(a.Sponsor, out var t);
+                tally[a.Sponsor] = a.Placement == "read" ? (t.Reads + 1, t.Shown, t.Seconds + a.Seconds) : (t.Reads, t.Shown + 1, t.Seconds + a.Seconds);
+            }
+            return tally;
         }
 
         /// <summary>Proof of delivery: every appearance as CSV, and a summary per sponsor and placement.</summary>
