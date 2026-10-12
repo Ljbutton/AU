@@ -393,11 +393,24 @@ referee. At the start of every game the host becomes a ghost: never an impostor,
 always talk). The host can zoom out with the **mouse wheel** or **+ / −** to see the
 whole map (for refereeing and streaming). The same switch turns it off; the choice is remembered.
 During play a small list down the left edge of the referee's screen shows the players, who is dead
-or gone, and a red IMP by each impostor. Players without the mod see the referee as a dead (crossed-out) card in meetings; only modded games
-hide it completely. The host keeps the referee's player record dead (re-sent after the intro, before
+or gone, and a red IMP by each impostor. The host keeps the referee's player record dead (re-sent after the intro, before
 each meeting and every 5 seconds; never an exile, kill or role message), and counts the votes, so a
 vote for the referee counts as a skip and the referee can't be voted out. (An earlier experimental switch sent the players an exile message
 for the referee; it got the host banned from their own room and was removed.)
+
+**Host authority** (on by default) is what makes that record reach players without the mod. The
+mod tells Among Us's servers it's a host-only mod (Innersloth's "+25" flag for host-only mods, the
+one Town of Host and similar mods use), so the host, not the server, keeps every player's record.
+Once it's active, players without the mod never see the referee on the map and see their card
+crossed out (dead) in meetings; without it they see the referee alive. Modded lobbies are kept out
+of the public matchmaking list, but lobby codes work as usual. The game sends this as it connects,
+so turning it off or on again (The Button sends `hostauth off` / `hostauth on`) applies from the
+main menu, to the next lobby you host. If the referee becomes a ghost in a lobby without it, Home
+says so. With host authority the host's game also turns down exile, kill, meeting, role, name,
+shield and shapeshift messages that come from another player's game (only the host sends those):
+it's logged and shown on Home, and nobody is kicked. **Unequip your pet** when you referee: a dead
+player's pet stays visible to the living players.
+
 The mod sends each player's role and task list once, as the game itself does, and never sends an
 "exiled" message outside a meeting (that got the host kicked from the room): the referee is marked
 dead in the player record the host keeps, and the host's own game makes them a ghost. As the
@@ -413,7 +426,7 @@ view, hear it. Their task bar is smaller
 and always shows the real progress, whatever the lobby's task bar setting. The host turns down any kill on the
 referee. In meetings the referee's card is taken off the list. That happens on the host's screen and on every player's game that has the
 mod; there the referee isn't drawn on the map either. A game without the mod lists them as a dead
-player.
+(crossed-out) player once host authority is active.
 
 ## Red Alert (the broadcaster's app)
 
