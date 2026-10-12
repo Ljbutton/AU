@@ -133,8 +133,33 @@ namespace TournamentTracker.App
 
         private static string Bits(string? arch) => arch == "x64" ? "64-bit" : arch == "x86" ? "32-bit" : "unknown";
 
-        public static bool GameRunning() =>
-            Process.GetProcesses().Any(p => { try { return p.ProcessName == "Among Us"; } catch (Exception) { return false; } });
+        public static bool GameRunning()
+        {
+            var found = Process.GetProcessesByName("Among Us");
+            try { return found.Length > 0; }
+            finally { foreach (var p in found) p.Dispose(); }
+        }
+
+        private static readonly object RunningLock = new object();
+        private static bool _running;
+        private static DateTime _runningAt = DateTime.MinValue;
+
+        /// <summary>
+        /// <see cref="GameRunning"/> as seen in the last few seconds. For checks made on every refresh of
+        /// The Button (auto-update and auto-repair waiting for Among Us to close): each real look goes
+        /// through every process on the PC. Installing itself always looks again.
+        /// </summary>
+        public static bool GameRunningLately()
+        {
+            lock (RunningLock)
+            {
+                var now = DateTime.UtcNow;
+                if (now - _runningAt < TimeSpan.FromSeconds(5)) return _running;
+                _running = GameRunning();
+                _runningAt = now;
+                return _running;
+            }
+        }
 
         /// <summary>
         /// Downloads the release's bundle and copies it over the game folder. Settings, links,

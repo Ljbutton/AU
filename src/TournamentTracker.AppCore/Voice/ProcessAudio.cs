@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -44,22 +45,35 @@ namespace TournamentTracker.App.Voice
             _thread.Start();
         }
 
-        /// <summary>The program's main process: the earliest started of its processes (Discord runs several; its sound comes from a child).</summary>
+        /// <summary>
+        /// The program's main process: the earliest started of its processes (Discord runs several; its
+        /// sound comes from a child). One look at the process list for all the names (each
+        /// GetProcessesByName is a full look of its own), and every Process is let go straight away.
+        /// </summary>
         private int? FindProcess()
         {
-            Process? best = null;
+            var names = new HashSet<string>(_names, StringComparer.OrdinalIgnoreCase);
+            int? best = null;
             DateTime bestStart = DateTime.MaxValue;
-            foreach (var name in _names)
-                foreach (var p in Process.GetProcessesByName(name))
+            var all = Process.GetProcesses();
+            try
+            {
+                foreach (var p in all)
                 {
                     try
                     {
+                        if (!names.Contains(p.ProcessName)) continue;
                         var start = p.StartTime;
-                        if (start < bestStart) { best = p; bestStart = start; }
+                        if (start < bestStart) { best = p.Id; bestStart = start; }
                     }
                     catch (Exception) { }
                 }
-            return best?.Id;
+            }
+            finally
+            {
+                foreach (var p in all) p.Dispose();
+            }
+            return best;
         }
 
         [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.19041")]
@@ -80,9 +94,14 @@ namespace TournamentTracker.App.Voice
             for (int i = 0; i < ms / 100 && !_stop; i++) Thread.Sleep(100);
         }
 
-        private bool Alive(int pid)
+        private static bool Alive(int pid)
         {
-            try { return !Process.GetProcessById(pid).HasExited; } catch (Exception) { return false; }
+            try
+            {
+                using var p = Process.GetProcessById(pid);
+                return !p.HasExited;
+            }
+            catch (Exception) { return false; }
         }
 
         // ---- Application loopback --------------------------------------------------------------
@@ -106,14 +125,21 @@ namespace TournamentTracker.App.Voice
                 State = "capturing";
                 var buffer = new short[SampleRate * Channels];
                 var lastCheck = DateTime.UtcNow;
+                var lastLook = DateTime.UtcNow;
                 while (!_stop)
                 {
                     ready.WaitOne(200);
                     if ((DateTime.UtcNow - lastCheck).TotalSeconds > 3)
                     {
                         lastCheck = DateTime.UtcNow;
-                        // The program closed (or a newer copy started): find it again.
-                        if (!Alive(pid) || FindProcess() != pid) break;
+                        // The program closed: find it again. Whether a newer copy started (rare) needs the
+                        // whole process list, so that's only looked at every 30 s.
+                        if (!Alive(pid)) break;
+                        if ((lastCheck - lastLook).TotalSeconds > 30)
+                        {
+                            lastLook = lastCheck;
+                            if (FindProcess() != pid) break;
+                        }
                     }
                     while (true)
                     {
