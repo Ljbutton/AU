@@ -1,0 +1,260 @@
+{
+	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+	"Name": "Red Alert",
+	"Version": "0.1.0.0",
+	"Author": "The Button",
+	"Description": "Run the Red Alert stream from a Stream Deck: lobbies with live tally, player cameras with names, Preview and Take, replays, breaks and toggles that show their real state.",
+	"Category": "Red Alert",
+	"CategoryIcon": "imgs/plugin/category",
+	"Icon": "imgs/plugin/icon",
+	"URL": "https://github.com/Ljbutton/AU",
+	"CodePath": "bin/plugin.js",
+	"PropertyInspectorPath": "ui/inspector.html",
+	"SDKVersion": 2,
+	"Software": {
+		"MinimumVersion": "6.5"
+	},
+	"OS": [
+		{
+			"Platform": "windows",
+			"MinimumVersion": "10"
+		}
+	],
+	"Nodejs": {
+		"Version": "20"
+	},
+	"UUID": "com.ljbutton.redalert",
+	"Actions": [
+		{
+			"Name": "Lobby",
+			"UUID": "com.ljbutton.redalert.lobby",
+			"Icon": "imgs/actions/lobby",
+			"Tooltip": "A lobby full screen now, or into Preview. Shows its number, phase, crew v impostors, the red/green tally and sabotages.",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/keys/lobby",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Player cam",
+			"UUID": "com.ljbutton.redalert.cam",
+			"Icon": "imgs/actions/cam",
+			"Tooltip": "A player's camera in a lobby: cut to it, or arm it to go on when play resumes. Shows the crewmate, name and who the camera follows.",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/keys/cam",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Take",
+			"UUID": "com.ljbutton.redalert.take",
+			"Icon": "imgs/actions/take",
+			"Tooltip": "Preview to stream (Program).",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/keys/take",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Wide",
+			"UUID": "com.ljbutton.redalert.wide",
+			"Icon": "imgs/actions/wide",
+			"Tooltip": "Back to the whole map from a player camera.",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/keys/wide",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Cut to cam",
+			"UUID": "com.ljbutton.redalert.camcut",
+			"Icon": "imgs/actions/camcut",
+			"Tooltip": "Cut to a lobby's player camera, keeping who it follows.",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/keys/camcut",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Layout",
+			"UUID": "com.ljbutton.redalert.layout",
+			"Icon": "imgs/actions/layout",
+			"Tooltip": "Full, 2-up, quad, grid or cameras on stream. Lit red while on stream, green while in Preview.",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/keys/layout",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Replay",
+			"UUID": "com.ljbutton.redalert.replay",
+			"Icon": "imgs/actions/replay",
+			"Tooltip": "Play the last clip, replay that, back to live, and the replay transport.",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/keys/replay",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Toggle",
+			"UUID": "com.ljbutton.redalert.toggle",
+			"Icon": "imgs/actions/toggle",
+			"Tooltip": "Mute all, hold, auto grid, auto intermission, auto switch, standings or alerts, showing whether each is on.",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/keys/toggle",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Break",
+			"UUID": "com.ljbutton.redalert.break",
+			"Icon": "imgs/actions/break",
+			"Tooltip": "Be right back, intermission, sponsor break, or end the break.",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/keys/break",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Panic",
+			"UUID": "com.ljbutton.redalert.panic",
+			"Icon": "imgs/actions/panic",
+			"Tooltip": "One press: fade to Be right back and mute lobby voice.",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/keys/panic",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Custom path",
+			"UUID": "com.ljbutton.redalert.custom",
+			"Icon": "imgs/actions/custom",
+			"Tooltip": "Any Red Alert Stream Deck link, by its path (for example gfx/skip).",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/keys/custom",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Preview dial",
+			"UUID": "com.ljbutton.redalert.dial.preview",
+			"Icon": "imgs/actions/dial-preview",
+			"Tooltip": "Stream Deck +: turn to pick the Preview lobby, push to Take, tap to clear Preview.",
+			"Controllers": [
+				"Encoder"
+			],
+			"Encoder": {
+				"layout": "layouts/canvas.json",
+				"TriggerDescription": {
+					"Rotate": "Pick the Preview lobby",
+					"Push": "Take",
+					"Touch": "Clear Preview"
+				}
+			},
+			"States": [
+				{
+					"Image": "imgs/keys/dial-preview"
+				}
+			]
+		},
+		{
+			"Name": "Player dial",
+			"UUID": "com.ljbutton.redalert.dial.player",
+			"Icon": "imgs/actions/dial-player",
+			"Tooltip": "Stream Deck +: turn to pick who a lobby's camera follows, push to cut to it, tap to go back wide.",
+			"Controllers": [
+				"Encoder"
+			],
+			"Encoder": {
+				"layout": "layouts/canvas.json",
+				"TriggerDescription": {
+					"Rotate": "Pick the player",
+					"Push": "Cut to cam",
+					"Touch": "Wide"
+				}
+			},
+			"States": [
+				{
+					"Image": "imgs/keys/dial-player"
+				}
+			]
+		},
+		{
+			"Name": "Replay dial",
+			"UUID": "com.ljbutton.redalert.dial.replay",
+			"Icon": "imgs/actions/dial-replay",
+			"Tooltip": "Stream Deck +: turn to scrub the replay (slowly by frames, quickly by seconds), push to play or pause, tap for the speed.",
+			"Controllers": [
+				"Encoder"
+			],
+			"Encoder": {
+				"layout": "layouts/canvas.json",
+				"TriggerDescription": {
+					"Rotate": "Scrub",
+					"Push": "Play / pause",
+					"Touch": "Speed 100/50/25%"
+				}
+			},
+			"States": [
+				{
+					"Image": "imgs/keys/dial-replay"
+				}
+			]
+		}
+	]
+}
