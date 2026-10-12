@@ -20,6 +20,18 @@ namespace TournamentTracker.App
     public sealed class Organizer : IDisposable
     {
         private static readonly TimeSpan LivePoll = TimeSpan.FromSeconds(3);
+        /// <summary>
+        /// How long one Discord request may take. The apps hand in their shared HttpClient, made for
+        /// big downloads (a 10-minute timeout), and a stuck read would stop the live lobbies that long.
+        /// </summary>
+        public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(20);
+        /// <summary>A lobby whose live message is older than the newest 100 is read on its own this often (quiet ones once a minute).</summary>
+        private static readonly TimeSpan OwnReadEvery = TimeSpan.FromSeconds(6);
+        private static readonly TimeSpan OwnReadQuietEvery = TimeSpan.FromSeconds(60);
+        /// <summary>Lobbies read on their own per poll at most, so a big event can't use up the read limit.</summary>
+        private const int OwnReadsPerPoll = 5;
+        /// <summary>Pages of older messages read once, at the start, to find lobbies that posted a while ago.</summary>
+        private const int StartPages = 2;
         private static readonly TimeSpan StandingsPoll = TimeSpan.FromSeconds(30);
         /// <summary>A lobby that hasn't sent anything for this long is shown as gone quiet.</summary>
         public static readonly TimeSpan Stale = TimeSpan.FromSeconds(150);
@@ -40,6 +52,14 @@ namespace TournamentTracker.App
         public static readonly TimeSpan HotFor = TimeSpan.FromSeconds(20);
         private SharedLoad? _load;
         private DateTime _loadedUtc = DateTime.MinValue;
+        /// <summary>
+        /// Each lobby's live message and when it was last read on its own. A host's message is
+        /// edited in place and only moved down after each game, so in a busy channel it can be
+        /// further up than the newest 100 messages; it is then read by its ID.
+        /// </summary>
+        private readonly Dictionary<string, (string MessageId, DateTime ReadUtc)> _liveMessages = new Dictionary<string, (string, DateTime)>(StringComparer.OrdinalIgnoreCase);
+        private bool _readBack;
+        private readonly Random _random = new Random();
 
         /// <summary>After each read of the live lobbies (the broadcast app's caster pages follow).</summary>
         public event Action? LiveChanged;
@@ -53,7 +73,7 @@ namespace TournamentTracker.App
             _clock = clock ?? (() => DateTime.UtcNow);
             _log = log ?? NullLog.Instance;
             _token = code.BotTokens![0];
-            _rest = new DiscordRest(http, _log);
+            _rest = new DiscordRest(http, _log) { RequestTimeout = RequestTimeout };
             _shared = new SharedResults(_rest, _token, code.ResultsChannelId!, _log);
             if (start) Task.Run(LoopAsync);
         }
@@ -98,7 +118,10 @@ namespace TournamentTracker.App
                     }
                 }
                 catch (Exception e) { Problem = "Couldn't reach Discord: " + e.Message; _log.Error("Organiser poll failed: " + e); }
-                try { await Task.Delay(LivePoll, _cts.Token).ConfigureAwait(false); }
+                // A little jitter: Red Alert and referees' Buttons poll the same channel with the same bot.
+                double jitter;
+                lock (_random) jitter = (_random.NextDouble() - 0.5) * 0.8;
+                try { await Task.Delay(LivePoll + TimeSpan.FromSeconds(jitter), _cts.Token).ConfigureAwait(false); }
                 catch (OperationCanceledException) { return; }
             }
         }
@@ -113,13 +136,34 @@ namespace TournamentTracker.App
                 return;
             }
             int read = 0, blank = 0;
+            var seen = new HashSet<string>();
             foreach (var m in messages)
             {
+                seen.Add(m.Id);
                 if (!m.AuthorIsBot) continue;
-                if (Take(m.EmbedTitle, m.EmbedDescription)) read++;
+                if (TakeMessage(m)) read++;
                 // Another bot's message that came back with nothing in it: the Message Content Intent is off.
                 else if (m.Embeds == 0 && m.Content.Length == 0 && m.Attachments.Count == 0) blank++;
             }
+            if (!_readBack && messages.Count >= 100)
+            {
+                // Once, at the start: lobbies whose live message is already further up.
+                _readBack = true;
+                string? before = messages[messages.Count - 1].Id;
+                for (int page = 0; page < StartPages && before != null; page++)
+                {
+                    var older = await _rest.GetMessagesAsync(_token, _code.ResultsChannelId!, before).ConfigureAwait(false);
+                    if (older == null || older.Count == 0) break;
+                    foreach (var m in older)
+                    {
+                        seen.Add(m.Id);
+                        if (m.AuthorIsBot && TakeMessage(m)) read++;
+                    }
+                    before = older.Count >= 100 ? older[older.Count - 1].Id : null;
+                }
+            }
+            else _readBack = true;
+            read += await ReadOwnAsync(seen).ConfigureAwait(false);
             if (blank > 0 && read == 0)
             {
                 _botName ??= await _rest.BotNameAsync(_token).ConfigureAwait(false);
@@ -143,23 +187,89 @@ namespace TournamentTracker.App
             return $"Discord wouldn't let the administration bot read the results channel (HTTP {result.Status}{(result.ErrorCode != 0 ? ", code " + result.ErrorCode : "")}).";
         }
 
-        /// <summary>Takes one "Live data" message (title and description). Public for tests. True: it was one.</summary>
-        public bool Take(string? title, string? description)
+        /// <summary>
+        /// Lobbies whose live message wasn't among the messages just read: each is read by its ID
+        /// (a few per poll, quiet lobbies rarely). A deleted one is forgotten; its lobby's new
+        /// message shows up at the bottom of the channel.
+        /// </summary>
+        private async Task<int> ReadOwnAsync(HashSet<string> seen)
         {
-            if (title == null || description == null || !title.StartsWith(TournamentSession.LiveTitlePrefix, StringComparison.Ordinal)) return false;
+            var now = _clock();
+            List<(string Lobby, string MessageId)> due;
+            lock (_lock)
+            {
+                due = _liveMessages
+                    .Where(kv => !seen.Contains(kv.Value.MessageId))
+                    .Where(kv => now - kv.Value.ReadUtc >= (QuietLocked(kv.Key, now) ? OwnReadQuietEvery : OwnReadEvery))
+                    .OrderBy(kv => kv.Value.ReadUtc)
+                    .Take(OwnReadsPerPoll)
+                    .Select(kv => (kv.Key, kv.Value.MessageId))
+                    .ToList();
+                foreach (var (lobby, id) in due) _liveMessages[lobby] = (id, now);
+            }
+            int read = 0;
+            foreach (var (lobby, id) in due)
+            {
+                var (message, result) = await _rest.GetMessageAsync(_token, _code.ResultsChannelId!, id).ConfigureAwait(false);
+                if (message != null)
+                {
+                    if (TakeMessage(message)) read++;
+                }
+                else if (result.Status == 404)
+                {
+                    lock (_lock)
+                    {
+                        if (_liveMessages.TryGetValue(lobby, out var have) && have.MessageId == id) _liveMessages.Remove(lobby);
+                    }
+                }
+            }
+            return read;
+        }
+
+        /// <summary>The lobby hasn't sent anything for a while (with <see cref="_lock"/> held).</summary>
+        private bool QuietLocked(string lobby, DateTime now)
+        {
+            if (!_lobbies.TryGetValue(lobby, out var l)) return true;
+            var sent = SentUtc(l.Sent);
+            return now - (sent == DateTime.MinValue ? l.SeenUtc : sent) > Stale;
+        }
+
+        /// <summary>Takes one message read from the channel; a lobby's newest live message is remembered.</summary>
+        private bool TakeMessage(ChannelMessage m)
+        {
+            string? lobby = TakeLobby(m.EmbedTitle, m.EmbedDescription, out bool newest);
+            if (lobby == null) return false;
+            if (newest && lobby.Length > 0 && m.Id.Length > 0)
+                lock (_lock) _liveMessages[lobby] = (m.Id, _clock());
+            return true;
+        }
+
+        /// <summary>Takes one "Live data" message (title and description). Public for tests. True: it was one.</summary>
+        public bool Take(string? title, string? description) => TakeLobby(title, description, out _) != null;
+
+        /// <summary>
+        /// Takes one "Live data" message: its lobby ("" when it can't be read), or null when it
+        /// isn't one. <paramref name="newest"/>: nothing newer is known for the lobby (an older
+        /// copy left behind isn't the one to follow).
+        /// </summary>
+        private string? TakeLobby(string? title, string? description, out bool newest)
+        {
+            newest = false;
+            if (title == null || description == null || !title.StartsWith(TournamentSession.LiveTitlePrefix, StringComparison.Ordinal)) return null;
             string json = description.Trim();
             if (json.StartsWith("```")) json = json.Substring(json.IndexOf('\n') + 1);
             if (json.EndsWith("```")) json = json.Substring(0, json.Length - 3);
             JsonElement data;
             try { data = JsonDocument.Parse(json).RootElement.Clone(); }
-            catch (JsonException) { return true; }
+            catch (JsonException) { return ""; }
             string lobby = data.TryGetProperty("lobby", out var l) ? l.GetString() ?? "" : "";
             long sent = data.TryGetProperty("t", out var t) && t.ValueKind == JsonValueKind.Number ? t.GetInt64() : 0;
-            if (lobby.Length == 0) return true;
+            if (lobby.Length == 0) return "";
             lock (_lock)
             {
                 bool known = _lobbies.TryGetValue(lobby, out var have);
-                if (known && have.Sent >= sent) return true;
+                newest = !known || sent >= have.Sent;
+                if (known && have.Sent >= sent) return lobby;
                 _lobbies[lobby] = (data, _clock(), sent);
                 if (data.TryGetProperty("f", out var f) && f.ValueKind == JsonValueKind.Array && f.GetArrayLength() > 0)
                 {
@@ -170,7 +280,7 @@ namespace TournamentTracker.App
                         _lastEvent[lobby] = (key, last[1].GetString() ?? "", known ? _clock() : DateTime.MinValue);
                 }
             }
-            return true;
+            return lobby;
         }
 
         public async Task LoadStandingsAsync()

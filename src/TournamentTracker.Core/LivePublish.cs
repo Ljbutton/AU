@@ -29,6 +29,12 @@ namespace TournamentTracker
         /// <summary>The live data's last good post (UTC) and, when the last try failed, why (for The Button's Home).</summary>
         private DateTime? _liveOkAt;
         private string? _liveProblem;
+        /// <summary>Sends in a row that didn't go through.</summary>
+        private int _liveFailures;
+        private const int LiveGiveUp = 6;
+
+        /// <summary>The wait before trying failed live data again: 5 s, 10, 20, 40, then every minute.</summary>
+        private static TimeSpan LiveRetry(int failures) => TimeSpan.FromSeconds(Math.Min(60, 5 << Math.Min(Math.Max(failures, 1) - 1, 4)));
 
         /// <summary>The live data message for The Button: is it going out, and if not, why.</summary>
         public object LiveDataState() => new
@@ -134,6 +140,15 @@ namespace TournamentTracker
                         string json, token = _settings.AutoMute.BotTokens[0], channel = Shared!.ChannelId;
                         string? id;
                         bool repost;
+                        DateTime nextSend;
+                        lock (_liveLock)
+                        {
+                            if (_liveDesired == _liveSent || _liveDesired.Length == 0) return;
+                            nextSend = _liveNextSend;
+                        }
+                        var wait = nextSend - DateTime.UtcNow;
+                        if (wait > TimeSpan.Zero) await Task.Delay(wait).ConfigureAwait(false);
+                        // The newest data once the wait is over (a failed send can wait a minute).
                         lock (_liveLock)
                         {
                             if (_liveDesired == _liveSent || _liveDesired.Length == 0) return;
@@ -142,8 +157,6 @@ namespace TournamentTracker
                             repost = _liveRepost;
                             _liveRepost = false;
                         }
-                        var wait = _liveNextSend - DateTime.UtcNow;
-                        if (wait > TimeSpan.Zero) await Task.Delay(wait).ConfigureAwait(false);
 
                         string stamped = json.Insert(json.Length - 1, $",\"t\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}");
                         var message = new WebhookMessage
@@ -164,36 +177,53 @@ namespace TournamentTracker
                             await _rest.DeleteMessageAsync(token, channel, id).ConfigureAwait(false);
                             id = null;
                         }
+                        bool ok = false;
                         if (id != null)
                         {
                             var edit = await _rest.EditEmbedsAsync(token, channel, id, message).ConfigureAwait(false);
                             if (edit.Status == 404) id = null;
                             else if (!edit.Ok) { _log.Warn("Could not update the live data: " + edit); _liveProblem = LiveProblemOf(edit); }
-                            else { _liveOkAt = DateTime.UtcNow; _liveProblem = null; }
+                            else { _liveOkAt = DateTime.UtcNow; _liveProblem = null; ok = true; }
                         }
                         if (id == null)
                         {
                             var made = await _rest.PostEmbedsAsync(token, channel, message).ConfigureAwait(false);
-                            if (made.Ok) { id = DiscordRest.MessageIdOf(made); _liveOkAt = DateTime.UtcNow; _liveProblem = null; }
+                            if (made.Ok) { id = DiscordRest.MessageIdOf(made); _liveOkAt = DateTime.UtcNow; _liveProblem = null; ok = true; }
                             else { _log.Warn("Could not post the live data: " + made); _liveProblem = LiveProblemOf(made); }
                         }
                         lock (_liveLock)
                         {
                             _liveMessageId = id;
-                            _liveSent = json;
-                            _liveLastSent = _clock();
-                            _liveNextSend = DateTime.UtcNow + LiveMinInterval;
+                            if (ok)
+                            {
+                                _liveSent = json;
+                                _liveLastSent = _clock();
+                                _liveFailures = 0;
+                                _liveNextSend = DateTime.UtcNow + LiveMinInterval;
+                            }
+                            // Not counted as sent (the organiser's view would stay stale until the next
+                            // change or the minute's heartbeat): the loop tries the newest data again,
+                            // waiting longer while Discord keeps failing.
+                            else _liveNextSend = DateTime.UtcNow + LiveRetry(++_liveFailures);
                         }
+                        // After a few minutes of failures the game's own ticks take over (a change, or
+                        // the minute's heartbeat), so a closed session doesn't keep trying by itself.
+                        if (!ok && _liveFailures >= LiveGiveUp) return;
                     }
                 }
-                catch (Exception e) { _log.Warn("Live data failed: " + e.Message); _liveProblem = "it failed: " + e.Message; }
+                catch (Exception e)
+                {
+                    _log.Warn("Live data failed: " + e.Message);
+                    _liveProblem = "it failed: " + e.Message;
+                    lock (_liveLock) _liveNextSend = DateTime.UtcNow + LiveRetry(++_liveFailures);
+                }
                 finally
                 {
                     bool again;
                     lock (_liveLock)
                     {
                         _liveBusy = false;
-                        again = _liveDesired != _liveSent && _liveDesired.Length > 0;
+                        again = _liveDesired != _liveSent && _liveDesired.Length > 0 && _liveFailures < LiveGiveUp;
                     }
                     if (again) SendLive();      // something changed while this was finishing
                 }
