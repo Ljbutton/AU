@@ -62,7 +62,7 @@ namespace TournamentTracker.App.Broadcast
         public event Action? OutputChanged;
 
         /// <summary>Every few seconds (with the upkeep): the stream, the recording and OBS's own figures, in one request.</summary>
-        private async Task OutputsAsync()
+        internal async Task OutputsAsync()
         {
             var obs = _obs;
             if (obs == null) return;

@@ -141,6 +141,9 @@ namespace TournamentTracker.App.Broadcast
 
         private static bool SameAir(OnAir a, OnAir b) => a.Layout == b.Layout && a.Slots.SequenceEqual(b.Slots, StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>Nothing to undo from here on (after Panic's own undo, say).</summary>
+        public void ForgetBack() { lock (_switchLock) _previous = null; }
+
         /// <summary>Undo a switch by hand: what was on before it, on stream again. Null when there's nothing to go back to.</summary>
         public OnAir? Back(string by = "deck")
         {

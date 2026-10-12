@@ -266,6 +266,7 @@ namespace TournamentTracker.App.Broadcast
             desk.Alerts.SetPaused(p.AlertsPaused);
             if (!p.WasHeld) desk.SetHold(false);
             if (p.Air.Layout is not ("none" or "slate" or "replay")) desk.Restore(p.Air, "deck");
+            desk.ForgetBack();
             Log.Info("Panic undone.");
             return p.Air.Layout is "none" or "slate" or "replay" ? "Panic undone: voice and alerts back (still on the be-right-back screen)." : "Panic undone: back to what was on.";
         }

@@ -70,6 +70,8 @@ public sealed class FakeObs : IAsyncDisposable
     public long StreamBytes, StreamSkipped, StreamFrames, RenderSkipped, RenderFrames;
     public double DiskMb = 500_000;
     public int Screenshots;
+    /// <summary>Every SetInputMute, by source name, in the order they came.</summary>
+    public readonly List<string> MuteLog = new();
 
     /// <summary>The stream starting or stopping in OBS, with its event.</summary>
     public Task SetStreaming(bool on, string? state = null) { lock (this) Streaming = on; return Event("StreamStateChanged", new { outputActive = on, outputState = state ?? (on ? "OBS_WEBSOCKET_OUTPUT_STARTED" : "OBS_WEBSOCKET_OUTPUT_STOPPED") }); }
@@ -267,7 +269,7 @@ public sealed class FakeObs : IAsyncDisposable
             case "SetSceneItemEnabled":
                 Scenes[S(d, "sceneName")].Single(i => i.Id == d.GetProperty("sceneItemId").GetInt32()).Enabled = d.GetProperty("sceneItemEnabled").GetBoolean();
                 return null;
-            case "SetInputMute": Muted[S(d, "inputName")] = d.GetProperty("inputMuted").GetBoolean(); return null;
+            case "SetInputMute": Muted[S(d, "inputName")] = d.GetProperty("inputMuted").GetBoolean(); MuteLog.Add(S(d, "inputName")); return null;
             case "GetSourceFilterList":
                 return new { filters = Filters.Keys.Where(k => k.StartsWith(S(d, "sourceName") + "|")).Select(k => new { filterName = k.Split('|')[1], filterKind = "source_record_filter" }).ToList() };
             case "CreateSourceFilter":
