@@ -261,12 +261,13 @@ const ICONS = {
 	angle: `<rect x="26" y="30" width="40" height="28" rx="5" fill="${C.fg}"/><path d="M68 40 L80 34 V54 L68 48 Z" fill="${C.fg}"/><path d="M84 66 H112 M104 58 L112 66 L104 74 M60 82 H32 M40 74 L32 82 L40 90" fill="none" stroke="${C.amber}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`,
 	live: `<circle cx="34" cy="52" r="11" fill="${C.red}"/>` + text(52, 63, "LIVE", { size: 30 }),
 	panic: `<path d="M72 18 L116 88 H28 Z" fill="${C.fg}"/><rect x="67" y="40" width="10" height="28" rx="3" fill="${C.red}"/><circle cx="72" cy="78" r="5" fill="${C.red}"/>`,
+	undo: `<path d="M50 40 H86 C102 40 112 50 112 63 C112 76 102 86 86 86 H52" fill="none" stroke="${C.fg}" stroke-width="8" stroke-linecap="round"/><path d="M58 22 L34 40 L58 58 Z" fill="${C.fg}"/>`,
 	link: `<rect x="26" y="40" width="50" height="24" rx="12" fill="none" stroke="${C.fg}" stroke-width="7"/><rect x="68" y="40" width="50" height="24" rx="12" fill="none" stroke="${C.fg}" stroke-width="7"/>`,
 };
 
 /**
  * A key with an icon (or a big word when it has none), a title and a small line under it: Take, Wide,
- * Cut to cam, Layout, Replay, Break, Panic and Custom path.
+ * Cut to cam, Layout, Replay, Break, Panic, Undo and Custom path.
  */
 export function labelKey(v) {
 	const parts = [];

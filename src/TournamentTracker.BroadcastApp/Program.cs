@@ -73,7 +73,8 @@ namespace TournamentTracker.App
             AppDomain.CurrentDomain.UnhandledException += (_, e) => server.Log.Error((e.IsTerminating ? "Red Alert stopped: " : "Unhandled error: ") + e.ExceptionObject);
             TaskScheduler.UnobservedTaskException += (_, e) => { server.Log.Warn("Background task failed: " + e.Exception.GetBaseException().Message); e.SetObserved(); };
             server.Log.Info($"Red Alert {env.Version} started on port {server.Port}.");
-            var form = new MainForm(server.Url, Path.Combine(appData, "WebView2"));
+            // Maximised the first time (the Live desk is laid out for the whole screen), then as it was left.
+            var form = new MainForm(server.Url, Path.Combine(appData, "WebView2"), Path.Combine(appData, "window.txt"));
             // Mute all lobby voice from anywhere in Windows (default Ctrl+Shift+M, changed in Lobby voice).
             using var hotkey = new GlobalHotkey(server.MuteHotkeyPressed);
             void Register(string key) => server.HotkeyProblem = hotkey.Set(key) ? null : $"{key} is in use by another app: pick another Mute all key in Lobby voice.";

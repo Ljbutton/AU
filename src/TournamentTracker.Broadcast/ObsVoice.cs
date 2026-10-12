@@ -11,7 +11,18 @@ namespace TournamentTracker.App.Broadcast
     {
         public bool On { get; set; } = true;
         /// <summary>Every lobby voice silenced (the caster's mute-all key).</summary>
-        public bool MuteAll { get; set; }
+        public bool MuteAll
+        {
+            get => _muteAll;
+            set { if (value != _muteAll) MuteChanges++; _muteAll = value; }
+        }
+        private bool _muteAll;
+        /// <summary>
+        /// How many times <see cref="MuteAll"/> has gone on or off since Red Alert started (not saved): a
+        /// panic's mute is only the panic's while this hasn't moved since, not one set again by hand.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public int MuteChanges { get; private set; }
         /// <summary>A lobby whose voice stays up whatever is on screen (the caster's override), or empty: the voice follows the picture.</summary>
         public string Pin { get; set; } = "";
         /// <summary>Per lobby: volume (dB, 0 = as sent) and delay (ms, to line the voice up with the picture).</summary>

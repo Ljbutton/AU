@@ -400,6 +400,66 @@ public class DeskControlTests : IDisposable
     }
 
     [Fact]
+    public void An_armed_camera_waits_out_intermission_and_a_switch_by_hand_cancels_it()
+    {
+        using var desk = new CasterDesk(null, () => _clock.Now, new PriorityConfig());
+        Snap(desk, "LJ", "lobby");
+        Snap(desk, "MAL", "meeting");
+        desk.Show("LJ", "full", null, null, "deck");
+        desk.Arm("MAL", null);
+        // Intermission came by itself; MAL's meeting ends: the camera doesn't cut over intermission.
+        desk.ShowIntermission("auto");
+        Snap(desk, "MAL", "ingame");
+        desk.Tick();
+        Assert.Equal("intermission", desk.OnAir.Layout);
+        Assert.True(desk.Armed("MAL").Armed);
+        // Intermission over (by itself, as auto intermission ends it): then the armed camera goes on.
+        desk.AutoIntermission = true;
+        desk.Tick();
+        Assert.Equal(("full", "MAL", "auto"), (desk.OnAir.Layout, desk.OnAir.Slots[0], desk.OnAir.By));
+        desk.Tick();
+        Assert.Equal(("cam", "MAL", "armed"), (desk.OnAir.Layout, desk.OnAir.Slots[0], desk.OnAir.By));
+        desk.AutoIntermission = false;
+
+        // Armed again in a meeting, then the caster takes another lobby by hand: the pick is cancelled
+        // (and the desk is told), so it doesn't pull the stream off that lobby when the meeting ends.
+        Snap(desk, "MAL", "meeting");
+        Snap(desk, "LJ", "ingame");
+        desk.Arm("MAL", null);
+        desk.Arm("LJ", null);
+        desk.Show("LJ", "full", null, null, "deck");
+        Assert.False(desk.Armed("MAL").Armed);
+        Assert.True(desk.Armed("LJ").Armed);                     // the lobby taken keeps its own
+        Assert.Contains("MAL", desk.ArmedDropped?.Text);
+        Assert.Contains("MAL", JsonSerializer.SerializeToElement(desk.State()).GetProperty("ArmedDropped").GetProperty("Text").GetString());
+        Snap(desk, "MAL", "ingame");
+        desk.Tick();
+        Assert.Equal("LJ", desk.OnAir.Slots[0]);
+        // The same for intermission put on by hand: nothing armed is left to cut over it.
+        desk.Arm("MAL", null);
+        desk.ShowIntermission("button");
+        Assert.False(desk.Armed("MAL").Armed);
+    }
+
+    [Fact]
+    public void Ending_intermission_goes_back_to_the_player_cameras_with_the_transition_asked_for()
+    {
+        using var desk = new CasterDesk(null, () => _clock.Now, new PriorityConfig());
+        foreach (var l in new[] { "LJ", "MAL", "Soggy" }) Snap(desk, l, "ingame");
+        desk.Show("MAL", "cam", null, null, "deck");
+        desk.ShowIntermission("deck");
+        var back = desk.EndBreak("deck", "cut")!;
+        Assert.Equal(("cam", "MAL", "deck", "cut"), (back.Layout, back.Slots[0], back.By, back.Transition));
+        // Several cameras at once come back the same.
+        desk.ShowPicked(new[] { "LJ", "Soggy" }, "deck", "cams");
+        desk.ShowIntermission("deck");
+        back = desk.EndIntermission("button", "fade");
+        Assert.Equal("cams", back.Layout);
+        Assert.Equal(new[] { "LJ", "Soggy" }, back.Slots.Where(x => x != null));
+        Assert.Equal("fade", back.Transition);
+    }
+
+    [Fact]
     public void Lobby_numbers_stay_the_same_after_a_restart_and_a_label_keeps_its_own_number()
     {
         using (var desk = new CasterDesk(null, () => _clock.Now, new PriorityConfig(), null, _dir.Path))
@@ -423,6 +483,38 @@ public class DeskControlTests : IDisposable
         _clock.Advance(TimeSpan.FromDays(2).TotalSeconds);
         using var later = new CasterDesk(null, () => _clock.Now, new PriorityConfig(), null, _dir.Path);
         Assert.Equal(1, later.NumberOf("New"));
+    }
+
+    [Fact]
+    public void Lobby_numbers_can_be_set_by_hand_and_the_online_lobbies_numbered_1_to_N_afresh()
+    {
+        using (var desk = new CasterDesk(null, () => _clock.Now, new PriorityConfig(), null, _dir.Path))
+        {
+            foreach (var l in new[] { "Ann", "Bo", "Cy" }) { Snap(desk, l, "ingame"); desk.NumberOf(l); }
+            Assert.Equal(new[] { ("Ann", 1), ("Bo", 2), ("Cy", 3) }, desk.Numbers().Select(n => (n.Lobby, n.No)));
+            // Cy to 1: Ann, which had it, takes Cy's 3.
+            desk.SetNumbers(new[] { ("Cy", 1) });
+            Assert.Equal(new[] { ("Cy", 1), ("Bo", 2), ("Ann", 3) }, desk.Numbers().Select(n => (n.Lobby, n.No)));
+            Assert.Equal("Cy", desk.LobbyNumbered(1, new[] { "Ann", "Bo", "Cy" }));
+            // Out of range: left as it is.
+            desk.SetNumbers(new[] { ("Bo", 0), ("Bo", 100) });
+            Assert.Equal(2, desk.NumberOf("Bo"));
+
+            // The next day (or round): other lobbies, which got the next free numbers.
+            _clock.Advance(TimeSpan.FromHours(1).TotalSeconds);
+            foreach (var l in new[] { "Dee", "Eve" }) { Snap(desk, l, "ingame"); desk.NumberOf(l); }
+            Assert.Equal((4, 5), (desk.NumberOf("Dee"), desk.NumberOf("Eve")));
+            Assert.Equal(new[] { "Dee", "Eve" }, desk.Numbers().Where(n => n.Online).Select(n => n.Lobby));
+            // Renumbered: the lobbies sending now are 1 and 2; the others give their numbers up (one still
+            // on the desk gets the next free number after them).
+            Assert.Equal(new[] { "Dee", "Eve" }, desk.RenumberOnline());
+            Assert.Equal(new[] { ("Dee", 1), ("Eve", 2) }, desk.Numbers().Where(n => n.Online).Select(n => (n.Lobby, n.No)));
+            Assert.All(desk.Numbers().Where(n => !n.Online), n => Assert.True(n.No > 2));
+        }
+        // Kept across a restart.
+        using var again = new CasterDesk(null, () => _clock.Now, new PriorityConfig(), null, _dir.Path);
+        Assert.Equal(1, again.NumberOf("Dee"));
+        Assert.Equal(2, again.NumberOf("Eve"));
     }
 
     [Fact]

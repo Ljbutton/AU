@@ -164,13 +164,28 @@
 			"Name": "Panic",
 			"UUID": "com.ljbutton.redalert.panic",
 			"Icon": "imgs/actions/panic",
-			"Tooltip": "One press: fade to Be right back and mute lobby voice.",
+			"Tooltip": "One press: fade to Be right back, mute lobby voice and hold. While that panic is on, the key says UNDO PANIC and a press puts it all back.",
 			"Controllers": [
 				"Keypad"
 			],
 			"States": [
 				{
 					"Image": "imgs/keys/panic",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Undo",
+			"UUID": "com.ljbutton.redalert.undo",
+			"Icon": "imgs/actions/undo",
+			"Tooltip": "Undo: the panic while there is one, else an automatic switch, else the last switch. Lit while a panic is on.",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/keys/undo",
 					"ShowTitle": false
 				}
 			]

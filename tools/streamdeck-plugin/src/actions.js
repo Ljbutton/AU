@@ -335,11 +335,31 @@ const breakAction = {
 	},
 };
 
+/**
+ * Panic: fade to Be right back, mute every lobby voice, hold. While that panic is on in full (Red Alert's
+ * state says so), the key shows it and a press undoes it, as the desk's Panic button does. It asks for
+ * the panic's own undo (panic/undo), never a plain Undo: a key whose state is a moment behind can't take
+ * back the last switch by mistake.
+ */
 const panicAction = {
 	uuid: id("panic"),
 	defaults: {},
-	request: () => go("panic"),
-	view: (s, state, ctx) => ({ ...base(ctx), type: "label", icon: "panic", title: "PANIC", sub: "BRB + mute", fill: "red" }),
+	request: (s, state) => go(state?.panic ? "panic/undo" : "panic"),
+	view: (s, state, ctx) =>
+		state?.panic
+			? { ...base(ctx), type: "label", icon: "panic", title: "UNDO PANIC", sub: "press: back on air", fill: "red", lit: true, accent: "amber" }
+			: { ...base(ctx), type: "label", icon: "panic", title: "PANIC", sub: "BRB + mute", fill: "red" },
+};
+
+/**
+ * Undo / Back: takes back the panic while there is one, else an automatic switch away from a lobby that
+ * dropped, else the last switch made by hand. Lit while a panic is on.
+ */
+const undoAction = {
+	uuid: id("undo"),
+	defaults: {},
+	request: () => go("undo"),
+	view: (s, state, ctx) => ({ ...base(ctx), type: "label", icon: "undo", title: "UNDO", sub: state?.panic ? "the panic" : "back", accent: "amber", lit: Boolean(state?.panic) }),
 };
 
 const customAction = {
@@ -463,6 +483,7 @@ export const ACTIONS = [
 	toggleAction,
 	breakAction,
 	panicAction,
+	undoAction,
 	customAction,
 	previewDial,
 	playerDial,

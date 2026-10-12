@@ -135,14 +135,19 @@ namespace TournamentTracker.App.Broadcast
                 _raised = next;
                 Switch?.Invoke(next);
             }
+            // The caster's own switch: a camera armed for another lobby doesn't cut over it later.
+            if (next.By is "button" or "deck") DropArmed(next);
         }
 
         private OnAir? _raised, _previous;
 
         private static bool SameAir(OnAir a, OnAir b) => a.Layout == b.Layout && a.Slots.SequenceEqual(b.Slots, StringComparer.OrdinalIgnoreCase);
 
-        /// <summary>Nothing to undo from here on (after Panic's own undo, say).</summary>
-        public void ForgetBack() { lock (_switchLock) _previous = null; }
+        /// <summary>
+        /// Nothing to undo from here on (after Panic's own undo, say). With <paramref name="only"/>: only when
+        /// that is what Undo would put back (a switch made since stays undoable).
+        /// </summary>
+        public void ForgetBack(OnAir? only = null) { lock (_switchLock) if (only == null || ReferenceEquals(_previous, only)) _previous = null; }
 
         /// <summary>Undo a switch by hand: what was on before it, on stream again. Null when there's nothing to go back to.</summary>
         public OnAir? Back(string by = "deck")
@@ -402,7 +407,7 @@ namespace TournamentTracker.App.Broadcast
             }
             if (made != null) CardMade?.Invoke(made);
             // A MUST SHOW play cuts a sponsor break short: straight back to full screen on it.
-            if (made != null && made.Tier == "must" && OnAir.Layout == "break" && !HoldBack($"A MUST SHOW play in {lobby} ending the sponsor break")) Show(lobby);
+            if (made != null && made.Tier == "must" && OnAir.Layout == "break" && !HoldBack($"A MUST SHOW play in {lobby} ending the sponsor break")) Show(lobby, "full", null, null, "auto");
         }
 
         /// <summary>Notes a card's replay clip.</summary>
@@ -705,17 +710,20 @@ namespace TournamentTracker.App.Broadcast
             return next;
         }
 
-        /// <summary>Out of intermission: the lobby that went live, else what was on before, else the top lobby.</summary>
-        public OnAir EndIntermission()
+        /// <summary>
+        /// Out of intermission: the lobby that went live, else what was on before (a player camera or
+        /// several, a lobby, 2-up, quad; the grid as it is now), else the top lobby. <paramref name="by"/>
+        /// and <paramref name="transition"/> as for any switch ("auto" when auto intermission ends it).
+        /// </summary>
+        public OnAir EndIntermission(string by = "button", string? transition = null)
         {
             string? live = LiveDuringIntermission;
             var back = _beforeIntermission;
             _beforeIntermission = null;
             LiveDuringIntermission = null;
-            if (live != null) return Show(live);
-            if (back != null && back.Layout is "full" or "2up" or "4up") return Show("", back.Layout, null, back.Slots.Select(x => x ?? "").ToList());
-            if (back?.Layout == "grid") return ShowGrid();
-            return Show(Board.Ranking().FirstOrDefault(r => r.Online && !IsDown(r.Lobby))?.Lobby ?? "");
+            if (live != null) return Show(live, "full", null, null, by, transition);
+            if (back?.Layout == "grid") return ShowGrid(by, null, transition);
+            return Restore(back, by, transition);
         }
 
         public void DismissIntermissionOffer() { IntermissionOffer = false; _quietSince = _clock(); }
@@ -730,7 +738,7 @@ namespace TournamentTracker.App.Broadcast
             {
                 if (playing.Count == 0) { LiveDuringIntermission = null; return true; }
                 LiveDuringIntermission ??= playing.OrderByDescending(r => r.Score).First().Lobby;
-                if (AutoIntermission && air.By == "auto" && !HoldBack("Auto intermission going back to the game")) EndIntermission();
+                if (AutoIntermission && air.By == "auto" && !HoldBack("Auto intermission going back to the game")) EndIntermission("auto");
                 return true;
             }
             if (online.Count == 0 || playing.Count > 0) { _quietSince = null; IntermissionOffer = false; return false; }
@@ -1120,12 +1128,13 @@ namespace TournamentTracker.App.Broadcast
             CamAudioTick(air);
             CamFollowTick();
             if (air.Layout is "replay" or "slate") return;
-            if (ArmedTick(air)) return;
+            // An armed camera waits out intermission and a sponsor break too: it goes on once they're over.
+            if (air.Layout is not ("intermission" or "break") && ArmedTick(air)) return;
             if (CamTick(air)) return;
             if (IntermissionTick(air)) return;
             if (air.Layout == "break")
             {
-                if (Break is { } b && _clock() >= b.Until && !HoldBack("The sponsor break ending")) Show(b.Lobby ?? "");
+                if (Break is { } b && _clock() >= b.Until && !HoldBack("The sponsor break ending")) Show(b.Lobby ?? "", "full", null, null, "auto");
                 return;
             }
             var ranking = Board.Ranking().Where(r => r.Online && r.Phase != "menu").ToList();
@@ -1136,8 +1145,8 @@ namespace TournamentTracker.App.Broadcast
                 {
                     var back = _beforeGrid;
                     _beforeGrid = null;
-                    if (back.Layout is "full" or "2up" or "4up") Show("", back.Layout, null, back.Slots.Select(x => x ?? "").ToList());
-                    else if (Board.Ranking().FirstOrDefault(r => r.Online && !IsDown(r.Lobby)) is { } top) Show(top.Lobby);
+                    if (back.Layout is "full" or "2up" or "4up") Show("", back.Layout, null, back.Slots.Select(x => x ?? "").ToList(), "auto");
+                    else if (Board.Ranking().FirstOrDefault(r => r.Online && !IsDown(r.Lobby)) is { } top) Show(top.Lobby, "full", null, null, "auto");
                     return;
                 }
                 var want = GridLobbies();
@@ -1277,6 +1286,7 @@ namespace TournamentTracker.App.Broadcast
                 Preview = new { Layout = preview.Layout, preview.Slots },
                 Hold = HoldState(),
                 Panic = PanicOn(),
+                ArmedDropped = ArmedDropped is { } dropped && (now - dropped.At).TotalSeconds < 15 ? new { dropped.Text, At = dropped.At.ToString("o") } : null,
                 Lobbies = ranking.OrderBy(r => NumberOf(r.Lobby)).Select(r =>
                 {
                     var live = Board.Lobby(r.Lobby);

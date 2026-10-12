@@ -37,7 +37,7 @@ export class Deck {
 		const def = BY_UUID[uuid];
 		if (!def) return;
 		this.disappear(id);
-		const key = { id, handle, def, settings: settingsOf(def, settings), dial: Boolean(isDial || def.dial), busy: false, image: null, pending: null, commitTimer: null, committing: null, clearTimer: null, scrub: 0, scrubbing: false };
+		const key = { id, handle, def, settings: settingsOf(def, settings), dial: Boolean(isDial || def.dial), busy: false, image: null, pending: null, commitTimer: null, committing: null, staged: null, clearTimer: null, scrub: 0, scrubbing: false };
 		this.keys.set(id, key);
 		this.draw(key);
 		this.updateTicker();
@@ -60,6 +60,7 @@ export class Deck {
 		this.timers.clearTimeout(key.commitTimer);
 		key.commitTimer = null;
 		key.pending = null;
+		key.staged = null;
 		this.draw(key, true);
 	}
 
@@ -141,8 +142,16 @@ export class Deck {
 			}
 			// Take waits for the stage on its way (sent just now, or when the dial rested): Red Alert answers
 			// each request on its own, so Take sent beside it could go first. If the stage was refused,
-			// nothing is taken: what's in Preview isn't the lobby the dial landed on.
-			if (key.def.flushFirst && key.committing && !(await key.committing)) return;
+			// nothing is taken: what's in Preview isn't the lobby the dial landed on. The same when it was
+			// refused before the push (the strip still shows that lobby, with the alert): no Take.
+			if (key.def.flushFirst) {
+				if (key.committing && !(await key.committing)) return;
+				if (key.pending !== null && key.staged && key.staged.value === key.pending && !key.staged.ok) {
+					this.log("Not sent: the dialled lobby wasn't staged, so Take would put the old Preview on.");
+					Promise.resolve(key.handle.showAlert?.()).catch(() => {});
+					return;
+				}
+			}
 			const ok = await this.run(key, key.def.request(key.settings, this.state, key.pending));
 			if (ok && key.pending !== null) this.clearLater(key);
 		} finally {
@@ -175,6 +184,7 @@ export class Deck {
 		const next = key.def.rotate(key.settings, this.state, key.pending, ticks);
 		if (next === null || next === undefined) return;
 		key.pending = next;
+		key.staged = null;
 		this.timers.clearTimeout(key.clearTimer);
 		key.clearTimer = null;
 		this.draw(key);
@@ -202,12 +212,18 @@ export class Deck {
 		return p;
 	}
 
-	/** Sends a dial's choice (Preview lobby, or who the camera follows): whether it was done, true when there was none. */
+	/**
+	 * Sends a dial's choice (Preview lobby, or who the camera follows): whether it was done, true when there
+	 * was none. The answer stays on the key (`staged`) while the strip shows that choice, for a push to see.
+	 */
 	async commit(key) {
 		const value = key.pending;
 		if (value === null || value === undefined || !key.def.commit) return true;
 		const ok = await this.run(key, key.def.commit(key.settings, this.state, value), { ok: false });
-		if (key.pending === value) this.clearLater(key);
+		if (key.pending === value) {
+			key.staged = { value, ok };
+			this.clearLater(key);
+		}
 		return ok;
 	}
 
@@ -217,6 +233,7 @@ export class Deck {
 		key.clearTimer = this.timers.setTimeout(() => {
 			key.clearTimer = null;
 			key.pending = null;
+			key.staged = null;
 			this.draw(key);
 		}, this.holdChoice);
 	}

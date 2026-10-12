@@ -432,7 +432,11 @@ main.ldmode .testbar{position:static;margin:-8px -12px 6px;padding:3px 12px;gap:
 main.ldmode .testbar b{font-size:17px;padding:3px 8px 0}
 main.ldmode .testbar .b{padding:3px 10px 1px;font-size:14px}
 :root{--pv:clamp(300px,21.9vw,440px);--tk:clamp(120px,7.6vw,150px)}
-.ld{flex:1;min-height:0;display:grid;gap:8px;grid-template-rows:auto auto auto minmax(0,1fr)}
+/* A smaller window (Red Alert's first one, a laptop at 125%): Preview and Program a little smaller, so the
+   action panel beside them keeps room for its buttons and the desk still fits one screen. */
+@media (max-width:1200px){:root{--pv:clamp(230px,23vw,300px);--tk:112px}}
+/* div.ld, not .ld: the body has class "ld" too (the icon rail), and must stay the two-column grid. */
+div.ld{flex:1;min-height:0;display:grid;gap:8px;grid-template-rows:auto auto auto minmax(0,1fr)}
 /* Status bar */
 .ld-bar{display:flex;align-items:stretch;gap:6px;min-width:0;position:relative;height:48px}
 .ld-bar .onair{flex:1 1 auto;min-width:0;grid-template-columns:auto minmax(0,1fr);padding:4px 10px;gap:10px;border-width:2px;box-shadow:inset 5px 0 0 var(--oa)}
@@ -648,11 +652,18 @@ kbd{display:inline-block;font:600 11.5px/1 var(--mono);padding:3px 6px;border:1p
 .tile-pop .b{font-size:14px;padding:4px 9px 2px}
 .tile-pop .spec{padding-top:0}
 .tile-pop .ppl button::after{content:none}
-/* A narrow or short window: one long page instead. */
-@media (max-width:1200px),(max-height:620px){
+/* Under 1200 px the Take column and the action panel keep their buttons: a little taller than the
+   monitors, and the break buttons wrap rather than run off the panel. */
+@media (max-width:1200px){
+  .ld-take,.ld-act{height:calc(var(--pv) * 9 / 16 + 70px)}
+  .brk-bar .lay-grp{flex-wrap:wrap;row-gap:4px}
+  .brk-bar .b{font-size:13px;padding:4px 6px 2px}
+}
+/* A narrow or short window: one long page instead (the side menu stays the icon rail). */
+@media (max-width:1000px),(max-height:620px){
   main.ldmode{overflow:auto}
   main.ldmode>section#caster.on{display:block}
-  .ld{display:flex;flex-direction:column}
+  div.ld{display:flex;flex-direction:column}
   .ld-bar{flex-wrap:wrap;height:auto}
   .ld-sw{grid-template-columns:minmax(0,1fr) var(--tk) minmax(0,1fr)}
   .ld-act{grid-column:1/-1;height:auto}
@@ -673,6 +684,11 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .deck-out{margin-top:8px;grid-template-columns:40px minmax(0,1fr) auto}
 .deck-out #db-url{color:#fff}
 .deck-all{margin-top:8px}.deck-all summary{cursor:pointer;color:var(--muted);font-size:13px}
+.deck-nums{margin-top:10px;padding:8px 10px;background:var(--sunk);font-size:13px}
+.dn-list{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:6px}
+.dn-list label{display:flex;gap:6px;align-items:center}
+.dn-list input{width:54px}
+.dn-list label.off{color:var(--muted)}
 </style>
 </head>
 <body>
@@ -975,6 +991,9 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       <label id="db-t-l">Switch <select id="db-t"><option value="">As set on the OBS page</option><option value="cut">Straight cut</option><option value="swoosh">Swoosh</option><option value="fade">Fade</option></select></label>
     </div>
     <div class="url deck-out"><span class="muted">Link</span><span id="db-url" class="mono"></span><button type="button" id="db-copy" data-copy="">Copy</button></div>
+    <div class="deck-nums"><div class="row" style="justify-content:space-between"><span><b>Lobby numbers</b> <span class="muted">what the Stream Deck's lobby keys (and 1–9 on the Live desk) mean</span></span><button class="b" type="button" id="deck-renumber" title="The lobbies sending now become 1, 2, 3… in their order; lobbies that aren't sending give their numbers up">Renumber online lobbies 1…N</button></div>
+      <div class="dn-list" id="deck-nums"></div>
+      <p class="muted help" style="margin:6px 0 0;font-size:12.5px">A lobby keeps its number across restarts (for 18 hours after it was last seen), and a new lobby gets the lowest free one. Type a number to change one: a lobby that had it takes the old one. New lobbies for a new day or round: Renumber.</p></div>
     <details class="deck-all"><summary>Every link (<span id="deck-n">…</span>)</summary><div id="deck-links"></div></details>
   </div>
   <div class="card upd-card" id="upd-card" data-page="settings">
@@ -1443,9 +1462,11 @@ function renderBar() {
   setTitle($('pill-hold'), h.on ? `Switching held${h.why === 'Panic' ? ' (panic)' : ''}: nothing switches by itself.${h.heldBack ? ' Held back: ' + h.heldBack.text + '.' : ''} ${d.panic ? 'Click to undo the panic (H releases only the hold).' : 'Click (or H) to release.'}` : 'Automatic switching on: ' + (autos.join(', ') || 'none') + '. Click (or H) to hold.');
   // Something the hold just stopped from switching by itself: said once.
   if (h.heldBack && h.heldBack.at !== heldSaid) { heldSaid = h.heldBack.at; toast(`Held back: ${h.heldBack.text} (switching is held).`); }
+  // A camera armed for when play resumes, cancelled by a switch made by hand: said once.
+  if (d.armedDropped && d.armedDropped.at !== droppedSaid) { droppedSaid = d.armedDropped.at; toast(d.armedDropped.text + '.'); }
   shotTick();
 }
-let heldSaid = null;
+let heldSaid = null, droppedSaid = null;
 $('pill-audio').addEventListener('click', () => voiceDo({ action: 'mute' }));
 $('pill-hold').addEventListener('click', () => { if (DESK && DESK.panic) deckDo('undo'); else holdToggle(); });
 // ---- Warnings: one line in the bar (the worst one, and how many more); all of them in its popover ----
@@ -2843,8 +2864,29 @@ async function renderDeck() {
   for (const x of DECK.links) { if (x.group !== group) { group = x.group; html += `<div class="muted" style="margin:8px 0 2px;font-weight:600">${esc(group)}</div>`; } html += urlRow(x.name, x.url); }
   setText($('deck-n'), String(DECK.links.length));
   if ($('deck-links')._h !== html) { $('deck-links').innerHTML = html; $('deck-links')._h = html; }
+  // Lobby numbers: each one can be typed over (not while it's being typed in).
+  const nums = DECK.numbers || [];
+  const nh = nums.length ? nums.map(n => `<label class="${n.online ? '' : 'off'}" title="${n.online ? 'Sending now' : 'Not sending now: it keeps its number for 18 hours after it was last seen'}"><input type="number" min="1" max="99" value="${n.no}" data-lobby="${esc(n.lobby)}">${esc(n.lobby)}${n.online ? '' : ' (offline)'}</label>`).join('')
+    : '<span class="muted">No lobbies yet: they get numbers as they start sending.</span>';
+  if ($('deck-nums')._h !== nh && !$('deck-nums').contains(document.activeElement)) { $('deck-nums').innerHTML = nh; $('deck-nums')._h = nh; }
   renderDeckBuilder();
 }
+async function deckNumbers(body) {
+  const r = await api('POST', '/app/admin/numbers', body);
+  toast(r.message);
+  if (DECK && r.numbers) DECK.numbers = r.numbers;
+  if ($('deck-nums').contains(document.activeElement)) document.activeElement.blur();
+  $('deck-nums')._h = null;
+  renderDeck();
+}
+$('deck-nums').addEventListener('change', e => {
+  const i = e.target.closest('input[data-lobby]');
+  if (!i) return;
+  const no = parseInt(i.value, 10);
+  if (!(no >= 1 && no <= 99)) { toast('Lobby numbers go from 1 to 99.'); $('deck-nums')._h = null; i.blur(); renderDeck(); return; }
+  deckNumbers({ numbers: { [i.dataset.lobby]: no } });
+});
+$('deck-renumber').addEventListener('click', () => deckNumbers({ action: 'renumber' }));
 $('deck-build').addEventListener('change', renderDeckBuilder);
 $('db-copy').addEventListener('click', e => { if (!$('db-copy').dataset.copy) { e.preventDefault(); toast('Pick what the key does first.'); } });
 $('deck-copyall').addEventListener('click', async () => {

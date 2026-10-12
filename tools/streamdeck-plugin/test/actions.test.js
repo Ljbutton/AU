@@ -86,6 +86,21 @@ test("Take, Wide, Layout, Replay, Break and Panic paths", () => {
 		assert.deepEqual(req("replay", { op }), { path: `replay/${op}`, query: {} });
 	for (const kind of ["brb", "intermission", "sponsor", "off"]) assert.deepEqual(req("break", { kind }), { path: `break/${kind}`, query: {} });
 	assert.deepEqual(req("panic", {}), { path: "panic", query: {} });
+	assert.deepEqual(req("undo", {}), { path: "undo", query: {} });
+});
+
+test("Panic shows a panic that is on and undoes only that; Undo is lit while it is", () => {
+	const calm = sampleState();
+	const panicking = { ...sampleState(), panic: true };
+	assert.equal(view("panic", {}, calm).title, "PANIC");
+	assert.equal(view("panic", {}, panicking).title, "UNDO PANIC");
+	assert.equal(view("panic", {}, panicking).lit, true);
+	// The panic's own undo, never a plain Undo (which would take back the last switch if no panic were on).
+	assert.deepEqual(req("panic", {}, panicking), { path: "panic/undo", query: {} });
+	assert.deepEqual(req("panic", {}, calm), { path: "panic", query: {} });
+	assert.equal(view("undo", {}, calm).lit, false);
+	assert.equal(view("undo", {}, panicking).lit, true);
+	assert.equal(view("undo", {}, panicking).sub, "the panic");
 });
 
 test("Toggles go to their own paths: toggle by default, or always on or off", () => {

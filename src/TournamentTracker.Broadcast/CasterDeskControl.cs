@@ -270,6 +270,25 @@ namespace TournamentTracker.App.Broadcast
             return had;
         }
 
+        /// <summary>Armed cameras a switch by hand cancelled (said once on the desk), and when.</summary>
+        public (string Text, DateTime At)? ArmedDropped { get; private set; }
+
+        /// <summary>
+        /// A switch by hand (the desk, the Stream Deck) is the caster's choice: cameras armed for lobbies it
+        /// doesn't show are dropped, so one doesn't cut over it when its lobby's play resumes. Said on the desk.
+        /// </summary>
+        private void DropArmed(OnAir next)
+        {
+            List<string> dropped;
+            lock (_lock)
+            {
+                dropped = _armed.Keys.Where(l => !next.Slots.Any(s => string.Equals(s, l, StringComparison.OrdinalIgnoreCase))).ToList();
+                foreach (var l in dropped) _armed.Remove(l);
+                if (dropped.Count > 0) ArmedDropped = ($"Armed camera for {string.Join(", ", dropped)} cancelled: you switched by hand", _clock());
+            }
+            if (dropped.Count > 0) Touch();
+        }
+
         /// <summary>The pick armed for a lobby (Pick null: the camera picks by itself), or null when none is.</summary>
         public (int? Pick, bool Armed) Armed(string lobby)
         {
@@ -317,9 +336,10 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>
-        /// Once a second: an armed camera whose lobby is back in play goes on stream (not over a replay
-        /// or the be-right-back screen, and not while switching is held). A pick from a game that has
-        /// ended is dropped.
+        /// Once a second: an armed camera whose lobby is back in play goes on stream (not over a replay,
+        /// the be-right-back screen, intermission or a sponsor break, and not while switching is held). A
+        /// pick from a game that has ended is dropped, and so is one for a lobby the caster switched away
+        /// from by hand (<see cref="DropArmed"/>).
         /// </summary>
         private bool ArmedTick(OnAir air)
         {
@@ -409,5 +429,66 @@ namespace TournamentTracker.App.Broadcast
 
         /// <summary>The lobby with this number, among those given (online ones, say), or null.</summary>
         public string? LobbyNumbered(int no, IEnumerable<string> among) => among.FirstOrDefault(l => NumberOf(l) == no);
+
+        /// <summary>The highest number a lobby can be given by hand.</summary>
+        public const int MaxNumber = 99;
+
+        /// <summary>Every lobby holding a number (seen in the last <see cref="NumberKeep"/>), by number, and whether it's sending now: for Settings → Stream Deck.</summary>
+        public List<(string Lobby, int No, bool Online)> Numbers()
+        {
+            var ranking = Board.Ranking();
+            foreach (var r in ranking) NumberOf(r.Lobby);              // every lobby on the board has one
+            var online = new HashSet<string>(ranking.Where(r => r.Online).Select(r => r.Lobby), StringComparer.OrdinalIgnoreCase);
+            var now = _clock();
+            lock (_numbered)
+                return _numbered.Where(kv => now - kv.Value.Seen < NumberKeep).OrderBy(kv => kv.Value.No).ThenBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+                    .Select(kv => (kv.Key, kv.Value.No, online.Contains(kv.Key))).ToList();
+        }
+
+        /// <summary>
+        /// Numbers given by hand (Settings → Stream Deck), lobby → number (1 to <see cref="MaxNumber"/>). A
+        /// number another lobby holds is swapped: that lobby takes this one's old number. Saved in
+        /// lobby-numbers.json, so the Stream Deck's lobby keys mean these lobbies from now on.
+        /// </summary>
+        public void SetNumbers(IEnumerable<(string Lobby, int No)> want)
+        {
+            var now = _clock();
+            foreach (var (lobby, no) in want)
+            {
+                if (string.IsNullOrWhiteSpace(lobby) || no < 1 || no > MaxNumber) continue;
+                int old = NumberOf(lobby);
+                if (old == no) continue;
+                lock (_numbered)
+                {
+                    foreach (var other in _numbered.Where(kv => kv.Value.No == no && !string.Equals(kv.Key, lobby, StringComparison.OrdinalIgnoreCase)).Select(kv => kv.Value).ToList())
+                    {
+                        other.No = old;
+                        other.Seen = now;
+                    }
+                    _numbered[lobby] = new Numbered { No = no, Seen = now };
+                }
+            }
+            SaveNumbers();
+            Touch();
+        }
+
+        /// <summary>
+        /// The online lobbies numbered 1, 2, 3… in their order now (the start of a day or a round with new
+        /// lobbies); every other lobby gives its number up, and gets the lowest free one if it comes back.
+        /// The lobbies, in their new order.
+        /// </summary>
+        public List<string> RenumberOnline()
+        {
+            var online = Board.Ranking().Where(r => r.Online).Select(r => r.Lobby).OrderBy(NumberOf).ToList();
+            var now = _clock();
+            lock (_numbered)
+            {
+                _numbered.Clear();
+                for (int i = 0; i < online.Count; i++) _numbered[online[i]] = new Numbered { No = i + 1, Seen = now };
+            }
+            SaveNumbers();
+            Touch();
+            return online;
+        }
     }
 }

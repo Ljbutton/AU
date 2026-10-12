@@ -63,6 +63,30 @@ public class CasterPageScriptTests
     }
 
     [Fact]
+    public void The_live_desk_keeps_its_icon_rail_and_one_screen_in_a_smaller_window()
+    {
+        // The body has class "ld" on the Live desk too: a rule for plain ".ld" would lay the body out as
+        // well (in a column, the side menu as a full-width strip). Only the desk's own div is laid out.
+        string page = Page();
+        string css = page.Substring(0, page.IndexOf("</style>", StringComparison.Ordinal));
+        Assert.DoesNotMatch(new Regex(@"(^|[\s,}])\.ld\{", RegexOptions.Multiline), css);
+        Assert.Contains("div.ld{flex:1;", css);
+        Assert.Contains("div.ld{display:flex;flex-direction:column}", css);
+        // One long page only below about 1000 px (Red Alert's first window was 1180 × 780).
+        Assert.Contains("@media (max-width:1000px),(max-height:620px){", css);
+        Assert.DoesNotContain("@media (max-width:1200px),(max-height:620px)", css);
+    }
+
+    [Fact]
+    public void A_cancelled_armed_camera_is_said_once_and_lobby_numbers_are_set_in_Settings()
+    {
+        string page = Page();
+        Assert.Contains("if (d.armedDropped && d.armedDropped.at !== droppedSaid)", page);
+        Assert.Contains("api('POST', '/app/admin/numbers', body)", page);
+        Assert.Contains("deckNumbers({ action: 'renumber' })", page);
+    }
+
+    [Fact]
     public void Closing_the_keys_popover_or_Esc_stops_waiting_for_a_key()
     {
         string page = Page();

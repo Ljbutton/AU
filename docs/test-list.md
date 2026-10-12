@@ -343,6 +343,10 @@ _Red Alert with the new Stream Deck state, Stream Deck app 6.5+ on the same PC, 
 - [ ] No key, settings panel or plugin log ever shows who the impostors are; the plugin log (plugin's logs folder) has paths and answers, never the key.
 - [ ] Stream Deck +: Preview dial turn picks the lobby (strip shows it), push takes; Player dial turn arms the next living player, push cuts to them, tap goes wide; Replay dial scrubs by frames slowly and seconds quickly, push plays/pauses.
 - [ ] Custom path key with gfx/skip and with voice/listen/2 — each works and ticks.
+- [ ] Panic key, then look at it — it says UNDO PANIC (amber border) while the panic is on; press it — back to what was on, voice and alerts back, and the key says PANIC again. Press it again straight after — nothing else is undone (no tick).
+- [ ] Undo key — lit while a panic is on and undoes it; with no panic it takes back the last switch (or an auto switch away from a dropped lobby). With OBS closed (no simulation) it shows the triangle and nothing moves.
+- [ ] Custom path key's list: "Undo (the panic, an auto switch, or the last switch)".
+- [ ] Preview dial: turn to a lobby that has just gone offline, let it rest (the strip shows the triangle), push straight after — nothing goes on stream (the old Preview isn't taken); turn again and push — that lobby goes on.
 
 ### Red Alert: switching engine, Stream Deck, replays
 - [ ] Red Alert: Stream Deck `/deck/lobby/1?key=...` puts lobby 1 on; a wrong key answers 401, an unknown lobby 404, OBS closed (no simulation) 503; pressing the same key twice fast shows "ignored repeat"
@@ -353,6 +357,12 @@ _Red Alert with the new Stream Deck state, Stream Deck app 6.5+ on the same PC, 
 - [ ] Red Alert: /deck/state?key=... waits and answers as soon as something changes (rev goes up); no impostor flags in it unless &imp=1; /deck/img keys draw lobby tally/phase and player heads
 - [ ] Red Alert: Hold on: auto grid, auto intermission, the camera going back to the map, auto switch off a dropped lobby, break end and armed cameras all wait, and the desk says what was held back; the caster's own switches still go
 - [ ] Red Alert: Panic fades to be-right-back, mutes lobby voice, clears graphics, pauses alerts and holds; Undo puts the previous view, voice and alerts back
+- [ ] Red Alert: Panic, then put it right by hand (another lobby, hold off, voice back on). Later press BRB, Hold and Mute all yourself → the desk doesn't show "Undo panic"; Undo takes back the BRB (to the lobby you were on, not the one before the panic) and the voice stays muted
+- [ ] Red Alert: Panic, then OBS closes; the Stream Deck's Undo → refused (OBS isn't connected), still on be right back and held; reconnect OBS → the desk still says "Undo panic" and Undo puts the lobby back in OBS. (Or, with OBS still closed, the desk's Back undoes it and says OBS didn't switch)
+- [ ] Red Alert: arm a lobby's camera in a meeting, then put another lobby on stream (or intermission, or a sponsor break) by hand → a toast says the armed camera was cancelled; when the meeting ends the stream stays where you put it
+- [ ] Red Alert: arm a camera, auto intermission comes up → the camera doesn't cut over intermission; when intermission ends by itself, the camera goes on
+- [ ] Red Alert: a player camera on stream, Intermission, then End the break (desk or `break/off?t=cut`) → back to that player camera, with a straight cut
+- [ ] Red Alert: Settings → Stream Deck → Lobby numbers: type 1 for the lobby that's 3 → it's 1, the old 1 is 3, and the Stream Deck's Lobby 1 key is that lobby; Renumber online lobbies 1…N → the lobbies sending now are 1, 2, 3…; both survive a restart
 - [ ] Red Alert: Replay "that" plays the on-air lobby's last ~8 s with no card; "last" plays the newest clip again; slow motion cycles 50%/25%/100% (quiet while slowed)
 - [ ] Red Alert: OBS stream stopped/reconnecting, not recording, dropped frames and low disk show as warnings on the desk within a few seconds
 - [ ] Red Alert: /app/admin/program.jpg shows OBS's program picture (blank 204 with OBS closed)
@@ -365,6 +375,8 @@ _Red Alert with the new Stream Deck state, Stream Deck app 6.5+ on the same PC, 
 
 ### Red Alert: one-screen Live desk
 - [ ] Red Alert Live desk at 1920x1080 (and 1536x864 / 125% scaling): everything on one screen, no page scroll; only the three bottom columns (and a full action panel) scroll
+- [ ] First start of Red Alert 0.3.14 (no window.txt in %LOCALAPPDATA%\RedAlert): the window opens maximised. Make it smaller, move it, close and reopen → it comes back where and as big as it was (maximised if it was)
+- [ ] Live desk in a 1180x780 window (and 1024x700): still one screen; the side menu stays the narrow icon rail on the left; Panic, Hold and every break button are visible in the action panel; Take, Clear and Back are visible. Only below about 1000 px wide (or 620 high) it becomes one long page, still with the icon rail
 - [ ] Status bar: PROGRAM/BREAK/OFF AIR tag with OBS STREAMING/REC times; AUDIO pill shows who is heard, click mutes all (pill flashes red, click again unmutes); OBS, LOBBIES, REPLAYS, AUTO/HOLD pills; shot timer
 - [ ] Warning line shows the worst warning and "+N"; click opens the list with its Fix/Undo buttons; Esc or a click elsewhere closes it; disconnecting OBS shows "OBS not connected"
 - [ ] Click a lobby tile: green PVW border and it appears in the PREVIEW box; Ctrl+click a second: 2-up in Preview; TAKE (or Enter) puts it on (red PGM borders), Preview empties

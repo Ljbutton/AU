@@ -77,8 +77,8 @@ While you play, the app's pages run the lobby:
   missing; and the whole lobby on one page, up to 15 players: code, server, map, round, each player
   as their crewmate with their Discord link and whether automute has them muted or deafened;
   the automute buttons (automute on/off, referee mode, spectator muting, unmute everyone);
-  start the next round; the settings lock, referee ghost slot and
-  stream overlay switches; post the leaderboard or server standings, or repost the lobby
+  start the next round; the settings lock, referee ghost slot,
+  host authority (see [Host authority](#referee-ghost-slot-experimental) below) and stream overlay switches; post the leaderboard or server standings, or repost the lobby
   message.
 * **Referee:** every game waits here before Discord sees anything. Under **Waiting for you**
   each finished game shows every player's points (hover for where they came from). Type any
@@ -444,28 +444,52 @@ stream.
   `broadcast-v…`, a beta from v0.1.0) and double-click it. It installs to
   `%LOCALAPPDATA%\Programs\RedAlert` with Start menu and desktop shortcuts, and can sit
   next to The Button on the same PC.
-* **The side menu** has a page per job: **Live desk** (everything for the show on one screen: on
-  air and the layout buttons along the top, then three columns that scroll on their own: the
-  lobbies with their pictures, what's happening, and the player cams, talking points, graphics
-  queue and earlier plays), **Lobby health**, **Montages**, **Graphics**, **Standings**, **Sponsors**,
-  **Twitch**, **OBS**, **Lobby voice**, **Players** and **Settings** (player camera, Stream Deck,
-  updates). A dot beside an item shows what needs a
-  look; the number on Live desk is new plays since you last looked there (it clears when you
-  open it). The replay keys work on every page; 1-9 and N on the Live desk. Each card's
-  explanation is behind its small **?**.
-* **On stream, at a glance:** the top of the Live desk says what OBS is showing right now:
-  LIVE (red), BREAK (amber) or OFF AIR, the layout and lobbies, whose lobby voice is heard, and a
-  shot timer that starts again on every switch. It follows OBS: switches made in OBS by hand
-  show too, and a switch OBS doesn't make within a couple of seconds is a red error. Beside it,
-  **Talking points**: the best two storyline notes about the lobbies on screen (Next, Used).
-* **Layouts:** **Views** (Full, 2-Up, Quad, Grid, Auto grid) and **Breaks** (Be right back,
-  Intermission, Auto intermission, in amber) are separate rows, so a break isn't clicked by
-  mistake.
-* **Pick, then Send:** clicking a lobby anywhere (a card, the lobby list, a tile, the Multiview
-  pictures, keys 1-9) picks it under **Next**, numbered in order; nothing changes on stream until
-  **Send** (or Enter; Esc clears). One lobby goes full screen, two side by side, three or four in
-  the quad, five and more in the grid; a **Views** button chooses the layout instead. Breaks go on
-  at once.
+* **The side menu** has a page per job: **Live desk** (everything for the show on one screen, laid
+  out like vMix: a status bar, then **Preview**, **Take** and **Program** with the action panel
+  beside them, a tile per lobby, and three columns at the bottom that scroll on their own: what's
+  happening, the player cams, and the graphics queue, talking points and earlier plays), **Lobby
+  health**, **Montages**, **Graphics**, **Standings**, **Sponsors**, **Twitch**, **OBS**, **Lobby
+  voice**, **Players** and **Settings** (player camera, Stream Deck, updates). On the Live desk the
+  menu is a narrow rail of short names. A dot beside an item shows what needs a look; the number on
+  Live desk is new plays since you last looked there (it clears when you open it). The replay keys
+  work on every page, the desk's keys on the Live desk (**?** in its status bar lists them). Each
+  card's explanation is behind its small **?**.
+* **One screen:** Red Alert opens maximised the first time, then where and as big as you left it.
+  The Live desk fits one screen from about 1000 × 620 up (a smaller window becomes one long page).
+* **The status bar** says what OBS is showing right now: LIVE (red), BREAK (amber) or OFF AIR, the
+  layout and lobbies, whether OBS is streaming and recording, whose lobby voice is heard (click it to
+  mute every lobby), OBS, the lobbies' health, replays ready, AUTO or HOLD, and a shot timer that
+  starts again on every switch. It follows OBS: switches made in OBS by hand show too, and a switch
+  OBS doesn't make within a couple of seconds is a red error. Beside it, the worst warning (click
+  for the rest, each with its **Fix** or **Undo**): OBS not connected, the stream stopped or
+  reconnecting, not recording, dropped frames, low disk space, a lobby on stream missing in OBS.
+* **Preview, Take, Program:** clicking a lobby (its tile, a card, keys **1-9**) puts it in
+  **Preview** (green); **Ctrl**+click adds another (two side by side, three or four in the quad, five
+  and more in the grid). **Take** (or Enter) puts Preview on stream, in **Program** (red); Esc clears
+  Preview. **Full**, **2-Up**, **Quad**, **Grid** and **Cams** beside Take choose Preview's layout
+  (with nothing in Preview, what's on stream in that layout). To switch at once instead:
+  **Shift**+**1-9** or a double-click. The Program box shows OBS's own picture, about twice a
+  second (a drawing of the layout without OBS). **Back** undoes the last switch.
+* **Cut, Swoosh or Fade:** the choice beside Take is how every switch from the desk goes on (Take,
+  cuts, camera cuts), and is remembered. Swoosh is the stinger described under
+  [Swoosh](#caster-tab-redzone-broadcast) below.
+* **Breaks** (Be right back, Intermission, Sponsor, in amber) sit in the action panel, apart from
+  the layouts, so a break isn't clicked by mistake; they go on at once.
+* **Hold** (**H**, or the AUTO pill): nothing switches by itself until you release it: auto grid,
+  auto intermission, a camera going back to the map, auto switch off a dropped lobby, a break
+  ending, armed cameras. What it held back shows as a toast and a warning. Your own switches still
+  go through.
+* **Panic** (**P** twice, or the Panic button): something must come off stream now. It fades to
+  Be right back, mutes every lobby voice, clears the graphics, pauses alerts and holds switching.
+  While it's on, Panic says **Undo panic** and **Back** (or the Stream Deck's Undo) puts it all
+  back: what was on, the voice, the alerts and your own hold if you had one. Put right by hand
+  instead (another lobby, the hold released, the voice back on), it's over: a BRB, hold or mute
+  you set later is yours, and Undo undoes your last switch. With a stream delay, what's already
+  sent still airs (the delay's own "stop streaming" is in OBS).
+* **Replay that** saves the last seconds of the lobby on stream and plays them as soon as they're
+  saved, no card needed; **Play last** plays the newest replay again. Ready replays show as buttons
+  beside them and as a badge on their lobby's tile; the replay controls (with slow motion 100 / 50 /
+  25%) take over the action panel while one plays.
 * **On stream** says **EMPTY** (not LIVE) when a layout has no lobby in it, and the Live desk warns
   when a lobby on stream isn't in OBS ("LJ isn't in OBS: …"), with **Fix** (it rebuilds the TT
   scenes). No button fails silently: anything that goes wrong says why.
@@ -473,10 +497,13 @@ stream.
   still listed but refusing to go in a scene. Red Alert then makes a fresh one under a new name
   ("TT Lobby LJ 2") and carries on; a source that can't be made is tried again after 30 s or on
   Rebuild, never in a loop. No need to restart OBS.
-* **One order:** each lobby gets a number when it first connects and keeps it all session. The
-  lobby cards, the Multiview tiles, keys **1-9** (that lobby full screen) and the stream use it;
-  how exciting a lobby is shows as a badge and a glow, never by moving it. In 2-up, Quad and
-  Grid the numbers on stream are where each lobby is on screen (1 top left).
+* **Lobby numbers:** each lobby gets a number when it first connects (the number at the end of its
+  name when that's free, else the lowest free one) and keeps it across restarts, in
+  `lobby-numbers.json`, for 18 hours after it was last seen. The tiles, the cards, keys **1-9** and
+  the Stream Deck's lobby keys use it; how exciting a lobby is shows as a badge and a glow, never by
+  moving it. In 2-up, Quad and Grid the numbers on stream are where each lobby is on screen (1 top
+  left). Settings → Stream Deck → **Lobby numbers** changes one (a lobby that had the number takes
+  the old one) or, for a new day or round, **Renumber online lobbies 1…N**.
 * **Graphics queue:** one big graphic on stream at a time (a lobby's table after a game, a
   player card, a storyline note, the standings), each for 8 s (change it on the Live desk), then
   the next. One about a lobby goes on that lobby: full screen, inside its tile in a multi-view
@@ -508,9 +535,13 @@ stream.
   (Settings → **Player cameras** turns it off). The Live desk's **Player cams** list has every
   live lobby's players: click one to put that lobby's camera on stream following them, or
   **Auto** to let it pick (an impostor closing in on someone alone, else whoever is busy; a pick
-  is kept a few seconds after they die, to see it). To show several at once, pick the lobbies,
-  press **🎥 Player cams** in Views and Send: two side by side, three or four in a quad (clicking a
-  player then only changes who that lobby's camera follows). When the game ends the stream goes
+  is kept a few seconds after they die, to see it); **Shift**+click only changes who it follows.
+  In a meeting or between games the press is **ARMED**: the camera goes on stream by itself when
+  play resumes (pressed again: taken back). It waits out a replay, Be right back, intermission and a
+  sponsor break, and a switch you make by hand to another lobby or a break cancels it (a toast says
+  so). To show several at once, put the lobbies in Preview, press **Cams** and **Take**: two side
+  by side, three or four in a quad (clicking a player then only changes who that lobby's camera
+  follows). When the game ends the stream goes
   back to the whole map by itself. The camera darkens what the followed player can't see, as on
   their own screen, and the referee sees task animations even with visual tasks off for the
   players (when their game sends them). Red Alert adds a **TT Player Cam** scene to OBS: one
@@ -531,28 +562,36 @@ stream.
   replay saved while it was on has a second angle. A kill the camera was following opens on the
   close-up; **🎥 Player cam / 🗺 Whole map** in the replay controls (key **P**) switches angle at
   the same moment.
-* **Stream Deck (Settings):** a link per action for the Stream Deck's **Website** action (tick
-  **GET request in background**): a lobby full screen (**lobby/1**, **lobby/2**…), next and
-  previous lobby, where the action is, quad, grid, the player camera (by itself, next and
-  previous player, or a colour: **cam/red**, **cam/blue**…), back to the whole map, and mute all
-  lobby voice. The links work while Red Alert is open on this PC; **New key** makes new ones.
-  8 keys fit lobby next/previous, action, quad, player cam, next/previous player and the whole
-  map.
+* **Stream Deck:** Red Alert has its own Stream Deck plugin, **RedAlert.streamDeckPlugin** (with
+  each Red Alert release): live keys that light red for Program and green for Preview, show each
+  lobby's phase and sabotage, each player's crewmate and name for the player cameras, and whether
+  toggles are on, plus Take, Undo, Panic, replays, breaks and dials for the Stream Deck +. It never
+  shows who the impostors are. Settings → Stream Deck has the port and key to pair it, a **link
+  builder** (pick what a key does: a lobby, a player's camera by slot or colour, cut or arm, the
+  transition…) for Companion or the Stream Deck's **Website** action (tick **GET request in
+  background**), every ready-made link, and the lobby numbers. **New key** makes new links. See
+  [docs/stream-deck.md](docs/stream-deck.md) for install, pairing, every action and the links.
 * **OBS setup check** (OBS page, when OBS connects): the scene collection and profile names
   (steps to rename them), a leftover empty "Scene" (**Delete it**), Desktop Audio reaching the
   stream (**Mute Desktop Audio**; the Live desk warns while it's on), what replays need (the
   Source Record plugin; OBS's own Replay Buffer isn't used and can stay off), and Impostor tags
   without a stream delay (**Set a 90 s delay**).
-* **Ports:** its screen is on `127.0.0.1:8768` (this PC only, with a private key); the OBS
-  pages are on `localhost:8767`, as before. The mod uses 8765 and 8766 on the host's PC.
+* **Ports:** its screen and the Stream Deck links are on `127.0.0.1:8768` (this PC only, with a
+  private key), or 8769, 8770 or 8771 when 8768 is taken (the Stream Deck plugin finds it there by
+  itself; Settings → Stream Deck warns that copied links need copying again). The OBS pages are on
+  `localhost:8767`, as before. The mod uses 8765 and 8766 on the host's PC.
+* **Files** in `%LOCALAPPDATA%\RedAlert`: `settings.json`, `obs.json`, `caster-priority.json`,
+  `lobby-numbers.json`, `roster.csv`, `broadcast.json`, `sponsors.json`, `health.json`, the kept
+  games, and `red-alert.log`: what Red Alert did and anything that went wrong (an error in the
+  window is written there and Red Alert carries on; past 1 MB it moves to `red-alert.log.1`).
 * **Older hosts:** hosts send their game data in a versioned format
   ([docs/broadcast-protocol.md](docs/broadcast-protocol.md)). A host whose mod is older than
   Red Alert still shows, with **host needs update** in Lobby health.
 
 ### Caster overlay and game video
 
-* **Jump to action** (or **N**): puts the lobby worth watching on stream (a meeting first, then
-  whatever just happened, else the next lobby in turn). A lobby whose host has gone silent
+* **Jump to action** (or **N**): puts the lobby worth watching into Preview (a meeting first, then
+  whatever just happened, else the next lobby in turn); Take puts it on. A lobby whose host has gone silent
   for a couple of minutes gets a warning at the top.
 * **Caster overlay:** an OBS Browser source at `http://localhost:8767/` that follows what's on
   stream (the full-screen lobby, or slot 1 of a multi-view), as do the video and multiview
@@ -655,10 +694,10 @@ the caster's PC and off stream.
   tile with its label, a status line, the impostor tag and a border that pulses at high
   priority; empty tiles show a sponsor or the logo. Click a tile (on stream) for full screen.
   **Auto grid** brings it up whenever no lobby is mid-game.
-* **Multiview:** the **Multiview** card on the Live desk has a small live picture of every lobby
-  sending its game. Click the ones you want (they're numbered in the order you pick), then
-  **Send**: one goes full screen, two side by side, three or four in the quad, five and more in
-  the grid. Nothing changes on stream until you press Send.
+* **Multiview:** the lobby tiles on the Live desk are a small live picture of every lobby sending
+  its game. Click one for Preview, Ctrl+click to add more (they're numbered in the order you pick),
+  then **Take**: one goes full screen, two side by side, three or four in the quad, five and more
+  in the grid. Nothing changes on stream until Take (Shift+1-9 or a double-click cut at once).
 * **Stats and storylines:** every game is kept on the caster's PC (`broadcast-games`), and the
   **Standings & storylines** card lists talking points from them (records, streaks, first
   blood, rivalries, who keeps getting voted out, milestones), the ones about players on stream

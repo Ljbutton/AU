@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace TournamentTracker.App.Broadcast
@@ -237,28 +238,52 @@ namespace TournamentTracker.App.Broadcast
 
         // ---- Panic, and undo ---------------------------------------------------------------------------
 
-        /// <summary>What a panic replaced, for Undo: what was on, the voice, the alerts and the hold (until when, and why).</summary>
+        /// <summary>
+        /// What a panic replaced, for Undo: what was on, the voice, the alerts and the hold (until when, and
+        /// why). And what the panic itself put up, so the same thing set again by hand later isn't taken
+        /// for it: its own be-right-back screen (that very switch), and the voice mute as it set it.
+        /// </summary>
         private sealed class PanicState
         {
             public OnAir Air = new OnAir();
             public bool MuteAll, AlertsPaused, VoiceFailed;
             public (bool Forever, DateTime? Until, string? Why) Hold;
+            /// <summary>The panic's own be-right-back screen (a BRB put on by hand later is another one).</summary>
+            public OnAir? Slate;
+            /// <summary>The voice's mute count once the panic muted it: moved since, the mute isn't the panic's.</summary>
+            public int MuteMark;
         }
         private PanicState? _panic;
         private const string PanicWhy = "Panic";
 
-        /// <summary>The panic still holds in full: the be-right-back screen on, switching held and every lobby voice muted (in OBS too).</summary>
+        /// <summary>The panic's own voice mute is still on: it muted the voice (it wasn't muted before), and nobody has turned it off or on since.</summary>
+        private bool PanicMuted(PanicState p) =>
+            _obs is { } obs && !p.MuteAll && obs.Settings.Voice.MuteAll && obs.Settings.Voice.MuteChanges == p.MuteMark;
+
+        /// <summary>The panic still holds in full: its be-right-back screen on, switching held and every lobby voice muted (in OBS too).</summary>
         private bool PanicInEffect(CasterDesk desk, PanicState p) =>
-            desk.OnAir.Layout == "slate" && desk.Held && !p.VoiceFailed && (_obs == null || _obs.Settings.Voice.MuteAll);
+            ReferenceEquals(desk.OnAir, p.Slate) && desk.Held && !p.VoiceFailed && (_obs == null || _obs.Settings.Voice.MuteAll);
 
         /// <summary>
-        /// Something of the panic is still there to undo: its be-right-back screen, its hold (still the
-        /// panic's: not released, nor replaced by one of the caster's) or its mute. Each put right by hand
-        /// (another lobby cut to, the hold released, the voice back on), it's over: Undo undoes the last
-        /// switch, and the next Panic is a new one.
+        /// Something of the panic is still there to undo: its own be-right-back screen, its hold (still the
+        /// panic's: not released, nor replaced by one of the caster's) or its mute (not turned off or on by
+        /// hand since). Each put right by hand (another lobby cut to, the hold released, the voice back
+        /// on), it's over and forgotten (<see cref="PanicCheck"/>): Undo undoes the last switch, the next
+        /// Panic is a new one, and a BRB, hold or Mute all the caster sets later is the caster's own.
         /// </summary>
         private bool PanicLeft(CasterDesk desk, PanicState p) =>
-            desk.OnAir.Layout == "slate" || desk.HoldWhy == PanicWhy || _obs != null && _obs.Settings.Voice.MuteAll && !p.MuteAll;
+            ReferenceEquals(desk.OnAir, p.Slate) || desk.HoldWhy == PanicWhy || PanicMuted(p);
+
+        /// <summary>Forgets a panic as soon as all of it has been put right by hand (whenever the desk changes).</summary>
+        private void PanicCheck()
+        {
+            var desk = _desk;
+            if (_panic is { } p && desk != null && !PanicLeft(desk, p)) Interlocked.CompareExchange(ref _panic, null, p);
+        }
+
+        /// <summary>Undoing this panic would switch what's on stream: its be-right-back screen is still up, and there's a lobby to go back to.</summary>
+        private static bool PanicUndoSwitches(CasterDesk desk, PanicState p) =>
+            ReferenceEquals(desk.OnAir, p.Slate) && p.Air.Layout is not ("none" or "slate" or "replay");
 
         /// <summary>
         /// One press when something must come off stream now (a slur in voice, roles leaking): a fade to
@@ -274,26 +299,34 @@ namespace TournamentTracker.App.Broadcast
             var obs = _obs;
             var was = _panic;
             if (was != null && PanicInEffect(desk, was)) return (200, "Already on the be-right-back screen: Undo puts it back.");
-            // Part of a panic undone by hand: it's put in full again, and Undo still goes back to before
-            // it (to the lobby cut to by hand, when its be-right-back screen was left). Over: a new one.
+            // Part of a panic undone by hand: it's put in full again, and Undo still goes back to before it.
+            // What was put right by hand is taken as it is now (the lobby cut to, the caster's own hold, the
+            // voice and the alerts as set since). All of it put right: a new one.
             PanicState p;
             if (was != null && PanicLeft(desk, was))
             {
                 p = was;
-                if (desk.OnAir.Layout != "slate") p.Air = desk.OnAir;
+                if (!ReferenceEquals(desk.OnAir, p.Slate)) p.Air = desk.OnAir;
+                if (desk.HoldWhy != PanicWhy) p.Hold = desk.HoldNow();
+                if (!PanicMuted(p)) p.MuteAll = obs?.Settings.Voice.MuteAll ?? false;
+                if (!desk.Alerts.Settings.Paused) p.AlertsPaused = false;
             }
             else p = new PanicState { Air = desk.OnAir, MuteAll = obs?.Settings.Voice.MuteAll ?? false, Hold = desk.HoldNow(), AlertsPaused = desk.Alerts.Settings.Paused };
             desk.SetHold(true, null, PanicWhy);
-            desk.ShowSlate("deck", "fade");
+            p.Slate = desk.ShowSlate("deck", "fade");
             desk.Graphics.Clear();
             desk.HidePlayerCard();
             desk.Alerts.SetPaused(true);
             p.VoiceFailed = false;
+            if (obs != null)
+            {
+                obs.Settings.Voice.MuteAll = true;
+                p.MuteMark = obs.Settings.Voice.MuteChanges;
+            }
             _panic = p;
             string? voice = null;
             if (obs != null)
             {
-                obs.Settings.Voice.MuteAll = true;
                 try { await obs.VoiceChangedAsync().ConfigureAwait(false); }
                 catch (Exception e)
                 {
@@ -311,8 +344,9 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>
-        /// After Panic: the voice, the alerts and the hold as they were (the caster's own hold, with its
-        /// reason and time limit, if there was one; a hold the caster set since stays), and (still on its
+        /// After Panic: what of it is still there put back as it was. The voice (while it's still the
+        /// panic's mute), the alerts (while paused), the hold (the caster's own hold, with its reason and
+        /// time limit, if there was one; a hold the caster set since stays), and (still on its own
         /// be-right-back screen) what was on. Null when there's no panic to undo (none, or it was all put
         /// right by hand), so Undo goes on to undo the last switch instead.
         /// </summary>
@@ -323,23 +357,25 @@ namespace TournamentTracker.App.Broadcast
             if (p == null || desk == null) return null;
             _panic = null;
             if (!PanicLeft(desk, p)) return null;
-            bool onSlate = desk.OnAir.Layout == "slate";
+            bool onSlate = ReferenceEquals(desk.OnAir, p.Slate);
             string? voice = null;
-            if (_obs is { } obs)
+            if (_obs is { } obs && PanicMuted(p))
             {
                 obs.Settings.Voice.MuteAll = p.MuteAll;
                 try { await obs.VoiceChangedAsync().ConfigureAwait(false); }
                 catch (Exception e) { voice = e.Message; }
             }
-            desk.Alerts.SetPaused(p.AlertsPaused);
+            if (desk.Alerts.Settings.Paused) desk.Alerts.SetPaused(p.AlertsPaused);
             if (desk.HoldWhy == PanicWhy) desk.RestoreHold(p.Hold);
-            // Left by hand for a lobby: that stays on.
-            if (onSlate && p.Air.Layout is not ("none" or "slate" or "replay")) desk.Restore(p.Air, "deck");
-            desk.ForgetBack();
+            // Left by hand for a lobby (or a BRB of the caster's own): that stays on.
+            bool back = onSlate && p.Air.Layout is not ("none" or "slate" or "replay");
+            if (back) desk.Restore(p.Air, "deck");
+            // Undo after this doesn't go back to the panic's be-right-back screen (a switch of the caster's since stays undoable).
+            desk.ForgetBack(back ? null : p.Slate);
             Log.Info("Panic undone." + (voice != null ? " OBS didn't set the lobby voice: " + voice : ""));
             string said = (!onSlate ? "Panic undone: voice, alerts and the hold as they were (what's on stays)."
-                : p.Air.Layout is "none" or "slate" or "replay" ? "Panic undone: voice and alerts back (still on the be-right-back screen)." : "Panic undone: back to what was on.")
-                + (desk.Held ? " Switching stays held." : "");
+                : !back ? "Panic undone: voice and alerts back (still on the be-right-back screen)." : "Panic undone: back to what was on.")
+                + (desk.Held ? " Switching stays held." : "") + (back && !ObsLive ? ObsDidnt : "");
             return voice == null ? (200, said) : (500, $"{said} But OBS didn't set the lobby voice ({voice}): check it in OBS.");
         }
 
@@ -519,8 +555,18 @@ namespace TournamentTracker.App.Broadcast
                     }
                 }
                 case "panic":
+                {
+                    if (what == "undo")
+                    {
+                        // The Panic key while its panic is on: that panic's undo only, never the last switch (should
+                        // the key's state be a moment behind, a press after the panic was undone does nothing).
+                        if (noObs && _panic is { } pu && PanicUndoSwitches(desk, pu)) return (503, NoObs);
+                        return await UndoPanicAsync().ConfigureAwait(false) ?? (409, "No panic to undo.");
+                    }
+                    if (what.Length > 0) return (404, "Panic: panic, or panic/undo.");
                     if (!ObsLive) return (503, NoObs);
                     return await PanicAsync().ConfigureAwait(false);
+                }
                 case "hold":
                 {
                     if (what is not ("on" or "off" or "toggle" or "")) return (404, "Hold: on, off or toggle.");
@@ -546,6 +592,9 @@ namespace TournamentTracker.App.Broadcast
                 }
                 case "undo":
                 {
+                    // A panic whose undo would switch (its be-right-back screen is still up) waits for OBS too, like
+                    // every other switch from the Stream Deck: nothing is undone, so the next press still can.
+                    if (noObs && _panic is { } p && PanicUndoSwitches(desk, p)) return (503, NoObs);
                     if (await UndoPanicAsync().ConfigureAwait(false) is { } undone) return undone;
                     if (desk.AutoSwitched is { } note)
                     {
@@ -728,6 +777,7 @@ namespace TournamentTracker.App.Broadcast
                 L("Breaks", "Sponsor break", "break/sponsor"),
                 L("Breaks", "End the break", "break/off"),
                 L("Breaks", "Panic: fade to be right back, mute, hold", "panic"),
+                L("Breaks", "Undo the panic only (nothing else)", "panic/undo"),
                 L("Breaks", "Undo (the panic, an auto switch, or the last switch)", "undo"),
                 L("Automation", "Hold switching (on, off or toggle at the end)", "hold/toggle"),
                 L("Automation", "Auto grid", "auto/grid/toggle"),
@@ -745,7 +795,11 @@ namespace TournamentTracker.App.Broadcast
                 L("Sound", "Keep lobby 1's voice up whatever is on screen (off: follow the picture)", "voice/listen/1"),
                 L("Host view", "Lit map on the lobby on stream (vision and eye the same way)", "spec/lit"),
             };
-            return new { links = list, colours = Colours, key, port = Port, warning = PortWarning, state = $"http://127.0.0.1:{Port}/deck/state?key={key}" };
+            return new { links = list, colours = Colours, key, port = Port, warning = PortWarning, state = $"http://127.0.0.1:{Port}/deck/state?key={key}", numbers = NumberList() };
         }
+
+        /// <summary>Every lobby holding a number, for Settings → Stream Deck's list.</summary>
+        private object NumberList() => _desk == null ? new List<object>()
+            : _desk.Numbers().Select(n => (object)new { lobby = n.Lobby, no = n.No, online = n.Online }).ToList();
     }
 }

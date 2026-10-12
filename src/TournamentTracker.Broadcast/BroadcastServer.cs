@@ -196,6 +196,8 @@ namespace TournamentTracker.App.Broadcast
                 desk.HostCommand += SpecOut;
                 desk.CamsOn = () => !_settings.CamOff;
                 desk.PanicOn = () => _panic is { } inPanic && PanicInEffect(desk, inPanic);
+                // A panic put right by hand is forgotten as soon as it is (before the Stream Deck hears of it).
+                desk.Changed += PanicCheck;
                 desk.Changed += DeckPoke;
                 var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(caster, desk)) { VoiceFeeds = () => VoiceFeeds(caster, desk), MuteHotkey = MuteHotkey, CamFeeds = () => caster.CamLinks() };
                 obs.ImpostorTagsOn = () => _broadcast?.Settings.Current.Elements.GetValueOrDefault("impostorTags") == true;
@@ -859,6 +861,34 @@ namespace TournamentTracker.App.Broadcast
                 }
                 case ("GET", "/app/admin/specout"): return Ok(TakeSpecOut());
                 case ("GET", "/app/admin/deck"): return Ok(DeckLinks());
+                case ("POST", "/app/admin/numbers"):
+                {
+                    // Lobby numbers (the Stream Deck's lobby keys, 1–9 on the desk): set by hand, or the online
+                    // lobbies numbered 1…N afresh. Kept in lobby-numbers.json.
+                    if (_desk == null) return Ok(new { ok = false, message = "Administration is locked." });
+                    string said;
+                    if (Arg("action") == "renumber")
+                    {
+                        var order = _desk.RenumberOnline();
+                        said = order.Count == 0 ? "No lobby is sending: nothing to number." : $"Lobby numbers: {string.Join(", ", order.Select((l, i) => $"{i + 1} {l}"))}. Every other lobby gave its number up.";
+                    }
+                    else
+                    {
+                        var want = new List<(string, int)>();
+                        if (input.ValueKind == JsonValueKind.Object && input.TryGetProperty("numbers", out var nums) && nums.ValueKind == JsonValueKind.Object)
+                            foreach (var entry in nums.EnumerateObject())
+                                if (entry.Value.ValueKind == JsonValueKind.Number && entry.Value.TryGetInt32(out int n) || entry.Value.ValueKind == JsonValueKind.String && int.TryParse(entry.Value.GetString(), out n))
+                                {
+                                    if (n < 1 || n > CasterDesk.MaxNumber) return Ok(new { ok = false, message = $"Lobby numbers go from 1 to {CasterDesk.MaxNumber}." });
+                                    want.Add((entry.Name, n));
+                                }
+                        if (want.Count == 0) return Ok(new { ok = false, message = "Give a lobby and its number." });
+                        _desk.SetNumbers(want);
+                        said = string.Join(", ", want.Select(w => $"{w.Item1} is lobby {w.Item2}")) + ". Its Stream Deck keys follow (a lobby that had the number takes the old one).";
+                    }
+                    DeckPoke();
+                    return Ok(new { ok = true, message = said, numbers = NumberList() });
+                }
                 case ("POST", "/app/admin/deck"):
                     _settings.DeckKey = null;
                     DeckKey();

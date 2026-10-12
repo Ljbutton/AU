@@ -491,7 +491,7 @@ namespace TournamentTracker.App.Broadcast
             var air = OnAir;
             switch (air.Layout)
             {
-                case "intermission": return EndIntermission();
+                case "intermission": return EndIntermission(by, transition);
                 case "break": return Show(Break?.Lobby ?? air.Slots.FirstOrDefault() ?? "", "full", null, null, by, transition);
                 case "slate":
                 {

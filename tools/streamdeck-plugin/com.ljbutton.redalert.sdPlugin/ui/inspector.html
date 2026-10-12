@@ -61,6 +61,7 @@ const DEFAULTS = {
   "toggle": { "which": "mute", "press": "toggle" },
   "break": { "kind": "brb" },
   "panic": {},
+  "undo": {},
   "custom": { "path": "gfx/skip", "label": "" },
   "dial.preview": { "as": "", "t": "" },
   "dial.player": { "target": "pgm", "lobbyNo": "1" },
@@ -150,7 +151,7 @@ function fieldsFor(k) {
       return [["kind", "Break", [["brb", "Be right back"], ["intermission", "Intermission"], ["sponsor", "Sponsor break"], ["off", "End the break"]]]];
     case "custom":
       return [
-        ["preset", "Common", [["", "Pick one to fill the path…"], ["gfx/skip", "Skip the graphic on screen"], ["gfx/clear", "Clear the graphics queue"], ["gfx/card", "Top player card"], ["prompt/show", "Show the after-game prompt"], ["prompt/skip", "Skip the after-game prompt"], ["undo", "Undo the last automatic switch"], ["voice/listen/1", "Listen to lobby 1"], ["voice/listen/off", "Stop listening"], ["spec/lit", "Host view: lights"], ["spec/vision", "Host view: vision"], ["spec/eye", "Host view: eye"], ["lobby/action", "Where the action is"], ["cam/on", "Player cameras on"], ["cam/off", "Player cameras off"]]],
+        ["preset", "Common", [["", "Pick one to fill the path…"], ["gfx/skip", "Skip the graphic on screen"], ["gfx/clear", "Clear the graphics queue"], ["gfx/card", "Top player card"], ["prompt/show", "Show the after-game prompt"], ["prompt/skip", "Skip the after-game prompt"], ["undo", "Undo (the panic, an auto switch, or the last switch)"], ["voice/listen/1", "Listen to lobby 1"], ["voice/listen/off", "Stop listening"], ["spec/lit", "Host view: lights"], ["spec/vision", "Host view: vision"], ["spec/eye", "Host view: eye"], ["lobby/action", "Where the action is"], ["cam/on", "Player cameras on"], ["cam/off", "Player cameras off"]]],
         ["path", "Path", "text"],
         ["label", "Key text", "text"],
       ];
@@ -161,7 +162,8 @@ function fieldsFor(k) {
 
 const HINTS = {
   wide: "Back to the whole map from a player camera.",
-  panic: "One press: fades to Be right back and mutes lobby voice.",
+  panic: "One press: fades to Be right back, mutes lobby voice and holds switching. While that panic is on the key says UNDO PANIC: press it again to put it all back.",
+  undo: "Takes back the panic while there is one, else an automatic switch away from a lobby that dropped, else the last switch made by hand. Lit while a panic is on.",
   "dial.replay": "Turn to scrub: slowly by frames, quickly by seconds. Push to play or pause, tap the strip for the speed.",
   "dial.preview": "Turn to pick the Preview lobby, push to Take, tap the strip to clear Preview.",
   "dial.player": "Turn to pick who the camera follows (no cut), push to cut to the camera, tap the strip to go back wide.",

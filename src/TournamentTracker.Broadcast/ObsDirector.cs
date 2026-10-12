@@ -565,9 +565,12 @@ namespace TournamentTracker.App.Broadcast
                 if (slots[best] == null) slots[best] = lobby;
                 else { int free = slots.IndexOf(null); if (free >= 0) slots[free] = lobby; }
             }
-            // The same as the desk has (our own switch, read again): just note the scene.
+            // The same as the desk has (our own switch, read again): just note the scene. A screen with no lobby
+            // in it (be right back, intermission) is the same however many empty places each counts, so the
+            // desk keeps that very switch (a panic knows its own be-right-back screen by it).
             var now = _desk.OnAir;
-            if (now.Layout == layout && now.Slots.Count == slots.Count && now.Slots.Zip(slots).All(p => string.Equals(p.First, p.Second, StringComparison.OrdinalIgnoreCase)))
+            bool noLobby = now.Slots.All(x => x == null) && slots.All(x => x == null);
+            if (now.Layout == layout && (noLobby || now.Slots.Count == slots.Count && now.Slots.Zip(slots).All(p => string.Equals(p.First, p.Second, StringComparison.OrdinalIgnoreCase))))
             {
                 _desk.ObsConfirmed(now, scene);
                 return;

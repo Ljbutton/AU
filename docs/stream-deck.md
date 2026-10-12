@@ -66,10 +66,18 @@ thing it knew:
   Alert ignores the same press twice within 300 ms.
 * **Meetings arm cameras.** Picking a player while their lobby is in a meeting, in the lobby or
   between games doesn't put a frozen camera on stream: the pick is **ARMED** (amber badge) and goes
-  live by itself when play resumes.
+  live by itself when play resumes. It waits out a replay, the be-right-back screen, intermission and
+  a sponsor break, and a switch made by hand to another lobby (or to a break) cancels it, so it never
+  pulls the stream off a shot you chose; the Live desk says so.
 * **Lobby numbers stay put.** Lobby 3 is always the same lobby during an event: Red Alert keeps a
-  list of lobby names and their numbers next to its desk settings, and uses the number at the end of
-  a lobby's name when it's free.
+  list of lobby names and their numbers (`lobby-numbers.json` next to its desk settings), and uses
+  the number at the end of a lobby's name when it's free, else the lowest free one. A lobby keeps its
+  number for 18 hours after it was last seen.
+* **Change the numbers in Red Alert, not on every key.** Settings → Stream Deck → **Lobby numbers**
+  lists every lobby with its number: type a new one (a lobby that had it takes the old one), or press
+  **Renumber online lobbies 1…N** at the start of a day or a round with new lobbies, so the lobbies
+  sending now become 1, 2, 3… in their order and the others give their numbers up. Every Lobby key
+  follows at once.
 
 ## The actions
 
@@ -87,8 +95,9 @@ Alert (`/deck/<path>`), for reference and for Companion below.
 | **Replay** | play last, replay that, back to live, play/pause, back, forward, frame back, frame forward, restart, zoom in, zoom out, follow, angle, speed | **Replay that** saves the last seconds of the lobby on stream and plays them; **Play last** plays the newest ready clip; **Speed** steps 100 / 50 / 25%. | `replay/that`, `replay/last`, `replay/slow`… |
 | **Toggle** | mute all lobby voice, hold, auto grid, auto intermission, auto switch, standings, alerts; **Press**: switch it, always on, always off | Shows ON / OFF (MUTED, HELD, PAUSED) from Red Alert's own state. **Hold** stops all automatic switching. | `voice/mute/toggle`, `hold/on`, `auto/grid/off`, `gfx/alerts/toggle`… |
 | **Break** | be right back, intermission, sponsor, end the break | That break screen, or back from it. | `break/brb`, `break/off` |
-| **Panic** | | One press: fade to Be right back and mute lobby voice. | `panic` |
-| **Custom path** | path (with a list of common ones), key text | Any other Red Alert Stream Deck path: skip or clear graphics, the player card, after-game prompts, undo, listen to one lobby, the host's view modes, player cameras on/off. | `gfx/skip`, `undo`, `voice/listen/2`, `spec/vision`… |
+| **Panic** | | One press: fade to Be right back, mute every lobby voice, clear the graphics, pause alerts and hold switching. While that panic is on the key says **UNDO PANIC**: a press puts it all back (that panic's undo only, never another switch). | `panic`, `panic/undo` |
+| **Undo** | | Takes back the panic while there is one, else an automatic switch away from a lobby that dropped, else the last switch made by hand. Lit while a panic is on. Refused (503) while OBS isn't connected when it would switch. | `undo` |
+| **Custom path** | path (with a list of common ones), key text | Any other Red Alert Stream Deck path: skip or clear graphics, the player card, after-game prompts, listen to one lobby, the host's view modes, player cameras on/off. | `gfx/skip`, `voice/listen/2`, `spec/vision`… |
 
 **Player slots.** Slot 1 to 15 are a lobby's players, living and dead, in colour order. A slot keeps
 its player for the whole game, so a row of slot keys is a fixed row of player cameras: each shows
@@ -119,7 +128,9 @@ set up by dragging actions. Use the Stream Deck's own pages or folders for the s
 |---|---|---|---|---|
 | Lobby 1 (Preview) | Lobby 2 (Preview) | Lobby 3 (Preview) | Lobby 4 (Preview) | Take |
 | Player cam: on stream, prev | Player cam: on stream, next | Cut to cam | Wide | Layout: quad |
-| Replay that | Replay: back to live | Toggle: mute all | Toggle: hold | Panic |
+| Replay that | Replay: back to live | Toggle: mute all | Panic | Undo |
+
+Hold is on page 2 (Panic holds switching by itself, and Undo releases it).
 
 **15 keys, page 2: player cameras** (the lobby on stream)
 
@@ -127,7 +138,7 @@ set up by dragging actions. Use the Stream Deck's own pages or folders for the s
 |---|---|---|---|---|
 | Slot 1 | Slot 2 | Slot 3 | Slot 4 | Slot 5 |
 | Slot 6 | Slot 7 | Slot 8 | Slot 9 | Slot 10 |
-| Player cam: auto | Wide | Cut to cam | Replay that | (page back) |
+| Player cam: auto | Wide | Cut to cam | Toggle: hold | (page back) |
 
 **32 keys (Stream Deck XL)**
 
@@ -136,7 +147,9 @@ set up by dragging actions. Use the Stream Deck's own pages or folders for the s
 | Lobby 1 | Lobby 2 | Lobby 3 | Lobby 4 | Lobby 5 | Lobby 6 | Lobby: action | Take |
 | Slot 1 | Slot 2 | Slot 3 | Slot 4 | Slot 5 | Slot 6 | Slot 7 | Slot 8 |
 | Slot 9 | Slot 10 | Slot 11 | Slot 12 | Player cam: auto | Cut to cam | Wide | Layout: cameras |
-| Layout: full | Layout: quad | Layout: grid | Replay that | Replay: back to live | Toggle: mute all | Toggle: hold | Panic |
+| Layout: full | Layout: quad | Layout: grid | Replay that | Replay: back to live | Toggle: mute all | Panic | Undo |
+
+Hold goes on the second page with the breaks.
 
 Lobby keys in Preview mode with a Take key give the vMix-style "line it up, then take it" flow;
 set them to Cut if you'd rather switch at once. A second page can hold the breaks, standings,
@@ -147,7 +160,7 @@ alerts, auto switch, sponsor break and the replay transport.
 | | | | |
 |---|---|---|---|
 | Lobby 1 (Preview) | Lobby 2 (Preview) | Lobby 3 (Preview) | Lobby 4 (Preview) |
-| Cut to cam | Replay that | Toggle: mute all | Panic |
+| Cut to cam | Replay that | Panic | Undo |
 
 Dials, left to right: **Preview dial**, **Player dial** (the lobby on stream), **Player dial**
 (the lobby in Preview), **Replay dial**.
@@ -179,9 +192,10 @@ ready-made links with your key in them.
 | `cam/<lobby>/<who>` (add `?arm=1` to arm) | A player camera. `<lobby>` is a number, `pgm` or `pvw`; `<who>` is a colour, `slot1`…`slot15`, `next`, `prev` or `auto` |
 | `cam/cut`, `wide` | The camera on stream; back to the whole map |
 | `replay/last`, `replay/that`, `replay/live`, `replay/toggle`, `replay/back`, `replay/forward`, `replay/frameback`, `replay/frameforward`, `replay/restart`, `replay/zoomin`, `replay/zoomout`, `replay/follow`, `replay/angle`, `replay/slow` | Replays |
-| `break/brb`, `break/intermission`, `break/sponsor`, `break/off`, `panic` | Breaks |
+| `break/brb`, `break/intermission`, `break/sponsor`, `break/off` (add `?t=cut`, `swoosh` or `fade`), `panic`, `panic/undo` | Breaks; panic, and that panic's undo only |
 | `hold/on`, `hold/off`, `hold/toggle` | Hold: no automatic switching |
-| `auto/grid/…`, `auto/intermission/…`, `auto/switch/…` (`on`, `off`, `toggle`), `undo` | Automatic switching |
+| `auto/grid/…`, `auto/intermission/…`, `auto/switch/…` (`on`, `off`, `toggle`) | Automatic switching |
+| `undo` | The panic, else an automatic switch, else the last switch by hand |
 | `gfx/standings/…`, `gfx/alerts/…` (`on`, `off`, `toggle`), `gfx/skip`, `gfx/clear`, `gfx/card` | Graphics |
 | `prompt/show`, `prompt/skip` | After-game prompts |
 | `voice/mute/on`, `voice/mute/off`, `voice/mute/toggle`, `voice/listen/<n>`, `voice/listen/off` | Lobby voice |

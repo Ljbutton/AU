@@ -164,6 +164,34 @@ test("a push whose dialled lobby Red Alert refuses to stage takes nothing", asyn
 	assert.deepEqual(d.sent.at(-1), { path: "take", query: {} }, "with nothing waiting, push takes");
 });
 
+test("a push after the dialled lobby was already refused takes nothing while the strip still shows it", async () => {
+	const d = makeDeck((path) => (path === "pvw/lobby/3" ? { status: 404, ok: false, message: "No lobby 3." } : { status: 200, ok: true, message: "ok" }));
+	d.deck.setState(sampleState(), 0);
+	const dial = fakeKey();
+	d.deck.appear("d", dial, P + "dial.preview", {}, true);
+	// Turn, rest (the stage goes and is refused at once), then push a moment later: the usual gesture.
+	d.deck.dialRotate("d", 1);
+	d.timers.run();
+	await flush();
+	assert.deepEqual(d.sent.map((s) => s.path), ["pvw/lobby/3"]);
+	assert.equal(d.deck.keys.get("d").committing, null, "the stage has been answered");
+	assert.equal(d.deck.keys.get("d").pending, 3, "the strip still shows the dialled lobby");
+	const alerts = dial.calls.filter((c) => c[0] === "alert").length;
+	await d.deck.keyDown("d");
+	assert.deepEqual(d.sent.map((s) => s.path), ["pvw/lobby/3"], "the old Preview isn't taken");
+	assert.equal(dial.calls.filter((c) => c[0] === "alert").length, alerts + 1, "the push shows the alert too");
+	// A new turn is a new choice: staged and taken as usual.
+	d.deck.dialRotate("d", 1);
+	assert.equal(d.deck.keys.get("d").staged, null);
+	await d.deck.keyDown("d");
+	assert.deepEqual(d.sent.map((s) => s.path).slice(1), ["pvw/lobby/5", "take"]);
+	// Once the strip goes back to Red Alert's Preview, push takes what's there.
+	d.timers.run();
+	assert.equal(d.deck.keys.get("d").staged, null);
+	await d.deck.keyDown("d");
+	assert.deepEqual(d.sent.at(-1), { path: "take", query: {} });
+});
+
 test("a push while the dialled lobby is still being staged waits for it, and takes nothing if it was refused", async () => {
 	const d = makeDeck((path) => (path.startsWith("pvw/lobby/") ? "hold" : { status: 200, ok: true, message: "ok" }));
 	d.deck.setState(sampleState(), 0);
