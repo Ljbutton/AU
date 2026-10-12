@@ -17,7 +17,8 @@ namespace TournamentTracker.App.Broadcast
     /// Every answer is JSON {ok, message} with a status the key can show: 200 done, 202 accepted
     /// (queued, or armed for when play resumes), 401 wrong key, 404 no such action or lobby, 409
     /// refused (with why), 423 locked (or switching held), 500 it went wrong on the way (with what, e.g.
-    /// OBS not answering), 503 OBS isn't connected (nothing was done).
+    /// OBS not answering), 503 OBS isn't connected (nothing was done; the desk's own switches go through
+    /// without OBS, and say so). /deck/hello alone answers without the key.
     /// The same press twice within 300 ms counts once ("ignored repeat").
     /// </remarks>
     public sealed partial class BroadcastServer
@@ -109,12 +110,25 @@ namespace TournamentTracker.App.Broadcast
 
         private const string NoObs = "OBS isn't connected: nothing was switched. Connect it on the OBS page.";
 
+        /// <summary>Said after a switch from the desk while OBS isn't connected: Red Alert switched, OBS didn't.</summary>
+        private const string ObsDidnt = " OBS isn't connected, so only Red Alert's own pages (/video, the overlay) switched.";
+
+        /// <summary>
+        /// A switch is refused for want of OBS: from the Stream Deck (<paramref name="requireObs"/>) while OBS
+        /// isn't connected (503, nothing done). The desk switches anyway: what's on stream in Red Alert moves,
+        /// and the caster pages (/video, the overlay) follow it, OBS connected or not.
+        /// </summary>
+        private bool NoObsFor(bool requireObs) => requireObs && !ObsLive;
+
+        /// <summary>A switch's answer, saying when OBS didn't switch with it.</summary>
+        private (int Status, string Message) Switched(string said) => (200, ObsLive ? said : said + ObsDidnt);
+
         // ---- Player cameras --------------------------------------------------------------------------
 
-        /// <summary>The desk page's camera chips: like a Stream Deck camera key (cut), answered as ok and a message.</summary>
+        /// <summary>The desk page's camera chips: like a Stream Deck camera key (cut), answered as ok and a message (switched without OBS too).</summary>
         public (bool Ok, string Message) Cam(string? lobby, string follow)
         {
-            var (status, message) = CamPress(lobby, follow, arm: false, cut: true, transition: null);
+            var (status, message) = CamPress(lobby, follow, arm: false, cut: true, transition: null, requireObs: false);
             return (status is >= 200 and < 300, message);
         }
 
@@ -124,8 +138,9 @@ namespace TournamentTracker.App.Broadcast
         /// on stream. Refused when player cameras are off or the host isn't sending one; while the
         /// lobby isn't in play (a meeting, between games) the cut is armed and happens when play resumes
         /// (the same press again takes it back). <paramref name="arm"/>: only who it follows, no cut.
+        /// <paramref name="requireObs"/>: refused (503) while OBS isn't connected, as the Stream Deck is.
         /// </summary>
-        private (int Status, string Message) CamPress(string? lobby, string who, bool arm, bool cut, string? transition)
+        private (int Status, string Message) CamPress(string? lobby, string who, bool arm, bool cut, string? transition, bool requireObs = true)
         {
             var desk = _desk;
             if (desk == null) return (423, "Red Alert is locked.");
@@ -195,14 +210,14 @@ namespace TournamentTracker.App.Broadcast
                 desk.WantCam(lobby, pick);      // asks the host to turn it on, for the next press
                 return (409, $"{lobby}'s player camera isn't on yet (its host's game isn't sending it). Asked again: try in a few seconds.");
             }
-            if (!ObsLive) return (503, NoObs);
+            if (NoObsFor(requireObs)) return (503, NoObs);
             desk.Disarm(lobby);
             desk.WantCam(lobby, pick);
             // Several cameras up with this lobby's among them: only who it follows changes.
             var air = desk.OnAir;
             bool among = air.Layout == "cams" && air.Slots.Any(s => string.Equals(s, lobby, StringComparison.OrdinalIgnoreCase));
             if (!among) desk.Show(lobby, "cam", null, null, "deck", transition);
-            return (paused.Length > 0 ? 202 : 200, (pick.HasValue ? $"{lobby}: player camera on {name}." : $"{lobby}: player camera (it picks who to follow).") + paused);
+            return (paused.Length > 0 ? 202 : 200, (pick.HasValue ? $"{lobby}: player camera on {name}." : $"{lobby}: player camera (it picks who to follow).") + paused + (ObsLive ? "" : ObsDidnt));
         }
 
         /// <summary>The player camera on or off for every lobby (on: hosts send it, ready to switch to).</summary>
@@ -222,20 +237,28 @@ namespace TournamentTracker.App.Broadcast
 
         // ---- Panic, and undo ---------------------------------------------------------------------------
 
-        private sealed class PanicState { public OnAir Air = new OnAir(); public bool MuteAll, WasHeld, AlertsPaused, VoiceFailed; }
+        /// <summary>What a panic replaced, for Undo: what was on, the voice, the alerts and the hold (until when, and why).</summary>
+        private sealed class PanicState
+        {
+            public OnAir Air = new OnAir();
+            public bool MuteAll, AlertsPaused, VoiceFailed;
+            public (bool Forever, DateTime? Until, string? Why) Hold;
+        }
         private PanicState? _panic;
+        private const string PanicWhy = "Panic";
 
         /// <summary>The panic still holds in full: the be-right-back screen on, switching held and every lobby voice muted (in OBS too).</summary>
         private bool PanicInEffect(CasterDesk desk, PanicState p) =>
             desk.OnAir.Layout == "slate" && desk.Held && !p.VoiceFailed && (_obs == null || _obs.Settings.Voice.MuteAll);
 
         /// <summary>
-        /// Something of the panic is still there to undo: its be-right-back screen, its hold or its mute.
-        /// Each put right by hand (another lobby cut to, the hold released, the voice back on), it's
-        /// over: Undo undoes the last switch, and the next Panic is a new one.
+        /// Something of the panic is still there to undo: its be-right-back screen, its hold (still the
+        /// panic's: not released, nor replaced by one of the caster's) or its mute. Each put right by hand
+        /// (another lobby cut to, the hold released, the voice back on), it's over: Undo undoes the last
+        /// switch, and the next Panic is a new one.
         /// </summary>
         private bool PanicLeft(CasterDesk desk, PanicState p) =>
-            desk.OnAir.Layout == "slate" || desk.Held && !p.WasHeld || _obs != null && _obs.Settings.Voice.MuteAll && !p.MuteAll;
+            desk.OnAir.Layout == "slate" || desk.HoldWhy == PanicWhy || _obs != null && _obs.Settings.Voice.MuteAll && !p.MuteAll;
 
         /// <summary>
         /// One press when something must come off stream now (a slur in voice, roles leaking): a fade to
@@ -259,8 +282,8 @@ namespace TournamentTracker.App.Broadcast
                 p = was;
                 if (desk.OnAir.Layout != "slate") p.Air = desk.OnAir;
             }
-            else p = new PanicState { Air = desk.OnAir, MuteAll = obs?.Settings.Voice.MuteAll ?? false, WasHeld = desk.Held, AlertsPaused = desk.Alerts.Settings.Paused };
-            desk.SetHold(true, null, "Panic");
+            else p = new PanicState { Air = desk.OnAir, MuteAll = obs?.Settings.Voice.MuteAll ?? false, Hold = desk.HoldNow(), AlertsPaused = desk.Alerts.Settings.Paused };
+            desk.SetHold(true, null, PanicWhy);
             desk.ShowSlate("deck", "fade");
             desk.Graphics.Clear();
             desk.HidePlayerCard();
@@ -288,9 +311,10 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>
-        /// After Panic: the voice, the alerts and the hold as they were, and (still on its be-right-back
-        /// screen) what was on. Null when there's no panic to undo (none, or it was all put right by
-        /// hand), so Undo goes on to undo the last switch instead.
+        /// After Panic: the voice, the alerts and the hold as they were (the caster's own hold, with its
+        /// reason and time limit, if there was one; a hold the caster set since stays), and (still on its
+        /// be-right-back screen) what was on. Null when there's no panic to undo (none, or it was all put
+        /// right by hand), so Undo goes on to undo the last switch instead.
         /// </summary>
         private async Task<(int Status, string Message)?> UndoPanicAsync()
         {
@@ -308,13 +332,14 @@ namespace TournamentTracker.App.Broadcast
                 catch (Exception e) { voice = e.Message; }
             }
             desk.Alerts.SetPaused(p.AlertsPaused);
-            if (!p.WasHeld) desk.SetHold(false);
+            if (desk.HoldWhy == PanicWhy) desk.RestoreHold(p.Hold);
             // Left by hand for a lobby: that stays on.
             if (onSlate && p.Air.Layout is not ("none" or "slate" or "replay")) desk.Restore(p.Air, "deck");
             desk.ForgetBack();
             Log.Info("Panic undone." + (voice != null ? " OBS didn't set the lobby voice: " + voice : ""));
-            string said = !onSlate ? "Panic undone: voice, alerts and automatic switching back (what's on stays)."
-                : p.Air.Layout is "none" or "slate" or "replay" ? "Panic undone: voice and alerts back (still on the be-right-back screen)." : "Panic undone: back to what was on.";
+            string said = (!onSlate ? "Panic undone: voice, alerts and the hold as they were (what's on stays)."
+                : p.Air.Layout is "none" or "slate" or "replay" ? "Panic undone: voice and alerts back (still on the be-right-back screen)." : "Panic undone: back to what was on.")
+                + (desk.Held ? " Switching stays held." : "");
             return voice == null ? (200, said) : (500, $"{said} But OBS didn't set the lobby voice ({voice}): check it in OBS.");
         }
 
@@ -330,13 +355,17 @@ namespace TournamentTracker.App.Broadcast
 
         private static (int, string, byte[]) DeckReply((int Status, string Message) r) => DeckReply(r.Status, r.Status is >= 200 and < 300, r.Message);
 
-        /// <summary>A Stream Deck link: /deck/&lt;action&gt;[/&lt;what&gt;…]?key=….</summary>
+        /// <summary>
+        /// A Stream Deck link: /deck/&lt;action&gt;[/&lt;what&gt;…]?key=…. Only /deck/hello answers without the
+        /// key ("Red Alert … on port …"): the Stream Deck plugin asks it on 8768–8771 to find which port is
+        /// Red Alert before it sends the key there.
+        /// </summary>
         private async Task<(int Status, string Type, byte[] Body)> Deck(string route, string query)
         {
-            if (Control.HttpRequest.Query(query, "key") != DeckKey()) return DeckReply(401, false, "Wrong key: copy the link again from Red Alert (Settings → Stream Deck).");
             var parts = route.Substring("/deck/".Length).Split('/', StringSplitOptions.RemoveEmptyEntries).Select(Uri.UnescapeDataString).ToArray();
             string action = parts.ElementAtOrDefault(0)?.ToLowerInvariant() ?? "";
-            if (action == "hello") return DeckReply(200, true, $"Red Alert {_env.Version} on port {Port}.");
+            if (action == "hello" && parts.Length == 1) return DeckReply(200, true, $"Red Alert {_env.Version} on port {Port}.");
+            if (Control.HttpRequest.Query(query, "key") != DeckKey()) return DeckReply(401, false, "Wrong key: copy the link again from Red Alert (Settings → Stream Deck).");
             if (_desk == null) return DeckReply(423, false, "Red Alert is locked: open it and type the administration code.");
             if (action == "state") return await DeckStateAsync(query).ConfigureAwait(false);
             if (action == "img") return DeckImage(parts.Skip(1).ToArray());
@@ -348,13 +377,18 @@ namespace TournamentTracker.App.Broadcast
                 if (_lastPress.Press == press && now - _lastPress.At < DeckRepeat) return DeckReply(200, true, "ignored repeat");
                 _lastPress = (press, now);
             }
-            try { return DeckReply(await DeckActionAsync(parts, query).ConfigureAwait(false)); }
+            try { return DeckReply(await DeckActionAsync(parts, query, requireObs: true).ConfigureAwait(false)); }
             finally { DeckPoke(); }
         }
 
-        /// <summary>Does one Stream Deck (or desk) action; its HTTP status and what to say.</summary>
-        internal async Task<(int Status, string Message)> DeckActionAsync(string[] parts, string query)
+        /// <summary>
+        /// Does one Stream Deck (or desk) action; its HTTP status and what to say. <paramref name="requireObs"/>
+        /// (the Stream Deck): a switch while OBS isn't connected is refused (503) and nothing moves. The desk
+        /// (false) switches anyway, as it always has, and is told OBS didn't. Panic and replays need OBS either way.
+        /// </summary>
+        internal async Task<(int Status, string Message)> DeckActionAsync(string[] parts, string query, bool requireObs)
         {
+            bool noObs = NoObsFor(requireObs);
             var desk = _desk;
             if (desk == null) return (423, "Red Alert is locked.");
             string P(int i) => parts.ElementAtOrDefault(i)?.ToLowerInvariant() ?? "";
@@ -390,9 +424,9 @@ namespace TournamentTracker.App.Broadcast
                     }
                     else pick = Lobby(what);
                     if (pick == null) return (404, $"No lobby {what}.");
-                    if (!ObsLive) return (503, NoObs);
+                    if (noObs) return (503, NoObs);
                     desk.Show(pick, "full", null, null, "deck", t);
-                    return (200, $"{pick} is on stream.");
+                    return Switched($"{pick} is on stream.");
                 }
                 case "pvw":
                 {
@@ -408,9 +442,9 @@ namespace TournamentTracker.App.Broadcast
                     if (desk.Preview.Slots.Count == 0) return (409, "Nothing in Preview: pick a lobby first.");
                     string? asLayout = CasterDesk.NormLayout(Control.HttpRequest.Query(query, "as"));
                     if (Control.HttpRequest.Query(query, "as").Length > 0 && asLayout == null) return (404, "Unknown layout.");
-                    if (!ObsLive) return (503, NoObs);
+                    if (noObs) return (503, NoObs);
                     var air = desk.Take(asLayout, t);
-                    return air == null ? (409, "Nothing in Preview.") : (200, $"On stream ({LayoutName(air.Layout)}): {string.Join(", ", air.Slots.Where(x => x != null))}.");
+                    return air == null ? (409, "Nothing in Preview.") : Switched($"On stream ({LayoutName(air.Layout)}): {string.Join(", ", air.Slots.Where(x => x != null))}.");
                 }
                 case "layout":
                 {
@@ -420,20 +454,20 @@ namespace TournamentTracker.App.Broadcast
                     return (200, $"Preview: {LayoutName(pv.Layout)} with {string.Join(", ", pv.Slots)}. Take puts it on.");
                 }
                 case "quad":
-                    if (!ObsLive) return (503, NoObs);
+                    if (noObs) return (503, NoObs);
                     desk.Show("", "4up", null, null, "deck", t);
-                    return (200, "Quad on stream.");
+                    return Switched("Quad on stream.");
                 case "grid":
-                    if (!ObsLive) return (503, NoObs);
+                    if (noObs) return (503, NoObs);
                     desk.Show("", "grid", null, null, "deck", t);
-                    return (200, "Grid on stream.");
+                    return Switched("Grid on stream.");
                 case "cam":
                 {
                     bool arm = Control.HttpRequest.Query(query, "arm") is "1" or "true";
                     if (what is "on" or "off" && parts.Length == 2) return (200, CamAll(what == "on"));
-                    if (parts.Length <= 1) return CamPress(null, "auto", arm, cut: !arm, t);
-                    if (what == "cut" && parts.Length == 2) return CamPress(null, "keep", false, cut: true, t);
-                    if (parts.Length == 2) return CamPress(null, what, arm, cut: !arm, t);            // cam/{who}: the lobby on stream
+                    if (parts.Length <= 1) return CamPress(null, "auto", arm, cut: !arm, t, requireObs);
+                    if (what == "cut" && parts.Length == 2) return CamPress(null, "keep", false, cut: true, t, requireObs);
+                    if (parts.Length == 2) return CamPress(null, what, arm, cut: !arm, t, requireObs);            // cam/{who}: the lobby on stream
                     string target = what, who = P(2);
                     string? lobby = target switch
                     {
@@ -442,7 +476,7 @@ namespace TournamentTracker.App.Broadcast
                         _ => Lobby(target),
                     };
                     if (lobby == null) return (404, target == "pvw" ? "Nothing in Preview." : $"No lobby {target}.");
-                    return CamPress(lobby, who.Length == 0 ? "auto" : who, arm, cut: !arm, t);
+                    return CamPress(lobby, who.Length == 0 ? "auto" : who, arm, cut: !arm, t, requireObs);
                 }
                 case "wide":
                 {
@@ -452,24 +486,24 @@ namespace TournamentTracker.App.Broadcast
                         // Back to the whole map(s) of the lobbies whose cameras are up.
                         var lobbies = air.Slots.Where(s => s != null).Select(s => s!).ToList();
                         if (lobbies.Count == 0) return (404, "No live lobbies.");
-                        if (!ObsLive) return (503, NoObs);
+                        if (noObs) return (503, NoObs);
                         if (lobbies.Count == 1) desk.Show(lobbies[0], "full", null, null, "deck", t); else desk.ShowPicked(lobbies, "deck", null, t);
-                        return (200, $"{string.Join(", ", lobbies)}: the whole map.");
+                        return Switched($"{string.Join(", ", lobbies)}: the whole map.");
                     }
                     var lobby = Shown() ?? online.FirstOrDefault();
                     if (lobby == null) return (404, "No live lobbies.");
-                    if (!ObsLive) return (503, NoObs);
+                    if (noObs) return (503, NoObs);
                     desk.Show(lobby, "full", null, null, "deck", t);
-                    return (200, $"{lobby}: the whole map.");
+                    return Switched($"{lobby}: the whole map.");
                 }
                 case "replay": return await DeckReplayAsync(what).ConfigureAwait(false);
                 case "break":
                 {
-                    if (!ObsLive && what != "off") return (503, NoObs);
+                    if (noObs && what != "off") return (503, NoObs);
                     switch (what)
                     {
-                        case "brb": desk.ShowSlate("deck", t); return (200, "On stream: Be right back.");
-                        case "intermission": desk.ShowIntermission("deck", t); return (200, "On stream: Intermission.");
+                        case "brb": desk.ShowSlate("deck", t); return Switched("On stream: Be right back.");
+                        case "intermission": desk.ShowIntermission("deck", t); return Switched("On stream: Intermission.");
                         case "sponsor":
                         {
                             string said = desk.StartBreak();
@@ -477,9 +511,9 @@ namespace TournamentTracker.App.Broadcast
                         }
                         case "off":
                         {
-                            if (!ObsLive) return (503, NoObs);
+                            if (noObs) return (503, NoObs);
                             var back = desk.EndBreak("deck", t);
-                            return back == null ? (409, "No break is on.") : (200, $"Back to {string.Join(", ", back.Slots.Where(x => x != null))}.");
+                            return back == null ? (409, "No break is on.") : Switched($"Back to {string.Join(", ", back.Slots.Where(x => x != null))}.");
                         }
                         default: return (404, "Unknown break.");
                     }
@@ -515,13 +549,13 @@ namespace TournamentTracker.App.Broadcast
                     if (await UndoPanicAsync().ConfigureAwait(false) is { } undone) return undone;
                     if (desk.AutoSwitched is { } note)
                     {
-                        if (!ObsLive) return (503, NoObs);
+                        if (noObs) return (503, NoObs);
                         desk.UndoAutoSwitch();
-                        return (200, $"Back to what you had. Auto switch leaves {note.Lobby} alone until it comes back and drops again.");
+                        return Switched($"Back to what you had. Auto switch leaves {note.Lobby} alone until it comes back and drops again.");
                     }
-                    if (!ObsLive) return (503, NoObs);
+                    if (noObs) return (503, NoObs);
                     var back = desk.Back();
-                    return back == null ? (409, "Nothing to undo.") : (200, $"Back to {LayoutName(back.Layout)}: {string.Join(", ", back.Slots.Where(x => x != null))}.");
+                    return back == null ? (409, "Nothing to undo.") : Switched($"Back to {LayoutName(back.Layout)}: {string.Join(", ", back.Slots.Where(x => x != null))}.");
                 }
                 case "gfx":
                 {

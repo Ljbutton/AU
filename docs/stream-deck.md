@@ -38,6 +38,11 @@ settings stay. The plugin's version is the Red Alert version it came with.
 The connection is shared by every Red Alert key, so you set it once. **New key** in Red Alert makes
 a new key; paste it again here.
 
+When 8768 is taken Red Alert listens on 8769, 8770 or 8771 instead. With the port set to any of
+those four, the keys find Red Alert on the others by themselves (they ask `/deck/hello`, which
+answers without the key, and send the key only to the port that says it's Red Alert), and **Test**
+says which port it found. Only a port outside 8768–8771 has to be typed in.
+
 While something is wrong every key shows a strip across the top, over a faded picture of the last
 thing it knew:
 
@@ -45,7 +50,7 @@ thing it knew:
 |---|---|
 | SET UP | No key yet: pair it as above. |
 | WRONG KEY | Red Alert answered but the key doesn't match. Copy it again. |
-| OFFLINE | Nothing answered on that port. Is Red Alert open? Did the port change? |
+| OFFLINE | Nothing answered on that port, nor Red Alert on 8768–8771. Is Red Alert open? Is it on another port? |
 | UPDATE RED ALERT | This Red Alert has no Stream Deck state: install the newest one. |
 | RED ALERT LOCKED | Open Red Alert and type the administration code. |
 
@@ -160,8 +165,10 @@ http://127.0.0.1:8768/deck/<path>?key=<your key>
 GET and POST both work. Red Alert answers with JSON, `{"ok":true,"message":"…"}`, and a status:
 200 done, 202 queued or armed, 401 wrong key, 404 unknown action or lobby, 409 refused (for example
 the camera isn't available), 423 locked, 500 it went wrong on the way (the message says what, for
-example OBS not answering), 503 OBS not connected. The same link twice within 300 ms is
-ignored. Settings → Stream Deck in Red Alert lists ready-made links with your key in them.
+example OBS not answering), 503 OBS not connected (nothing switched; the Live desk's own buttons
+still switch Red Alert's pages without OBS, and say so). The same link twice within 300 ms is
+ignored. `hello` alone answers without the key. Settings → Stream Deck in Red Alert lists
+ready-made links with your key in them.
 
 | Path | Does |
 |---|---|

@@ -152,6 +152,36 @@ namespace TournamentTracker.App.Broadcast
             Touch();
         }
 
+        /// <summary>Why switching is held ("Panic", "Held from the Stream Deck"…); null while it isn't.</summary>
+        public string? HoldWhy
+        {
+            get { lock (_lock) return _hold || _holdUntil is { } u && _clock() < u ? _holdWhy : null; }
+        }
+
+        /// <summary>The hold as it is now (until released, until a time, or off) and why, to put back exactly with <see cref="RestoreHold"/>.</summary>
+        public (bool Forever, DateTime? Until, string? Why) HoldNow()
+        {
+            lock (_lock)
+            {
+                bool timed = !_hold && _holdUntil is { } u && _clock() < u;
+                return (_hold, timed ? _holdUntil : null, _hold || timed ? _holdWhy : null);
+            }
+        }
+
+        /// <summary>Puts back a hold <see cref="HoldNow"/> saved: until released, until the same time (none if that has passed), or off.</summary>
+        public void RestoreHold((bool Forever, DateTime? Until, string? Why) hold)
+        {
+            lock (_lock)
+            {
+                _hold = hold.Forever;
+                _holdUntil = hold.Forever ? null : hold.Until;
+                bool on = _hold || _holdUntil is { } u && _clock() < u;
+                _holdWhy = on ? hold.Why : null;
+                if (!on) HeldBack = null;
+            }
+            Touch();
+        }
+
         /// <summary>True (and noted for the desk) when the hold stops an automatic switch.</summary>
         private bool HoldBack(string what)
         {
@@ -177,6 +207,13 @@ namespace TournamentTracker.App.Broadcast
         }
 
         // ---- Player cameras: who each follows, and picks armed for when play resumes ----------------
+
+        /// <summary>
+        /// A panic is on in full (set by the app): its be-right-back screen, its hold and the voice muted.
+        /// The desk's Panic button and hold pill undo it while it is; once any of it was put right by hand
+        /// they're Panic and Hold again (the next Panic puts it all back on).
+        /// </summary>
+        public Func<bool> PanicOn { get; set; } = () => false;
 
         /// <summary>Player cameras are on for every lobby (Settings); off, no camera pick is sent again.</summary>
         public Func<bool> CamsOn { get; set; } = () => true;

@@ -1276,6 +1276,7 @@ namespace TournamentTracker.App.Broadcast
                 OnAir = new { air.Layout, air.Slots, air.By, air.Scene, Since = air.Since == default ? null : air.Since.ToString("o") },
                 Preview = new { Layout = preview.Layout, preview.Slots },
                 Hold = HoldState(),
+                Panic = PanicOn(),
                 Lobbies = ranking.OrderBy(r => NumberOf(r.Lobby)).Select(r =>
                 {
                     var live = Board.Lobby(r.Lobby);

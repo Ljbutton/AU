@@ -330,6 +330,126 @@ public class StreamDeckTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Undo_after_a_panic_puts_back_the_hold_that_was_on_before_it_with_its_reason_and_time()
+    {
+        await ConnectObs();
+        Snap("Lobby 2", "ingame");
+        Snap("Lobby 3", "ingame");
+        Assert.Equal(HttpStatusCode.OK, (await Press("lobby/3", "&t=cut")).Status);
+        // Held for five minutes before the panic.
+        Desk.SetHold(true, TimeSpan.FromMinutes(5), "Five minutes");
+        var before = Desk.HoldNow();
+        Assert.Equal(HttpStatusCode.OK, (await Press("panic")).Status);
+        Assert.Equal("Panic", Desk.HoldWhy);
+        Assert.True((await State()).GetProperty("panic").GetBoolean());
+        await Task.Delay(200);                              // past the desk answer's moment of reuse
+        var desk = (await Get("app/admin/live")).GetProperty("desk");
+        Assert.True(desk.GetProperty("panic").GetBoolean());
+        Assert.Equal("Panic", desk.GetProperty("hold").GetProperty("why").GetString());
+
+        // Undo: the hold is the one from before (its reason and its end), and no panic is shown any more.
+        Assert.Equal(HttpStatusCode.OK, (await Press("undo")).Status);
+        Assert.Equal("Lobby 3", Desk.OnAir.Slots[0]);
+        Assert.Equal(before, Desk.HoldNow());
+        Assert.Equal("Five minutes", Desk.HoldWhy);
+        Assert.False((await State()).GetProperty("panic").GetBoolean());
+        await Task.Delay(200);
+        desk = (await Get("app/admin/live")).GetProperty("desk");
+        Assert.False(desk.GetProperty("panic").GetBoolean());
+        Assert.Equal("Five minutes", desk.GetProperty("hold").GetProperty("why").GetString());
+
+        // Held with H, then Panic, then another lobby and the voice back by hand: the panic's hold is still
+        // there, so it isn't over. The desk's Panic is Panic again (not on the be-right-back screen), and
+        // Panic puts it all back on; Undo then goes back to that lobby and the caster's own hold.
+        await Task.Delay(350);
+        Assert.Equal(HttpStatusCode.OK, (await Press("hold/on")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await Press("panic")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await Press("lobby/2", "&t=cut")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await Press("voice/mute/off")).Status);
+        Assert.Equal("Panic", Desk.HoldWhy);
+        Assert.False((await State()).GetProperty("panic").GetBoolean());
+        await Task.Delay(350);
+        var (status, body) = await Press("panic");
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.DoesNotContain("Already", body.GetProperty("message").GetString());
+        Assert.Equal("slate", Desk.OnAir.Layout);
+        Assert.True((await State()).GetProperty("voice").GetProperty("muteAll").GetBoolean());
+        await Task.Delay(350);
+        Assert.Equal(HttpStatusCode.OK, (await Press("undo")).Status);
+        Assert.Equal("Lobby 2", Desk.OnAir.Slots[0]);
+        Assert.Equal("Held from the Stream Deck", Desk.HoldWhy);
+        Assert.Null(Desk.HoldNow().Until);
+        Assert.False((await State()).GetProperty("voice").GetProperty("muteAll").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Panic_after_the_hold_was_released_and_a_lobby_taken_by_hand_does_it_all_again()
+    {
+        await ConnectObs();
+        Snap("Lobby 2", "ingame");
+        Snap("Lobby 3", "ingame");
+        Assert.Equal(HttpStatusCode.OK, (await Press("lobby/3", "&t=cut")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await Press("panic")).Status);
+        // The hold released (H) and a lobby taken, the voice left muted.
+        Assert.Equal(HttpStatusCode.OK, (await Press("hold/off")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await Press("lobby/2", "&t=cut")).Status);
+        Assert.False((await State()).GetProperty("panic").GetBoolean());
+        await Task.Delay(350);
+        var (status, body) = await Press("panic");
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.DoesNotContain("Already", body.GetProperty("message").GetString());
+        Assert.Equal("slate", Desk.OnAir.Layout);
+        Assert.Equal("Panic", Desk.HoldWhy);
+        Assert.True((await State()).GetProperty("panic").GetBoolean());
+        await Task.Delay(350);
+        Assert.Equal(HttpStatusCode.OK, (await Press("undo")).Status);
+        Assert.Equal("Lobby 2", Desk.OnAir.Slots[0]);
+        Assert.False(Desk.Held);
+        Assert.False((await State()).GetProperty("voice").GetProperty("muteAll").GetBoolean());
+    }
+
+    [Fact]
+    public async Task The_desk_switches_without_OBS_and_says_so_while_the_Stream_Deck_is_refused()
+    {
+        Snap("Lobby 2", "ingame");
+        Snap("Lobby 3", "ingame");
+        // The Stream Deck: 503, nothing switched.
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, (await Press("lobby/3")).Status);
+        Assert.Equal("none", Desk.OnAir.Layout);
+        // The desk (cut, Take, quad, Back, a camera chip): Red Alert switches, and says OBS didn't.
+        var cut = await Post("app/admin/do", new { path = "lobby/3", query = new { t = "cut" } });
+        Assert.True(cut.GetProperty("ok").GetBoolean(), cut.GetProperty("message").GetString());
+        Assert.Contains("OBS isn't connected", cut.GetProperty("message").GetString());
+        Assert.Equal(("full", "Lobby 3"), (Desk.OnAir.Layout, Desk.OnAir.Slots[0]));
+        Assert.True((await Post("app/admin/do", new { path = "pvw/lobby/2" })).GetProperty("ok").GetBoolean());
+        var take = await Post("app/admin/do", new { path = "take" });
+        Assert.True(take.GetProperty("ok").GetBoolean(), take.GetProperty("message").GetString());
+        Assert.Equal("Lobby 2", Desk.OnAir.Slots[0]);
+        Assert.True((await Post("app/admin/do", new { path = "quad" })).GetProperty("ok").GetBoolean());
+        Assert.Equal("4up", Desk.OnAir.Layout);
+        var back = await Post("app/admin/do", new { path = "undo" });
+        Assert.True(back.GetProperty("ok").GetBoolean(), back.GetProperty("message").GetString());
+        Assert.Equal(("full", "Lobby 2"), (Desk.OnAir.Layout, Desk.OnAir.Slots[0]));
+        var cam = await Post("app/admin/cam", new { lobby = "Lobby 2", follow = "slot2" });
+        Assert.True(cam.GetProperty("ok").GetBoolean(), cam.GetProperty("message").GetString());
+        Assert.Equal("cam", Desk.OnAir.Layout);
+        // Panic still needs OBS (it's OBS that mutes the voice), from the desk too.
+        Assert.Equal(503, (await Post("app/admin/do", new { path = "panic" })).GetProperty("status").GetInt32());
+    }
+
+    [Fact]
+    public async Task Hello_says_it_is_Red_Alert_without_the_key_and_nothing_else_does()
+    {
+        var hello = await _deck.GetAsync("deck/hello");
+        Assert.Equal(HttpStatusCode.OK, hello.StatusCode);
+        Assert.StartsWith("Red Alert ", JsonDocument.Parse(await hello.Content.ReadAsStringAsync()).RootElement.GetProperty("message").GetString());
+        Assert.Equal(HttpStatusCode.OK, (await _deck.GetAsync("deck/hello?key=")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _deck.GetAsync("deck/state")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _deck.GetAsync("deck/hello/x")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _deck.PostAsync("deck/lobby/1", new StringContent(""))).StatusCode);
+    }
+
+    [Fact]
     public async Task Panic_goes_to_be_right_back_even_when_OBS_doesnt_answer_the_voice_mute_and_the_key_hears_why()
     {
         await ConnectObs();

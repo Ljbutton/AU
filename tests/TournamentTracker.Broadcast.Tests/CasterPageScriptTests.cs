@@ -8,8 +8,8 @@ namespace TournamentTracker.Tests;
 
 /// <summary>
 /// The Live desk page's script: lists keep one node per item even when two items share a key (two OBS
-/// output warnings both titled "OBS output"), held keys act once per press, and closing the replay keys
-/// popover stops waiting for a key.
+/// output warnings both titled "OBS output"), held keys act once per press, closing the replay keys
+/// popover stops waiting for a key, and Panic undoes only a panic that's on in full.
 /// </summary>
 public class CasterPageScriptTests
 {
@@ -47,6 +47,19 @@ public class CasterPageScriptTests
         Assert.Contains("if (e.repeat && !KEY_REPEATS.has(name))", replay);
         foreach (var once in new[] { "playPause", "restart", "live", "angle", "follow", "intermission", "voiceMute", "alertsPause" })
             Assert.DoesNotContain($"'{once}'", replay.Substring(0, replay.IndexOf('\n')));
+    }
+
+    [Fact]
+    public void Panic_and_the_hold_pill_undo_only_while_the_panic_is_on_in_full()
+    {
+        // Not the hold's reason: a hold left as "Panic" (another lobby taken by hand, the hold kept) would
+        // turn the next Panic into Undo, which switches lobbies instead of going to be right back.
+        string page = Page();
+        Assert.Contains("if (DESK && DESK.panic) { deckDo('undo'); return; }", Block(page, "function panicPress()"));
+        Assert.Contains("$('pill-hold').addEventListener('click', () => { if (DESK && DESK.panic) deckDo('undo'); else holdToggle(); });", page);
+        Assert.Contains("panic = !!d.panic;", Block(page, "function renderBreaks()"));
+        Assert.DoesNotContain("why === 'Panic') deckDo", page);
+        Assert.DoesNotContain("why === 'Panic') { deckDo", page);
     }
 
     [Fact]

@@ -46,10 +46,14 @@ namespace TournamentTracker.App.Broadcast
             wake.TrySetResult();
         }
 
-        /// <summary>The port Red Alert listens on, and a warning when it isn't the usual one (saved Stream Deck links point there).</summary>
-        private string? PortWarning => _env.Port == DefaultPort && Port != DefaultPort
-            ? $"Port {DefaultPort} was taken, so Red Alert is on {Port}: Stream Deck links copied before point at {DefaultPort}. Copy them again (or set port {Port} in the Stream Deck plugin)."
-            : null;
+        /// <summary>
+        /// The port Red Alert listens on, and a warning when it isn't the usual one (saved Stream Deck links
+        /// point there). On 8769–8771 the Stream Deck plugin finds it by itself; on any other it's told.
+        /// </summary>
+        private string? PortWarning => _env.Port != DefaultPort || Port == DefaultPort ? null
+            : Port > DefaultPort && Port < DefaultPort + 4
+                ? $"Port {DefaultPort} was taken, so Red Alert is on {Port}: Stream Deck links copied before point at {DefaultPort}. Copy them again (the Red Alert Stream Deck plugin finds it by itself)."
+                : $"Port {DefaultPort} was taken, so Red Alert is on {Port}: Stream Deck links copied before point at {DefaultPort}. Copy them again (or set port {Port} in the Stream Deck plugin).";
 
         private object DeckPort() => new { port = Port, warning = PortWarning };
 
@@ -151,6 +155,7 @@ namespace TournamentTracker.App.Broadcast
                     last = newest == null ? null : new { id = newest.Id, lobby = newest.Lobby, title = NameTag.Plain(newest.Title), label = ReplayLabel(newest) },
                 },
                 hold = desk.Held,
+                panic = _panic is { } inPanic && PanicInEffect(desk, inPanic),
                 auto = new { grid = desk.AutoGrid, intermission = desk.AutoIntermission, @switch = desk.HealthConfig.AutoSwitch },
                 graphics = new
                 {

@@ -1326,8 +1326,10 @@ document.addEventListener('click', e => { const b = e.target.closest('button'); 
 // what's open) · H: hold · P twice: panic (P is the replay's other angle while a replay is up) · N:
 // where the action is into Preview. The replay keys and G, I, B, C, U, M, V, E work as before.
 let panicArmed = 0;
+// While a panic is on in full (DESK.panic) Panic undoes it. Part of it put right by hand (another lobby, the
+// hold released, the voice back), Panic is Panic again: pressed, it puts it all back on (Back still undoes it).
 function panicPress() {
-  if (DESK && DESK.hold && DESK.hold.why === 'Panic') { deckDo('undo'); return; }
+  if (DESK && DESK.panic) { deckDo('undo'); return; }
   if (Date.now() - panicArmed < 3000) { panicArmed = 0; renderBreaks(); deckDo('panic'); return; }
   panicArmed = Date.now();
   toast('Panic: press again to fade to be right back, mute every lobby and hold.');
@@ -1438,14 +1440,14 @@ function renderBar() {
   setText($('pill-hold-k'), h.on ? (h.why === 'Panic' ? 'PANIC' : 'HOLD') : 'AUTO');
   setText($('pill-hold-t'), h.on ? (h.heldBack ? 'held back' : 'held') : autos.length ? autos.join(' · ') : 'off');
   setClass($('pill-hold'), 'pill' + (h.on ? ' bad flash' : autos.length ? ' good' : ''));
-  setTitle($('pill-hold'), h.on ? `Switching held${h.why === 'Panic' ? ' (panic)' : ''}: nothing switches by itself.${h.heldBack ? ' Held back: ' + h.heldBack.text + '.' : ''} Click (or H) to release.` : 'Automatic switching on: ' + (autos.join(', ') || 'none') + '. Click (or H) to hold.');
+  setTitle($('pill-hold'), h.on ? `Switching held${h.why === 'Panic' ? ' (panic)' : ''}: nothing switches by itself.${h.heldBack ? ' Held back: ' + h.heldBack.text + '.' : ''} ${d.panic ? 'Click to undo the panic (H releases only the hold).' : 'Click (or H) to release.'}` : 'Automatic switching on: ' + (autos.join(', ') || 'none') + '. Click (or H) to hold.');
   // Something the hold just stopped from switching by itself: said once.
   if (h.heldBack && h.heldBack.at !== heldSaid) { heldSaid = h.heldBack.at; toast(`Held back: ${h.heldBack.text} (switching is held).`); }
   shotTick();
 }
 let heldSaid = null;
 $('pill-audio').addEventListener('click', () => voiceDo({ action: 'mute' }));
-$('pill-hold').addEventListener('click', () => { if (DESK && DESK.hold && DESK.hold.why === 'Panic') deckDo('undo'); else holdToggle(); });
+$('pill-hold').addEventListener('click', () => { if (DESK && DESK.panic) deckDo('undo'); else holdToggle(); });
 // ---- Warnings: one line in the bar (the worst one, and how many more); all of them in its popover ----
 let obsSeen = false, pausedAt = 0, pausedFor = 0, warnNew = '', warnNewAt = 0;
 // The page's own timers stopped for a while (the window was paused): host commands waited too.
@@ -1779,7 +1781,7 @@ $('rp-ready').addEventListener('click', e => {
 });
 function renderBreaks() {
   const d = DESK; if (!d) return;
-  const air = d.onAir, h = d.hold || {}, panic = h.on && h.why === 'Panic';
+  const air = d.onAir, h = d.hold || {}, panic = !!d.panic;
   $('desk-inter').classList.toggle('on', air.layout === 'intermission');
   $('desk-autointer').classList.toggle('on', !!(d.intermission && d.intermission.auto));
   $('desk-autogrid').classList.toggle('on', !!d.autoGrid);

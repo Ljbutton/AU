@@ -1,12 +1,15 @@
 // Talking to Red Alert: the /deck/... presses, and the one long-poll loop on /deck/state that every
 // key is drawn from. Red Alert answers one request per connection and only listens on this PC, so each
 // request is its own short connection to 127.0.0.1. The deck key goes in the query (as Red Alert's own
-// links carry it) and is never written to the log.
+// links carry it) and is never written to the log. When 8768 is taken Red Alert listens on 8769–8771,
+// and the loop finds it there (asking who answers before it sends the key).
 
 import http from "node:http";
 
 export const DEFAULT_HOST = "127.0.0.1";
 export const DEFAULT_PORT = 8768;
+/** The ports Red Alert listens on: 8768, else the next three when that one is taken. */
+export const RED_ALERT_PORTS = [8768, 8769, 8770, 8771];
 
 /** Red Alert holds /deck/state for up to 25 s; wait a little longer than that before giving up. */
 const STATE_TIMEOUT = 35_000;
@@ -126,11 +129,23 @@ export function press(conn, path, query = {}, o = {}) {
  */
 export async function probe(conn, o = {}) {
 	if (!conn.key) return { ok: false, message: "Paste the key from Red Alert (Settings → Stream Deck) first." };
-	const res = await request(conn, "GET", "state", {}, { timeout: o.timeout ?? 8000 });
+	const ask = o.request ?? request;
+	const timeout = o.timeout ?? 8000;
+	let res = await ask(conn, "GET", "state", {}, { timeout });
+	let at = conn;
+	// Nothing (or not Red Alert) on that port: Red Alert may be on another of its ports, as the keys find it.
+	if (notThere(res)) {
+		const port = await findRedAlert(conn, { skip: conn.port, request: ask });
+		if (port !== null) {
+			at = { ...conn, port };
+			res = await ask(at, "GET", "state", {}, { timeout });
+		}
+	}
 	if (res.status === 200 && res.body && typeof res.body.rev === "number") {
 		const lobbies = Array.isArray(res.body.lobbies) ? res.body.lobbies.length : 0;
 		const obs = res.body.obs?.connected ? "OBS connected" : "OBS not connected";
-		return { ok: true, message: `Connected to Red Alert: ${lobbies} ${lobbies === 1 ? "lobby" : "lobbies"}, ${obs}.` };
+		const where = at.port !== conn.port ? ` on port ${at.port} (${conn.port} was taken: the keys find it there by themselves)` : "";
+		return { ok: true, message: `Connected to Red Alert${where}: ${lobbies} ${lobbies === 1 ? "lobby" : "lobbies"}, ${obs}.` };
 	}
 	if (res.status === 401) return { ok: false, message: "Red Alert answered, but the key is wrong: copy it again from Red Alert (Settings → Stream Deck)." };
 	if (res.status === 403) return { ok: false, message: "Red Alert only answers this PC: use the host 127.0.0.1." };
@@ -146,6 +161,35 @@ function isOldRedAlert(res) {
 	return res.status === 404 || (res.status === 200 && typeof res.body?.rev !== "number");
 }
 
+/** Nothing answered on that port (not a long poll that ran out), or something that isn't this Red Alert. */
+function notThere(res) {
+	return (res.status === 0 && !res.timedOut && !res.aborted) || isOldRedAlert(res);
+}
+
+/** An answer to /deck/hello from Red Alert itself ("Red Alert 0.1.0 on port 8769."). */
+function isRedAlert(res) {
+	return res.status === 200 && res.body?.ok === true && typeof res.body.message === "string" && /^Red Alert\b/.test(res.body.message);
+}
+
+/**
+ * Red Alert on another of its ports: when 8768 is taken it listens on 8769–8771 (and on 8768 again
+ * after a restart). Each port is asked who it is with /deck/hello without the key, so the key only
+ * ever goes to a port that answered as Red Alert. Only for a connection set to one of those ports.
+ * Resolves with the port (the set one first), or null when none answered.
+ * @param {{ skip?: number, request?: typeof request, signal?: AbortSignal, timeout?: number }} o
+ */
+export async function findRedAlert(conn, o = {}) {
+	if (!RED_ALERT_PORTS.includes(conn.port)) return null;
+	const ask = o.request ?? request;
+	for (const port of [conn.port, ...RED_ALERT_PORTS.filter((p) => p !== conn.port)]) {
+		if (port === o.skip) continue;
+		if (o.signal?.aborted) return null;
+		const res = await ask({ host: conn.host, port, key: "" }, "GET", "hello", {}, { timeout: o.timeout ?? 1500, signal: o.signal });
+		if (isRedAlert(res)) return port;
+	}
+	return null;
+}
+
 /** How long to wait before trying again after a failure, growing to 5 s. */
 export function backoff(failures) {
 	return Math.min(5000, 500 * 2 ** Math.max(0, failures - 1));
@@ -158,15 +202,18 @@ export function backoff(failures) {
  */
 export class StatePoller {
 	/**
-	 * @param {{ onState?: (state: object, at: number) => void, onStatus?: (status: string, message: string) => void, request?: typeof request, now?: () => number, wait?: (ms: number, signal: AbortSignal) => Promise<void> }} o
+	 * @param {{ onState?: (state: object, at: number) => void, onStatus?: (status: string, message: string) => void, onPort?: (port: number) => void, request?: typeof request, now?: () => number, wait?: (ms: number, signal: AbortSignal) => Promise<void> }} o
 	 */
 	constructor(o = {}) {
 		this.onState = o.onState ?? (() => {});
 		this.onStatus = o.onStatus ?? (() => {});
+		this.onPort = o.onPort ?? (() => {});
 		this.request = o.request ?? request;
 		this.now = o.now ?? Date.now;
 		this.wait = o.wait ?? sleep;
 		this.conn = connectionOf({});
+		/** The port Red Alert was found on: the set one, or another of its ports (see findRedAlert). */
+		this.port = this.conn.port;
 		this.rev = null;
 		this.status = "nokey";
 		this.running = false;
@@ -174,10 +221,16 @@ export class StatePoller {
 		this.controller = null;
 	}
 
+	/** Where presses go: the connection as set, on the port Red Alert was found on. */
+	get target() {
+		return this.port === this.conn.port ? this.conn : { ...this.conn, port: this.port };
+	}
+
 	/** New host, port or key: drop the request in flight and start again from scratch. */
 	setConnection(conn) {
 		const changed = conn.host !== this.conn.host || conn.port !== this.conn.port || conn.key !== this.conn.key;
 		this.conn = conn;
+		if (changed) this.port = conn.port;
 		if (changed && this.running) this.restart();
 		else if (!conn.key) this.setStatus("nokey", "No key yet.");
 	}
@@ -211,6 +264,8 @@ export class StatePoller {
 
 	async loop(generation) {
 		let failures = 0;
+		// Just moved to a port it was found on: if that fails too, wait as usual before looking again.
+		let moved = false;
 		while (this.running && generation === this.generation) {
 			if (!this.conn.key) {
 				this.setStatus("nokey", "No key yet.");
@@ -220,8 +275,21 @@ export class StatePoller {
 			this.controller = controller;
 			const query = this.rev === null ? {} : { since: this.rev };
 			const asked = this.now();
-			const res = await this.request(this.conn, "GET", "state", query, { timeout: STATE_TIMEOUT, signal: controller.signal });
+			const res = await this.request(this.target, "GET", "state", query, { timeout: STATE_TIMEOUT, signal: controller.signal });
 			if (!this.running || generation !== this.generation) return;
+			// Nothing (or not Red Alert) there: Red Alert may be on another of its ports. Found, ask it at once.
+			if (notThere(res) && !moved) {
+				const port = await findRedAlert(this.conn, { skip: this.port, request: this.request, signal: controller.signal });
+				if (!this.running || generation !== this.generation) return;
+				if (port !== null) {
+					this.port = port;
+					this.rev = null;
+					moved = true;
+					this.onPort(port);
+					continue;
+				}
+			}
+			moved = false;
 			let pause = 0;
 			if (res.status === 200 && typeof res.body?.rev === "number") {
 				const fresh = res.body.rev !== this.rev;

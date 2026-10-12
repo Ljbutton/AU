@@ -10,11 +10,10 @@ import { Deck, summary } from "./deck.js";
 
 const log = streamDeck.logger.createScope("Red Alert");
 
-let conn = connectionOf({});
-
 const deck = new Deck({
+	// Presses go where the state loop found Red Alert (the port set, or another of Red Alert's ports).
 	// Only the action's path is logged, never the query (the key lives there).
-	send: (path, query) => press(conn, path, query),
+	send: (path, query) => press(poller.target, path, query),
 	log: (line) => log.info(line),
 });
 
@@ -24,6 +23,7 @@ const poller = new StatePoller({
 		deck.setStatus(status);
 		if (status !== "ok") log.info(`Red Alert: ${status}${message ? ` (${message})` : ""}`);
 	},
+	onPort: (port) => log.info(`Red Alert found on port ${port}.`),
 });
 
 /** Stops reading Red Alert's state a little after the last Red Alert key went out of view. */
@@ -35,7 +35,7 @@ function visibleChanged() {
 }
 
 function useConnection(settings) {
-	conn = connectionOf(settings);
+	const conn = connectionOf(settings);
 	poller.setConnection(conn);
 	if (!conn.key) deck.setStatus("nokey");
 }

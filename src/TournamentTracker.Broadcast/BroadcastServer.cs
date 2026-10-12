@@ -127,9 +127,10 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>
-        /// Listens on the usual port, else the next three (8769–8771, so the Stream Deck plugin can find
-        /// it by trying them), else any free one. Settings and the Stream Deck's state say when it isn't
-        /// the usual one: links copied before point at 8768.
+        /// Listens on the usual port, else the next three (8769–8771: the Stream Deck plugin, set to any of
+        /// them, looks for it on the others by asking /deck/hello without the key), else any free one.
+        /// Settings and the Stream Deck's state say when it isn't the usual one: links copied before point
+        /// at 8768.
         /// </summary>
         private static TcpListener Listen(int port)
         {
@@ -194,6 +195,7 @@ namespace TournamentTracker.App.Broadcast
                 desk.AirChangedInObs += _ => caster.Refresh();
                 desk.HostCommand += SpecOut;
                 desk.CamsOn = () => !_settings.CamOff;
+                desk.PanicOn = () => _panic is { } inPanic && PanicInEffect(desk, inPanic);
                 desk.Changed += DeckPoke;
                 var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(caster, desk)) { VoiceFeeds = () => VoiceFeeds(caster, desk), MuteHotkey = MuteHotkey, CamFeeds = () => caster.CamLinks() };
                 obs.ImpostorTagsOn = () => _broadcast?.Settings.Current.Elements.GetValueOrDefault("impostorTags") == true;
@@ -535,10 +537,11 @@ namespace TournamentTracker.App.Broadcast
                 case ("POST", "/app/admin/do"):
                 {
                     // Any Stream Deck action from the desk page (Preview, Take, hold, panic, replays…), with its answer.
+                    // Unlike the Stream Deck's, its switches go through without OBS (Red Alert's pages follow them).
                     string doPath = Arg("path").Trim('/');
                     string doQuery = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("query", out var dq) && dq.ValueKind == JsonValueKind.Object
                         ? string.Join("&", dq.EnumerateObject().Where(p => p.Value.ValueKind == JsonValueKind.String).Select(p => p.Name + "=" + Uri.EscapeDataString(p.Value.GetString() ?? ""))) : "";
-                    var (status, message) = await DeckActionAsync(doPath.Split('/', StringSplitOptions.RemoveEmptyEntries), doQuery).ConfigureAwait(false);
+                    var (status, message) = await DeckActionAsync(doPath.Split('/', StringSplitOptions.RemoveEmptyEntries), doQuery, requireObs: false).ConfigureAwait(false);
                     DeckPoke();
                     return Ok(new { ok = status is >= 200 and < 300, status, message });
                 }
