@@ -65,8 +65,14 @@ namespace TournamentTracker.Plugin
             referee.Die(DeathReason.Exile, false);
             referee.Data.IsDead = true;
             referee.Data.SetDirtyBit(uint.MaxValue);
-            TournamentPlugin.Logger.Info($"Referee ghost: {referee.Data.PlayerName} is now a ghost (marked dead in the player record, no exile sent; record net id {referee.Data.NetId}, owner {referee.Data.OwnerId}, host owns it: {referee.Data.AmOwner}).");
+            // Host authority decides whether the record leaves the host at all: with it the host owns
+            // every record (owner -2) and sends it; without it the server owns them (owner -4) and
+            // players without the mod keep seeing the referee alive.
+            bool modded = AmongUsClient.Instance != null && AmongUsClient.Instance.AmModdedHost;
+            TournamentPlugin.Logger.Info($"Referee ghost: {referee.Data.PlayerName} is now a ghost (marked dead in the player record, no exile sent; record net id {referee.Data.NetId}, owner {referee.Data.OwnerId}, host owns it: {referee.Data.AmOwner}, host authority (modded host): {modded}).");
+            if (!modded) TournamentPlugin.Session?.RefereeWithoutHostAuthority();
             _ghostMade = true;
+            _ghostAt = Time.unscaledTime;
             _lastDead = true;
             CentreSoon(1f);
         }
@@ -81,7 +87,7 @@ namespace TournamentTracker.Plugin
         public static bool DebugSync;
         private static bool _ghostMade, _introSeen, _introDone;
         private static bool? _lastDead;
-        private static float _nextIntroCheck, _nextKeep;
+        private static float _nextIntroCheck, _nextKeep, _ghostAt;
 
         /// <summary>
         /// The referee's record dead again (if anything set it back) and marked to be sent to everyone.
@@ -109,7 +115,10 @@ namespace TournamentTracker.Plugin
         private static void WatchRecord(bool meeting)
         {
             if (!_ghostMade) return;
-            var referee = Referee();
+            // Who the referee is, from the twice-a-second lookup (a fresh one went through every
+            // player's name every frame); KeepDead still looks again before it writes.
+            var id = RefereeId();
+            var referee = id.HasValue ? Game.Player(id.Value) : null;
             var data = referee != null ? referee.Data : null;
             if (data == null) return;
             bool dead = data.IsDead;
@@ -124,9 +133,10 @@ namespace TournamentTracker.Plugin
             if (!_introDone && now >= _nextIntroCheck)
             {
                 _nextIntroCheck = now + 0.5f;
-                bool intro = UnityEngine.Object.FindObjectOfType<IntroCutscene>() != null;
+                bool intro = Game.IntroShowing();
                 if (intro) _introSeen = true;
-                else if (_introSeen) { _introDone = true; KeepDead("intro finished"); _nextKeep = now + 5f; }
+                // Over (or never seen, if the ghost was made after it): the record is put right, then every 5 s.
+                else if (_introSeen || now - _ghostAt > 15f) { _introDone = true; KeepDead(_introSeen ? "intro finished" : "intro not seen"); _nextKeep = now + 5f; }
             }
             if (!meeting && _introDone && now >= _nextKeep)
             {
@@ -178,7 +188,7 @@ namespace TournamentTracker.Plugin
             if (_centreAt < 0 || Time.unscaledTime < _centreAt) return;
             var referee = Referee();
             if (referee == null || !referee.AmOwner || referee.Data == null) { _centreAt = -1; return; }
-            if (!referee.Data.IsDead || meeting || Minigame.Instance != null || UnityEngine.Object.FindObjectOfType<IntroCutscene>() != null)
+            if (!referee.Data.IsDead || meeting || Minigame.Instance != null || Game.IntroShowing())
             {
                 _centreAt = Time.unscaledTime + 0.5f;
                 return;
@@ -308,13 +318,27 @@ namespace TournamentTracker.Plugin
             if (local != null && local.Visible) local.Visible = false;
         }
 
+        private static int _ghostFrame = -1;
+        private static bool _ghost;
+
         /// <summary>This game's player is the referee ghost (the host, dead, in the referee slot).</summary>
+        /// <remarks>
+        /// Asked about eight times a frame (and by the game's own visual-tasks check): worked out once
+        /// a frame, and not at all without the referee slot, where it read the whole player list for
+        /// nothing in every hosted game.
+        /// </remarks>
         public static bool LocalIsRefereeGhost()
         {
+            if (TournamentPlugin.Session?.RefSlotKey == null) return false;
+            int frame = Time.frameCount;
+            if (frame == _ghostFrame) return _ghost;
+            _ghostFrame = frame;
+            _ghost = false;
             var local = PlayerControl.LocalPlayer;
             if (local == null || !Game.IsHost || AmongUsClient.Instance == null || AmongUsClient.Instance.GameState != InnerNetClient.GameStates.Started) return false;
             var me = Frame.Get(local.PlayerId);
-            return me != null && me.Dead && RefereeId() == local.PlayerId;
+            _ghost = me != null && me.Dead && RefereeId() == local.PlayerId;
+            return _ghost;
         }
 
         // ---- The task bar on the referee's screen ------------------------------------------------
@@ -324,6 +348,9 @@ namespace TournamentTracker.Plugin
         private const float BarScale = 0.6f;
         private static ProgressTracker? _bar;
         private static MeshRenderer? _barFill;
+        /// <summary>The fill's material and its two settings, looked up once (not through the renderer and by name every frame).</summary>
+        private static Material? _barMaterial;
+        private static int _bucketsId = -1, _fullBucketsId = -1;
         private static Vector3 _barScale;
         private static float _barValue, _barLook;
 
@@ -334,6 +361,7 @@ namespace TournamentTracker.Plugin
                 if (_bar != null) _bar.transform.localScale = _barScale;
                 _bar = null;
                 _barFill = null;
+                _barMaterial = null;
                 return;
             }
             if (_bar == null)
@@ -346,6 +374,8 @@ namespace TournamentTracker.Plugin
                 _barScale = _bar.transform.localScale;
                 _bar.transform.localScale = _barScale * BarScale;
                 _barFill = _bar.GetComponentInChildren<MeshRenderer>(true);
+                _barMaterial = null;
+                if (_bucketsId < 0) { _bucketsId = Shader.PropertyToID("_Buckets"); _fullBucketsId = Shader.PropertyToID("_FullBuckets"); }
                 _barValue = 0;
             }
             if (!_bar.gameObject.activeSelf) _bar.gameObject.SetActive(true);
@@ -361,9 +391,10 @@ namespace TournamentTracker.Plugin
             if (buckets == 0) return;
             float target = (float)data.CompletedTasks / data.TotalTasks * buckets;
             _barValue += (target - _barValue) * Math.Min(1f, Time.deltaTime * 2f);
-            var material = _barFill.material;
-            material.SetFloat("_Buckets", buckets);
-            material.SetFloat("_FullBuckets", _barValue);
+            // The renderer's own copy (made on first ask, the same one after): kept, and asked again only if Unity let it go.
+            if (_barMaterial == null) _barMaterial = _barFill.material;
+            _barMaterial.SetFloat(_bucketsId, buckets);
+            _barMaterial.SetFloat(_fullBucketsId, _barValue);
         }
 
         private static void RoomName(bool show)
@@ -397,16 +428,16 @@ namespace TournamentTracker.Plugin
 
         /// <summary>
         /// Whether this is the referee ghost. The host knows; another player's game (with the mod)
-        /// tells by what only the referee has: dead, yet still a plain crewmate or impostor role
-        /// (everyone else who dies gets a ghost role) and no tasks.
+        /// tells by what only the referee has: dead, yet not in a ghost role (everyone else who dies
+        /// gets one from the host; asked of the game's own list, so newer ones such as the spirit
+        /// guide count too) and no tasks.
         /// </summary>
         public static bool IsReferee(NetworkedPlayerInfo? data)
         {
             if (data == null || data.Disconnected) return false;
             if (Game.IsHost) return TournamentPlugin.Session?.RefSlotKey != null && RefereeId() == data.PlayerId;
             if (!data.IsDead || data.Role == null) return false;
-            var role = data.Role.Role;
-            if (role == RoleTypes.CrewmateGhost || role == RoleTypes.ImpostorGhost || role == RoleTypes.GuardianAngel) return false;
+            if (RoleManager.IsGhostRole(data.Role.Role)) return false;
             return data.Tasks == null || data.Tasks.Count == 0;
         }
     }
@@ -439,12 +470,29 @@ namespace TournamentTracker.Plugin
         /// <summary>The referee's card off the meeting list (shrunk to nothing, last place); the cards after it move up to fill the gap.</summary>
         private static MeetingHud? _hiddenIn;
         private static PlayerVoteArea? _hidden;
+        // Looked for every frame for the first seconds of a meeting (the card must never show), then
+        // four times a second: with no referee in the game, or no card of theirs, it went through every
+        // player and card (and made new lists) every frame of every meeting.
+        private static MeetingHud? _lookIn;
+        private static float _lookFrom, _nextLook;
+        private static readonly HashSet<string> Names = new HashSet<string>(StringComparer.Ordinal);
+        private static readonly List<PlayerVoteArea> Areas = new List<PlayerVoteArea>();
+
+        private static bool Shrunk(PlayerVoteArea area)
+        {
+            var scale = area.transform.localScale;
+            return scale.x == 0f && scale.y == 0f && scale.z == 0f;
+        }
 
         private static void HideCard(MeetingHud meeting)
         {
             // Already hidden in this meeting: nothing to do (checked every frame, so kept cheap).
-            if (ReferenceEquals(_hiddenIn, meeting) && _hidden != null && _hidden.transform.localScale == Vector3.zero) return;
+            if (ReferenceEquals(_hiddenIn, meeting) && _hidden != null && Shrunk(_hidden)) return;
             if (GameData.Instance == null || (Game.IsHost && TournamentPlugin.Session?.RefSlotKey == null)) return;
+            float now = Time.unscaledTime;
+            if (!ReferenceEquals(_lookIn, meeting)) { _lookIn = meeting; _lookFrom = now; _nextLook = 0; }
+            if (now < _nextLook) return;
+            if (now - _lookFrom > 3f) _nextLook = now + 0.25f;
             // Who the referee is, then their card by the name on it (their game name, or on the host's
             // screen the roster name the nameplates may show instead).
             NetworkedPlayerInfo? data = null;
@@ -457,16 +505,19 @@ namespace TournamentTracker.Plugin
                 foreach (var p in GameData.Instance.AllPlayers)
                     if (RefSlot.IsReferee(p)) { data = p; break; }
             if (data == null) return;
-            var names = new HashSet<string>(StringComparer.Ordinal) { data.PlayerName ?? "" };
+            var names = Names;
+            names.Clear();
+            names.Add(data.PlayerName ?? "");
             var shown = Game.IsHost ? TournamentPlugin.Session?.DisplayName(PlayerSnapshot.MakeKey(data.FriendCode, data.PlayerName ?? "")) : null;
             if (shown != null) names.Add(shown);
-            var areas = new List<PlayerVoteArea>();
+            var areas = Areas;
+            areas.Clear();
             PlayerVoteArea? referee = null;
             foreach (var area in meeting.playerStates)
             {
                 if (area == null) continue;
                 areas.Add(area);
-                if (area.gameObject.activeSelf && area.transform.localScale != Vector3.zero && area.NameText != null && names.Contains(area.NameText.text ?? "")) referee = area;
+                if (area.gameObject.activeSelf && !Shrunk(area) && area.NameText != null && names.Contains(area.NameText.text ?? "")) referee = area;
             }
             if (referee == null) return;
             // The places in reading order (top row first, left to right); everyone but the referee takes them in turn.
@@ -484,6 +535,7 @@ namespace TournamentTracker.Plugin
             referee.transform.localPosition = places[places.Count - 1];
             _hiddenIn = meeting;
             _hidden = referee;
+            areas.Clear();
             TournamentPlugin.Logger.Info("Referee ghost: taken off the meeting list.");
         }
     }

@@ -203,6 +203,9 @@ namespace TournamentTracker.Plugin.Patches
         public static void Postfix(PlayerControl __instance, ref UnityEngine.Vector2 __result)
         {
             var ears = CamAudio.Listener;
+            // One of the game's busiest calls: nothing to do (almost always) is a plain null check here,
+            // not Unity's "== null", which asks the game's native code every time.
+            if (ears is null) return;
             if (ears == null || ears == __instance || !__instance.AmOwner) return;
             try { __result = ears.GetTruePosition(); }
             catch (Exception) { }
@@ -215,6 +218,7 @@ namespace TournamentTracker.Plugin.Patches
     {
         public static bool Prefix(PlayerControl __instance)
         {
+            if (CamAudio.Listener is null) return true;
             if (__instance == null || CamAudio.Listener != __instance) return true;
             CamAudio.Footstep(__instance);
             return false;

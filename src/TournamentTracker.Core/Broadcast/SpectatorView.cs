@@ -91,12 +91,15 @@ namespace TournamentTracker
             var game = Tracker.Current;
             if (!Spectator.Cam || game == null) { _camOn = null; return null; }
             bool Alive(int id) => game.ById((byte)id) is { DeathCause: null };
-            if (Spectator.CamPlayer is int chosen && game.ById((byte)chosen) != null)
-            {
-                // The caster's pick, still followed a few seconds after they die (to see the kill).
-                if (Alive(chosen) || _camOn == chosen && _clock() - _camSince < TimeSpan.FromSeconds(4)) return Keep((byte)chosen, chosen: true);
-            }
             var now = _clock();
+            if (Spectator.CamPlayer is int chosen && game.ById((byte)chosen) is { } picked)
+            {
+                // The caster's pick, still followed for a few seconds after they die (to see the kill).
+                // Timed from the death: timed from when the camera first went to them, a pick held
+                // longer than that had no time left by the kill and the camera cut away at once.
+                bool justDied = picked.DiedAtSeconds is double died && (now - game.StartedUtc).TotalSeconds - died < 4;
+                if (Alive(chosen) || justDied) return Keep((byte)chosen, chosen: true);
+            }
             var hunter = _danger.Where(d => Alive(d.Key.Imp) && Alive(d.Key.Crew)).OrderByDescending(d => d.Value).Select(d => (byte?)d.Key.Imp).FirstOrDefault();
             if (hunter != null) return Keep(hunter.Value, chosen: false);
             if (_camOn is byte current && Alive(current) && now - _camSince < TimeSpan.FromSeconds(4)) return current;
@@ -134,12 +137,18 @@ namespace TournamentTracker
         }
 
         /// <summary>spec lit|report|eye on|off · spec vision off|focus|rings · spec focus auto|&lt;player id&gt; · spec dim 0.22 · spec cam on|off|auto|&lt;player id&gt; · spec audio cam|wide</summary>
+        /// <remarks>
+        /// These are the caster's switches (Red Alert, through the host's Button), so their answers go
+        /// to the log only, never the host's chat: the referee's screen is on stream, and its mini chat
+        /// showed "[Tracker] Spectator view: …" every time the caster changed the camera.
+        /// </remarks>
         private void SpectatorCommand(string[] args)
         {
             string what = args.ElementAtOrDefault(0)?.ToLowerInvariant() ?? "";
             string value = args.ElementAtOrDefault(1)?.ToLowerInvariant() ?? "";
             var s = Spectator;
             bool On(bool current) => value == "on" ? true : value == "off" ? false : !current;
+            void Say(string text) { if (_answeringApp) Log(text); else Reply(text, false); }
             switch (what)
             {
                 case "lit": s.Lit = On(s.Lit); break;
@@ -165,11 +174,12 @@ namespace TournamentTracker
                     if (float.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float dim)) s.Dim = Math.Max(0, Math.Min(0.8f, dim));
                     break;
                 default:
-                    Reply("Spectator view: spec lit|report|eye on|off, spec vision off|focus|rings, spec focus auto|<player>, spec cam on|off|auto|<player>, spec audio cam|wide.", false);
+                    Say("Spectator view: spec lit|report|eye on|off, spec vision off|focus|rings, spec focus auto|<player>, spec cam on|off|auto|<player>, spec audio cam|wide.");
                     return;
             }
-            SaveState();
-            Reply($"Spectator view: map {(s.Lit ? "lit" : "normal")}, vision {s.Vision}{(s.Focus.HasValue ? $" (on player {s.Focus})" : "")}, \"!\" {(s.Report ? "on" : "off")}, eye {(s.Eye ? "on" : "off")}, player camera {(s.Cam ? s.CamPlayer.HasValue ? $"on player {s.CamPlayer}" : "on (picks by itself)" : "off")}.", false);
+            // The game sound follows the stream and isn't saved: nothing to write (Red Alert sends it at every switch).
+            if (what != "audio") SaveState();
+            Say($"Spectator view: map {(s.Lit ? "lit" : "normal")}, vision {s.Vision}{(s.Focus.HasValue ? $" (on player {s.Focus})" : "")}, \"!\" {(s.Report ? "on" : "off")}, eye {(s.Eye ? "on" : "off")}, player camera {(s.Cam ? s.CamPlayer.HasValue ? $"on player {s.CamPlayer}" : "on (picks by itself)" : "off")}.");
         }
 
         /// <summary>The spectator view's state, for the caster's snapshot.</summary>

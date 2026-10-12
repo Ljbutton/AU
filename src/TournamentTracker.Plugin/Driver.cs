@@ -149,6 +149,8 @@ namespace TournamentTracker.Plugin
 
             using (FrameProfiler.Time(FrameProfiler.Part.Voice))
             {
+                // For The Button: whether this lobby really has host authority (null when not hosting).
+                session.HostAuthorityActive = Patches.HostAuthority.ActiveWhileHosting();
                 // The status, overlay and live data follow two frames later (step 2).
                 if (phase == VoicePhase.Menu) session.VoiceTick(phase, players, publish: false);
                 else
@@ -181,6 +183,7 @@ namespace TournamentTracker.Plugin
             // Before roles are handed out everyone reads as a crewmate; wait for the real teams.
             if (!players.Exists(p => p.IsImpostor)) return;
             session.GameStarted(Game.LobbyCode(), Game.MapName(), players);
+            MiniChat.NewGame();
             try { session.CheckSettings(LobbyLock.Read(session.TournamentLobbySettings)); }
             catch (Exception e) { TournamentPlugin.Logger.Error("Settings check failed: " + e); }
             ReplayCapture.CaptureMap();

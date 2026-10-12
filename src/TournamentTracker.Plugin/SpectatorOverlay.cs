@@ -133,6 +133,7 @@ namespace TournamentTracker.Plugin
             var s = session.Spectator;
             Root();
             Frame.RefreshPositions();
+            _pass++;
             GatherAlive(session);
             if (s.Vision == "focus" && s.Dim > 0.001f)
             {
@@ -191,6 +192,7 @@ namespace TournamentTracker.Plugin
         private static void Check(TournamentSession session, SpectatorSettings s)
         {
             Root();
+            _pass++;
             GatherAlive(session);
 
             // The eye.
@@ -228,6 +230,7 @@ namespace TournamentTracker.Plugin
             if (k == null) return;
             var kp = killer.transform.position;
             k.Pos = new Vector2(kp.x, kp.y);
+            _pass++;
             foreach (var pc in Frame.Players)
             {
                 if (pc.Dead || pc.Disconnected || pc.Id == victim.PlayerId || pc.Impostor) continue;
@@ -240,8 +243,37 @@ namespace TournamentTracker.Plugin
 
         private static int WallMask => _wallMask >= 0 ? _wallMask : (_wallMask = 1 << LayerMask.NameToLayer("Shadow"));
 
+        // Each player's light radius, asked of the game once per pass (a frame's drawing, a check, a
+        // kill) and shared by the sight and every "sees" between players in it, not asked for each.
+        private static int _pass;
+        private static readonly int[] RadiusPass = new int[256];
+        private static readonly float[] RadiusNow = new float[256];
+
         /// <summary>How far a player sees right now (their role's vision, lights sabotage included), in world units.</summary>
-        private static float Radius(Frame.Player p) => ShipStatus.Instance.CalculateLightRadius(p.Data);
+        private static float Radius(Frame.Player p)
+        {
+            if (RadiusPass[p.Id] == _pass) return RadiusNow[p.Id];
+            RadiusPass[p.Id] = _pass;
+            return RadiusNow[p.Id] = ShipStatus.Instance.CalculateLightRadius(p.Data);
+        }
+
+        // The rays' directions for each ray count (60, 72, 120), worked out once: a new Vector2 for every
+        // ray crossed into the game's native code, tens of thousands of times a second.
+        private static readonly Dictionary<int, (float[] Cos, float[] Sin)> Directions = new Dictionary<int, (float[], float[])>();
+
+        private static (float[] Cos, float[] Sin) DirectionsFor(int rays)
+        {
+            if (Directions.TryGetValue(rays, out var d)) return d;
+            var cos = new float[rays];
+            var sin = new float[rays];
+            for (int i = 0; i < rays; i++)
+            {
+                float a = TwoPi * i / rays;
+                cos[i] = MathF.Cos(a);
+                sin[i] = MathF.Sin(a);
+            }
+            return Directions[rays] = (cos, sin);
+        }
 
         /// <summary>The viewer has the other player in their real sight: close enough, and no wall in between.</summary>
         private static bool Sees(Frame.Player viewer, Frame.Player other)
@@ -267,12 +299,17 @@ namespace TournamentTracker.Plugin
             if (!stale) return sight;
             if (sight.Reach.Length != rays) sight.Reach = new float[rays];
             var origin = p.Pos;
+            var (cos, sin) = DirectionsFor(rays);
+            int mask = WallMask;
             for (int i = 0; i < rays; i++)
             {
-                float a = TwoPi * i / rays;
-                var hit = Physics2D.Raycast(origin, new Vector2(MathF.Cos(a), MathF.Sin(a)), r, WallMask);
+                Vector2 dir = default;
+                dir.x = cos[i];
+                dir.y = sin[i];
+                var hit = Physics2D.Raycast(origin, dir, r, mask);
                 // No wall: a zero distance (nothing hit). Players never start inside a wall's edge.
-                float d = hit.distance;
+                // Read straight from the result (its "distance" getter is another call into the game).
+                float d = hit.m_Distance;
                 sight.Reach[i] = d > 0f ? d : r;
             }
             sight.Rays = rays;
@@ -291,7 +328,8 @@ namespace TournamentTracker.Plugin
             if (_root != null) return;
             _root = new GameObject("TT Spectator View");
             UnityEngine.Object.DontDestroyOnLoad(_root);
-            _material = new Material(Shader.Find("Sprites/Default"));
+            // One material for the whole session (a new one at every rebuild, after each meeting, was never let go).
+            if (_material == null) _material = new Material(Shader.Find("Sprites/Default"));
         }
 
         private static void Layer(GameObject go)
@@ -531,6 +569,8 @@ namespace TournamentTracker.Plugin
                 eye = Eyes[p.Id] = new Eye { Go = go, Sprite = sr, Shown = true };
             }
             eye.Sees = sees;
+            // Its place by the name only matters while it shows (measuring the name lays its text out).
+            if (!sees && !eye.Shown) return;
             Measure(p, eye);
             Follow(p, eye);
         }
