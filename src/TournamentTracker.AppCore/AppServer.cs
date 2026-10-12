@@ -118,17 +118,26 @@ namespace TournamentTracker.App
         private Release? _latest;
         private Organizer? _organizer;
         private Voice.VoiceCapture? _voice;
+        private readonly object _voiceLock = new object();
+        private readonly Timer _voiceIdle;
         private readonly DiscordBridge _bridge;
 
-        /// <summary>The lobby's voice and game sound for the send page (started the first time it asks).</summary>
+        /// <summary>The send page last asked about the lobby sound this long ago (closed): capturing stops until it asks again.</summary>
+        private static readonly TimeSpan VoiceIdle = TimeSpan.FromSeconds(30);
+
+        /// <summary>
+        /// The lobby's voice and game sound for the send page: started the first time it asks, and
+        /// again after it stopped because the page was closed.
+        /// </summary>
         private Voice.VoiceCapture VoiceNow()
         {
-            if (_voice == null)
+            lock (_voiceLock)
             {
-                _voice = new Voice.VoiceCapture { VoiceLevel = _settings.VoiceLevel, GameLevel = _settings.GameSoundLevel };
-                if (!_settings.VoiceOff) _voice.Start();
+                _voice ??= new Voice.VoiceCapture { VoiceLevel = _settings.VoiceLevel, GameLevel = _settings.GameSoundLevel };
+                _voice.Touch();
+                if (!_settings.VoiceOff && !_voice.Running) _voice.Start();
+                return _voice;
             }
-            return _voice;
         }
 
         /// <summary>Starts (or stops) the organiser's view for the saved administration code.</summary>
@@ -216,6 +225,7 @@ namespace TournamentTracker.App
             TrySave();
             Task.Run(AcceptLoop);
             StartOrganizer();
+            _voiceIdle = new Timer(_ => { try { _voice?.StopIfIdle(VoiceIdle); } catch (Exception) { } }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
             // The bot stays online while The Button is open; the mod reaches Discord through it.
             _bridge = new DiscordBridge(() => DiscordBridge.FromSetupCode(_settings.SetupCode, _settings.HostDiscord),
                 () => GamePath == null ? null : ModInstaller.DataDir(GamePath), connect: env.Bots);
@@ -239,9 +249,13 @@ namespace TournamentTracker.App
 
         private List<GameInstall> Candidates() => GameLocator.Find(_env.SteamRoot, _env.EpicManifests, _env.Fallbacks);
 
+        private readonly object _saveLock = new object();
+
+        /// <summary>Saves the settings, one save at a time (requests arrive on several threads at once).</summary>
         private void TrySave()
         {
-            try { _settings.Save(_env.SettingsFile); } catch (Exception) { }
+            lock (_saveLock)
+                try { _settings.Save(_env.SettingsFile); } catch (Exception) { }
         }
 
         private async Task AcceptLoop()
@@ -309,6 +323,10 @@ namespace TournamentTracker.App
             if (body.Length > 0) { try { input = JsonDocument.Parse(body).RootElement; } catch (Exception) { } }
             string Arg(string name) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
 
+            // A send page that was replaced (Open again) or switched off is told so, and closes itself down.
+            if ((route is "/app/sendinfo" or "/app/sendfeed" or "/app/cam" or "/app/voice/pcm" or "/app/voice" or "/app/names" or "/app/command") && StalePage(query))
+                return Text(409, "application/json", "{\"error\":\"replaced\"}");
+
             switch ((method, route))
             {
                 case ("GET", "/app/state"): return Ok(await StateAsync().ConfigureAwait(false));
@@ -333,14 +351,11 @@ namespace TournamentTracker.App
                 {
                     string? push = null;
                     bool cam = false;
-                    if (GamePath != null)
+                    var status = GamePath == null ? null : await StatusElementAsync(GamePath).ConfigureAwait(false);
+                    if (status is JsonElement s && s.ValueKind == JsonValueKind.Object && s.TryGetProperty("feed", out var feed) && feed.ValueKind == JsonValueKind.Object)
                     {
-                        string? status = await _mod.StatusAsync(GamePath).ConfigureAwait(false);
-                        if (status != null && JsonDocument.Parse(status).RootElement.TryGetProperty("feed", out var feed))
-                        {
-                            if (feed.TryGetProperty("pushUrl", out var pu) && pu.ValueKind == JsonValueKind.String) push = pu.GetString();
-                            cam = feed.TryGetProperty("cam", out var c) && c.ValueKind == JsonValueKind.True;
-                        }
+                        if (feed.TryGetProperty("pushUrl", out var pu) && pu.ValueKind == JsonValueKind.String) push = pu.GetString();
+                        cam = feed.TryGetProperty("cam", out var c) && c.ValueKind == JsonValueKind.True;
                     }
                     return Ok(new { pushUrl = push != null && push.StartsWith(TournamentSession.VdoNinja, StringComparison.Ordinal) ? push : null, twitch = _settings.Twitch, cam });
                 }
@@ -404,7 +419,7 @@ namespace TournamentTracker.App
                 case ("POST", "/app/modconsole"):
                 {
                     _settings.ShowModConsole = Arg("on") == "true";
-                    _settings.Save(_env.SettingsFile);
+                    TrySave();
                     if (GamePath != null) try { ModInstaller.SetConsole(GamePath, _settings.ShowModConsole); } catch (Exception) { }
                     return Ok(new { ok = true, message = _settings.ShowModConsole ? "The mod's console window shows from the next start of Among Us." : "No console window from the next start of Among Us (the log is still in Settings → Mod and updates → Open log)." });
                 }
@@ -415,7 +430,7 @@ namespace TournamentTracker.App
                     string? handle = TournamentTracker.Broadcast.FeedProtocol.TwitchHandle(typed);
                     if (typed.Length > 0 && handle == null) return Ok(new { ok = false, message = "That isn't a Twitch channel name (letters, numbers and _, like your twitch.tv/ link)." });
                     _settings.Twitch = handle;
-                    _settings.Save(_env.SettingsFile);
+                    TrySave();
                     return Ok(new { ok = true, message = handle == null ? "Twitch channel removed." : $"Your Twitch: {handle}. It shows on the tournament stream with your lobby." });
                 }
                 case ("POST", "/app/autoupdate"):
@@ -429,6 +444,50 @@ namespace TournamentTracker.App
 
         // ---- State ------------------------------------------------------------------------
 
+        /// <summary>The mod's status, read once per question and let go (null: not running, or no answer).</summary>
+        private async Task<JsonElement?> StatusElementAsync(string game)
+        {
+            string? text = await _mod.StatusAsync(game).ConfigureAwait(false);
+            if (text == null) return null;
+            try
+            {
+                using var doc = JsonDocument.Parse(text);
+                return doc.RootElement.Clone();
+            }
+            catch (JsonException) { return null; }
+        }
+
+        /// <summary>The mod's files as last looked at: read again after a few seconds, or as soon as an install starts, moves on or ends.</summary>
+        private sealed record ModLook(string Key, DateTime At, ModState State);
+        private volatile ModLook? _modLook;
+        private static readonly TimeSpan ModLookFresh = TimeSpan.FromSeconds(3);
+
+        private ModState ModStateLately()
+        {
+            string key = $"{GamePath}|{_installing}|{_installResult}";
+            var now = DateTime.UtcNow;
+            var look = _modLook;
+            if (look != null && look.Key == key && now - look.At < ModLookFresh) return look.State;
+            var state = ModInstaller.State(GamePath);
+            _modLook = new ModLook(key, now, state);
+            return state;
+        }
+
+        // The game folders The Button could use, only needed (and looked for) while Among Us isn't found.
+        private List<GameInstall>? _candidates;
+        private DateTime _candidatesAt = DateTime.MinValue;
+
+        private List<GameInstall> CandidatesLately()
+        {
+            var now = DateTime.UtcNow;
+            var list = _candidates;
+            if (list != null && now - _candidatesAt < TimeSpan.FromSeconds(10)) return list;
+            list = Candidates();
+            _candidates = list;
+            _candidatesAt = now;
+            return list;
+        }
+
         private async Task<object> StateAsync()
         {
             if (DateTime.UtcNow - _latestChecked > TimeSpan.FromMinutes(20))
@@ -440,13 +499,13 @@ namespace TournamentTracker.App
                     if (_settings.AutoUpdateApp && AppUpdateAvailable) await UpdateAppAsync().ConfigureAwait(false);
                 });
             }
-            var mod = ModInstaller.State(GamePath);
+            var mod = ModStateLately();
             AutoRepair(mod);
             AutoUpdateMod(mod);
             KeepConsoleSetting(mod);
-            string? status = mod.Installed && GamePath != null ? await _mod.StatusAsync(GamePath).ConfigureAwait(false) : null;
+            JsonElement? status = mod.Installed && GamePath != null ? await StatusElementAsync(GamePath).ConfigureAwait(false) : null;
             if (await WatchSendPageAsync(status).ConfigureAwait(false) && GamePath != null)
-                status = await _mod.StatusAsync(GamePath).ConfigureAwait(false) ?? status;
+                status = await StatusElementAsync(GamePath).ConfigureAwait(false) ?? status;
             return new
             {
                 SendPage = new
@@ -458,7 +517,7 @@ namespace TournamentTracker.App
                 App = _env.Version,
                 Twitch = _settings.Twitch,
                 ModConsole = _settings.ShowModConsole,
-                Game = new { Path = GamePath, Found = mod.GameFound, Candidates = Candidates() },
+                Game = new { Path = GamePath, Found = mod.GameFound, Candidates = mod.GameFound ? new List<GameInstall>() : CandidatesLately() },
                 Mod = new
                 {
                     mod.Installed, mod.InstalledVersion, mod.GameArch, mod.LoaderArch, mod.LoaderMatchesGame,
@@ -482,7 +541,7 @@ namespace TournamentTracker.App
                     Error = _appUpdateError,
                 },
                 Connected = status != null,
-                Status = status == null ? (JsonElement?)null : JsonDocument.Parse(status).RootElement,
+                Status = status,
                 Bot = _bridge.Status(),
             };
         }
@@ -649,26 +708,40 @@ namespace TournamentTracker.App
             return new { ok = true, message = (app ? "Downloading the new version of The Button (restart it when it's ready). " : "") + modMessage };
         }
 
-        /// <summary>BepInEx's console window as set here (hidden by default): put back after installs, repairs and BepInEx's first run.</summary>
+        private DateTime _nextConsoleCheck = DateTime.MinValue;
+
+        /// <summary>
+        /// BepInEx's console window as set here (hidden by default): put back after installs, repairs and
+        /// BepInEx's first run. Its settings file is read every 10 s, not on every refresh.
+        /// </summary>
         private void KeepConsoleSetting(ModState mod)
         {
             if (!mod.Installed || GamePath == null || _installing.Length > 0) return;
+            var now = DateTime.UtcNow;
+            if (now < _nextConsoleCheck) return;
+            _nextConsoleCheck = now + TimeSpan.FromSeconds(10);
             try { if (ModInstaller.ConsoleShown(GamePath) != _settings.ShowModConsole) ModInstaller.SetConsole(GamePath, _settings.ShowModConsole); }
-            catch (Exception) { /* tried again on the next refresh */ }
+            catch (Exception) { _nextConsoleCheck = DateTime.MinValue; /* tried again on the next refresh */ }
         }
+
+        /// <summary>
+        /// Among Us is closed. Asked on every refresh while an update or repair waits for that, so the
+        /// look from the last few seconds is used while the game runs, and a fresh one confirms it closed.
+        /// </summary>
+        private static bool GameClosed() => !ModInstaller.GameRunningLately() && !ModInstaller.GameRunning();
 
         /// <summary>A new version of the mod is out: install it by itself once Among Us is closed (unless switched off, and Update wasn't pressed).</summary>
         private void AutoUpdateMod(ModState mod)
         {
             if (!ModUpdateAvailable(mod)) _modWanted = false;
-            if (_modWanted && mod.LoaderMatchesGame && GamePath != null && _installing.Length == 0 && !ModInstaller.GameRunning())
+            if (_modWanted && mod.LoaderMatchesGame && GamePath != null && _installing.Length == 0 && GameClosed())
             {
                 _modWanted = false;
                 StartInstall();
                 return;
             }
             if (!_settings.AutoUpdateMod || !ModUpdateAvailable(mod) || !mod.LoaderMatchesGame || GamePath == null || _installing.Length > 0) return;
-            if (DateTime.UtcNow < _nextAutoModUpdate || ModInstaller.GameRunning()) return;
+            if (DateTime.UtcNow < _nextAutoModUpdate || !GameClosed()) return;
             _nextAutoModUpdate = DateTime.UtcNow + AutoRepairRetry;
             StartInstall(update: true);
         }
@@ -682,7 +755,7 @@ namespace TournamentTracker.App
         private void AutoRepair(ModState mod)
         {
             if (!mod.Installed || mod.LoaderMatchesGame || GamePath == null || _installing.Length > 0) return;
-            if (DateTime.UtcNow < _nextAutoRepair || ModInstaller.GameRunning()) return;
+            if (DateTime.UtcNow < _nextAutoRepair || !GameClosed()) return;
             _nextAutoRepair = DateTime.UtcNow + AutoRepairRetry;
             StartInstall(repair: true);
         }
@@ -755,12 +828,10 @@ namespace TournamentTracker.App
         /// Sending video is on but the send page was closed (no asks for 15 s) or VDO.Ninja stopped
         /// sending its picture (20 s): turn it off, so The Button never says "Sending" when nothing is.
         /// </summary>
-        private async Task<bool> WatchSendPageAsync(string? status)
+        private async Task<bool> WatchSendPageAsync(JsonElement? status)
         {
-            if (status == null || _sendSeen == DateTime.MinValue) return false;
-            bool on;
-            try { on = JsonDocument.Parse(status).RootElement.TryGetProperty("feed", out var f) && f.TryGetProperty("on", out var o) && o.ValueKind == JsonValueKind.True; }
-            catch (JsonException) { return false; }
+            if (status is not JsonElement s || s.ValueKind != JsonValueKind.Object || _sendSeen == DateTime.MinValue) return false;
+            bool on = s.TryGetProperty("feed", out var f) && f.ValueKind == JsonValueKind.Object && f.TryGetProperty("on", out var o) && o.ValueKind == JsonValueKind.True;
             if (!on) return false;
             var now = DateTime.UtcNow;
             string? why = now - _sendSeen > SendPageGone ? "the VDO.Ninja page was closed"
@@ -774,25 +845,61 @@ namespace TournamentTracker.App
             return true;
         }
 
+        // Each send page The Button opens has its own id (in its link). Only the newest is served: an older
+        // tab (after Open again) or the tab of a feed that was switched off gets 409 for everything and
+        // stops sharing the screen and the lobby voice, instead of two tabs splitting the sound between them.
+        private readonly object _sendPageLock = new object();
+        private string? _sendPageId;
+
+        private static string NewSendPageId() => Guid.NewGuid().ToString("N").Substring(0, 10);
+
+        /// <summary>
+        /// A request from a send page that isn't the current one. Pages without an id (from before ids)
+        /// are served as always. After The Button restarts (an update) no page has been opened yet: the
+        /// first page that asks is taken as the current one, so an open tab keeps working.
+        /// </summary>
+        private bool StalePage(string query)
+        {
+            string page = HttpRequest.Query(query, "page");
+            if (page.Length == 0) return false;
+            lock (_sendPageLock)
+            {
+                _sendPageId ??= page;
+                return _sendPageId != page;
+            }
+        }
+
+        /// <summary>Every send page now open is told to close down (the feed was switched off).</summary>
+        private void RetireSendPages()
+        {
+            lock (_sendPageLock) _sendPageId = NewSendPageId();
+        }
+
         private async Task<object> FeedAsync(bool on)
         {
             _sendSeen = DateTime.MinValue;
             _sendVideoOkAt = DateTime.MinValue;
             _sendVideo = "";
             if (on) _feedNote = null;
+            else RetireSendPages();
             if (GamePath == null) return new { ok = false, replies = new[] { "Find Among Us first." } };
             string? answer = await _mod.CommandAsync(GamePath, on ? "feed on" : "feed off").ConfigureAwait(false);
             if (answer == null) return new { ok = false, replies = new[] { "Among Us isn't running with the mod, so that can't be done right now." } };
             if (on)
             {
-                string? status = await _mod.StatusAsync(GamePath).ConfigureAwait(false);
+                var status = await StatusElementAsync(GamePath).ConfigureAwait(false);
                 string? url = null;
-                if (status != null && JsonDocument.Parse(status).RootElement.TryGetProperty("feed", out var feed)
+                if (status is JsonElement s && s.ValueKind == JsonValueKind.Object && s.TryGetProperty("feed", out var feed) && feed.ValueKind == JsonValueKind.Object
                     && feed.TryGetProperty("pushUrl", out var push) && push.ValueKind == JsonValueKind.String)
                     url = push.GetString();
                 // The Button's own page shares the screen through VDO.Ninja and sends the lobby's live data with it.
+                // A new tab every time (Open again is for when the old one picked the wrong screen or stalled): the old one is retired.
                 if (url != null && url.StartsWith(TournamentSession.VdoNinja, StringComparison.Ordinal))
-                    try { _env.Open($"{Url}send?token={Token}"); } catch (Exception) { }
+                {
+                    string id = NewSendPageId();
+                    lock (_sendPageLock) _sendPageId = id;
+                    try { _env.Open($"{Url}send?token={Token}&page={id}"); } catch (Exception) { }
+                }
             }
             return JsonDocument.Parse(answer).RootElement;
         }
@@ -844,6 +951,7 @@ namespace TournamentTracker.App
         public void Dispose()
         {
             _cts.Cancel();
+            _voiceIdle.Dispose();
             _bridge.Dispose();
             _organizer?.Dispose();
             _voice?.Dispose();

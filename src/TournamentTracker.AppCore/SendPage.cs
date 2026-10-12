@@ -4,6 +4,12 @@ namespace TournamentTracker.App
     public static class SendPage
     {
         /// <summary>
+        /// VDO.Ninja's SDK for the lobby voice and the player camera, at a fixed version (the one this page
+        /// was used with), so a new release can't change the page under a host in the middle of an event.
+        /// </summary>
+        public const string SdkUrl = "https://unpkg.com/@vdoninja/sdk@1.6.2/vdoninja-sdk.min.js";
+
+        /// <summary>
         /// The host's "send to the caster" page, opened by The Button in their browser: VDO.Ninja
         /// shares the screen inside it, and the lobby's live data (events and snapshots from the
         /// mod) rides along on the same private connection, so only the caster, who has the
@@ -15,10 +21,10 @@ namespace TournamentTracker.App
 :root{--bg:#0b0e13;--fg:#f3f5f7;--muted:#9aa6b2;--good:#46c28b;--bad:#ff6b6b;--line:#252c36}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:15px/1.4 ""Segoe UI"",system-ui,sans-serif}
-body{display:grid;grid-template-rows:auto 1fr auto auto}
+body{display:flex;flex-direction:column}
 header,footer{padding:10px 16px}
 header b{color:#fff}
-iframe{border:0;width:100%;height:100%;background:#000}
+iframe{border:0;width:100%;flex:1 1 0;min-height:0;background:#000}
 footer{color:var(--muted);font-size:13px;display:flex;gap:14px}
 .ok{color:var(--good)}.bad{color:var(--bad)}
 #voice{padding:10px 16px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center;font-size:13.5px}
@@ -31,8 +37,10 @@ footer{color:var(--muted);font-size:13px;display:flex;gap:14px}
 #drop.on{display:block}
 #gone{display:none;padding:16px;background:#8a1520;color:#fff;font-weight:700;font-size:18px;text-align:center}
 #gone.on{display:block}
-body.dropped{grid-template-rows:auto auto 1fr auto auto}
+#retired{display:none;padding:16px;background:#1d2633;color:#fff;font-weight:700;font-size:18px;text-align:center}
+#retired.on{display:block}
 </style></head><body>
+<div id=""retired"">This tab isn't sending any more: The Button opened a newer one (Open again), or sending was turned off. You can close this tab.</div>
 <div id=""gone"">Live game data isn't reaching The Button. If The Button restarted (an update), click <u>Open again</u> in The Button (Home → Send my game to the caster), then close this tab. The video still goes out.</div>
 <div id=""drop"">Disconnected from caster, reconnecting… Keep playing: nothing is lost, it's all sent when the link is back.</div>
 <header id=""howto"">Sending your game to the caster. Below, press the share button and pick <b>Entire screen</b>. Then leave this tab open while you play.</header>
@@ -45,18 +53,22 @@ body.dropped{grid-template-rows:auto auto 1fr auto auto}
   <label class=""src""><input type=""checkbox"" id=""von""> Send lobby voice</label>
 </div>
 <footer><span id=""link"">Connecting to Among Us…</span><span id=""data""></span><span id=""cam""></span></footer>
-<script src=""https://unpkg.com/@vdoninja/sdk/vdoninja-sdk.min.js""></script>
+<script src=""" + SdkUrl + @"""></script>
 <script>
 const token=new URLSearchParams(location.search).get('token')||'';
+// This tab's id, from the link The Button opened. When The Button opens a newer tab (Open again) or sending is
+// turned off, it answers this one with 409: the tab stops sending, so two tabs never share the lobby sound.
+const page=new URLSearchParams(location.search).get('page')||'';
 const PROTOCOL=1;   // the broadcast feed's version (FeedProtocol.Version, docs/broadcast-protocol.md)
-const q=p=>p+(p.includes('?')?'&':'?')+'token='+encodeURIComponent(token);
+const q=p=>p+(p.includes('?')?'&':'?')+'token='+encodeURIComponent(token)+(page?'&page='+encodeURIComponent(page):'');
 const v=document.getElementById('v');
 let pushUrl=null,since=null,sent=0,lastOk=0,lobby=null,twitch=null;
 // Reaching The Button: a 401 means it restarted with a new link (an old version), anything else that it's
 // closed or busy. Never silent: the footer says so after 5 s, and the caster is told (health: data 'lost').
-let feedFailSince=0,buttonGone=false;
+let feedFailSince=0,buttonGone=false,retired=false;
 async function getJson(path){
   const r=await fetch(q(path),{cache:'no-store'});
+  if(r.status===409){retire();throw new Error('This tab was replaced');}
   if(r.status===401||r.status===403){buttonGone=true;throw new Error('The Button restarted');}
   if(!r.ok)throw new Error('HTTP '+r.status);
   return r.json();
@@ -64,9 +76,13 @@ async function getJson(path){
 function feedOk(){feedFailSince=0;buttonGone=false;}
 function feedFailed(){if(!feedFailSince)feedFailSince=Date.now();}
 const feedLost=()=>buttonGone||(feedFailSince&&Date.now()-feedFailSince>5000);
+// Runs fn every ms, and right away; never again while the last one is still waiting for an answer (two pumps
+// at once would send the same messages twice), and not at all once this tab is retired.
+function every(fn,ms){let busy=false;const run=async()=>{if(busy||retired)return;busy=true;try{await fn();}catch(e){}finally{busy=false;}};run();setInterval(run,ms);}
 async function info(){
   try{
     const r=await getJson('/app/sendinfo');
+    if(retired)return;
     feedOk();
     twitch=r.twitch||null;
     if(r.pushUrl&&r.pushUrl!==pushUrl){pushUrl=r.pushUrl;v.src=pushUrl;publishVoice();}
@@ -75,9 +91,9 @@ async function info(){
     if(camOn)publishCam();
     const ce=document.getElementById('cam');ce.textContent=!camOn?'':camProblem||(camVdo?`Player camera: sending (${camFrames} pictures)`:'Player camera: starting…');ce.className=camProblem?'bad':camVdo?'ok':'';
     document.getElementById('link').textContent=pushUrl?'Video link ready.':'Waiting for Among Us with ""Send my game to the caster"" on.';
-  }catch(e){feedFailed();}
+  }catch(e){if(!retired)feedFailed();}
 }
-function send(items){ if(v.contentWindow) v.contentWindow.postMessage({sendData:{tt:items},type:'pcs'},'*'); }
+function send(items){ if(v.contentWindow&&!retired) v.contentWindow.postMessage({sendData:{tt:items},type:'pcs'},'*'); }
 // Part 22: every message from Among Us is kept until the caster says it arrived, and sent again (with its
 // own time, marked as sent again) while it hasn't, less often the longer the link is down. Old snapshots and
 // positions are no use late, so only a tiny stand-in for each is kept; the events all are.
@@ -99,7 +115,8 @@ function resend(){
 }
 async function pump(){
   try{
-    const d=await getJson('/app/sendfeed?since='+(since??0)+'&video='+video);
+    // The first ask only learns where the feed is up to (older messages aren't sent), so it asks for nothing older.
+    const d=await getJson('/app/sendfeed?since='+(since??Number.MAX_SAFE_INTEGER)+'&video='+video);
     feedOk();
     if(d.last<0)return;
     if(since===null||d.last<since){since=d.last;return;}   // start from now (and again if Among Us restarted)
@@ -111,7 +128,7 @@ async function pump(){
       send(d.items);
       sent+=d.items.length;lastOk=Date.now();
     }
-  }catch(e){feedFailed();}
+  }catch(e){if(retired)return;feedFailed();}
   resend();
   const lost=feedLost();
   document.getElementById('gone').classList.toggle('on',!!lost);
@@ -141,10 +158,10 @@ function gotStats(st){
   frames=f;
 }
 function health(){ if(lobby) send([{v:PROTOCOL,type:'health',lobby,t:Date.now(),video,data:feedLost()?'lost':'ok',queued:queue.length},{v:PROTOCOL,type:'host',lobby,t:Date.now(),twitch}]); }
-setInterval(()=>{askStats();health();},2000);
+setInterval(()=>{if(retired)return;askStats();health();},2000);
 // The caster switches this lobby's spectator view (lit map, vision, ""!"", eye): only ""spec …"" commands are taken.
 addEventListener('message',e=>{
-  if(e.source!==v.contentWindow)return;
+  if(retired||e.source!==v.contentWindow)return;
   if(e.data&&e.data.stats){gotStats(e.data.stats);return;}
   const got=e.data&&e.data.dataReceived;const cmd=got&&got.ttc;
   if(got&&got.ttack){ack(got.ttack);return;}
@@ -153,14 +170,42 @@ addEventListener('message',e=>{
   if(typeof cmd!=='string'||!/^spec [a-z]+( [a-z0-9.]+)?$/.test(cmd))return;
   fetch(q('/app/command'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:cmd})}).catch(()=>{});
 });
+// VDO.Ninja's SDK reconnects by itself after a drop (and says it will): it's only let go, and a new one
+// started, when it won't or gave up, so two never send the same stream at once.
+function watchSdk(sdk,current,problem,gone){
+  if(!sdk.addEventListener)return;
+  const giveUp=()=>{try{sdk.disconnect();}catch(x){}gone();};
+  sdk.addEventListener('disconnected',e=>{const d=(e&&e.detail)||{};if(d.intentional||current()!==sdk)return;if(d.willReconnect)problem(true);else giveUp();});
+  sdk.addEventListener('reconnected',()=>{if(current()===sdk)problem(false);});
+  sdk.addEventListener('reconnectFailed',()=>{if(current()===sdk)giveUp();});
+}
+// Replaced by a newer tab, or sending turned off in The Button: stop sharing the screen, the lobby voice and the
+// player camera, and say so.
+function retire(){
+  if(retired)return;
+  retired=true;
+  try{v.src='about:blank';}catch(e){}
+  if(vdo){try{vdo.disconnect();}catch(e){}vdo=null;}
+  stopCam();
+  if(pullWorker)pullWorker.postMessage({on:false});
+  if(micStream){try{micStream.getTracks().forEach(t=>t.stop());}catch(e){}}
+  if(ctx){try{ctx.close().catch(()=>{});}catch(e){}}
+  document.getElementById('retired').classList.add('on');
+  document.getElementById('gone').classList.remove('on');
+  document.getElementById('drop').classList.remove('on');
+  document.getElementById('link').textContent='Not sending.';
+  document.getElementById('data').textContent='';
+  document.getElementById('vstate').textContent='Lobby voice: not sending';
+}
 
 // ---- Lobby voice (Part 11) -------------------------------------------------------------------
 // The Button captures Discord's sound (the lobby as you hear it, never your own voice) and Among Us's
 // sound separately; this page mixes them (plus your microphone if you want) and sends the mix to the
 // caster as its own stream next to your screen. Nothing is played back here or to the players.
-let an=null,anBuf=null,ctx=null,node=null,dest=null,micNode=null,micStream=null,vdo=null,publishing=null,voiceProblem='',VS=null,noticeSent=false,retryAt=0,retryWait=5000;
+let an=null,anBuf=null,ctx=null,node=null,dest=null,micNode=null,micStream=null,vdo=null,publishing=null,voiceProblem='',VS=null,noticeSent=false,retryAt=0,retryWait=5000,pullWorker=null;
 const WORKLET=`class TTMix extends AudioWorkletProcessor{constructor(){super();this.q=[];this.off=0;this.buffered=0;this.started=false;
-  this.port.onmessage=e=>{this.q.push(e.data);this.buffered+=e.data.length/2;while(this.buffered>48000*0.6&&this.q.length>1){const d=this.q.shift();this.buffered-=(d.length-this.off)/2;this.off=0;}};}
+  this.port.onmessage=e=>{if(e.data&&e.data.port){e.data.port.onmessage=m=>this.add(m.data);return;}this.add(e.data);};}
+  add(d){this.q.push(d);this.buffered+=d.length/2;while(this.buffered>48000*0.6&&this.q.length>1){const x=this.q.shift();this.buffered-=(x.length-this.off)/2;this.off=0;}}
   process(_,outs){const L=outs[0][0],R=outs[0][1]||outs[0][0];
     if(!this.started){if(this.buffered<48000*0.12){L.fill(0);R.fill(0);return true;}this.started=true;}
     for(let i=0;i<L.length;i++){
@@ -169,6 +214,23 @@ const WORKLET=`class TTMix extends AudioWorkletProcessor{constructor(){super();t
       if(this.off>=d.length){this.q.shift();this.off=0;}}
     return true;}}
 registerProcessor('tt-mix',TTMix);`;
+// The sound is fetched by a worker and handed straight to the worklet: this page's own timers run at most once a
+// second while the tab is in the background (behind Among Us), and The Button keeps only half a second.
+const PULL_WORKER=`let on=false,running=false,base='',token='',page='',port=null;
+onmessage=e=>{const d=e.data;if(d.base){base=d.base;token=d.token;page=d.page;}if(d.port)port=d.port;if('on' in d){on=d.on;if(on&&!running)loop();}};
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+async function loop(){
+  running=true;
+  while(on){
+    try{
+      const r=await fetch(base+'/app/voice/pcm?token='+encodeURIComponent(token)+(page?'&page='+encodeURIComponent(page):''),{cache:'no-store'});
+      if(r.status===409){on=false;postMessage({retired:true});break;}
+      if(r.ok){const b=await r.arrayBuffer();if(b.byteLength>=4&&port){const a=new Int16Array(b);port.postMessage(a,[a.buffer]);}}
+    }catch(err){}
+    await wait(40);
+  }
+  running=false;
+}`;
 async function audio(){
   if(ctx)return;
   ctx=new AudioContext({sampleRate:48000});
@@ -178,18 +240,12 @@ async function audio(){
   node.connect(dest);                       // only to the stream: never to the speakers
   // What actually leaves this page (for Red Alert: sound sent but silent in OBS means OBS's side).
   an=ctx.createAnalyser();an.fftSize=2048;anBuf=new Float32Array(an.fftSize);node.connect(an);
-  pull();
-}
-async function pull(){
-  for(;;){
-    try{
-      if(VS&&VS.on){
-        const b=await (await fetch(q('/app/voice/pcm'),{cache:'no-store'})).arrayBuffer();
-        if(b.byteLength>=4) node.port.postMessage(new Int16Array(b));
-      }
-    }catch(e){}
-    await new Promise(r=>setTimeout(r,40));
-  }
+  const ch=new MessageChannel();
+  node.port.postMessage({port:ch.port1},[ch.port1]);
+  pullWorker=new Worker(URL.createObjectURL(new Blob([PULL_WORKER],{type:'text/javascript'})));
+  pullWorker.onmessage=e=>{if(e.data&&e.data.retired)retire();};
+  pullWorker.postMessage({base:location.origin,token,page,port:ch.port2},[ch.port2]);
+  pullWorker.postMessage({on:!!(VS&&VS.on)});
 }
 async function mic(on){
   if(on&&!micNode){
@@ -198,34 +254,48 @@ async function mic(on){
   } else if(!on&&micNode){ micNode.disconnect(); micStream.getTracks().forEach(t=>t.stop()); micNode=null; micStream=null; }
 }
 async function publishVoice(){
-  if(!pushUrl||!VS||!VS.on||publishing||Date.now()<retryAt)return;
+  if(retired||!pushUrl||!VS||!VS.on||publishing||Date.now()<retryAt)return;
   const u=new URL(pushUrl),id=u.searchParams.get('push'),pw=u.searchParams.get('password');
   if(!id||!pw)return;
   publishing=(async()=>{
+    let sdk=null;
     try{
       await audio();
       if(ctx.state!=='running') await ctx.resume().catch(()=>{});
       if(!window.VDONinjaSDK) throw new Error('the VDO.Ninja SDK did not load');
-      if(vdo){ try{ await vdo.disconnect(); }catch(e){} }
-      vdo=new VDONinjaSDK({password:pw});
-      await vdo.connect();
-      await vdo.publish(dest.stream,{streamID:id+'v',label:'Lobby voice'});
-      voiceProblem='';retryWait=5000;
-      // Dropped later: try again (5 s, 10 s … 1 min apart).
-      try{ vdo.addEventListener&&vdo.addEventListener('disconnected',()=>{ vdo=null; voiceProblem='Lobby voice dropped: reconnecting…'; }); }catch(x){}
+      if(vdo){ try{ await vdo.disconnect(); }catch(e){} vdo=null; }
+      sdk=new VDONinjaSDK({password:pw});
+      await sdk.connect();
+      await sdk.publish(dest.stream,{streamID:id+'v',label:'Lobby voice'});
+      if(retired){ try{sdk.disconnect();}catch(x){} return; }
+      vdo=sdk;voiceProblem='';retryWait=5000;
+      // Dropped later: VDO.Ninja tries again itself; if it gives up, a new one is started (5 s, 10 s … 1 min apart).
+      try{ watchSdk(sdk,()=>vdo,on=>{voiceProblem=on?'Lobby voice dropped: reconnecting…':'';},()=>{vdo=null;voiceProblem='Lobby voice dropped: reconnecting…';}); }catch(x){}
       if(!noticeSent){ noticeSent=true; fetch(q('/app/command'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:'voicenotice'})}).catch(()=>{}); }
-    }catch(e){ voiceProblem='Lobby voice not sent: '+e.message+' (trying again)'; vdo=null; retryAt=Date.now()+retryWait; retryWait=Math.min(60000,retryWait*2); }
-    publishing=null;
+    }catch(e){
+      // A half-made connection is let go, not left trying in the background.
+      if(sdk){ try{sdk.disconnect();}catch(x){} }
+      voiceProblem='Lobby voice not sent: '+e.message+' (trying again)'; vdo=null; retryAt=Date.now()+retryWait; retryWait=Math.min(60000,retryWait*2);
+    }
+    finally{ publishing=null; }
   })();
 }
 const pct=db=>Math.max(0,Math.min(100,(db+60)/60*100));
 const STATE={capturing:'on','not running':'not open',unsupported:'needs Windows 10 2004 or later',off:'off'};
+let ticking=false;
 async function voiceTick(){
+  // One at a time (a slider or a tick box asks for one too): two at once could open the microphone twice.
+  if(ticking||retired)return;
+  ticking=true;
   try{
-    const r=await (await fetch(q('/app/voice'),{cache:'no-store'})).json();
+    const res=await fetch(q('/app/voice'),{cache:'no-store'});
+    if(res.status===409){retire();return;}
+    const r=await res.json();
+    if(retired)return;
     const first=!VS; VS=r;
     const s=r.state;
     if(first){ document.getElementById('lv').value=Math.round(s.voiceLevel*100); document.getElementById('lg').value=Math.round(s.gameLevel*100); document.getElementById('mic').checked=r.mic; document.getElementById('von').checked=r.on; }
+    if(pullWorker) pullWorker.postMessage({on:!!r.on});
     document.getElementById('mv').style.width=pct(s.voice.level)+'%';
     document.getElementById('mg').style.width=pct(s.game.level)+'%';
     const working=r.on&&s.supported&&s.voice.state==='capturing';
@@ -244,41 +314,65 @@ async function voiceTick(){
     if(an&&ctx&&ctx.state==='running'){an.getFloatTimeDomainData(anBuf);let pk=0;for(let i=0;i<anBuf.length;i++){const a=Math.abs(anBuf[i]);if(a>pk)pk=a;}outDb=pk>0?Math.max(-100,Math.round(20*Math.log10(pk))):-100;}
     if(lobby) send([{v:PROTOCOL,type:'voice',lobby,t:Date.now(),on:r.on,sending:!!vdo,problem:voiceProblem||(held&&r.on?'The host\'s send page is waiting for a click to start the sound':null),discord:s.voice.state,game:s.game.state,voiceDb:s.voice.level,gameDb:s.game.level,outDb,mic:!!micNode}]);
   }catch(e){}
+  finally{ ticking=false; }
 }
-function save(body){ fetch(q('/app/voice'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(voiceTick); }
-document.getElementById('lv').oninput=e=>save({voiceLevel:e.target.value/100});
-document.getElementById('lg').oninput=e=>save({gameLevel:e.target.value/100});
+function save(body){ fetch(q('/app/voice'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(()=>voiceTick()).catch(()=>{}); }
+// A level slider being dragged: saved once it rests for a moment (or is let go), not for every step.
+let levelBody=null,levelTimer=0;
+function saveLevel(body){ levelBody=Object.assign(levelBody||{},body); clearTimeout(levelTimer); levelTimer=setTimeout(saveLevelNow,150); }
+function saveLevelNow(){ clearTimeout(levelTimer); if(!levelBody)return; const b=levelBody; levelBody=null; save(b); }
+document.getElementById('lv').oninput=e=>saveLevel({voiceLevel:e.target.value/100});
+document.getElementById('lg').oninput=e=>saveLevel({gameLevel:e.target.value/100});
+document.getElementById('lv').onchange=saveLevelNow;
+document.getElementById('lg').onchange=saveLevelNow;
 document.getElementById('mic').onchange=e=>save({mic:String(e.target.checked)});
 document.getElementById('von').onchange=e=>{ if(!e.target.checked&&vdo){ try{vdo.disconnect();}catch(x){} vdo=null; } save({on:String(e.target.checked)}); };
 // ---- The player camera ----------------------------------------------------------------------------
 // Red Alert can turn on a second picture from your game that follows one player up close (you don't
 // pick who, the caster does). A worker gets each picture from The Button (workers aren't slowed down
 // while this tab is in the background) and it goes to the caster as its own stream. Nothing shows here.
-let camOn=false,camVdo=null,camPublishing=null,camWorker=null,camWriter=null,camCanvas=null,camRetryAt=0,camProblem='',camFrames=0;
-const CAM_WORKER=`let on=false,after=0,base='',token='';
-onmessage=e=>{const d=e.data;if(d.base){base=d.base;token=d.token;}if('on' in d){const was=on;on=d.on;if(on&&!was)loop();}};
+let camOn=false,camVdo=null,camPublishing=null,camWorker=null,camWriter=null,camCanvas=null,camTracks=[],camRetryAt=0,camProblem='',camFrames=0;
+const CAM_WORKER=`let on=false,running=false,after=0,base='',token='',page='';
+onmessage=e=>{const d=e.data;if(d.base){base=d.base;token=d.token;page=d.page;}if('on' in d){on=d.on;if(on&&!running)loop();}};
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 async function loop(){
+  running=true;
   while(on){
+    const asked=Date.now();
     try{
-      const r=await fetch(base+'/app/cam?token='+encodeURIComponent(token)+'&after='+after,{cache:'no-store'});
+      const r=await fetch(base+'/app/cam?token='+encodeURIComponent(token)+(page?'&page='+encodeURIComponent(page):'')+'&after='+after,{cache:'no-store'});
       if(r.status===200){
         const b=await r.arrayBuffer();
         after=Number(new DataView(b).getBigInt64(0,true));
-        postMessage(await createImageBitmap(new Blob([b.slice(8)],{type:'image/jpeg'})));
-      }else if(r.status!==204)await wait(1000);
+        const bmp=await createImageBitmap(new Blob([b.slice(8)],{type:'image/jpeg'}));
+        postMessage(bmp,[bmp]);   // handed over, not copied
+      }else if(r.status===409){on=false;postMessage({retired:true});}
+      else if(r.status!==204)await wait(1000);
+      // No picture: the mod waits up to a quarter of a second for one, so an answer straight away means
+      // there's nothing to wait on (Among Us closed): don't ask again at once.
+      else if(Date.now()-asked<100)await wait(250);
     }catch(err){await wait(1000);}
   }
+  running=false;
 }`;
 function camStream(){
+  endCamStream();
   if(window.MediaStreamTrackGenerator&&window.VideoFrame){
-    const gen=new MediaStreamTrackGenerator({kind:'video'});camWriter=gen.writable.getWriter();camCanvas=null;
+    const gen=new MediaStreamTrackGenerator({kind:'video'});camWriter=gen.writable.getWriter();camCanvas=null;camTracks=[gen];
     return new MediaStream([gen]);
   }
   camWriter=null;camCanvas=document.createElement('canvas');camCanvas.width=960;camCanvas.height=540;
-  return camCanvas.captureStream(30);
+  const s=camCanvas.captureStream(30);camTracks=s.getTracks();
+  return s;
+}
+// The camera's own picture track, ended when the camera stops or a new one is made.
+function endCamStream(){
+  if(camWriter){try{camWriter.close().catch(()=>{});}catch(x){}}
+  camTracks.forEach(t=>{try{t.stop();}catch(x){}});
+  camTracks=[];camWriter=null;camCanvas=null;
 }
 function gotCam(e){
+  if(e.data&&e.data.retired){retire();return;}
   const bmp=e.data;camFrames++;lastCamAt=Date.now();
   try{
     if(camWriter){const f=new VideoFrame(bmp,{timestamp:Math.round(performance.now()*1000)});camWriter.write(f).catch(()=>{});}
@@ -305,35 +399,41 @@ setInterval(()=>{
   }catch(x){}
 },500);
 function publishCam(){
-  if(!pushUrl||!camOn||camVdo||camPublishing||Date.now()<camRetryAt)return;
+  if(retired||!pushUrl||!camOn||camVdo||camPublishing||Date.now()<camRetryAt)return;
   const u=new URL(pushUrl),id=u.searchParams.get('push'),pw=u.searchParams.get('password');
   if(!id||!pw)return;
   camPublishing=(async()=>{
+    let sdk=null;
     try{
       if(!window.VDONinjaSDK) throw new Error('the VDO.Ninja SDK did not load');
       if(!camWorker){
         camWorker=new Worker(URL.createObjectURL(new Blob([CAM_WORKER],{type:'text/javascript'})));
-        camWorker.onmessage=gotCam;camWorker.postMessage({base:location.origin,token});
+        camWorker.onmessage=gotCam;camWorker.postMessage({base:location.origin,token,page});
       }
       const stream=camStream();
-      const sdk=new VDONinjaSDK({password:pw});
+      sdk=new VDONinjaSDK({password:pw});
       await sdk.connect();
       await sdk.publish(stream,{streamID:id+'c',label:'Player camera'});
+      if(retired||!camOn){ try{sdk.disconnect();}catch(x){} endCamStream(); return; }
       camVdo=sdk;camProblem='';
       camWorker.postMessage({on:true});
-      try{ sdk.addEventListener&&sdk.addEventListener('disconnected',()=>{ camVdo=null; camProblem='Player camera dropped: reconnecting…'; }); }catch(x){}
-    }catch(e){ camProblem='Player camera not sent: '+e.message+' (trying again)'; camVdo=null; camRetryAt=Date.now()+15000; }
-    camPublishing=null;
+      try{ watchSdk(sdk,()=>camVdo,on=>{camProblem=on?'Player camera dropped: reconnecting…':'';},()=>{camVdo=null;camProblem='Player camera dropped: reconnecting…';}); }catch(x){}
+    }catch(e){
+      if(sdk){ try{sdk.disconnect();}catch(x){} }
+      endCamStream();
+      camProblem='Player camera not sent: '+e.message+' (trying again)'; camVdo=null; camRetryAt=Date.now()+15000;
+    }
+    finally{ camPublishing=null; }
   })();
 }
 function stopCam(){
   if(camWorker)camWorker.postMessage({on:false});
   if(camVdo){try{camVdo.disconnect();}catch(x){}camVdo=null;}
-  camWriter=null;camCanvas=null;camProblem='';
+  endCamStream();camProblem='';
 }
 // Browsers start audio only after a click on the page.
-addEventListener('pointerdown',()=>{ if(ctx&&ctx.state!=='running') ctx.resume(); },{capture:true});
-info();setInterval(info,5000);setInterval(pump,500);voiceTick();setInterval(voiceTick,1000);
+addEventListener('pointerdown',()=>{ if(ctx&&!retired&&ctx.state!=='running') ctx.resume().catch(()=>{}); },{capture:true});
+every(info,5000);every(pump,500);every(voiceTick,1000);
 </script></body></html>";
     }
 }
