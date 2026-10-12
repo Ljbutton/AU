@@ -212,6 +212,12 @@ namespace TournamentTracker.Discord
         private static readonly TimeSpan StableAfter = TimeSpan.FromSeconds(60);
         /// <summary>Resumes in a row that may fail before a fresh session is started instead.</summary>
         private const int MaxResumeFailures = 3;
+        /// <summary>
+        /// How long after the last working connection a session is still picked up, while no
+        /// connection gets as far as Discord. Past that a fresh session is started on the main
+        /// address: the resume address itself may be what can't be reached.
+        /// </summary>
+        private static readonly TimeSpan ResumeWindow = TimeSpan.FromMinutes(5);
 
         private readonly string _token;
         private readonly Uri _url;
@@ -231,6 +237,7 @@ namespace TournamentTracker.Discord
         private string? _sessionId;
         private Uri? _resumeUrl;
         private int _resumeFailures;
+        private DateTime _workedUntil;
         private DateTime _lastIdentify = DateTime.MinValue;
 
         // The voice self-check: when the bot should be listening but isn't, and how often it asked again.
@@ -410,6 +417,8 @@ namespace TournamentTracker.Discord
             /// <summary>Discord said the session is invalid (op 9): it asks for a 1–5 s pause.</summary>
             public bool InvalidSession;
             public bool Resuming;
+            /// <summary>Discord's gateway answered (Hello): not a connection that never got there.</summary>
+            public bool Reached;
         }
 
         private async Task RunAsync(CancellationToken ct)
@@ -448,8 +457,20 @@ namespace TournamentTracker.Discord
                     State.Connected = false;
                     if (ending.Ended == default) ending.Ended = DateTime.UtcNow;
 
-                    if (ending.Resuming && !ending.Working && ++_resumeFailures >= MaxResumeFailures) ForgetSession();
-                    if (ending.Working) _resumeFailures = 0;
+                    // Only a resume Discord answered without resuming counts. A network that is down
+                    // (no route, DNS) fails every connect at once, and Discord still keeps the session:
+                    // forgetting it after a few seconds would lose what happened in between.
+                    if (ending.Working)
+                    {
+                        _resumeFailures = 0;
+                        _workedUntil = ending.Ended;
+                    }
+                    else if (ending.Resuming && (ending.Reached
+                        ? ++_resumeFailures >= MaxResumeFailures
+                        : ending.Ended - _workedUntil >= Scaled(ResumeWindow)))
+                    {
+                        ForgetSession();
+                    }
 
                     // A connection that got going and lasted starts the count again. Anything else
                     // (refused, dropped at once, Discord closing it straight away) waits longer each
@@ -552,6 +573,7 @@ namespace TournamentTracker.Discord
                     switch (op)
                     {
                         case 10: // Hello
+                            ending.Reached = true;
                             int interval = root.GetProperty("d").GetProperty("heartbeat_interval").GetInt32();
                             int jitter;
                             lock (_random) jitter = _random.Next(Math.Max(1, interval));

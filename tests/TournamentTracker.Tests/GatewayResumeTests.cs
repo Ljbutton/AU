@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -64,7 +65,8 @@ public sealed class FakeGatewayServer : IDisposable
         }
     }
 
-    public FakeGatewayServer(Func<Conn, Task> script)
+    /// <param name="refuse">Connections (by index) turned away before they become a websocket, as when the network is down.</param>
+    public FakeGatewayServer(Func<Conn, Task> script, Func<int, bool>? refuse = null)
     {
         Port = Random.Shared.Next(20000, 40000);
         _listener.Prefixes.Add($"http://127.0.0.1:{Port}/");
@@ -81,6 +83,12 @@ public sealed class FakeGatewayServer : IDisposable
                 {
                     try
                     {
+                        if (refuse?.Invoke(index) == true)
+                        {
+                            ctx.Response.StatusCode = 503;
+                            ctx.Response.Close();
+                            return;
+                        }
                         var ws = (await ctx.AcceptWebSocketAsync(null)).WebSocket;
                         await script(new Conn(ws, index));
                     }
@@ -156,6 +164,70 @@ public class GatewayResumeTests
         Assert.Equal(2, d.GetProperty("seq").GetInt32());
         Assert.Equal("tok", d.GetProperty("token").GetString());
         Assert.Single(gateway.Members);                               // voice states kept across the resume
+    }
+
+    [Fact]
+    public async Task Connections_that_never_reach_Discord_do_not_use_up_the_resume()
+    {
+        var ops = new ConcurrentQueue<(int Conn, int Op)>();
+        FakeGatewayServer? server = null;
+        server = new FakeGatewayServer(async c =>
+        {
+            await c.Send("""{"op":10,"d":{"heartbeat_interval":5000}}""");
+            var m = await c.Receive();
+            if (m == null) return;
+            ops.Enqueue((c.Index, m.Value.GetProperty("op").GetInt32()));
+            if (c.Index == 0)
+            {
+                await c.Send(Ready(1, $"ws://127.0.0.1:{server!.Port}"));
+                await c.Send("""{"op":7,"d":null}""");
+                await c.Receive(2000);
+            }
+            else
+            {
+                await c.Send("""{"op":0,"s":2,"t":"MESSAGE_CREATE","d":{"id":"55","channel_id":"300","content":"!start","author":{"id":"9"}}}""");
+                await c.Send("""{"op":0,"s":3,"t":"RESUMED","d":null}""");
+                await c.Receive(3000);
+            }
+        }, refuse: i => i >= 1 && i <= 4);                               // the network is down for a few tries
+        using var _ = server;
+
+        using var gateway = new VoiceGateway("tok", "g1", NullLog.Instance, server.Url, listenToMessages: true) { WaitScale = 0.01 };
+        var messages = new ConcurrentQueue<ChannelMessage>();
+        gateway.State.MessageCreated += messages.Enqueue;
+        gateway.Start();
+
+        await Wait.Until(() => ops.Count >= 2 && messages.Count == 1 && gateway.Connected, 5000);
+        Assert.Equal(new[] { (0, 2), (5, 6) }, ops.Take(2));          // still resumed, not identified again
+        Assert.Equal("!start", messages.Single().Content);
+    }
+
+    [Fact]
+    public async Task A_resume_address_that_cannot_be_reached_is_given_up_for_a_fresh_session_in_time()
+    {
+        var closed = new TcpListener(IPAddress.Loopback, 0);
+        closed.Start();
+        int deadPort = ((IPEndPoint)closed.LocalEndpoint).Port;
+        closed.Stop();                                                 // nothing listens there now
+
+        var ops = new ConcurrentQueue<(int Conn, int Op)>();
+        var server = new FakeGatewayServer(async c =>
+        {
+            await c.Send("""{"op":10,"d":{"heartbeat_interval":5000}}""");
+            var m = await c.Receive();
+            if (m == null) return;
+            ops.Enqueue((c.Index, m.Value.GetProperty("op").GetInt32()));
+            await c.Send(Ready(1, $"ws://127.0.0.1:{deadPort}"));
+            if (c.Index == 0) await c.Send("""{"op":7,"d":null}""");
+            await c.Receive(3000);
+        });
+        using var _ = server;
+
+        // A five-hundredth of the real waits: the five-minute resume window is 0.6 s.
+        using var gateway = new VoiceGateway("tok", "g1", NullLog.Instance, server.Url) { WaitScale = 0.002 };
+        gateway.Start();
+        await Wait.Until(() => ops.Count >= 2 && gateway.Connected, 8000);
+        Assert.Equal(new[] { (0, 2), (1, 2) }, ops.Take(2));          // identified afresh on the main address
     }
 
     [Fact]

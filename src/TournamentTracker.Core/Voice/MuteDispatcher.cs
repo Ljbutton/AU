@@ -95,10 +95,18 @@ namespace TournamentTracker.Voice
 
         /// <summary>
         /// Timed tries for a member who isn't in voice. After that the change waits for them to join
-        /// voice (see <see cref="InVoice"/>) or for a new state, instead of using up the bot's rate
-        /// limit every two minutes all evening for someone who went home.
+        /// voice (see <see cref="InVoice"/>) or for a new state, and is only tried every
+        /// <see cref="NotInVoiceParked"/>, instead of using up the bot's rate limit every two
+        /// minutes all evening for someone who went home.
         /// </summary>
         public int NotInVoiceTries { get; set; } = 3;
+
+        /// <summary>
+        /// How often a change is still tried once <see cref="NotInVoiceTries"/> are used up. It never
+        /// stops altogether: <see cref="InVoice"/> needs the gateway, and while that is down (REST can
+        /// still work) a member who came back would otherwise keep a server mute until the next phase.
+        /// </summary>
+        public TimeSpan NotInVoiceParked { get; set; } = TimeSpan.FromMinutes(5);
 
         public void SetDesired(string userId, VoiceState state)
         {
@@ -165,7 +173,8 @@ namespace TournamentTracker.Voice
                     // along, it disagrees with Discord's answer: timed retries carry on, slowly.
                     if (!kv.Value.SeenOut)
                     {
-                        if (kv.Value.At == DateTime.MaxValue) kv.Value.At = _clock() + MaxRetry;
+                        var soonest = _clock() + MaxRetry;
+                        if (kv.Value.At > soonest) kv.Value.At = soonest;
                         continue;
                     }
                     Unblock(kv.Key);
@@ -235,7 +244,9 @@ namespace TournamentTracker.Voice
             lock (_lock)
             {
                 var now = _clock();
-                foreach (var blocked in _blocked.Where(b => b.Value.At <= now).Select(b => b.Key).ToList())
+                // Not someone already on the wire: their old retry time has passed, but a copy queued
+                // now would be sent again the moment that try fails, whatever its new wait.
+                foreach (var blocked in _blocked.Where(b => b.Value.At <= now && !_inFlight.Contains(b.Key)).Select(b => b.Key).ToList())
                 {
                     if (!_queue.Contains(blocked)) _queue.Add(blocked);
                 }
@@ -285,12 +296,17 @@ namespace TournamentTracker.Voice
                 {
                     // Not in voice yet (or at all). The state is still owed: a server mute set
                     // earlier sticks when they rejoin, so keep retrying with a growing delay, and
-                    // after a few misses wait for them to be back in voice.
+                    // after a few misses mostly wait for them to be back in voice (tried again only
+                    // every NotInVoiceParked).
                     _applied.Remove(userId);
+                    // Asked for again while this try was on the wire (the same state, every tick): the
+                    // wait below applies all the same. A state that changed meanwhile is queued again
+                    // further down.
+                    _queue.Remove(userId);
                     int failures = _blocked.TryGetValue(userId, out var b) ? b.Failures + 1 : 1;
                     var baseDelay = result.IsNotInVoice ? NotInVoiceRetry : TimeSpan.FromSeconds(30);
                     var delay = TimeSpan.FromTicks(Math.Min(MaxRetry.Ticks, baseDelay.Ticks * (1L << Math.Min(failures - 1, 10))));
-                    var at = result.IsNotInVoice && failures > NotInVoiceTries ? DateTime.MaxValue : _clock() + delay;
+                    var at = _clock() + (result.IsNotInVoice && failures > NotInVoiceTries ? NotInVoiceParked : delay);
                     Block(userId, new Retry { At = at, Failures = failures, NotInVoice = result.IsNotInVoice });
                     if (!result.IsNotInVoice)
                         _log.Warn($"Could not set voice state for Discord user {userId}: {result}");

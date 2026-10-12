@@ -126,12 +126,16 @@ public sealed class LateVoiceApi : ILateVoiceApi
     public ConcurrentQueue<(string User, VoiceState State)> Sent { get; } = new();
     public Func<string, VoiceState, DiscordResult>? Respond { get; set; }
     public TaskCompletionSource? Gate { get; set; }
+    private int _started;
+    /// <summary>Requests begun, counting those still held at the gate.</summary>
+    public int Started => Volatile.Read(ref _started);
 
     public Task<DiscordResult> SetVoiceStateAsync(string botToken, string userId, VoiceState state, CancellationToken ct) =>
         SetVoiceStateAsync(botToken, userId, () => state, ct);
 
     public async Task<DiscordResult> SetVoiceStateAsync(string botToken, string userId, Func<VoiceState> state, CancellationToken ct)
     {
+        Interlocked.Increment(ref _started);
         if (Gate != null) await Gate.Task.WaitAsync(ct);
         var s = state();
         Sent.Enqueue((userId, s));
@@ -145,7 +149,9 @@ public class MuteDispatcherReliabilityTests
     private readonly FakeClock _clock = new();
     private readonly LateVoiceApi _api = new();
 
-    private MuteDispatcher Dispatcher() => new(_api, new[] { "tok" }, NullLog.Instance, () => _clock.Now, lanesPerBot: 1);
+    private static readonly DiscordResult NotInVoice = new() { Ok = false, Status = 400, ErrorCode = DiscordResult.NotInVoice };
+
+    private MuteDispatcher Dispatcher(int lanes = 1) => new(_api, new[] { "tok" }, NullLog.Instance, () => _clock.Now, lanesPerBot: lanes);
 
     [Fact]
     public async Task A_change_held_back_by_Discord_goes_out_as_the_game_wants_it_when_it_is_sent()
@@ -163,7 +169,7 @@ public class MuteDispatcherReliabilityTests
     }
 
     [Fact]
-    public async Task Someone_who_left_voice_is_not_retried_all_evening_and_gets_their_state_when_back()
+    public async Task Someone_who_left_voice_is_retried_only_now_and_then_and_gets_their_state_when_back()
     {
         bool inVoice = false;
         _api.Respond = (_, _) => inVoice
@@ -175,7 +181,7 @@ public class MuteDispatcherReliabilityTests
         await Wait.Until(() => _api.Sent.Count == 1 && d.Pending == 0);   // its retry is booked
         _clock.Advance(10);                                           // one timed retry
         await Wait.Until(() => _api.Sent.Count == 2 && d.Pending == 0);
-        _clock.Advance(3600);                                         // then none, however long
+        _clock.Advance(2 * d.MaxRetry.TotalSeconds);                  // then not every two minutes
         await Task.Delay(1300);
         Assert.Equal(2, _api.Sent.Count);
         Assert.True(d.WaitingForVoice);
@@ -190,6 +196,53 @@ public class MuteDispatcherReliabilityTests
         await Wait.Until(() => _api.Sent.Count == 3);
         Assert.Equal(VoiceState.Open, _api.Sent.Last().State);
         Assert.False(d.WaitingForVoice);
+    }
+
+    [Fact]
+    public async Task Someone_back_in_voice_while_the_gateway_is_down_still_gets_their_state_in_the_end()
+    {
+        bool inVoice = true;
+        _api.Respond = (_, _) => inVoice ? new DiscordResult { Ok = true, Status = 204 } : NotInVoice;
+        using var d = Dispatcher();
+        d.NotInVoiceTries = 1;
+        d.SetDesired("200", Muted);                                   // dead, muted
+        await Wait.Until(() => d.Applied("200") == Muted);
+
+        inVoice = false;                                              // drops out of voice; the game ends
+        d.SetDesired("200", VoiceState.Open);
+        await Wait.Until(() => _api.Sent.Count == 2 && d.Pending == 0);
+        _clock.Advance(10);
+        await Wait.Until(() => _api.Sent.Count == 3 && d.Pending == 0);   // tries used up
+
+        inVoice = true;                                               // back, still server-muted; no gateway to say so
+        _clock.Advance(d.NotInVoiceParked.TotalSeconds);
+        await Wait.Until(() => d.Applied("200") == VoiceState.Open);
+        Assert.Equal(4, _api.Sent.Count);
+        Assert.False(d.WaitingForVoice);
+    }
+
+    [Fact]
+    public async Task A_failed_try_waits_its_turn_even_if_it_was_asked_for_again_while_on_the_wire()
+    {
+        _api.Respond = (_, _) => NotInVoice;
+        _api.Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var d = Dispatcher(lanes: 4);
+        d.SetDesired("200", Muted);
+        await Wait.Until(() => _api.Started == 1);
+        d.SetDesired("200", Muted);                                   // the next tick asks for the same
+        _api.Gate.SetResult();
+        await Wait.Until(() => _api.Sent.Count >= 1 && d.Pending == 0);
+        await Task.Delay(300);
+        Assert.Single(_api.Sent);                                     // not sent again straight away
+
+        _api.Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _clock.Advance(10);                                           // the timed retry...
+        await Wait.Until(() => _api.Started == 2);
+        await Task.Delay(1300);                                       // ...while the other lanes wake and look
+        _api.Gate.SetResult();
+        await Wait.Until(() => _api.Sent.Count >= 2 && d.Pending == 0);
+        await Task.Delay(300);
+        Assert.Equal(2, _api.Sent.Count);                             // one request for one retry
     }
 
     [Fact]
