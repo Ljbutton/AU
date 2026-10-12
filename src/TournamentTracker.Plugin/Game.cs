@@ -40,6 +40,17 @@ namespace TournamentTracker.Plugin
             catch (System.Exception) { return true; }
         }
 
+        /// <summary>
+        /// The role intro is up (from the black screen before it until it has faded out). The HUD's own
+        /// flag: one read, where looking for the intro's object went through the whole scene, several
+        /// times a second for the whole game.
+        /// </summary>
+        public static bool IntroShowing()
+        {
+            try { return HudManager.InstanceExists && HudManager.Instance.IsIntroDisplayed; }
+            catch (System.Exception) { return false; }
+        }
+
         public static VoicePhase Phase()
         {
             if (!IsHost) return VoicePhase.Menu;

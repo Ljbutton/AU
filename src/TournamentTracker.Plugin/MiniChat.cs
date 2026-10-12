@@ -50,6 +50,16 @@ namespace TournamentTracker.Plugin
             _dirty = true;
         }
 
+        /// <summary>
+        /// A game is starting (from the start hook): the lines from the lobby and the last game go, so
+        /// the first meeting on stream doesn't open with old messages.
+        /// </summary>
+        public static void NewGame()
+        {
+            Lines.Clear();
+            _dirty = true;
+        }
+
         /// <summary>No rich-text tricks from players' messages.</summary>
         private static string Clean(string s) => s.Replace("<", "‹").Replace(">", "›");
 

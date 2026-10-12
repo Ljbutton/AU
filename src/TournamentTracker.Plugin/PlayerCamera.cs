@@ -114,17 +114,70 @@ namespace TournamentTracker.Plugin
         private static void Read(TournamentSession session)
         {
             if (_rt == null || _tex == null) return;
-            var buffer = session.Cam.Take(PlayerCamFeed.Width * PlayerCamFeed.Height * 4);
+            int size = PlayerCamFeed.Width * PlayerCamFeed.Height * 4;
+            var buffer = session.Cam.Take(size);
             if (buffer == null) return;     // still making the last one: this frame is skipped
             var before = RenderTexture.active;
             RenderTexture.active = _rt;
             _tex.ReadPixels(new Rect(0, 0, PlayerCamFeed.Width, PlayerCamFeed.Height), 0, 0, false);
             RenderTexture.active = before;
-            var raw = _tex.GetRawTextureData();
-            int bytes = Math.Min(buffer.Length, raw.Length);
-            // The pixels start after the array's header (4 pointers in IL2CPP).
-            Marshal.Copy(IntPtr.Add(raw.Pointer, 4 * IntPtr.Size), buffer, 0, bytes);
+            // Straight from the texture's own pixels where the game allows it (no copy made in between).
+            IntPtr pixels = Pixels(_tex);
+            if (pixels != IntPtr.Zero)
+            {
+                Marshal.Copy(pixels, buffer, 0, Math.Min(buffer.Length, size));
+            }
+            else
+            {
+                var raw = _tex.GetRawTextureData();
+                int bytes = Math.Min(buffer.Length, raw.Length);
+                // The pixels start after the array's header (4 pointers in IL2CPP).
+                Marshal.Copy(IntPtr.Add(raw.Pointer, 4 * IntPtr.Size), buffer, 0, bytes);
+            }
             session.Cam.Submit(PlayerCamFeed.Width, PlayerCamFeed.Height, bottomUp: true);
+        }
+
+        // ---- The texture's pixels without a copy ----------------------------------------------
+        // GetRawTextureData() makes a new 2 MB array in the game's memory for every picture (60 MB a
+        // second on stream), and the game's garbage collector then stops the game for each clear-up:
+        // a regular stutter while the camera is on. Unity's own GetRawTextureData<T>() reads the
+        // texture's pixels in place, through its native Texture2D::GetWritableImageData(frame); the
+        // camera asks that directly (looked up once by name; Unity 2022.3's signature: the texture
+        // object, the frame number, a pointer back). Anything wrong with it and the camera carries on
+        // the old way, logged once: it never turns the camera off.
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate IntPtr WritableImageData(IntPtr texture, int frame);
+        private static WritableImageData? _pixels;
+        private static bool _pixelsTried, _pixelsFailed;
+
+        /// <summary>Where the texture's pixels are (just written by ReadPixels), or zero to copy them the old way.</summary>
+        private static IntPtr Pixels(Texture2D tex)
+        {
+            if (_pixelsFailed) return IntPtr.Zero;
+            try
+            {
+                if (!_pixelsTried)
+                {
+                    _pixelsTried = true;
+                    _pixels = Il2CppInterop.Runtime.IL2CPP.ResolveICall<WritableImageData>("UnityEngine.Texture2D::GetWritableImageData");
+                }
+                IntPtr at = _pixels != null ? _pixels(tex.Pointer, 0) : IntPtr.Zero;
+                if (at == IntPtr.Zero) PixelsFailed("no pixels came back");
+                return at;
+            }
+            catch (Exception e)
+            {
+                PixelsFailed(e.Message);
+                return IntPtr.Zero;
+            }
+        }
+
+        private static void PixelsFailed(string why)
+        {
+            _pixelsFailed = true;
+            _pixels = null;
+            TournamentPlugin.Logger.Warn("Player camera: reading the pixels the slower way (" + why + ").");
         }
 
         // ---- The followed player's sight ------------------------------------------------------
@@ -133,10 +186,17 @@ namespace TournamentTracker.Plugin
 
         private const int Rays = 96;
         private const float Soft = 0.45f, Far = 30f, Dark = 0.72f;
+        /// <summary>Not cast again while the player stands still (to this much) and their sight is unchanged, at most this long (doors).</summary>
+        private const float Still = 0.001f, CastAnyway = 0.25f;
         private static GameObject? _shadeGo;
         private static Mesh? _shadeMesh;
         private static Il2CppStructArray<Vector3>? _verts;
         private static int _wallMask = -1;
+        // The rays' directions, worked out once with plain .NET maths: Unity's crosses into the game's
+        // native code on every call (sine, cosine, max, each new vector), about a thousand times a picture.
+        private static readonly float[] RayCos = new float[Rays], RaySin = new float[Rays];
+        private static bool _raysReady;
+        private static float _castX = float.NaN, _castY, _castR, _castAt;
 
         private static bool Shade(Frame.Player who, Camera cam)
         {
@@ -147,22 +207,53 @@ namespace TournamentTracker.Plugin
                 float r = ShipStatus.Instance.CalculateLightRadius(who.Data);
                 if (r <= 0.05f) return false;
                 if (_wallMask < 0) _wallMask = 1 << LayerMask.NameToLayer("Shadow");
-                var origin = who.Pos;
-                var verts = _verts!;
-                for (int i = 0; i < Rays; i++)
+                if (!_raysReady)
                 {
-                    float a = Mathf.PI * 2f * i / Rays;
-                    var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
-                    var hit = Physics2D.Raycast(origin, dir, r, _wallMask);
-                    float d = hit.distance > 0f ? hit.distance : r;
-                    verts[i * 3] = new Vector3(origin.x + dir.x * Mathf.Max(d - Soft * 0.5f, 0.1f), origin.y + dir.y * Mathf.Max(d - Soft * 0.5f, 0.1f), 0);
-                    verts[i * 3 + 1] = new Vector3(origin.x + dir.x * (d + Soft * 0.5f), origin.y + dir.y * (d + Soft * 0.5f), 0);
-                    verts[i * 3 + 2] = new Vector3(origin.x + dir.x * (d + Far), origin.y + dir.y * (d + Far), 0);
+                    for (int i = 0; i < Rays; i++)
+                    {
+                        float a = MathF.PI * 2f * i / Rays;
+                        RayCos[i] = MathF.Cos(a);
+                        RaySin[i] = MathF.Sin(a);
+                    }
+                    _raysReady = true;
                 }
-                _shadeMesh!.vertices = verts;
-                _shadeMesh.RecalculateBounds();
+                var origin = who.Pos;
+                float now = Time.unscaledTime;
+                // Standing still with the same sight (doing a task): last picture's shape still fits.
+                bool same = MathF.Abs(origin.x - _castX) < Still && MathF.Abs(origin.y - _castY) < Still && r == _castR && now - _castAt < CastAnyway;
+                if (!same)
+                {
+                    var verts = _verts!;
+                    for (int i = 0; i < Rays; i++)
+                    {
+                        float cx = RayCos[i], cy = RaySin[i];
+                        Vector2 dir = default;
+                        dir.x = cx;
+                        dir.y = cy;
+                        var hit = Physics2D.Raycast(origin, dir, r, _wallMask);
+                        // No wall: a zero distance (nothing hit).
+                        float hd = hit.m_Distance;
+                        float d = hd > 0f ? hd : r;
+                        float inner = MathF.Max(d - Soft * 0.5f, 0.1f), edge = d + Soft * 0.5f, far = d + Far;
+                        Vector3 v = default;
+                        v.x = origin.x + cx * inner; v.y = origin.y + cy * inner;
+                        verts[i * 3] = v;
+                        v.x = origin.x + cx * edge; v.y = origin.y + cy * edge;
+                        verts[i * 3 + 1] = v;
+                        v.x = origin.x + cx * far; v.y = origin.y + cy * far;
+                        verts[i * 3 + 2] = v;
+                    }
+                    _shadeMesh!.vertices = verts;
+                    _shadeMesh.RecalculateBounds();
+                    _castX = origin.x;
+                    _castY = origin.y;
+                    _castR = r;
+                    _castAt = now;
+                }
                 // In front of everything the camera draws, but not so close it's cut off.
-                _shadeGo.transform.position = new Vector3(0, 0, cam.transform.position.z + Mathf.Max(cam.nearClipPlane + 0.3f, 1f));
+                Vector3 at = default;
+                at.z = cam.transform.position.z + MathF.Max(cam.nearClipPlane + 0.3f, 1f);
+                _shadeGo!.transform.position = at;
                 _shadeGo.SetActive(true);
                 return true;
             }
@@ -185,6 +276,7 @@ namespace TournamentTracker.Plugin
             if (local != null) _shadeGo.layer = local.gameObject.layer;
             _shadeMesh = new Mesh();
             _verts = new Il2CppStructArray<Vector3>(Rays * 3);
+            _castX = float.NaN;            // a new mesh: cast for the first picture
             var colours = new Il2CppStructArray<Color>(Rays * 3);
             var tris = new Il2CppStructArray<int>(Rays * 12);
             var clear = new Color(0, 0, 0, 0);

@@ -19,16 +19,36 @@ namespace TournamentTracker.Plugin
         private static Camera? _on;
         private static float _next;
         private static string _last = "";
+        /// <summary>The camera size, shape and near plane the list was last placed for (NaN: not placed yet).</summary>
+        private static float _placedSize = float.NaN, _placedAspect, _placedNear;
         private static readonly StringBuilder Text = new StringBuilder(1024);
 
-        /// <summary>Kept out of the player camera's pictures (it hangs off a camera near the host's view).</summary>
+        /// <summary>
+        /// Kept out of the player camera's pictures (it hangs off a camera near the host's view): moved
+        /// far off to the side for the picture, and back after. Not switched off and on: that made the
+        /// text lay itself out again from scratch for every picture (30 times a second on stream).
+        /// </summary>
         public static void Hide(bool hide)
         {
             if (_text == null) return;
-            if (hide) { _hidden = _text.gameObject.activeSelf; if (_hidden) _text.gameObject.SetActive(false); }
-            else if (_hidden) { _text.gameObject.SetActive(true); _hidden = false; }
+            var t = _text.transform;
+            if (hide)
+            {
+                if (_away) return;
+                _home = t.localPosition;
+                var away = _home;
+                away.x += 100000f;
+                t.localPosition = away;
+                _away = true;
+            }
+            else if (_away)
+            {
+                t.localPosition = _home;
+                _away = false;
+            }
         }
-        private static bool _hidden;
+        private static bool _away;
+        private static Vector3 _home;
 
         private static bool _intro;
         private static float _introAt;
@@ -38,7 +58,7 @@ namespace TournamentTracker.Plugin
         {
             if (Time.unscaledTime < _introAt) return _intro;
             _introAt = Time.unscaledTime + 0.25f;
-            _intro = Object.FindObjectOfType<IntroCutscene>() != null || ShipStatus.Instance == null;
+            _intro = Game.IntroShowing() || ShipStatus.Instance == null;
             return _intro;
         }
 
@@ -58,11 +78,19 @@ namespace TournamentTracker.Plugin
             var text = _text!;
             if (!text.gameObject.activeSelf) text.gameObject.SetActive(true);
 
-            // Down the left edge, the same size whatever the zoom.
-            float size = camera.orthographicSize, scale = size / 3f;
-            text.transform.localScale = new Vector3(scale, scale, 1);
-            text.rectTransform.sizeDelta = new Vector2(2.4f, 5f);
-            text.transform.localPosition = new Vector3(-size * camera.aspect + 0.12f * scale, 0.1f * size, camera.nearClipPlane + 1f);
+            // Down the left edge, the same size whatever the zoom: placed again only when the zoom or
+            // the window changes (not three times every frame).
+            float size = camera.orthographicSize, aspect = camera.aspect, near = camera.nearClipPlane;
+            if (size != _placedSize || aspect != _placedAspect || near != _placedNear)
+            {
+                _placedSize = size;
+                _placedAspect = aspect;
+                _placedNear = near;
+                float scale = size / 3f;
+                text.transform.localScale = new Vector3(scale, scale, 1);
+                text.rectTransform.sizeDelta = new Vector2(2.4f, 5f);
+                text.transform.localPosition = new Vector3(-size * aspect + 0.12f * scale, 0.1f * size, near + 1f);
+            }
 
             if (Time.unscaledTime < _next) return;
             _next = Time.unscaledTime + Every;
@@ -201,6 +229,7 @@ namespace TournamentTracker.Plugin
                 _text.sortingOrder = 500;
                 _text.rectTransform.pivot = new Vector2(0, 0.5f);
                 _last = "";
+                _placedSize = float.NaN;
                 return true;
             }
             catch (Exception e)
