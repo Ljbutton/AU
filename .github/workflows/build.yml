@@ -167,6 +167,29 @@ jobs:
           echo "BROADCAST_VERSION=$version" >> "$GITHUB_ENV"
           ls -la dist
 
+      # Red Alert's Stream Deck plugin (tools/streamdeck-plugin, Node.js). It ships with Red Alert's
+      # releases, so on The Button's v* releases a problem here only warns and never stops them.
+      - uses: actions/setup-node@v5
+        continue-on-error: ${{ startsWith(github.ref, 'refs/tags/v') || startsWith(inputs.release_tag, 'v') }}
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: tools/streamdeck-plugin/package-lock.json
+
+      - name: Test and pack the Stream Deck plugin
+        continue-on-error: ${{ startsWith(github.ref, 'refs/tags/v') || startsWith(inputs.release_tag, 'v') }}
+        working-directory: tools/streamdeck-plugin
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm test
+          npm run build
+          # Packed with Red Alert's version (written into the packed manifest), so the Stream Deck
+          # app shows which Red Alert it came with.
+          npx streamdeck pack com.ljbutton.redalert.sdPlugin --output dist --force --no-update-check --version "$BROADCAST_VERSION"
+          cp dist/com.ljbutton.redalert.streamDeckPlugin ../../dist/RedAlert.streamDeckPlugin
+          ls -la ../../dist/RedAlert.streamDeckPlugin
+
       - uses: actions/upload-artifact@v6
         with:
           name: ${{ env.NAME }}
@@ -179,6 +202,7 @@ jobs:
             dist/app/TheButton.exe
             dist/Install-RedAlert.bat
             dist/broadcast/RedAlert.exe
+            dist/RedAlert.streamDeckPlugin
 
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/v') || startsWith(inputs.release_tag, 'v')
@@ -234,7 +258,12 @@ jobs:
             echo
             echo "TTBroadcast.exe is the same app, for copies from before the rename (v0.1, v0.2 updated themselves by name)."
             echo
+            echo "Stream Deck: download **RedAlert.streamDeckPlugin** and double-click it to add Red Alert's keys"
+            echo "(lobbies with live tally, player cameras, Preview and Take, replays, breaks) to the Stream Deck app,"
+            echo "then paste the port and key from Red Alert (Settings → Stream Deck). See docs/stream-deck.md."
+            echo
             echo "Built from commit $GITHUB_SHA."
           } > broadcast-notes.md
           gh release create "$TAG" dist/broadcast/RedAlert.exe dist/Install-RedAlert.bat dist/broadcast/TTBroadcast.exe \
+            dist/RedAlert.streamDeckPlugin \
             --target "$GITHUB_SHA" --title "Red Alert $TAG" --notes-file broadcast-notes.md --prerelease --latest=false

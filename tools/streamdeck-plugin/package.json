@@ -1,0 +1,28 @@
+{
+	"name": "redalert-streamdeck-plugin",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Red Alert's Stream Deck plugin: lobbies with live tally, player cameras, Preview and Take, replays and toggles with their real state.",
+	"license": "MIT",
+	"type": "module",
+	"engines": {
+		"node": ">=20.5.1"
+	},
+	"scripts": {
+		"assets": "node scripts/assets.mjs",
+		"bundle": "rollup -c",
+		"build": "node scripts/assets.mjs && rollup -c",
+		"test": "node --test",
+		"validate": "streamdeck validate com.ljbutton.redalert.sdPlugin --no-update-check",
+		"pack": "streamdeck pack com.ljbutton.redalert.sdPlugin --output dist --force --no-update-check"
+	},
+	"dependencies": {
+		"@elgato/streamdeck": "1.4.1"
+	},
+	"devDependencies": {
+		"@elgato/cli": "1.10.1",
+		"@rollup/plugin-commonjs": "29.0.3",
+		"@rollup/plugin-node-resolve": "16.0.3",
+		"rollup": "4.63.4"
+	}
+}
