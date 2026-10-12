@@ -206,6 +206,7 @@ const shown = {};
 // Where a piece sits: when one of these changes on a piece that's showing, it glides to its new place.
 const POS = ['left', 'top', 'right', 'bottom', 'width', 'fontSize', 'transform'];
 let GEN = 0, SCALE = 1;
+const STILL = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 function put(id, html, css) {
   let el = shown[id], fresh = false;
   if (!el) { el = document.createElement('div'); el.className = 'el enter'; el.dataset.id = id; stage.appendChild(el); shown[id] = el; el._html = null; fresh = true; setTimeout(() => el.classList.remove('enter'), 700); }
@@ -215,7 +216,7 @@ function put(id, html, css) {
   // Moved (a new layout): the inner box starts where it was and slides over with a transform, which the
   // compositor animates; animating left/top/font-size laid out and redrew the text every frame instead.
   const inner = el.firstElementChild;
-  const before = !fresh && el._pos != null && el._pos !== pos && !el.classList.contains('hide') && !el.classList.contains('instant') && inner ? inner.getBoundingClientRect() : null;
+  const before = !fresh && !STILL && el._pos != null && el._pos !== pos && !el.classList.contains('hide') && !el.classList.contains('instant') && inner ? inner.getBoundingClientRect() : null;
   Object.assign(el.style, css);
   el._pos = pos;
   if (before && before.width) {

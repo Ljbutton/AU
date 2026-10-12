@@ -422,9 +422,9 @@ body.ld{grid-template-columns:64px minmax(0,1fr)}
 body.ld nav{padding:6px 0;gap:2px}
 body.ld nav .grp{display:none}
 body.ld nav button{font-size:0;justify-content:center;padding:13px 0 9px;border-left-width:3px;position:relative;gap:0}
-body.ld nav button::before{content:attr(data-abbr);font:600 15px/1 var(--hand);letter-spacing:.06em}
-body.ld nav .st{position:absolute;right:5px;top:3px;margin:0}
-body.ld nav .st.count{font-size:10px;padding:2px 4px 1px}
+body.ld nav button::before{content:attr(data-abbr);font:600 14px/1 var(--hand);letter-spacing:.05em}
+body.ld nav .st{position:absolute;right:3px;top:2px;margin:0}
+body.ld nav .st.count{font-size:9px;padding:2px 3px 1px;min-width:0}
 main.ldmode{overflow:hidden;display:flex;flex-direction:column;padding:8px 12px 10px}
 main.ldmode>section#caster.on{flex:1;min-height:0;display:flex;flex-direction:column;gap:0}
 main.ldmode #org-problem{display:none!important}
@@ -1032,6 +1032,7 @@ function toast(text) { const t = $('toast'); t.textContent = text; t.classList.a
 const setText = (el, t) => { if (el && el.textContent !== t) el.textContent = t; };
 const setClass = (el, c) => { if (el && el.className !== c) el.className = c; };
 const setTitle = (el, t) => { if (el && el.title !== t) el.title = t; };
+const setStyle = (el, k, v) => { if (el && el.style[k] !== v) el.style[k] = v; };
 function makeEl(h) { const t = document.createElement('template'); t.innerHTML = h.trim(); return t.content.firstElementChild; }
 // A mouse button held down on a list: it isn't touched until it's let go (then it catches up at once).
 let ptrDown = null, ptrAgain = false;
@@ -1406,7 +1407,7 @@ function renderBar() {
   setClass($('pill-audio'), 'pill' + (o && o.muteAll ? ' bad flash' : o && o.heard ? ' good' : ''));
   setTitle($('pill-audio'), o && o.muteAll ? `Every lobby voice is muted: nothing from any lobby reaches the stream. Click (or ${o.hotkey || 'the mute key'}) to unmute.` : 'Whose lobby voice the stream hears. Click: mute every lobby (key U).');
   const db = o && o.heard ? obsDb(o, o.heard) : null;
-  $('pill-meter').firstElementChild.style.width = (db == null ? 0 : meterPct(db)) + '%';
+  setStyle($('pill-meter').firstElementChild, 'width', (db == null ? 0 : meterPct(db)) + '%');
   // OBS: connected, and how the output is doing.
   const ow = out ? out.warnings || [] : [];
   setText($('pill-obs-t'), !OBS ? '—' : !OBS.connected ? 'OFF' : out && out.droppedPct > 1 ? `${out.droppedPct}% drop` : out && out.cpu != null ? `CPU ${Math.round(out.cpu)}%` : 'OK');
@@ -1430,8 +1431,11 @@ function renderBar() {
   setText($('pill-hold-t'), h.on ? (h.heldBack ? 'held back' : 'held') : autos.length ? autos.join(' · ') : 'off');
   setClass($('pill-hold'), 'pill' + (h.on ? ' bad flash' : autos.length ? ' good' : ''));
   setTitle($('pill-hold'), h.on ? `Switching held${h.why === 'Panic' ? ' (panic)' : ''}: nothing switches by itself.${h.heldBack ? ' Held back: ' + h.heldBack.text + '.' : ''} Click (or H) to release.` : 'Automatic switching on: ' + (autos.join(', ') || 'none') + '. Click (or H) to hold.');
+  // Something the hold just stopped from switching by itself: said once.
+  if (h.heldBack && h.heldBack.at !== heldSaid) { heldSaid = h.heldBack.at; toast(`Held back: ${h.heldBack.text} (switching is held).`); }
   shotTick();
 }
+let heldSaid = null;
 $('pill-audio').addEventListener('click', () => voiceDo({ action: 'mute' }));
 $('pill-hold').addEventListener('click', () => { if (DESK && DESK.hold && DESK.hold.why === 'Panic') deckDo('undo'); else holdToggle(); });
 // ---- Warnings: one line in the bar (the worst one, and how many more); all of them in its popover ----
@@ -1619,7 +1623,8 @@ function renderTiles() {
   const grid = $('mv-grid'), d = DESK;
   const urls = new Map(PREVIEWS.map(p => [p.lobby, p.url]));
   const n = d.lobbies.length;
-  grid.style.setProperty('--cols', n <= 6 ? 6 : n <= 10 ? n : Math.max(8, Math.ceil(n / 2)));
+  const cols = String(n <= 6 ? 6 : n <= 10 ? n : Math.max(8, Math.ceil(n / 2)));
+  if (grid.style.getPropertyValue('--cols') !== cols) grid.style.setProperty('--cols', cols);
   const have = new Map([...grid.children].map(el => [el.dataset.lobby, el]));
   const pv = d.preview || { slots: [] }, ready = new Set((RP && RP.ready || []).map(c => c.lobby));
   const o = LVOICE && LVOICE.obs;
@@ -1627,7 +1632,7 @@ function renderTiles() {
     let el = have.get(l.lobby);
     if (!el) { el = makeEl(tileHtml(l)); grid.appendChild(el); if (tileRO) tileRO.observe(el.querySelector('.pv')); }
     have.delete(l.lobby);
-    el.style.order = i;
+    setStyle(el, 'order', String(i));
     // The live picture (VDO.Ninja, small and silent).
     const url = !tilesPaused && urls.get(l.lobby), pvEl = el.querySelector('.pv');
     let f = pvEl.querySelector('iframe');
@@ -1667,7 +1672,7 @@ function renderTiles() {
     setTitle(cb, cam.armed ? 'Its camera goes on stream when play resumes' : cam.on ? 'Its player camera is ready' : '');
     el.querySelector('.rb').hidden = !ready.has(l.lobby);
     const db = o ? obsDb(o, l.lobby) : null;
-    el.querySelector('.vu').style.width = (db == null ? 0 : meterPct(db)) + '%';
+    setStyle(el.querySelector('.vu'), 'width', (db == null ? 0 : meterPct(db)) + '%');
     el.querySelector('.vu').classList.toggle('off', !isHeard(o, l.lobby));
   });
   for (const el of have.values()) { if (tileRO) tileRO.unobserve(el.querySelector('.pv')); el.remove(); }
