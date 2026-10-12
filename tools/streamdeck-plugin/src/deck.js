@@ -37,7 +37,7 @@ export class Deck {
 		const def = BY_UUID[uuid];
 		if (!def) return;
 		this.disappear(id);
-		const key = { id, handle, def, settings: settingsOf(def, settings), dial: Boolean(isDial || def.dial), busy: false, image: null, pending: null, commitTimer: null, clearTimer: null, scrub: 0, scrubbing: false };
+		const key = { id, handle, def, settings: settingsOf(def, settings), dial: Boolean(isDial || def.dial), busy: false, image: null, pending: null, commitTimer: null, committing: null, clearTimer: null, scrub: 0, scrubbing: false };
 		this.keys.set(id, key);
 		this.draw(key);
 		this.updateTicker();
@@ -137,8 +137,12 @@ export class Deck {
 				key.commitTimer = null;
 				// Push takes Preview: a lobby still waiting to be staged goes in first. (The player dial's
 				// push carries its choice itself.)
-				if (key.def.flushFirst) await this.commit(key);
+				if (key.def.flushFirst) this.stage(key);
 			}
+			// Take waits for the stage on its way (sent just now, or when the dial rested): Red Alert answers
+			// each request on its own, so Take sent beside it could go first. If the stage was refused,
+			// nothing is taken: what's in Preview isn't the lobby the dial landed on.
+			if (key.def.flushFirst && key.committing && !(await key.committing)) return;
 			const ok = await this.run(key, key.def.request(key.settings, this.state, key.pending));
 			if (ok && key.pending !== null) this.clearLater(key);
 		} finally {
@@ -177,16 +181,34 @@ export class Deck {
 		this.timers.clearTimeout(key.commitTimer);
 		key.commitTimer = this.timers.setTimeout(() => {
 			key.commitTimer = null;
-			this.commit(key).catch(() => {});
+			this.stage(key);
 		}, this.commitDelay);
 	}
 
-	/** Sends a dial's choice (Preview lobby, or who the camera follows). */
+	/**
+	 * Sends a dial's choice once any earlier one for that dial has been answered, so they reach Red Alert
+	 * in turn. The answer (whether it was done) stays on the key as `committing` until it comes, for a
+	 * push to wait on.
+	 */
+	stage(key) {
+		const before = key.committing;
+		const p = (before ? before.then(() => this.commit(key)) : this.commit(key))
+			.catch(() => false)
+			.then((ok) => {
+				if (key.committing === p) key.committing = null;
+				return ok;
+			});
+		key.committing = p;
+		return p;
+	}
+
+	/** Sends a dial's choice (Preview lobby, or who the camera follows): whether it was done, true when there was none. */
 	async commit(key) {
 		const value = key.pending;
-		if (value === null || value === undefined || !key.def.commit) return;
-		await this.run(key, key.def.commit(key.settings, this.state, value), { ok: false });
+		if (value === null || value === undefined || !key.def.commit) return true;
+		const ok = await this.run(key, key.def.commit(key.settings, this.state, value), { ok: false });
 		if (key.pending === value) this.clearLater(key);
+		return ok;
 	}
 
 	/** Lets Red Alert's state take over from the dial's own choice a moment after it was sent. */

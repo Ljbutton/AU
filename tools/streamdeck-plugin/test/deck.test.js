@@ -62,14 +62,14 @@ function makeDeck(answer = () => ({ status: 200, ok: true, message: "done" })) {
 		send: (path, query) => {
 			sent.push({ path, query });
 			const res = answer(path, query);
-			if (res === "hold") return new Promise((resolve) => (release = () => resolve({ status: 200, ok: true, message: "late" })));
+			if (res === "hold") return new Promise((resolve) => (release = (late) => resolve(late ?? { status: 200, ok: true, message: "late" })));
 			return Promise.resolve(res);
 		},
 		timers,
 		now: () => 0,
 		scrubGap: 320,
 	});
-	return { deck, sent, timers, release: () => release?.() };
+	return { deck, sent, timers, release: (late) => release?.(late) };
 }
 
 test("a key is drawn when it appears, and again only when its picture changes", () => {
@@ -147,6 +147,54 @@ test("the Preview dial shows a turn at once, stages the lobby when it rests, and
 	assert.ok(!dial.calls.some((c) => c[0] === "ok"), "no tick on a dial (Stream Deck + has none)");
 	await d.deck.touchTap("d");
 	assert.deepEqual(d.sent.at(-1), { path: "pvw/clear", query: {} });
+});
+
+test("a push whose dialled lobby Red Alert refuses to stage takes nothing", async () => {
+	const d = makeDeck((path) => (path === "pvw/lobby/3" ? { status: 404, ok: false, message: "No lobby 3." } : { status: 200, ok: true, message: "ok" }));
+	d.deck.setState(sampleState(), 0);
+	const dial = fakeKey();
+	d.deck.appear("d", dial, P + "dial.preview", {}, true);
+	d.deck.dialRotate("d", 1);
+	await d.deck.keyDown("d");
+	assert.deepEqual(d.sent.map((s) => s.path), ["pvw/lobby/3"], "Preview still holds the old lobby: no Take");
+	assert.deepEqual(dial.calls.at(-1), ["alert"]);
+	d.timers.run();
+	assert.equal(d.deck.keys.get("d").pending, null, "the strip goes back to what's in Preview");
+	await d.deck.keyDown("d");
+	assert.deepEqual(d.sent.at(-1), { path: "take", query: {} }, "with nothing waiting, push takes");
+});
+
+test("a push while the dialled lobby is still being staged waits for it, and takes nothing if it was refused", async () => {
+	const d = makeDeck((path) => (path.startsWith("pvw/lobby/") ? "hold" : { status: 200, ok: true, message: "ok" }));
+	d.deck.setState(sampleState(), 0);
+	d.deck.appear("d", fakeKey(), P + "dial.preview", {}, true);
+	d.deck.dialRotate("d", 1);
+	d.timers.run();
+	await flush();
+	assert.deepEqual(d.sent.map((s) => s.path), ["pvw/lobby/3"]);
+	d.deck.dialRotate("d", 1);
+	d.timers.run();
+	await flush();
+	assert.deepEqual(d.sent.map((s) => s.path), ["pvw/lobby/3"], "the next stage waits for the one on its way");
+	d.release();
+	await flush();
+	assert.deepEqual(d.sent.map((s) => s.path), ["pvw/lobby/3", "pvw/lobby/5"]);
+	const push = d.deck.keyDown("d");
+	await flush();
+	assert.deepEqual(d.sent.map((s) => s.path), ["pvw/lobby/3", "pvw/lobby/5"], "Take waits for the stage");
+	d.release();
+	await push;
+	assert.deepEqual(d.sent.map((s) => s.path), ["pvw/lobby/3", "pvw/lobby/5", "take"]);
+
+	d.deck.dialRotate("d", -1);
+	d.timers.run();
+	await flush();
+	const refused = d.deck.keyDown("d");
+	await flush();
+	d.release({ status: 404, ok: false, message: "No lobby 3." });
+	await refused;
+	assert.deepEqual(d.sent.map((s) => s.path).slice(3), ["pvw/lobby/3"], "the stage was refused: no Take");
+	assert.equal(d.deck.keys.get("d").committing, null);
 });
 
 test("the Player dial arms who the camera follows when it rests, and push cuts to them", async () => {
