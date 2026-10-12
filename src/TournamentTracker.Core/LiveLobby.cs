@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using TournamentTracker.Discord;
 using TournamentTracker.Voice;
@@ -32,6 +33,24 @@ namespace TournamentTracker
         private bool _statusFlushQueued;
         private bool _statusClosed = true;
         private DateTime _statusNextSend;
+        /// <summary>
+        /// Sends in a row that didn't go through (Discord down, slow, or rate limited past the
+        /// retries). The status isn't counted as sent; it's tried again on a timer, less often while
+        /// it keeps failing.
+        /// </summary>
+        private int _statusFailures;
+        /// <summary>When a failed status is due to be tried again (session clock ticks; 0: nothing owed).</summary>
+        private long _statusRetryAt;
+
+        /// <summary>A failed status send is due again (checked on every publish tick, without the lock).</summary>
+        private bool StatusRetryDue
+        {
+            get
+            {
+                long at = Interlocked.Read(ref _statusRetryAt);
+                return at != 0 && _clock().Ticks >= at;
+            }
+        }
 
         // The bot posts the live status itself when it can, so it can carry the colour menu
         // (webhook messages can't have menus). Null until the webhook's channel is looked up.
@@ -73,16 +92,21 @@ namespace TournamentTracker
             foreach (var p in players) Links.Touch(p.Key, p.Name);
             TrackKnownDeaths(phase, players);
 
-            var channel = GameVoiceChannel(players);
+            // Who's in voice, copied once for the whole tick (each read of Members copies the roster).
+            var members = Presence != null && Presence.Connected ? Presence.Members : null;
+            // Someone whose mute waited for them to come back to voice gets it now.
+            if (members != null && _dispatcher != null && _dispatcher.WaitingForVoice) _dispatcher.InVoice(members.Select(m => m.UserId));
+
+            var channel = GameVoiceChannel(players, members);
             // Not hosting (in the menus, or a player in someone else's lobby, even with the mod): the
             // people in voice aren't this game's spectators, and their voice is the host's to set.
-            var spectators = channel == null || phase == VoicePhase.Menu ? null : Spectators(channel, players);
+            var spectators = channel == null || phase == VoicePhase.Menu ? null : Spectators(channel, players, members!);
             // The referee ghost is never muted: take them out of the players and the spectators.
             string? referee = RefSlotKey == null ? null : Links.Find(RefSlotKey)?.DiscordUserId;
             if (referee != null) spectators?.Remove(referee);
             var playing = WithoutReferee(players);
 
-            if (phase == VoicePhase.Lobby && _settings.AutoMute.AutoLinkByName) AutoLink(players, channel);
+            if (phase == VoicePhase.Lobby && _settings.AutoMute.AutoLinkByName) AutoLink(players, channel, members);
 
             // Referee mode is for the lobby; a game starting ends it so meetings aren't silenced.
             if (AutoMute != null && AutoMute.RefereeMode && phase == VoicePhase.Tasks)
@@ -91,7 +115,7 @@ namespace TournamentTracker
                 Reply("Referee mode ended because the game started.", false);
             }
             AutoMute?.Update(phase, playing, spectators);
-            TalkingVoiceChannel = TalkingChannel(phase, players);
+            TalkingVoiceChannel = TalkingChannel(phase, players, members);
             _gateway?.WantVoice(TalkingVoiceChannel);
             _tickSpectators = spectators?.Count ?? 0;
             _tickChanged |= changed;
@@ -110,6 +134,9 @@ namespace TournamentTracker
             var phase = _phase;
             var players = Players;
             UpdateStatus(phase, players, _lobbyCode, _map, _tickSpectators);
+            // A status Discord didn't take is sent again once its wait is over (the game's ticks
+            // drive it, so a closed session stops trying).
+            if (LiveStatusOn && StatusRetryDue) ScheduleStatusFlush();
             UpdateOverlay(phase, players, _map);
             PublishLive(phase, players, _lobbyCode, _map);
             RefreshStatus(force: changed);
@@ -134,16 +161,20 @@ namespace TournamentTracker
         /// The configured voice channel; else the one the host is in (if the host is linked);
         /// else the one most linked players are in.
         /// </summary>
-        private string? GameVoiceChannel(IReadOnlyList<PlayerSnapshot> players)
+        private string? GameVoiceChannel(IReadOnlyList<PlayerSnapshot> players) =>
+            GameVoiceChannel(players, Presence != null && Presence.Connected ? Presence.Members : null);
+
+        /// <param name="members">Who's in voice (null: not known, the bot isn't connected).</param>
+        private string? GameVoiceChannel(IReadOnlyList<PlayerSnapshot> players, IReadOnlyList<VoiceMember>? members)
         {
-            if (Presence == null || !Presence.Connected) return null;
+            if (members == null) return null;
             if (_settings.AutoMute.VoiceChannelId.Length > 0) return _settings.AutoMute.VoiceChannelId;
             var host = players.FirstOrDefault(p => p.IsHost);
             var hostId = host == null ? null : Links.Find(host.Key)?.DiscordUserId;
-            var hostChannel = hostId == null ? null : Presence.Members.FirstOrDefault(m => m.UserId == hostId)?.ChannelId;
+            var hostChannel = hostId == null ? null : members.FirstOrDefault(m => m.UserId == hostId)?.ChannelId;
             if (hostChannel != null) return hostChannel;
             var linked = new HashSet<string>(players.Select(p => Links.Find(p.Key)?.DiscordUserId).Where(id => id != null)!);
-            return Presence.Members
+            return members
                 .Where(m => linked.Contains(m.UserId))
                 .GroupBy(m => m.ChannelId)
                 .OrderByDescending(g => g.Count())
@@ -157,13 +188,13 @@ namespace TournamentTracker
         /// Where the bot listens for who's talking: the host's voice channel while they host (the bot
         /// follows them when they move, and leaves when they leave voice or stop hosting).
         /// </summary>
-        private string? TalkingChannel(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players)
+        private string? TalkingChannel(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, IReadOnlyList<VoiceMember>? members)
         {
-            if (!_settings.AutoMute.ShowTalking || phase == VoicePhase.Menu || Presence == null || !Presence.Connected) return null;
+            if (!_settings.AutoMute.ShowTalking || phase == VoicePhase.Menu || members == null) return null;
             var host = players.FirstOrDefault(p => p.IsHost);
             string? hostId = host == null ? null : Links.Find(host.Key)?.DiscordUserId;
             if (string.IsNullOrEmpty(hostId)) return null;
-            return Presence.Members.FirstOrDefault(m => m.UserId == hostId)?.ChannelId;
+            return members.FirstOrDefault(m => m.UserId == hostId)?.ChannelId;
         }
 
         /// <summary>The voice channel the bot is asked to sit in (null: out of voice). Public for tests.</summary>
@@ -178,10 +209,10 @@ namespace TournamentTracker
             return !string.IsNullOrEmpty(id) && state.IsTalking(id!);
         }
 
-        private List<string> Spectators(string channel, IReadOnlyList<PlayerSnapshot> players)
+        private List<string> Spectators(string channel, IReadOnlyList<PlayerSnapshot> players, IReadOnlyList<VoiceMember> members)
         {
             var playing = new HashSet<string>(players.Select(p => Links.Find(p.Key)?.DiscordUserId).Where(id => id != null)!);
-            return Presence!.Members
+            return members
                 .Where(m => m.ChannelId == channel && !m.IsBot && !playing.Contains(m.UserId))
                 .Select(m => m.UserId)
                 .ToList();
@@ -193,14 +224,14 @@ namespace TournamentTracker
         /// Links unlinked players whose in-game name matches exactly one person in voice
         /// (by server nickname, display name or username, ignoring case, spaces and symbols).
         /// </summary>
-        private void AutoLink(IReadOnlyList<PlayerSnapshot> players, string? channel)
+        private void AutoLink(IReadOnlyList<PlayerSnapshot> players, string? channel, IReadOnlyList<VoiceMember>? members)
         {
-            if (Presence == null || !Presence.Connected) return;
+            if (members == null) return;
             var now = _clock();
             if (now < _nextAutoLink) return;
             _nextAutoLink = now + AutoLinkInterval;
 
-            var candidates = Presence.Members
+            var candidates = members
                 .Where(m => !m.IsBot && (channel == null || m.ChannelId == channel) && Links.FindByDiscordId(m.UserId) == null)
                 .ToList();
             foreach (var p in players)
@@ -230,7 +261,11 @@ namespace TournamentTracker
 
         private void UpdateStatus(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, string lobbyCode, string map, int spectators)
         {
-            if (!LiveStatusOn) return;
+            if (!LiveStatusOn)
+            {
+                _statusInputsKnown = false;
+                return;
+            }
             if (phase == VoicePhase.Menu)
             {
                 // Not hosting any more: one last update saying so, then stop.
@@ -241,12 +276,20 @@ namespace TournamentTracker
             {
                 // A new lobby gets a new message; the old one keeps saying the lobby closed.
                 _statusClosed = false;
+                _statusInputsKnown = false;
                 lock (_postLock)
                 {
                     _statusMessageId = null;
                     _statusSentJson = "";
                 }
             }
+
+            // This runs on the game's main thread several times a second, and almost always nothing
+            // the message shows has changed: compare a cheap fingerprint before building it.
+            int inputs = StatusInputs(phase, players, lobbyCode, map, spectators);
+            if (_statusInputsKnown && inputs == _statusInputs) return;
+            _statusInputs = inputs;
+            _statusInputsKnown = true;
 
             var info = new StatusInfo
             {
@@ -274,6 +317,42 @@ namespace TournamentTracker
             SetStatus(StatusFormatter.Build(info));
         }
 
+        /// <summary>A fingerprint of everything the live status is built from (main thread only).</summary>
+        private int _statusInputs;
+        private bool _statusInputsKnown;
+
+        private int StatusInputs(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, string lobbyCode, string map, int spectators)
+        {
+            var h = new HashCode();
+            h.Add(phase);
+            h.Add(lobbyCode);
+            h.Add(map);
+            h.Add(Server);
+            h.Add(_settings.LobbyLabel);
+            h.Add(_settings.Mode);
+            h.Add(Round);
+            h.Add(AutoMute?.Enabled);
+            h.Add(AutoMute?.RefereeMode);
+            h.Add(_settings.AutoMute.MuteSpectators);
+            h.Add(spectators);
+            h.Add(_settings.CommandPrefix);
+            h.Add(RefSlotKey);
+            h.Add(_crewEmojis.Count);
+            h.Add(LinkMenuWanted);
+            h.Add(Links.Version);
+            for (int i = 0; i < players.Count; i++)
+            {
+                var p = players[i];
+                h.Add(p.Key);
+                h.Add(p.Name);
+                h.Add(p.ColorId);
+                h.Add(p.IsHost);
+                h.Add(p.Disconnected);
+                h.Add(_knownDead.Contains(p.Key));
+            }
+            return h.ToHashCode();
+        }
+
         /// <summary>Posts the status as a fresh message at the bottom of the channel (after a game, or !refresh).</summary>
         public void RepostStatus()
         {
@@ -285,6 +364,9 @@ namespace TournamentTracker
         {
             if (_statusClosed || !LiveStatusOn) return;
             _statusClosed = true;
+            _statusInputsKnown = false;
+            // The last word goes out now, not after a failed send's wait: the game may be closing.
+            lock (_postLock) NothingOwed();
             SetStatus(StatusFormatter.Build(new StatusInfo { Phase = VoicePhase.Menu, Label = LobbyLabel() }));
         }
 
@@ -326,17 +408,26 @@ namespace TournamentTracker
                     lock (_postLock)
                     {
                         if (!repost) _statusFlushQueued = false;
+                        // A send that failed waits its turn (see PublishTick), not tried again on every change meanwhile.
+                        if (!repost && _statusRetryAt != 0 && _clock().Ticks < _statusRetryAt) return;
                         message = _statusDesired;
                         json = _statusDesiredJson;
                         id = _statusMessageId;
-                        if (message == null || (json == _statusSentJson && !repost)) return;
+                        if (message == null || (json == _statusSentJson && !repost))
+                        {
+                            NothingOwed();
+                            return;
+                        }
                         if (_statusRejected != null && (_statusRejected == json || _statusRejected == MenuShape(message)))
                         {
                             _statusSentJson = json;      // it would fail the same way: wait for a change that matters
+                            NothingOwed();
                             return;
                         }
                     }
                     DiscordResult? refused = null;
+                    // The last step didn't go through (and wasn't turned down for good): not sent.
+                    bool failed = false;
 
                     try
                     {
@@ -379,6 +470,7 @@ namespace TournamentTracker
                             if (id != null)
                             {
                                 var edit = await _rest.EditEmbedsAsync(token!, channel, id, message).ConfigureAwait(false);
+                                failed = !edit.Ok && edit.Status != 404 && edit.Status != 400;
                                 if (edit.Status == 404) id = null;
                                 else if (edit.Status == 400) refused = edit;
                                 else if (!edit.Ok) _log.Warn("Could not update the live status: " + edit);
@@ -386,6 +478,7 @@ namespace TournamentTracker
                             if (id == null && refused == null)
                             {
                                 var created = await _rest.PostEmbedsAsync(token!, channel, message).ConfigureAwait(false);
+                                failed = !created.Ok && created.Status != 400 && created.Status != 403 && created.Status != 401;
                                 if (created.Ok) id = DiscordRest.MessageIdOf(created);
                                 else if (created.Status == 400) refused = created;
                                 else if (created.Status == 403 || created.Status == 401)
@@ -414,6 +507,7 @@ namespace TournamentTracker
                             if (id != null)
                             {
                                 var edit = await _rest.EditWebhookMessageAsync(url, id, plain).ConfigureAwait(false);
+                                failed = !edit.Ok && edit.Status != 404 && edit.Status != 400;
                                 if (edit.Status == 404) id = null;      // someone deleted it; post a new one
                                 else if (edit.Status == 400) refused = edit;
                                 else if (!edit.Ok) _log.Warn("Could not update the live status: " + edit);
@@ -421,6 +515,7 @@ namespace TournamentTracker
                             if (id == null && refused == null)
                             {
                                 var created = await _rest.ExecuteWebhookAsync(url, plain).ConfigureAwait(false);
+                                failed = !created.Ok && created.Status != 400;
                                 if (created.Ok) id = DiscordRest.MessageIdOf(created);
                                 else if (created.Status == 400) refused = created;
                                 else _log.Warn("Could not post the live status: " + created);
@@ -429,32 +524,59 @@ namespace TournamentTracker
                         _statusIdByBot = byBot;
                         _statusMessageChannel = byBot ? channelNow : null;
                     }
+                    catch (Exception e)
+                    {
+                        failed = true;
+                        _log.Warn("Could not update the live status: " + e.Message);
+                    }
                     finally
                     {
                         lock (_postLock)
                         {
                             _statusMessageId = id;
-                            _statusSentJson = json;
-                            if (refused != null)
+                            if (failed && refused == null)
                             {
-                                // Turned down as it was: sending it again would fail the same way.
-                                bool menu = (refused.Body ?? "").IndexOf("COMPONENT", StringComparison.OrdinalIgnoreCase) >= 0;
-                                string rejected = menu ? MenuShape(message) ?? json : json;
-                                if (_statusRejected != rejected)
-                                    _log.Warn("Discord turned down the live status (" + refused + "). It isn't sent again until it changes.");
-                                _statusRejected = rejected;
+                                // Not counted as sent, or the message would stay stale until the next change:
+                                // tried again in 5 s, then 10, 20, 40 and every minute while Discord keeps failing.
+                                // What the message shows now isn't known (a post may have failed after the old
+                                // one was found deleted), so the retry sends even if the status went back.
+                                _statusSentJson = "";
+                                _statusFailures++;
+                                var retryIn = TimeSpan.FromSeconds(Math.Min(60, 5 << Math.Min(_statusFailures - 1, 4)));
+                                Interlocked.Exchange(ref _statusRetryAt, (_clock() + retryIn).Ticks);
                             }
-                            else _statusRejected = null;
+                            else
+                            {
+                                NothingOwed();
+                                _statusSentJson = json;
+                                if (refused != null)
+                                {
+                                    // Turned down as it was: sending it again would fail the same way.
+                                    bool menu = (refused.Body ?? "").IndexOf("COMPONENT", StringComparison.OrdinalIgnoreCase) >= 0;
+                                    string rejected = menu ? MenuShape(message) ?? json : json;
+                                    if (_statusRejected != rejected)
+                                        _log.Warn("Discord turned down the live status (" + refused + "). It isn't sent again until it changes.");
+                                    _statusRejected = rejected;
+                                }
+                                else _statusRejected = null;
+                            }
                             _statusNextSend = DateTime.UtcNow + StatusMinInterval;
                         }
                     }
 
-                    // A newer status arrived while this one was on the wire.
+                    // A newer status arrived while this one was on the wire (a failed one waits for its retry).
                     bool again;
-                    lock (_postLock) again = _statusDesiredJson != _statusSentJson;
+                    lock (_postLock) again = !failed && _statusDesiredJson != _statusSentJson;
                     if (again) ScheduleStatusFlush();
                 }, TaskScheduler.Default).Unwrap();
             }
+        }
+
+        /// <summary>No failed status is waiting to be sent again (called with <see cref="_postLock"/> held).</summary>
+        private void NothingOwed()
+        {
+            _statusFailures = 0;
+            Interlocked.Exchange(ref _statusRetryAt, 0);
         }
 
         /// <summary>The colour menu of a status message, as sent (null: no menu).</summary>

@@ -48,10 +48,18 @@ namespace TournamentTracker.Discord
         public const string DefaultApiBase = "https://discord.com/api/v10";
         private const int MaxAttempts = 5;
 
+        /// <summary>
+        /// On The Button's answer to the mod: Discord was never reached (no connection), so the
+        /// request can be sent again without any risk of it happening twice.
+        /// </summary>
+        public const string NotSentHeader = "X-TT-Not-Sent";
+
         private readonly HttpClient _http;
         private readonly string _apiBase;
         private readonly ILog _log;
         private readonly ConcurrentDictionary<string, DateTime> _bucketResetAt = new ConcurrentDictionary<string, DateTime>();
+        /// <summary>Discord's global limit (every route at once) holds until then (UTC ticks).</summary>
+        private long _globalResetAt;
         private readonly Func<TimeSpan, CancellationToken, Task> _delay;
 
         public DiscordRest(HttpClient http, ILog log, string apiBase = DefaultApiBase,
@@ -63,6 +71,13 @@ namespace TournamentTracker.Discord
             _delay = delay ?? Task.Delay;
         }
 
+        /// <summary>
+        /// How long one request may take before it counts as failed (null: the HttpClient's own
+        /// timeout). The desktop apps share an HttpClient made for big downloads (10 minutes),
+        /// which is far too long to wait on Discord.
+        /// </summary>
+        public TimeSpan? RequestTimeout { get; set; }
+
         public static HttpClient CreateHttpClient()
         {
             var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
@@ -72,20 +87,28 @@ namespace TournamentTracker.Discord
 
         /// <summary>Server-mutes and/or server-deafens a member who is in a voice channel.</summary>
         public Task<DiscordResult> SetVoiceStateAsync(string botToken, string guildId, string userId,
-            bool mute, bool deaf, CancellationToken ct = default)
-        {
-            string body = "{\"mute\":" + (mute ? "true" : "false") + ",\"deaf\":" + (deaf ? "true" : "false") + "}";
-            return SendAsync(() =>
+            bool mute, bool deaf, CancellationToken ct = default) =>
+            SetVoiceStateAsync(botToken, guildId, userId, () => (mute, deaf), "Among Us automute", ct);
+
+        /// <summary>
+        /// Server-mutes and/or server-deafens a member, asking for the state right before each try:
+        /// a rate-limit wait can last seconds, and by then the game may want something else (a
+        /// meeting ended), so the stale state is never sent.
+        /// </summary>
+        public Task<DiscordResult> SetVoiceStateAsync(string botToken, string guildId, string userId,
+            Func<(bool Mute, bool Deaf)> state, string reason, CancellationToken ct = default) =>
+            SendAsync(() =>
             {
+                var (mute, deaf) = state();
+                string body = "{\"mute\":" + (mute ? "true" : "false") + ",\"deaf\":" + (deaf ? "true" : "false") + "}";
                 var req = new HttpRequestMessage(new HttpMethod("PATCH"), $"{_apiBase}/guilds/{guildId}/members/{userId}")
                 {
                     Content = new StringContent(body, Encoding.UTF8, "application/json"),
                 };
                 Authorize(req, botToken);
-                req.Headers.TryAddWithoutValidation("X-Audit-Log-Reason", "Among Us automute");
+                req.Headers.TryAddWithoutValidation("X-Audit-Log-Reason", reason);
                 return req;
             }, "member:" + botToken.GetHashCode() + ":" + guildId, ct);
-        }
 
 
         /// <summary>Members whose username or server nickname starts with <paramref name="query"/>.</summary>
@@ -109,8 +132,15 @@ namespace TournamentTracker.Discord
             return SendAsync(() => new HttpRequestMessage(HttpMethod.Post, webhookUrl + (webhookUrl.Contains("?") ? "&" : "?") + "wait=true")
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json"),
-            }, "webhook:" + webhookUrl, ct);
+            }, "webhook:" + webhookUrl, ct, idempotent: false);
         }
+
+        /// <summary>
+        /// A one-off tag for a message the bot posts. With enforce_nonce, Discord answers a second
+        /// try with the message the first one made instead of posting it again, so a post whose
+        /// answer was lost (a timeout, a 5xx) can safely be sent again.
+        /// </summary>
+        private static string NewNonce() => Guid.NewGuid().ToString("N").Substring(0, 25);
 
         /// <summary>Posts a message with one file attached, as the bot.</summary>
         public Task<DiscordResult> PostFileAsync(string botToken, string channelId, string content, string fileName, byte[] file, CancellationToken ct = default)
@@ -120,6 +150,8 @@ namespace TournamentTracker.Discord
                 content,
                 allowed_mentions = new { parse = Array.Empty<string>() },
                 attachments = new[] { new { id = 0, filename = fileName } },
+                nonce = NewNonce(),
+                enforce_nonce = true,
             });
             return SendAsync(() =>
             {
@@ -136,7 +168,7 @@ namespace TournamentTracker.Discord
 
         public Task<DiscordResult> PostMessageAsync(string botToken, string channelId, string content, CancellationToken ct = default)
         {
-            string payload = JsonSerializer.Serialize(new { content, allowed_mentions = new { parse = Array.Empty<string>() } });
+            string payload = JsonSerializer.Serialize(new { content, allowed_mentions = new { parse = Array.Empty<string>() }, nonce = NewNonce(), enforce_nonce = true });
             return SendAsync(() =>
             {
                 var req = new HttpRequestMessage(HttpMethod.Post, $"{_apiBase}/channels/{channelId}/messages")
@@ -151,7 +183,7 @@ namespace TournamentTracker.Discord
         /// <summary>Posts embeds as the bot (used by the scheduled preliminary job).</summary>
         public Task<DiscordResult> PostEmbedsAsync(string botToken, string channelId, WebhookMessage message, CancellationToken ct = default)
         {
-            string json = JsonSerializer.Serialize(new { embeds = message.Embeds, components = message.Components, allowed_mentions = new { parse = Array.Empty<string>() } }, WebhookMessage.JsonOptions);
+            string json = JsonSerializer.Serialize(new { embeds = message.Embeds, components = message.Components, allowed_mentions = new { parse = Array.Empty<string>() }, nonce = NewNonce(), enforce_nonce = true }, WebhookMessage.JsonOptions);
             return SendAsync(() =>
             {
                 var req = new HttpRequestMessage(HttpMethod.Post, $"{_apiBase}/channels/{channelId}/messages") { Content = new StringContent(json, Encoding.UTF8, "application/json") };
@@ -253,6 +285,29 @@ namespace TournamentTracker.Discord
             return (doc.RootElement.EnumerateArray().Select(ChannelMessage.Parse).ToList(), result);
         }
 
+        /// <summary>One message by its ID, or null with Discord's answer saying why not (404: it was deleted).</summary>
+        public async Task<(ChannelMessage? Message, DiscordResult Result)> GetMessageAsync(string botToken, string channelId, string messageId, CancellationToken ct = default)
+        {
+            var result = await SendAsync(() =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Get, $"{_apiBase}/channels/{channelId}/messages/{messageId}");
+                Authorize(req, botToken);
+                return req;
+            }, "channel-read:" + botToken.GetHashCode() + ":" + channelId, ct).ConfigureAwait(false);
+            if (!result.Ok) return (null, result);
+            try
+            {
+                using var doc = JsonDocument.Parse(result.Body);
+                return doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("id", out _)
+                    ? (ChannelMessage.Parse(doc.RootElement), result)
+                    : (null, result);
+            }
+            catch (Exception e) when (e is JsonException || e is KeyNotFoundException || e is InvalidOperationException)
+            {
+                return (null, result);
+            }
+        }
+
         /// <summary>The bot's own name (for messages), or null.</summary>
         public async Task<string?> BotNameAsync(string botToken, CancellationToken ct = default)
         {
@@ -276,8 +331,10 @@ namespace TournamentTracker.Discord
         {
             try
             {
-                using var response = await _http.GetAsync(url, ct).ConfigureAwait(false);
-                return response.IsSuccessStatusCode ? await response.Content.ReadAsStringAsync().ConfigureAwait(false) : null;
+                using var timeout = Timeout(ct);
+                var token = timeout?.Token ?? ct;
+                using var response = await _http.GetAsync(url, token).ConfigureAwait(false);
+                return response.IsSuccessStatusCode ? await response.Content.ReadAsStringAsync(token).ConfigureAwait(false) : null;
             }
             catch (Exception e) when (!ct.IsCancellationRequested)
             {
@@ -321,7 +378,12 @@ namespace TournamentTracker.Discord
             return path.TrimEnd('/') + "/messages/" + messageId + query;
         }
 
-        /// <summary>A webhook post with one file attached (the game's data, for the organiser's scheduled job).</summary>
+        /// <summary>
+        /// A webhook post with one file attached (the game's data, for the organiser's scheduled job).
+        /// Unlike a plain webhook post it is sent again after a lost answer: every reader of the
+        /// channel counts a game file once by its ID, so a second copy changes nothing, while a
+        /// lost one would leave the game out of the standings.
+        /// </summary>
         public Task<DiscordResult> ExecuteWebhookWithFileAsync(string webhookUrl, WebhookMessage message, string fileName, byte[] file, CancellationToken ct = default)
         {
             var node = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(message, WebhookMessage.JsonOptions))!.AsObject();
@@ -379,25 +441,46 @@ namespace TournamentTracker.Discord
         private static void Authorize(HttpRequestMessage req, string botToken) =>
             req.Headers.TryAddWithoutValidation("Authorization", "Bot " + botToken);
 
-        private async Task<DiscordResult> SendAsync(Func<HttpRequestMessage> makeRequest, string bucket, CancellationToken ct)
+        private CancellationTokenSource? Timeout(CancellationToken ct)
         {
+            if (RequestTimeout is not TimeSpan limit) return null;
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(limit);
+            return cts;
+        }
+
+        /// <param name="idempotent">
+        /// False for a post that would show twice if sent again after Discord got it (a plain
+        /// webhook message: a public game report, a leaderboard). Such a request is only sent again
+        /// when it surely never got there (no connection, a rate limit, Discord saying it was too
+        /// busy to take it); after a timeout or an unclear error it is reported as failed rather
+        /// than risk posting it twice. The bot's own posts carry a nonce instead, so they can always
+        /// be sent again.
+        /// </param>
+        private async Task<DiscordResult> SendAsync(Func<HttpRequestMessage> makeRequest, string bucket, CancellationToken ct, bool idempotent = true)
+        {
+            bool waited = false;
             for (int attempt = 1; ; attempt++)
             {
-                if (_bucketResetAt.TryGetValue(bucket, out var resetAt))
+                if (!waited)
                 {
-                    var wait = resetAt - DateTime.UtcNow;
+                    var wait = HoldFor(bucket);
                     if (wait > TimeSpan.Zero) await _delay(wait, ct).ConfigureAwait(false);
                 }
+                waited = false;
 
                 HttpResponseMessage response;
                 string body;
                 try
                 {
+                    using var timeout = Timeout(ct);
+                    var token = timeout?.Token ?? ct;
                     using var request = makeRequest();
-                    response = await _http.SendAsync(request, ct).ConfigureAwait(false);
-                    body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    response = await _http.SendAsync(request, token).ConfigureAwait(false);
+                    try { body = await response.Content.ReadAsStringAsync(token).ConfigureAwait(false); }
+                    catch (Exception) { response.Dispose(); throw; }
                 }
-                catch (Exception e) when (!ct.IsCancellationRequested && attempt < MaxAttempts)
+                catch (Exception e) when (!ct.IsCancellationRequested && attempt < MaxAttempts && (idempotent || NeverSent(e)))
                 {
                     _log.Warn($"Discord request failed ({e.GetType().Name}: {e.Message}), retrying");
                     await _delay(TimeSpan.FromSeconds(attempt), ct).ConfigureAwait(false);
@@ -405,6 +488,8 @@ namespace TournamentTracker.Discord
                 }
                 catch (Exception e)
                 {
+                    if (!idempotent && !ct.IsCancellationRequested && !NeverSent(e))
+                        _log.Warn($"Discord didn't answer a post ({e.GetType().Name}: {e.Message}). It isn't sent again: it may have gone through, and twice would show it twice.");
                     return new DiscordResult { Ok = false, Status = 0, Body = e.Message };
                 }
 
@@ -414,25 +499,38 @@ namespace TournamentTracker.Discord
                     if (response.Headers.Contains(ButtonBridge.OfflineHeader))
                         return new DiscordResult { Ok = false, Status = 503, Body = "The Button isn't open, so Discord is off." };
                     TrackBucket(bucket, response);
+                    int status = (int)response.StatusCode;
 
-                    if ((int)response.StatusCode == 429 && attempt < MaxAttempts)
+                    if (status == 429 && attempt < MaxAttempts)
                     {
                         var retry = RetryAfter(response, body);
-                        _log.Warn($"Discord rate limit hit, waiting {retry.TotalSeconds:0.##}s");
+                        bool global = IsGlobal(response, body);
+                        // Every request in the bucket (or, for Discord's global limit, every request)
+                        // waits it out, not only this one: the other lanes would just be turned away too.
+                        if (global) HoldAll(retry);
+                        else Hold(bucket, retry);
+                        _log.Warn($"Discord rate limit hit{(global ? " (global)" : "")}, waiting {retry.TotalSeconds:0.##}s");
                         await _delay(retry, ct).ConfigureAwait(false);
+                        waited = true;
                         continue;
                     }
 
-                    if ((int)response.StatusCode >= 500 && attempt < MaxAttempts)
+                    // 503: Discord was too busy to take it in; The Button marks the answers where it
+                    // never reached Discord. Any other 5xx (a 502 or 504 timeout on the way, a 500)
+                    // may have come after the post was made.
+                    bool safe = idempotent || status == 503 || response.Headers.Contains(NotSentHeader);
+                    if (status >= 500 && attempt < MaxAttempts && safe)
                     {
                         await _delay(TimeSpan.FromSeconds(attempt), ct).ConfigureAwait(false);
                         continue;
                     }
+                    if (status >= 500 && !safe)
+                        _log.Warn($"Discord answered a post with HTTP {status}. It isn't sent again: it may have gone through, and twice would show it twice.");
 
                     return new DiscordResult
                     {
                         Ok = response.IsSuccessStatusCode,
-                        Status = (int)response.StatusCode,
+                        Status = status,
                         ErrorCode = response.IsSuccessStatusCode ? 0 : ErrorCodeOf(body),
                         Body = body,
                     };
@@ -440,17 +538,61 @@ namespace TournamentTracker.Discord
             }
         }
 
+        /// <summary>The request failed before anything reached Discord (no connection, no address).</summary>
+        private static bool NeverSent(Exception e) =>
+            e is HttpRequestException && e.InnerException is System.Net.Sockets.SocketException;
+
+        /// <summary>How long a request in this bucket has to wait now (Discord's global limit included).</summary>
+        private TimeSpan HoldFor(string bucket)
+        {
+            var now = DateTime.UtcNow;
+            var until = new DateTime(Interlocked.Read(ref _globalResetAt), DateTimeKind.Utc);
+            if (_bucketResetAt.TryGetValue(bucket, out var resetAt) && resetAt > until) until = resetAt;
+            return until - now;
+        }
+
+        /// <summary>
+        /// Holds the bucket until at least <paramref name="wait"/> from now. A hold only ever gets
+        /// longer and runs out by itself: with several requests on the wire at once, an older
+        /// answer that still had room must not lift the hold a newer one set.
+        /// </summary>
+        private void Hold(string bucket, TimeSpan wait)
+        {
+            var until = DateTime.UtcNow + wait;
+            _bucketResetAt.AddOrUpdate(bucket, until, (_, old) => old > until ? old : until);
+        }
+
+        private void HoldAll(TimeSpan wait)
+        {
+            long until = (DateTime.UtcNow + wait).Ticks;
+            long old;
+            do
+            {
+                old = Interlocked.Read(ref _globalResetAt);
+                if (old >= until) return;
+            }
+            while (Interlocked.CompareExchange(ref _globalResetAt, until, old) != old);
+        }
+
         private void TrackBucket(string bucket, HttpResponseMessage response)
         {
             if (Header(response, "X-RateLimit-Remaining") == "0"
                 && double.TryParse(Header(response, "X-RateLimit-Reset-After"), NumberStyles.Float, CultureInfo.InvariantCulture, out var after))
             {
-                _bucketResetAt[bucket] = DateTime.UtcNow + TimeSpan.FromSeconds(after);
+                Hold(bucket, TimeSpan.FromSeconds(after));
             }
-            else
+        }
+
+        private static bool IsGlobal(HttpResponseMessage response, string body)
+        {
+            if (string.Equals(Header(response, "X-RateLimit-Global"), "true", StringComparison.OrdinalIgnoreCase)) return true;
+            try
             {
-                _bucketResetAt.TryRemove(bucket, out _);
+                using var doc = JsonDocument.Parse(body);
+                return doc.RootElement.ValueKind == JsonValueKind.Object
+                    && doc.RootElement.TryGetProperty("global", out var g) && g.ValueKind == JsonValueKind.True;
             }
+            catch (JsonException) { return false; }
         }
 
         private static TimeSpan RetryAfter(HttpResponseMessage response, string body)

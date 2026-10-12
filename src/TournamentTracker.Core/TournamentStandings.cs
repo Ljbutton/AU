@@ -12,10 +12,39 @@ namespace TournamentTracker
     {
         private readonly HashSet<string> _acknowledged = new HashSet<string>();
 
+        /// <summary>
+        /// The results channel as the lobby standings just read it, and when. The next step of the
+        /// same job (the round summary after a game, the round standings after !standings) uses it
+        /// instead of reading the whole channel again a second later. Only the post chain touches these.
+        /// </summary>
+        private SharedLoad? _freshLoad;
+        private DateTime _freshLoadAt;
+        private static readonly TimeSpan FreshLoadFor = TimeSpan.FromSeconds(10);
+
+        /// <summary>Reads the results channel, recording the load as fresh (only if the read worked).</summary>
+        private async Task RefreshCombinedFreshAsync()
+        {
+            var before = Combined;
+            await RefreshCombinedAsync().ConfigureAwait(false);
+            _freshLoad = ReferenceEquals(Combined, before) ? null : Combined;
+            _freshLoadAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Reads the results channel unless the lobby standings read it moments ago and nothing has
+        /// read it since (any other read could have been after a new post, e.g. a void).
+        /// </summary>
+        private Task RefreshCombinedUnlessFreshAsync()
+        {
+            bool fresh = _freshLoad != null && ReferenceEquals(_freshLoad, Combined) && DateTime.UtcNow - _freshLoadAt < FreshLoadFor;
+            _freshLoad = null;              // used once
+            return fresh ? Task.CompletedTask : RefreshCombinedAsync();
+        }
+
         /// <summary>This lobby's standings for the current round, with the cut line.</summary>
         private async Task PostLobbyStandingsAsync()
         {
-            await RefreshCombinedAsync().ConfigureAwait(false);
+            await RefreshCombinedFreshAsync().ConfigureAwait(false);
             if (Combined == null) return;
             await AcknowledgeAdjustmentsAsync(Combined).ConfigureAwait(false);
             string lobby = LobbyLabel();
@@ -33,7 +62,8 @@ namespace TournamentTracker
         private async Task PostRoundSummaryAsync(int round)
         {
             if (Shared == null) return;
-            await RefreshCombinedAsync().ConfigureAwait(false);
+            // After a game this follows the lobby standings, which read the channel a moment ago.
+            await RefreshCombinedUnlessFreshAsync().ConfigureAwait(false);
             IReadOnlyList<GameRecord> games = Combined?.GameRecords ?? (IReadOnlyList<GameRecord>)LocalGames();
             string lobby = LobbyLabel();
             var rows = Stats.Standings.Lobby(games, lobby, round, _settings.AdvanceCount, _settings.GamesPerRound);
@@ -47,7 +77,7 @@ namespace TournamentTracker
         /// <summary>Everyone in the current round across every lobby.</summary>
         private async Task PostRoundStandingsAsync()
         {
-            await RefreshCombinedAsync().ConfigureAwait(false);
+            await RefreshCombinedUnlessFreshAsync().ConfigureAwait(false);
             if (Combined == null) return;
             var rows = Stats.Standings.Round(Combined.GameRecords, Round, _settings.AdvanceCount, _settings.GamesPerRound);
             var progress = Combined.GameRecords.Where(g => g.Round == Round && g.Counted)
