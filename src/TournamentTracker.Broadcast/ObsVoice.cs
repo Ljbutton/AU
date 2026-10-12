@@ -47,7 +47,13 @@ namespace TournamentTracker.App.Broadcast
         private readonly HashSet<string> _voiceInputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         /// <summary>Voice source → lobby (a source can have moved to a fresh name, "TT Voice LJ 2").</summary>
         private readonly Dictionary<string, string> _voiceLobby = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private string VoiceLobby(string name) => _voiceLobby.TryGetValue(name, out var l) ? l : name.StartsWith(VoicePrefix, StringComparison.Ordinal) ? name.Substring(VoicePrefix.Length) : name;
+        /// <summary>
+        /// Guards the three voice collections above. The upkeep, a switch's voice change, the mute-all
+        /// key and the Lobby voice page all reach them from different threads; never held across an await.
+        /// </summary>
+        private readonly object _voiceLock = new object();
+        private string VoiceLobby(string name) { lock (_voiceLock) return _voiceLobby.TryGetValue(name, out var l) ? l : name.StartsWith(VoicePrefix, StringComparison.Ordinal) ? name.Substring(VoicePrefix.Length) : name; }
+        private List<string> VoiceInputs() { lock (_voiceLock) return _voiceInputs.ToList(); }
         private string _duckWas = "\u0000";
         private OnAir? _voiceAir;
 
@@ -77,12 +83,14 @@ namespace TournamentTracker.App.Broadcast
                 string duck = Settings.Voice.DuckUnder.Trim();
                 bool duckChanged = duck != _duckWas;
                 var inScenes = scenes.Where(have.Contains).ToList();
+                var placed = new Dictionary<string, List<int>>();          // scene → our voice items in it
                 foreach (var (lobby, url) in feeds)
                 {
                     if (!_desk.Simulating && CasterDesk.IsSimLobby(lobby)) continue;
                     string root = VoicePrefix + lobby, current = Live(root);
                     bool fresh = !Usable(current, inputs);
-                    bool known = _voiceInputs.Contains(current);
+                    bool known;
+                    lock (_voiceLock) known = _voiceInputs.Contains(current);
                     // Tiny and see-through: only its sound matters. Stays connected when muted, so switching is instant.
                     // In every scene, always active: a hidden source would go silent; muting decides who's heard.
                     var (name, ids, _) = await EnsureInputAsync(obs, root, current, inScenes, inputs, "browser_source",
@@ -97,20 +105,28 @@ namespace TournamentTracker.App.Broadcast
                     if (name != current)
                     {
                         Renamed(root, name);
-                        _voiceInputs.Remove(current);
-                        _voiceSet.Remove(current);
+                        lock (_voiceLock) { _voiceInputs.Remove(current); _voiceSet.Remove(current); }
                         fresh = true;
                     }
                     if (fresh) await obs.RequestAsync("SetInputMute", new { inputName = name, inputMuted = true }).ConfigureAwait(false);
-                    // At the bottom, out of the way of the pictures and graphics.
-                    foreach (var scene in inScenes)
-                    {
-                        var items = await ItemsAsync(obs, scene).ConfigureAwait(false);
-                        if (items.FindIndex(i => i.Id == ids[scene]) != 0) await obs.RequestAsync("SetSceneItemIndex", new { sceneName = scene, sceneItemId = ids[scene], sceneItemIndex = 0 }).ConfigureAwait(false);
-                    }
-                    if (fresh || duckChanged || !_voiceInputs.Contains(name)) await DuckAsync(obs, name, duck).ConfigureAwait(false);
-                    _voiceInputs.Add(name);
-                    _voiceLobby[name] = lobby;
+                    foreach (var (scene, id) in ids) { if (!placed.TryGetValue(scene, out var l)) placed[scene] = l = new List<int>(); l.Add(id); }
+                    bool had;
+                    lock (_voiceLock) had = _voiceInputs.Contains(name);
+                    if (fresh || duckChanged || !had) await DuckAsync(obs, name, duck).ConfigureAwait(false);
+                    lock (_voiceLock) { _voiceInputs.Add(name); _voiceLobby[name] = lobby; }
+                }
+                // At the bottom of each scene, out of the way of the pictures and graphics: every voice
+                // item among the lowest ones. Each scene is looked at once (not once per lobby), and only
+                // moved when one isn't there: moving each to the very bottom in turn had them push each
+                // other up, so every look moved them all again.
+                foreach (var (scene, mine) in placed)
+                {
+                    var items = await SceneItemsAsync(obs, scene).ConfigureAwait(false);
+                    var order = items.Select(i => i.Id).ToList();
+                    if (mine.All(id => { int at = order.IndexOf(id); return at >= 0 && at < mine.Count; })) continue;
+                    for (int i = mine.Count - 1; i >= 0; i--)
+                        await obs.RequestAsync("SetSceneItemIndex", new { sceneName = scene, sceneItemId = mine[i], sceneItemIndex = 0 }).ConfigureAwait(false);
+                    ForgetItems(scene);
                 }
                 _duckWas = duck;
                 VoiceProblem = null;
@@ -137,7 +153,7 @@ namespace TournamentTracker.App.Broadcast
             if (obs == null || !Settings.Voice.On) return;
             var t = now ?? DateTime.UtcNow;
             string? loud = LoudVoice(_voiceAir ?? _desk.OnAir);
-            foreach (var name in _voiceInputs.ToList())
+            foreach (var name in VoiceInputs())
             {
                 string lobby = VoiceLobby(name);
                 bool suspect = string.Equals(lobby, loud, StringComparison.OrdinalIgnoreCase)
@@ -221,32 +237,38 @@ namespace TournamentTracker.App.Broadcast
             var obs = _obs;
             if (obs == null) return;
             string? loud = LoudVoice(air);
-            foreach (var name in _voiceInputs.ToList())
+            foreach (var name in VoiceInputs())
             {
                 string lobby = VoiceLobby(name);
                 var want = (Muted: !string.Equals(lobby, loud, StringComparison.OrdinalIgnoreCase),
                             Db: Settings.Voice.Volume.TryGetValue(lobby, out var db) ? db : 0,
                             Offset: Settings.Voice.Offset.TryGetValue(lobby, out var ms) ? ms : 0);
-                _voiceSet.TryGetValue(name, out var was);
-                bool known = _voiceSet.ContainsKey(name);
+                (bool Muted, double Db, int Offset) was;
+                bool known;
+                lock (_voiceLock) known = _voiceSet.TryGetValue(name, out was);
                 try
                 {
                     if (!known || was.Muted != want.Muted) await obs.RequestAsync("SetInputMute", new { inputName = name, inputMuted = want.Muted }).ConfigureAwait(false);
                     if (!known || was.Db != want.Db) await obs.RequestAsync("SetInputVolume", new { inputName = name, inputVolumeDb = Math.Max(-100, Math.Min(26, want.Db)) }).ConfigureAwait(false);
                     if (!known || was.Offset != want.Offset) await obs.RequestAsync("SetInputAudioSyncOffset", new { inputName = name, inputAudioSyncOffset = Math.Max(-950, Math.Min(20000, want.Offset)) }).ConfigureAwait(false);
-                    _voiceSet[name] = want;
+                    lock (_voiceLock) _voiceSet[name] = want;
                 }
-                catch (ObsException) { _voiceInputs.Remove(name); _voiceSet.Remove(name); }    // removed in OBS: built again next time
+                catch (ObsException) { lock (_voiceLock) { _voiceInputs.Remove(name); _voiceSet.Remove(name); } }    // removed in OBS: built again next time
             }
         }
 
-        /// <summary>A change from the caster tab (pin, mute all, volume, delay, ducking): saved and applied now.</summary>
-        public async Task VoiceChangedAsync(bool duck = false)
+        /// <summary>
+        /// A change from the caster tab (pin, mute all, volume, delay, ducking), the mute-all key or the
+        /// Stream Deck: saved and applied at once. The mutes go first, straight away (not behind the
+        /// upkeep): mute all is the panic button. The voice sources are only looked over again when the
+        /// ducking or voice on/off changed; anything new is added by the next upkeep anyway.
+        /// </summary>
+        public async Task VoiceChangedAsync(bool duck = false, bool rebuild = false)
         {
             Save();
             if (duck) _duckWas = "\u0000";
-            await EnsureVoiceAsync().ConfigureAwait(false);
             await SetVoicesAsync(_voiceAir ?? _desk.OnAir).ConfigureAwait(false);
+            if (duck || rebuild) await EnsureVoiceAsync().ConfigureAwait(false);
         }
 
         /// <summary>The Mute all key that works from any window (set by the app).</summary>
@@ -258,9 +280,9 @@ namespace TournamentTracker.App.Broadcast
             Volume = Settings.Voice.Volume, Offset = Settings.Voice.Offset,
             Heard = LoudVoice(_voiceAir ?? _desk.OnAir),
             // What each lobby's voice source in OBS is putting out (muted ones still show their level).
-            Levels = _voiceInputs.GroupBy(VoiceLobby, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => Level(g.First()), StringComparer.OrdinalIgnoreCase),
+            Levels = VoiceInputs().GroupBy(VoiceLobby, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => Level(g.First()), StringComparer.OrdinalIgnoreCase),
             Hotkey = MuteHotkey,
-            Sources = _voiceInputs.Select(VoiceLobby).OrderBy(x => x).ToList(),
+            Sources = VoiceInputs().Select(VoiceLobby).OrderBy(x => x).ToList(),
             Problem = VoiceProblem,
             Note = VoiceNote,
             Inputs = InputNames,

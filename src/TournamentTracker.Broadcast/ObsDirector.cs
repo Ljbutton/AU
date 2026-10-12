@@ -154,7 +154,13 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>Starts the background upkeep: reconnecting, and adding sources for new lobbies.</summary>
-        public void Start() => _timer ??= new Timer(_ => _ = Task.Run(TickAsync), null, 500, 3000);
+        public void Start() => _timer ??= new Timer(_ =>
+        {
+            // One upkeep at a time: a slow one (OBS busy) is skipped over, not run again on top of itself.
+            if (Interlocked.Exchange(ref _ticking, 1) == 1) return;
+            _ = Task.Run(async () => { try { await TickAsync().ConfigureAwait(false); } finally { Volatile.Write(ref _ticking, 0); } });
+        }, null, 500, 3000);
+        private int _ticking;
 
         // ---- Connecting -------------------------------------------------------------------------
 
@@ -168,6 +174,7 @@ namespace TournamentTracker.App.Broadcast
             try
             {
                 var obs = await _connect(Settings.Host, Settings.Port, Settings.Password.Length > 0 ? Settings.Password : null, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                ForgetKnown();
                 obs.Event += OnEvent;
                 obs.Closed += why => { Problem = "Lost OBS: " + why + " Reconnecting…"; };
                 _obs = obs;
@@ -183,7 +190,8 @@ namespace TournamentTracker.App.Broadcast
                 await EnsureReplaySceneAsync().ConfigureAwait(false);
                 await EnsureBroadcastAsync().ConfigureAwait(false);
                 await EnsureSwooshAsync().ConfigureAwait(false);
-                _voiceInputs.Clear(); _voiceSet.Clear(); _duckWas = "\u0000";
+                lock (_voiceLock) { _voiceInputs.Clear(); _voiceSet.Clear(); }
+                _duckWas = "\u0000";
                 await EnsureVoiceAsync().ConfigureAwait(false);
                 await ReadBackAsync(force: true).ConfigureAwait(false);
                 try { await CheckSetupAsync().ConfigureAwait(false); } catch (Exception) { }
@@ -231,6 +239,7 @@ namespace TournamentTracker.App.Broadcast
                 }
                 if (Connected)
                 {
+                    await OutputsAsync().ConfigureAwait(false);
                     await AddSourcesAsync().ConfigureAwait(false);
                     await EnsureVoiceAsync().ConfigureAwait(false);
                     await VoiceHealAsync().ConfigureAwait(false);
@@ -340,6 +349,7 @@ namespace TournamentTracker.App.Broadcast
             {
                 var inputs = (await obs.RequestAsync("GetInputList").ConfigureAwait(false)).GetProperty("inputs").EnumerateArray()
                     .Select(i => i.GetProperty("inputName").GetString() ?? "").ToHashSet();
+                bool full = FullCheckDue(now);
                 bool changed = false;
                 foreach (var (lobby, feedUrl) in _feeds())
                 {
@@ -355,12 +365,7 @@ namespace TournamentTracker.App.Broadcast
                         var (name, _, added) = await EnsureInputAsync(obs, root, current, Settings.Scenes.Values, inputs, "browser_source",
                             new { url, width = 1920, height = 1080, reroute_audio = true, shutdown = false, restart_when_active = false, fps_custom = false },
                             enabled: false,
-                            existing: async n =>
-                            {
-                                var cur = await obs.RequestAsync("GetInputSettings", new { inputName = n }).ConfigureAwait(false);
-                                string? was = cur.TryGetProperty("inputSettings", out var st) && st.TryGetProperty("url", out var u) ? u.GetString() : null;
-                                if (was != url) await obs.RequestAsync("SetInputSettings", new { inputName = n, inputSettings = new { url } }).ConfigureAwait(false);
-                            }).ConfigureAwait(false);
+                            existing: CheckLink(obs, url, full)).ConfigureAwait(false);
                         if (added) newSources = true;
                         if (!Settings.Sources.TryGetValue(lobby, out var mapped) || mapped != name) { Settings.Sources[lobby] = name; changed = true; newSources = true; }
                         _sourceProblems.TryRemove(lobby, out _);
@@ -372,7 +377,7 @@ namespace TournamentTracker.App.Broadcast
                         _sourceProblems[lobby] = (e.Message, DateTime.UtcNow + SourceRetry);
                     }
                 }
-                if (await AddCamSourcesAsync(obs, inputs).ConfigureAwait(false)) changed = newSources = true;
+                if (await AddCamSourcesAsync(obs, inputs, full).ConfigureAwait(false)) changed = newSources = true;
                 if (changed) Save();
             }
             finally { _busy.Release(); }
@@ -413,113 +418,11 @@ namespace TournamentTracker.App.Broadcast
 
         // ---- Putting lobbies on stream ----------------------------------------------------------
 
-        /// <summary>Shows the on-air lobbies in their slots in the layout's scene, hides the rest, switches to it and sets the sound.</summary>
-        public async Task ApplyAsync(OnAir air)
-        {
-            var obs = _obs;
-            if (obs == null || !Settings.Scenes.TryGetValue(air.Layout == "cams" ? "cam" : air.Layout, out var scene)) return;
-            // From here until OBS confirms, its item events are ours (arranging the scene), not a switch by hand.
-            var ex = new Expect { Scene = scene, Air = air, Asked = DateTime.UtcNow };
-            _expect = ex;
-            await AddSourcesAsync().ConfigureAwait(false);
-            // A swoosh when what's on stream changes (a new scene, or pictures moving in this one).
-            string key = AirKey(air);
-            // No swoosh to, from or within the player camera: game to player to player is a straight cut.
-            bool camCut = air.IsCam || Scene == Settings.Scenes.GetValueOrDefault("cam");
-            if (!camCut && (key != _airKey || Scene != scene)) await SwooshAsync(Scene != scene).ConfigureAwait(false);
-            _airKey = key;
-            await _busy.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                var boxes = Slots(air.Layout, Width, Height, air.Layout == "full" ? 0 : Settings.Gap, air.Slots.Count);
-                var items = await ItemsAsync(obs, scene).ConfigureAwait(false);
-                foreach (var item in items)
-                {
-                    // The player camera scene: the on-air lobby's camera full screen, under everything; or
-                    // several lobbies' cameras side by side (two) or in a quad (three or four).
-                    if (CamLobbyOf(item.Source) is string camLobby)
-                    {
-                        int camSlot = air.IsCam ? air.Slots.FindIndex(s => string.Equals(s, camLobby, StringComparison.OrdinalIgnoreCase)) : -1;
-                        var camBoxes = CamBoxes(air);
-                        bool showCam = camSlot >= 0 && camSlot < camBoxes.Count;
-                        if (showCam)
-                        {
-                            var cb = camBoxes[camSlot];
-                            await obs.RequestAsync("SetSceneItemTransform", new
-                            {
-                                sceneName = scene,
-                                sceneItemId = item.Id,
-                                sceneItemTransform = new
-                                {
-                                    positionX = cb.X, positionY = cb.Y, alignment = 5, rotation = 0.0,
-                                    boundsType = "OBS_BOUNDS_SCALE_INNER", boundsAlignment = 0, boundsWidth = cb.W, boundsHeight = cb.H,
-                                    cropLeft = 0, cropRight = 0, cropTop = 0, cropBottom = 0,
-                                },
-                            }).ConfigureAwait(false);
-                        }
-                        if (item.Enabled != showCam)
-                        {
-                            await obs.RequestAsync("SetSceneItemEnabled", new { sceneName = scene, sceneItemId = item.Id, sceneItemEnabled = showCam }).ConfigureAwait(false);
-                            // Hidden, the camera's Source Record buffer got no pictures (and never wrote a
-                            // file): started as it goes on stream, so a replay has the camera angle.
-                            if (showCam) await StartCamBufferAsync(obs, camLobby).ConfigureAwait(false);
-                        }
-                        continue;
-                    }
-                    string? lobby = LobbyOf(item.Source);
-                    if (lobby == null) continue;                     // not ours: leave it alone
-                    int slot = air.Slots.FindIndex(s => string.Equals(s, lobby, StringComparison.OrdinalIgnoreCase));
-                    if (slot >= 0 && slot < boxes.Count)
-                    {
-                        var b = boxes[slot];
-                        await obs.RequestAsync("SetSceneItemTransform", new
-                        {
-                            sceneName = scene,
-                            sceneItemId = item.Id,
-                            sceneItemTransform = new
-                            {
-                                positionX = b.X, positionY = b.Y, alignment = 5, rotation = 0.0,
-                                boundsType = "OBS_BOUNDS_SCALE_INNER", boundsAlignment = 0, boundsWidth = b.W, boundsHeight = b.H,
-                                cropLeft = 0, cropRight = 0, cropTop = 0, cropBottom = 0,
-                            },
-                        }).ConfigureAwait(false);
-                    }
-                    bool show = slot >= 0 && slot < boxes.Count;
-                    if (item.Enabled != show)
-                        await obs.RequestAsync("SetSceneItemEnabled", new { sceneName = scene, sceneItemId = item.Id, sceneItemEnabled = show }).ConfigureAwait(false);
-                }
-                // Only one lobby's game sound at a time: the full-screen one, or slot 1.
-                string? loud = Settings.Audio == "slot1" ? air.Slots.FirstOrDefault(s => s != null) : null;
-                foreach (var (lobby, source) in Settings.Sources.ToList())
-                {
-                    bool muted = !string.Equals(lobby, loud, StringComparison.OrdinalIgnoreCase);
-                    try { await obs.RequestAsync("SetInputMute", new { inputName = source, inputMuted = muted }).ConfigureAwait(false); }
-                    catch (ObsException) { /* the source was removed in OBS */ }
-                }
-                ex.Asked = DateTime.UtcNow;
-                await obs.RequestAsync("SetCurrentProgramScene", new { sceneName = scene }).ConfigureAwait(false);
-                Problem = null;
-                // Already on that scene (the pictures moved within it): OBS sends no scene change, so check.
-                var cur = await obs.RequestAsync("GetCurrentProgramScene").ConfigureAwait(false);
-                if (ProgramName(cur) == scene) Confirm(ex);
-                else _ = Task.Delay(SwitchTimeout).ContinueWith(_ => TimedOut(ex));
-            }
-            catch (Exception e)
-            {
-                Problem = "OBS: " + e.Message;
-                if (_expect == ex) { _expect = null; SwitchProblem = $"OBS didn't switch to {scene}: {e.Message}"; }
-                _ = Task.Run(async () => { try { await ReadBackAsync().ConfigureAwait(false); } catch (Exception) { } });
-            }
-            finally { _busy.Release(); }
-            // The voice follows the picture.
-            await SetVoicesAsync(air).ConfigureAwait(false);
-        }
-
         /// <summary>
         /// A player camera source for each lobby whose host sends one, in the TT Player Cam scene only,
         /// at the bottom (the lobby's own picture and the graphics go over it). True if any changed.
         /// </summary>
-        private async Task<bool> AddCamSourcesAsync(ObsClient obs, HashSet<string> inputs)
+        private async Task<bool> AddCamSourcesAsync(ObsClient obs, HashSet<string> inputs, bool full)
         {
             var feeds = CamFeeds?.Invoke();
             if (feeds == null || !Settings.Scenes.TryGetValue("cam", out var scene)) return false;
@@ -534,18 +437,16 @@ namespace TournamentTracker.App.Broadcast
                     var (name, ids, added) = await EnsureInputAsync(obs, root, current, new[] { scene }, inputs, "browser_source",
                         new { url, width = 1920, height = 1080, reroute_audio = true, shutdown = false, restart_when_active = false, fps_custom = false },
                         enabled: false,
-                        existing: async n =>
-                        {
-                            var cur = await obs.RequestAsync("GetInputSettings", new { inputName = n }).ConfigureAwait(false);
-                            string? was = cur.TryGetProperty("inputSettings", out var st) && st.TryGetProperty("url", out var u) ? u.GetString() : null;
-                            if (was != url) await obs.RequestAsync("SetInputSettings", new { inputName = n, inputSettings = new { url } }).ConfigureAwait(false);
-                        }).ConfigureAwait(false);
+                        existing: CheckLink(obs, url, full)).ConfigureAwait(false);
                     await EnsureReplayFilterAsync(obs, "Cam " + lobby, name).ConfigureAwait(false);
                     if (added && ids.TryGetValue(scene, out var id))
                         await obs.RequestAsync("SetSceneItemIndex", new { sceneName = scene, sceneItemId = id, sceneItemIndex = 0 }).ConfigureAwait(false);
-                    if (!Settings.CamSources.TryGetValue(lobby, out var mapped) || mapped != name) { Settings.CamSources[lobby] = name; changed = true; }
+                    bool renamed = !Settings.CamSources.TryGetValue(lobby, out var mapped) || mapped != name;
+                    if (renamed) { Settings.CamSources[lobby] = name; changed = true; }
                     if (added) changed = true;
-                    try { await obs.RequestAsync("SetInputMute", new { inputName = name, inputMuted = true }).ConfigureAwait(false); } catch (ObsException) { }
+                    // The camera's own sound stays off (muted when it's made, and again at each full look).
+                    if (added || renamed || full)
+                        try { await obs.RequestAsync("SetInputMute", new { inputName = name, inputMuted = true }).ConfigureAwait(false); } catch (ObsException) { }
                 }
                 catch (Exception e) { CamProblem = $"Player camera for {lobby}: {e.Message}"; }
             }
@@ -600,7 +501,9 @@ namespace TournamentTracker.App.Broadcast
         {
             if (type == "InputVolumeMeters") { OnMeters(data); return; }      // 20 times a second: nothing else
             if (type == "VendorEvent") { OnVendorEvent(data); return; }
-            if (type == "InputMuteStateChanged") { OnMuteChanged(data); return; }
+            if (type == "InputMuteStateChanged") { OnMuteKnown(data); OnMuteChanged(data); return; }
+            if (type is "StreamStateChanged" or "RecordStateChanged") { OnOutputEvent(type, data); return; }
+            OnItemsEvent(type, data);
             if (type == "CurrentProgramSceneChanged")
             {
                 string name = data.TryGetProperty("sceneName", out var sn) ? sn.GetString() ?? "" : "";
@@ -687,6 +590,7 @@ namespace TournamentTracker.App.Broadcast
             Voice = VoiceStatus(),
             Swoosh = new { Settings.Swoosh.On, Stinger = _stinger, Problem = SwooshProblem, File = SwooshFile, Count = Swooshes },
             SwitchingTo, SwitchProblem,
+            Output = OutputView(),
             Checks = Connected ? Checks : new List<SetupCheck>(),
             CheckedAt = CheckedAt?.ToString("o"),
             DesktopAudioOn = Connected ? DesktopAudioOn : new List<string>(),

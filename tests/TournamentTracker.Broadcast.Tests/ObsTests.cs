@@ -65,6 +65,14 @@ public sealed class FakeObs : IAsyncDisposable
     public bool BufferStuck;
     public int BufferStarts;
     private bool _saved;
+    // What OBS is sending out (GetStreamStatus, GetRecordStatus, GetStats), and its screenshots.
+    public bool Streaming, Reconnecting, RecordingOn;
+    public long StreamBytes, StreamSkipped, StreamFrames, RenderSkipped, RenderFrames;
+    public double DiskMb = 500_000;
+    public int Screenshots;
+
+    /// <summary>The stream starting or stopping in OBS, with its event.</summary>
+    public Task SetStreaming(bool on, string? state = null) { lock (this) Streaming = on; return Event("StreamStateChanged", new { outputActive = on, outputState = state ?? (on ? "OBS_WEBSOCKET_OUTPUT_STARTED" : "OBS_WEBSOCKET_OUTPUT_STOPPED") }); }
 
     public FakeObs()
     {
@@ -127,17 +135,62 @@ public sealed class FakeObs : IAsyncDisposable
         {
             var msg = await Receive(ws);
             if (msg == null) return;
+            int op = msg.Value.GetProperty("op").GetInt32();
             var d = msg.Value.GetProperty("d");
+            if (op == 8)
+            {
+                // A RequestBatch: each request in turn (its events as it's done), then one answer with every result.
+                lock (this) Batches++;
+                bool halt = d.TryGetProperty("haltOnFailure", out var h) && h.ValueKind == JsonValueKind.True;
+                var results = new List<object>();
+                foreach (var r in d.GetProperty("requests").EnumerateArray())
+                {
+                    string rt = r.GetProperty("requestType").GetString()!;
+                    var rdata = r.TryGetProperty("requestData", out var x) ? x : default;
+                    var (rok, rcomment, rresponse) = await Process(rt, rdata);
+                    results.Add(new { requestType = rt, requestId = r.TryGetProperty("requestId", out var ri) ? ri.GetString() : null, requestStatus = new { result = rok, code = rok ? 100 : 600, comment = rcomment }, responseData = rresponse });
+                    if (rok) await After(rt, rdata);
+                    if (!rok && halt) break;
+                }
+                await Send(ws, new { op = 9, d = new { requestId = d.GetProperty("requestId").GetString(), results } });
+                continue;
+            }
             string type = d.GetProperty("requestType").GetString()!, id = d.GetProperty("requestId").GetString()!;
             var data = d.TryGetProperty("requestData", out var rd) ? rd : default;
-            object? response; bool ok = true; string? comment = null;
-            lock (this)
-            {
-                Requests.Add(type);
-                try { response = Handle(type, data); }
-                catch (Exception e) { ok = false; comment = e.Message; response = null; }
-            }
+            var (ok, comment, response) = await Process(type, data);
             await Send(ws, new { op = 7, d = new { requestType = type, requestId = id, requestStatus = new { result = ok, code = ok ? 100 : 600, comment }, responseData = response } });
+            if (ok) await After(type, data);
+        }
+    }
+
+    /// <summary>Batches (RequestBatch messages) asked so far.</summary>
+    public int Batches;
+
+    private async Task<(bool Ok, string? Comment, object? Response)> Process(string type, JsonElement data)
+    {
+        if (type == "Sleep") { await Task.Delay(data.TryGetProperty("sleepMillis", out var ms) ? ms.GetInt32() : 0); return (true, null, null); }
+        if (RequestDelayMs > 0) await Task.Delay(RequestDelayMs);
+        lock (this)
+        {
+            Requests.Add(type);
+            try { return (true, null, Handle(type, data)); }
+            catch (Exception e) { return (false, e.Message, null); }
+        }
+    }
+
+    /// <summary>Every request takes this long (a busy OBS).</summary>
+    public int RequestDelayMs;
+
+    /// <summary>The events a real OBS sends for a request that worked.</summary>
+    private async Task After(string type, JsonElement data)
+    {
+        {
+            bool ok = true;
+            if (type is "CreateInput" or "CreateSceneItem")
+                await Event("SceneItemCreated", new { sceneName = data.GetProperty("sceneName").GetString(), sourceName = type == "CreateInput" ? data.GetProperty("inputName").GetString() : data.GetProperty("sourceName").GetString() });
+            if (type == "RemoveInput") await Event("InputRemoved", new { inputName = data.GetProperty("inputName").GetString() });
+            if (type == "SetSceneItemIndex") await Event("SceneItemListReindexed", new { sceneName = data.GetProperty("sceneName").GetString() });
+            if (type is "CreateScene" or "RemoveScene") await Event(type == "CreateScene" ? "SceneCreated" : "SceneRemoved", new { sceneName = data.GetProperty("sceneName").GetString() });
             if (ok && type == "SetCurrentProgramScene" && !IgnoreSwitch)
             {
                 string want = data.GetProperty("sceneName").GetString()!;
@@ -282,6 +335,14 @@ public sealed class FakeObs : IAsyncDisposable
                 return null;
             }
             case "GetCurrentProgramScene": return new { currentProgramSceneName = Program, sceneName = Program };
+            case "GetStreamStatus":
+                return new { outputActive = Streaming, outputReconnecting = Reconnecting, outputTimecode = "00:01:02.345", outputDuration = 62345, outputCongestion = 0.0, outputBytes = StreamBytes, outputSkippedFrames = StreamSkipped, outputTotalFrames = StreamFrames };
+            case "GetRecordStatus": return new { outputActive = RecordingOn, outputPaused = false, outputTimecode = "00:01:00.000", outputDuration = 60000, outputBytes = 1000 };
+            case "GetStats":
+                return new { cpuUsage = 12.5, memoryUsage = 900.0, availableDiskSpace = DiskMb, activeFps = 60.0, averageFrameRenderTime = 2.0, renderSkippedFrames = RenderSkipped, renderTotalFrames = RenderFrames, outputSkippedFrames = 0, outputTotalFrames = StreamFrames };
+            case "GetSourceScreenshot":
+                Screenshots++;
+                return new { imageData = "data:image/jpg;base64," + Convert.ToBase64String(new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, (byte)(Screenshots & 0xFF), 0xFF, 0xD9 }) };
             default: throw new Exception("unknown request " + type);
         }
     }

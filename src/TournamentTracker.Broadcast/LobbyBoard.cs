@@ -67,8 +67,11 @@ namespace TournamentTracker.App.Broadcast
         public List<JsonElement> Players { get; set; } = new List<JsonElement>();
         /// <summary>Each ending's points for this game, from the referee's mod ("points on the line").</summary>
         public JsonElement? IfEnded { get; set; }
-        /// <summary>Everyone in the lobby now (from the snapshots), by player id.</summary>
-        public Dictionary<int, LobbyPlayer> People { get; } = new Dictionary<int, LobbyPlayer>();
+        /// <summary>
+        /// Everyone in the lobby now (from the snapshots), by player id. Replaced whole by each snapshot,
+        /// never changed in place: the desk, the deck and the overlay read it without the board's lock.
+        /// </summary>
+        public Dictionary<int, LobbyPlayer> People { get; internal set; } = new Dictionary<int, LobbyPlayer>();
         public Dictionary<string, Play> Plays { get; } = new Dictionary<string, Play>();
     }
 
@@ -119,8 +122,14 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>A player's roster name (key, Discord ID, in-game name), or null to use the game's name.</summary>
         public Func<string, string?, string, string?>? RosterName { get; set; }
 
-        /// <summary>Raised for every new or updated play, for the notification cards.</summary>
+        /// <summary>
+        /// Raised for every new or updated play, for the notification cards. Raised after the board's
+        /// lock is let go, with a copy of the play: the desk's handler takes the desk's lock, and the
+        /// desk asks the board for lobbies while holding its own, so raising it inside would deadlock.
+        /// </summary>
         public event Action<string, Play>? PlayChanged;
+        // Plays changed by the message being taken, raised once the lock is let go (only touched under it).
+        private readonly List<(string Lobby, Play Play)> _changed = new List<(string, Play)>();
 
         /// <summary>Removes lobbies altogether (the simulator's, when it stops).</summary>
         public void Forget(Func<string, bool> which)
@@ -146,6 +155,7 @@ namespace TournamentTracker.App.Broadcast
         {
             string lobby = Str(m, "lobby") ?? "";
             if (lobby.Length == 0) return;
+            List<(string Lobby, Play Play)>? changed = null;
             lock (_lock)
             {
                 if (!_lobbies.TryGetValue(lobby, out var l)) _lobbies[lobby] = l = new LobbyLive { Lobby = lobby };
@@ -154,10 +164,22 @@ namespace TournamentTracker.App.Broadcast
                 l.Game = Str(m, "game") ?? l.Game;
                 l.Round = Int(m, "round") ?? l.Round;
                 l.Clock = Dbl(m, "clock");
-                if (Str(m, "type") == "snap") Snapshot(l, m, now);
-                else if (Str(m, "type") == "event") Event(l, m, now);
+                try
+                {
+                    if (Str(m, "type") == "snap") Snapshot(l, m, now);
+                    else if (Str(m, "type") == "event") Event(l, m, now);
+                }
+                finally
+                {
+                    if (_changed.Count > 0) { changed = _changed.ToList(); _changed.Clear(); }
+                }
             }
+            if (changed != null && PlayChanged is { } raise)
+                foreach (var (name, play) in changed) raise(name, play);
         }
+
+        /// <summary>A play changed: noted under the lock, raised after it (see <see cref="PlayChanged"/>).</summary>
+        private void Changed(LobbyLive l, Play p) => _changed.Add((l.Lobby, Copy(p)));
 
         private void Snapshot(LobbyLive l, JsonElement m, DateTime now)
         {
@@ -219,13 +241,13 @@ namespace TournamentTracker.App.Broadcast
                 {
                     p = new Play { Key = key, Rule = rule, IsState = true, At = now, Updated = now, Text = text, Source = source };
                     l.Plays[key] = p;
-                    PlayChanged?.Invoke(l.Lobby, p);
+                    Changed(l, p);
                 }
                 else if (p.Text != text)
                 {
                     p.Text = text;
                     p.Updated = now;
-                    PlayChanged?.Invoke(l.Lobby, p);
+                    Changed(l, p);
                 }
             }
             else if (p != null && p.Ended == null)
@@ -236,17 +258,19 @@ namespace TournamentTracker.App.Broadcast
 
         private void People(LobbyLive l, JsonElement list, bool replace)
         {
-            if (replace) l.People.Clear();
+            // A new dictionary each time (copy on write): readers holding the old one are never disturbed.
+            var people = replace ? new Dictionary<int, LobbyPlayer>() : new Dictionary<int, LobbyPlayer>(l.People);
             foreach (var p in list.EnumerateArray())
             {
                 int id = Int(p, "id") ?? -1;
                 if (id < 0) continue;
-                l.People[id] = new LobbyPlayer
+                people[id] = new LobbyPlayer
                 {
                     Id = id, Name = Str(p, "name") ?? "", Color = Int(p, "color") ?? 0, Key = Str(p, "key") ?? "",
                     Discord = Str(p, "discord"), Imp = Bool(p, "imp"), Dead = Bool(p, "dead"),
                 };
             }
+            l.People = people;
         }
 
         /// <summary>A player's name as the caster shows it: the roster's, else the game's.</summary>
@@ -294,14 +318,14 @@ namespace TournamentTracker.App.Broadcast
                     l.MeetingText = Bool(m, "emergency") == true
                         ? $"{Name("caller") ?? "Someone"} called an emergency meeting"
                         : $"{Name("caller") ?? "Someone"} reported {Name("body") ?? "a"}'s body";
-                    if (l.Plays.TryGetValue("meeting", out var mp) && mp.Ended == null) { mp.Text = l.MeetingText; mp.Updated = now; mp.Source = l.MeetingSource; PlayChanged?.Invoke(l.Lobby, mp); }
+                    if (l.Plays.TryGetValue("meeting", out var mp) && mp.Ended == null) { mp.Text = l.MeetingText; mp.Updated = now; mp.Source = l.MeetingSource; Changed(l, mp); }
                     break;
                 case "danger":
                     if (Str(m, "state") == "start")
                     {
                         l.DangerText = $"{Name("impostor") ?? "An impostor"} alone with {Name("crewmate") ?? "a crewmate"}{In(Str(m, "room"))}, kill ready";
                         l.DangerSource = m.Clone();
-                        if (l.Plays.TryGetValue("danger", out var dp) && dp.Ended == null) { dp.Text = l.DangerText; dp.Updated = now; dp.Source = l.DangerSource; PlayChanged?.Invoke(l.Lobby, dp); }
+                        if (l.Plays.TryGetValue("danger", out var dp) && dp.Ended == null) { dp.Text = l.DangerText; dp.Updated = now; dp.Source = l.DangerSource; Changed(l, dp); }
                     }
                     break;
                 case "vent":
@@ -347,7 +371,7 @@ namespace TournamentTracker.App.Broadcast
                 p = new Play { Key = key, Rule = rule, Text = text, At = now, Updated = now, Source = source.Clone() };
                 l.Plays[key] = p;
             }
-            PlayChanged?.Invoke(l.Lobby, p);
+            Changed(l, p);
         }
 
         // ---- Ranking ------------------------------------------------------------------------

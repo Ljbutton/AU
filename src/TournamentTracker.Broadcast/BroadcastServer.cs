@@ -172,11 +172,12 @@ namespace TournamentTracker.App.Broadcast
                 desk.HostCommand += SpecOut;
                 var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(caster, desk)) { VoiceFeeds = () => VoiceFeeds(caster, desk), MuteHotkey = MuteHotkey, CamFeeds = () => caster.CamLinks() };
                 obs.ImpostorTagsOn = () => _broadcast?.Settings.Current.Elements.GetValueOrDefault("impostorTags") == true;
-                // The overlay and video page follow the lobby in the first slot; OBS (when connected) shows the whole layout.
+                // The overlay and video page follow the lobby in the first slot; OBS (when connected) shows the
+                // whole layout. OBS first: the caster pages' refresh can't hold up (or, throwing, stop) the switch.
                 desk.Switch = air =>
                 {
-                    caster.Refresh();
-                    if (obs.Connected) _ = obs.ApplyAsync(air);
+                    if (obs.Connected) _ = obs.ApplyAsync(air, air.Transition);
+                    try { caster.Refresh(); } catch (Exception) { }
                 };
                 if (caster.Url != null) obs.TagUrl = caster.Url + "replaytag";
                 var broadcast = _broadcast = new BroadcastApp(desk, () => _obs, SideFile(BroadcastSettings.FileName));
@@ -642,7 +643,7 @@ namespace TournamentTracker.App.Broadcast
                             int? port = int.TryParse(Arg("port"), out var pt) ? pt : (int?)null;
                             string? password = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("password", out var pw) && pw.ValueKind == JsonValueKind.String ? pw.GetString() : null;
                             string message = await _obs.ConnectAsync(Arg("host").Length > 0 ? Arg("host") : null, port, password).ConfigureAwait(false);
-                            if (_obs.Connected && _desk != null && _desk.OnAir.Layout != "none" && _desk.OnAir.By == "button") await _obs.ApplyAsync(_desk.OnAir).ConfigureAwait(false);
+                            if (_obs.Connected && _desk != null && _desk.OnAir.Layout != "none" && _desk.OnAir.By is "button" or "deck") await _obs.ApplyAsync(_desk.OnAir).ConfigureAwait(false);
                             return Ok(new { ok = _obs.Connected, message });
                         }
                     }
@@ -936,7 +937,7 @@ namespace TournamentTracker.App.Broadcast
                     double Num(string name) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty(name, out var n)
                         ? n.ValueKind == JsonValueKind.Number ? n.GetDouble() : double.TryParse(n.GetString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0 : 0;
                     string said;
-                    bool duck = false;
+                    bool duck = false, rebuild = false;
                     switch (Arg("action"))
                     {
                         case "mute":
@@ -975,10 +976,12 @@ namespace TournamentTracker.App.Broadcast
                         case "on":
                             v.On = Arg("on") == "true";
                             said = v.On ? "Lobby voice on stream." : "Lobby voice off stream.";
+                            rebuild = true;
                             break;
                         default: return Ok(new { ok = false, message = "Unknown voice action." });
                     }
-                    await _obs.VoiceChangedAsync(duck).ConfigureAwait(false);
+                    await _obs.VoiceChangedAsync(duck, rebuild).ConfigureAwait(false);
+
                     return Ok(new { ok = true, message = said });
                 }
                 case ("POST", "/app/admin/intermission"):

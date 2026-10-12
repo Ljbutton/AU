@@ -52,9 +52,7 @@ namespace TournamentTracker.App.Broadcast
                     catch (ObsException) { }
                     // OBS can keep a removed source in the background and go on listing it: never use that name again this session.
                     _dead.Add(name);
-                    _voiceInputs.Remove(name);
-                    _voiceSet.Remove(name);
-                    _voiceLobby.Remove(name);
+                    lock (_voiceLock) { _voiceInputs.Remove(name); _voiceSet.Remove(name); _voiceLobby.Remove(name); }
                     _filtered.Remove(name);
                     // A stand-in under a real lobby's name (older versions): that lobby gets a fresh source.
                     foreach (var k in Settings.Sources.Where(kv => kv.Value == name).Select(kv => kv.Key).ToList()) Settings.Sources.Remove(k);
