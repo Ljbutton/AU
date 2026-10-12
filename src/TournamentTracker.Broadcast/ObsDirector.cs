@@ -366,7 +366,7 @@ namespace TournamentTracker.App.Broadcast
                             new { url, width = 1920, height = 1080, reroute_audio = true, shutdown = false, restart_when_active = false, fps_custom = false },
                             enabled: false,
                             existing: CheckLink(obs, url, full)).ConfigureAwait(false);
-                        if (added) newSources = true;
+                        if (added) { newSources = true; ForgetMute(name); }
                         if (!Settings.Sources.TryGetValue(lobby, out var mapped) || mapped != name) { Settings.Sources[lobby] = name; changed = true; newSources = true; }
                         _sourceProblems.TryRemove(lobby, out _);
                         await EnsureReplayFilterAsync(obs, lobby, name).ConfigureAwait(false);

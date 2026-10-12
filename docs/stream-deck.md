@@ -78,7 +78,7 @@ Alert (`/deck/<path>`), for reference and for Companion below.
 | **Take** | take as (the layout in Preview, or full, 2-up, quad, grid, cameras); transition | Preview goes on stream. | `take`, `take?as=quad&t=swoosh` |
 | **Wide** | | Back to the whole map from a player camera. | `wide` |
 | **Cut to cam** | lobby: on stream, in Preview, or a number | That lobby's camera on stream, still following whoever it follows. | `cam/cut`, `cam/3/slot2` |
-| **Layout** | full, 2-up, quad, grid, cameras | That layout on stream. Lit red while on stream, green while in Preview. | `layout/quad` |
+| **Layout** | full, 2-up, quad, grid, cameras | What's in Preview (or, with nothing there, what's on stream) in that layout, in Preview: **Take** puts it on stream, so keep a Take key next to it. Lit red while on stream, green while in Preview. | `layout/quad` |
 | **Replay** | play last, replay that, back to live, play/pause, back, forward, frame back, frame forward, restart, zoom in, zoom out, follow, angle, speed | **Replay that** saves the last seconds of the lobby on stream and plays them; **Play last** plays the newest ready clip; **Speed** steps 100 / 50 / 25%. | `replay/that`, `replay/last`, `replay/slow`… |
 | **Toggle** | mute all lobby voice, hold, auto grid, auto intermission, auto switch, standings, alerts; **Press**: switch it, always on, always off | Shows ON / OFF (MUTED, HELD, PAUSED) from Red Alert's own state. **Hold** stops all automatic switching. | `voice/mute/toggle`, `hold/on`, `auto/grid/off`, `gfx/alerts/toggle`… |
 | **Break** | be right back, intermission, sponsor, end the break | That break screen, or back from it. | `break/brb`, `break/off` |
@@ -159,7 +159,8 @@ http://127.0.0.1:8768/deck/<path>?key=<your key>
 
 GET and POST both work. Red Alert answers with JSON, `{"ok":true,"message":"…"}`, and a status:
 200 done, 202 queued or armed, 401 wrong key, 404 unknown action or lobby, 409 refused (for example
-the camera isn't available), 423 locked, 503 OBS not connected. The same link twice within 300 ms is
+the camera isn't available), 423 locked, 500 it went wrong on the way (the message says what, for
+example OBS not answering), 503 OBS not connected. The same link twice within 300 ms is
 ignored. Settings → Stream Deck in Red Alert lists ready-made links with your key in them.
 
 | Path | Does |
@@ -167,7 +168,7 @@ ignored. Settings → Stream Deck in Red Alert lists ready-made links with your 
 | `lobby/<n>`, `lobby/next`, `lobby/prev`, `lobby/action`, `lobby/<name>` (add `?t=cut` or `?t=swoosh`) | A lobby full screen now |
 | `pvw/lobby/<n>`, `pvw/add/<n>`, `pvw/clear` | Preview: one lobby, add a lobby, clear it |
 | `take` (add `?as=` full, 2up, quad, grid or cams, and `&t=cut` or `&t=swoosh`) | Preview on stream |
-| `layout/full`, `layout/2up`, `layout/quad`, `layout/grid`, `layout/cams` | A layout on stream |
+| `layout/full`, `layout/2up`, `layout/quad`, `layout/grid`, `layout/cams` | A layout into Preview (`take` puts it on stream) |
 | `cam/<lobby>/<who>` (add `?arm=1` to arm) | A player camera. `<lobby>` is a number, `pgm` or `pvw`; `<who>` is a colour, `slot1`…`slot15`, `next`, `prev` or `auto` |
 | `cam/cut`, `wide` | The camera on stream; back to the whole map |
 | `replay/last`, `replay/that`, `replay/live`, `replay/toggle`, `replay/back`, `replay/forward`, `replay/frameback`, `replay/frameforward`, `replay/restart`, `replay/zoomin`, `replay/zoomout`, `replay/follow`, `replay/angle`, `replay/slow` | Replays |

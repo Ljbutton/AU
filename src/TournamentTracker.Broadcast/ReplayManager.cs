@@ -176,7 +176,7 @@ namespace TournamentTracker.App.Broadcast
             return clip;
         }
 
-        private void Keep(Clip clip)
+        internal void Keep(Clip clip)
         {
             lock (_lock)
             {
@@ -188,11 +188,14 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>
         /// "Replay that" (vMix's instant replay without marking anything first): the last few seconds of
         /// a lobby, saved now with no card, played as soon as it's ready when <paramref name="play"/>.
-        /// The wide shot (no crop to follow), both angles when the camera is on.
+        /// The wide shot (no crop to follow), both angles when the camera is on. Only played over what
+        /// it was asked over: a panic, a hold, a break or another lobby since leaves it ready for "last".
         /// </summary>
         public Clip SaveNow(string lobby, bool play = true)
         {
             var now = _clock();
+            var air = _desk.OnAir;
+            bool held = _desk.Held;
             var live = _desk.Board.Lobby(lobby);
             var clip = new Clip
             {
@@ -205,9 +208,20 @@ namespace TournamentTracker.App.Broadcast
             {
                 await SaveClipAsync(clip).ConfigureAwait(false);
                 Saved?.Invoke(clip);
-                if (play && clip.State == "ready") await PlayAsync(clip).ConfigureAwait(false);
+                if (play && clip.State == "ready" && StillOver(air, held, lobby)) await PlayAsync(clip).ConfigureAwait(false);
             });
             return clip;
+        }
+
+        /// <summary>
+        /// What a "replay that" was asked over is still on stream: the same switch, or that lobby live
+        /// in another layout (not in a break or a replay), and no hold since.
+        /// </summary>
+        private bool StillOver(OnAir air, bool heldThen, string lobby)
+        {
+            if (_desk.Held && !heldThen) return false;
+            var now = _desk.OnAir;
+            return ReferenceEquals(now, air) || now.Layout is not ("break" or "replay") && now.Has(lobby);
         }
 
         /// <summary>The newest clip ready to play (a montage isn't one), or null.</summary>

@@ -196,7 +196,7 @@ namespace TournamentTracker.App.Broadcast
                 foreach (var (source, muted) in mutes) KnowMute(source, muted);
                 var failed = results.Take(sceneAt).Where(r => !r.Ok && r.Type != "SetInputMute").ToList();
                 Problem = failed.Count == 0 ? null : "OBS: " + failed[0].Error().Message;
-                if (use != null && restore != null) RestoreTransitionLater(obs, restore, transition == "fade" ? 1500 : 400);
+                if (use != null) TransitionSwapped(obs, use, restore, transition == "fade" ? 1500 : 400);
                 foreach (var l in camStarts) await StartCamBufferAsync(obs, l).ConfigureAwait(false);
                 // Already on that scene (the pictures moved within it): OBS sends no scene change, so check.
                 var cur = await obs.RequestAsync("GetCurrentProgramScene").ConfigureAwait(false);
@@ -217,7 +217,17 @@ namespace TournamentTracker.App.Broadcast
 
         // ---- OBS's own scene transition for a cut or a fade ------------------------------------------
 
-        /// <summary>The transition to use for a "cut" or "fade" scene change, and the one to put back after; nulls when it's already that one.</summary>
+        private readonly object _transitionLock = new object();
+        // While a cut or fade of ours is in for a moment: the caster's own transition (put back after it),
+        // ours, and the one put-back that's due (only the newest runs).
+        private string? _userTransition, _ourTransition;
+        private CancellationTokenSource? _restoreCts;
+
+        /// <summary>
+        /// The transition to use for a "cut" or "fade" scene change, and the caster's own one to put back
+        /// after; nulls when theirs is already that kind. One of ours still in from a switch just before
+        /// (its put-back not yet done) isn't taken for theirs, so overlapping switches end on theirs.
+        /// </summary>
         private async Task<(string? Use, string? Restore)> TransitionForAsync(ObsClient obs, string kind)
         {
             try
@@ -225,26 +235,63 @@ namespace TournamentTracker.App.Broadcast
                 var list = await obs.RequestAsync("GetSceneTransitionList").ConfigureAwait(false);
                 string current = list.TryGetProperty("currentSceneTransitionName", out var c) ? c.GetString() ?? "" : "";
                 string want = kind == "fade" ? "fade_transition" : "cut_transition";
-                string? use = null, currentKind = null;
+                var kinds = new Dictionary<string, string>(StringComparer.Ordinal);
+                string? first = null;
                 foreach (var t in list.GetProperty("transitions").EnumerateArray())
                 {
                     string name = t.GetProperty("transitionName").GetString() ?? "", k = t.TryGetProperty("transitionKind", out var tk) ? tk.GetString() ?? "" : "";
-                    if (k == want && use == null) use = name;
-                    if (name == current) currentKind = k;
+                    if (k == want && first == null) first = name;
+                    kinds[name] = k;
                 }
-                if (use == null || currentKind == want) return (null, null);
-                return (use, current.Length > 0 ? current : null);
+                string user;
+                lock (_transitionLock) user = _userTransition != null && current == _ourTransition ? _userTransition : current;
+                string? use = kinds.GetValueOrDefault(user) == want ? user : first;
+                if (use == null) return (null, null);
+                string? restore = user.Length > 0 && user != use ? user : null;
+                // Theirs, and already in: nothing to do (a put-back still due sets theirs anyway).
+                if (restore == null && current == use) return (null, null);
+                return (use, restore);
             }
             catch (ObsException) { return (null, null); }
         }
 
-        /// <summary>Puts the usual transition back once the cut or fade has played.</summary>
-        private void RestoreTransitionLater(ObsClient obs, string name, int ms) => _ = Task.Run(async () =>
+        /// <summary>
+        /// After a cut or a fade went to OBS: the caster's own transition put back once it has played.
+        /// Only the newest put-back runs (an older one due is dropped), and only while ours is still in
+        /// (one picked in OBS meanwhile stays).
+        /// </summary>
+        private void TransitionSwapped(ObsClient obs, string use, string? restore, int ms)
         {
-            await Task.Delay(ms).ConfigureAwait(false);
-            try { await obs.RequestAsync("SetCurrentSceneTransition", new { transitionName = name }).ConfigureAwait(false); }
-            catch (Exception) { }
-        });
+            CancellationTokenSource? cts = null;
+            lock (_transitionLock)
+            {
+                _restoreCts?.Cancel();
+                _restoreCts = null;
+                _userTransition = _ourTransition = null;
+                if (restore == null) return;
+                _restoreCts = cts = new CancellationTokenSource();
+                _userTransition = restore;
+                _ourTransition = use;
+            }
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(ms, cts.Token).ConfigureAwait(false);
+                    var list = await obs.RequestAsync("GetSceneTransitionList").ConfigureAwait(false);
+                    string current = list.TryGetProperty("currentSceneTransitionName", out var c) ? c.GetString() ?? "" : "";
+                    if (!cts.IsCancellationRequested && current == use)
+                        await obs.RequestAsync("SetCurrentSceneTransition", new { transitionName = restore }).ConfigureAwait(false);
+                }
+                catch (Exception) { }
+                finally
+                {
+                    lock (_transitionLock)
+                        if (_restoreCts == cts) { _restoreCts = null; _userTransition = _ourTransition = null; }
+                    cts.Dispose();
+                }
+            });
+        }
 
         // ---- What's known in OBS: lobby sources' mutes, and each scene's items ------------------------
 
@@ -252,6 +299,16 @@ namespace TournamentTracker.App.Broadcast
 
         private bool? KnownMute(string source) { lock (_gameMuted) return _gameMuted.TryGetValue(source, out var m) ? m : null; }
         private void KnowMute(string source, bool muted) { lock (_gameMuted) _gameMuted[source] = muted; }
+
+        /// <summary>
+        /// An input made, removed or renamed (in OBS or by the upkeep): its mute isn't known any more (one
+        /// made again under the same name starts unmuted), so the next switch sets it.
+        /// </summary>
+        private void ForgetMute(string? source)
+        {
+            if (string.IsNullOrEmpty(source)) return;
+            lock (_gameMuted) _gameMuted.Remove(source);
+        }
 
         /// <summary>A mute changed in OBS (by us or by hand): noted, so the next switch sends only what's different.</summary>
         private void OnMuteKnown(JsonElement data)
@@ -307,6 +364,11 @@ namespace TournamentTracker.App.Broadcast
                 case "InputCreated":
                 case "InputRemoved":
                 case "InputNameChanged":
+                    if (data.ValueKind == JsonValueKind.Object)
+                        foreach (var p in new[] { "inputName", "oldInputName" })
+                            if (data.TryGetProperty(p, out var name) && name.ValueKind == JsonValueKind.String) ForgetMute(name.GetString());
+                    ForgetItems();
+                    break;
                 case "SceneCreated":
                 case "SceneRemoved":
                 case "SceneNameChanged":

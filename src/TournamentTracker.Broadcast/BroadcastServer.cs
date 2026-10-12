@@ -108,6 +108,9 @@ namespace TournamentTracker.App.Broadcast
         public string Url => $"http://127.0.0.1:{Port}/";
         public CasterDesk? Desk => _desk;
         public string? CasterUrl => _caster?.Url;
+        /// <summary>OBS and the replays (for tests).</summary>
+        internal ObsDirector? Obs => _obs;
+        internal ReplayManager? Replays => _replays;
 
         public BroadcastServer(BroadcastEnvironment env, HttpClient http)
         {
@@ -443,6 +446,11 @@ namespace TournamentTracker.App.Broadcast
             catch (Exception e) when (path.StartsWith("/app/", StringComparison.Ordinal))
             {
                 return Ok(new { ok = false, message = "That didn't work: " + e.Message });
+            }
+            // A Stream Deck key shows the error instead of finding nothing there (OFFLINE).
+            catch (Exception e) when (path.StartsWith("/deck/", StringComparison.Ordinal))
+            {
+                return DeckReply(500, false, "That didn't work: " + e.Message);
             }
         }
 

@@ -61,6 +61,8 @@ public sealed class FakeObs : IAsyncDisposable
     public int RefusedSceneItems;
     /// <summary>Requests that fail (OBS answering with an error).</summary>
     public readonly HashSet<string> Fail = new();
+    /// <summary>Requests (sent on their own, not in a batch) that OBS never answers: a stuck OBS.</summary>
+    public readonly HashSet<string> Hang = new();
     /// <summary>Source Record's buffer isn't running: a save answers success = false until it's started.</summary>
     public bool BufferStuck;
     public int BufferStarts;
@@ -159,6 +161,9 @@ public sealed class FakeObs : IAsyncDisposable
             }
             string type = d.GetProperty("requestType").GetString()!, id = d.GetProperty("requestId").GetString()!;
             var data = d.TryGetProperty("requestData", out var rd) ? rd : default;
+            bool hang;
+            lock (this) hang = Hang.Contains(type);
+            if (hang) continue;
             var (ok, comment, response) = await Process(type, data);
             await Send(ws, new { op = 7, d = new { requestType = type, requestId = id, requestStatus = new { result = ok, code = ok ? 100 : 600, comment }, responseData = response } });
             if (ok) await After(type, data);

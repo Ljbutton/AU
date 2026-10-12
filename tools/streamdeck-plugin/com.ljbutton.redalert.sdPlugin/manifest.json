@@ -104,7 +104,7 @@
 			"Name": "Layout",
 			"UUID": "com.ljbutton.redalert.layout",
 			"Icon": "imgs/actions/layout",
-			"Tooltip": "Full, 2-up, quad, grid or cameras on stream. Lit red while on stream, green while in Preview.",
+			"Tooltip": "Full, 2-up, quad, grid or cameras into Preview (Take puts it on stream). Lit red while on stream, green while in Preview.",
 			"Controllers": [
 				"Keypad"
 			],

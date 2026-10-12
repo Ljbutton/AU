@@ -247,6 +247,95 @@ public class SwitchingTests : IAsyncLifetime
         Assert.Equal(100, replays.Speed);
         Assert.Equal("TT Replay", _obs.Program);
     }
+
+    [Fact]
+    public async Task Replay_that_stays_ready_when_a_panic_or_another_lobby_came_on_while_it_saved()
+    {
+        using var replays = new ReplayManager(_desk, _director, loop: false);
+        _desk.Show("LJ");
+        await Until(() => !_director.Switching && _obs.Program == "TT Full");
+
+        // Panic while it saves: the be-right-back screen stays on, the clip waits for "last".
+        var clip = replays.SaveNow("LJ");
+        _desk.SetHold(true, null, "Panic");
+        _desk.ShowSlate("deck", "fade");
+        await Until(() => clip.State == "ready");
+        await Task.Delay(300);
+        Assert.Null(replays.Now);
+        Assert.Equal("slate", _desk.OnAir.Layout);
+        await Until(() => !_director.Switching);
+        Assert.Equal("TT Be Right Back", _obs.Program);
+        Assert.Same(clip, replays.Newest());
+
+        // Another lobby put on while it saves: no replay over it either.
+        _desk.SetHold(false);
+        _desk.Show("LJ");
+        var second = replays.SaveNow("LJ");
+        _desk.Show("MAL");
+        await Until(() => second.State == "ready");
+        await Task.Delay(300);
+        Assert.Null(replays.Now);
+        Assert.Equal("MAL", _desk.OnAir.Slots[0]);
+        Assert.Same(second, replays.Newest());
+
+        // Held already when pressed (a caster who keeps the hold on): it still plays.
+        _desk.SetHold(true);
+        var third = replays.SaveNow("MAL");
+        await Until(() => replays.Now == third && _obs.Program == "TT Replay");
+    }
+
+    [Fact]
+    public async Task A_lobby_source_made_again_under_its_name_is_muted_by_the_next_switch()
+    {
+        await _director.ApplyAsync(new OnAir { Layout = "full", Slots = new List<string?> { "MAL" } }, "cut");
+        Assert.True(_obs.Muted["TT Lobby LJ"]);
+        // Deleted in OBS (a stuck source): OBS says so, and the upkeep makes it again. A new input is unmuted.
+        lock (_obs)
+        {
+            _obs.Inputs.Remove("TT Lobby LJ");
+            foreach (var scene in _obs.Scenes.Values) scene.RemoveAll(i => i.Source == "TT Lobby LJ");
+            _obs.Muted.Remove("TT Lobby LJ");
+        }
+        await _obs.Event("InputRemoved", new { inputName = "TT Lobby LJ" });
+        await Task.Delay(200);
+        await _director.BuildAsync();
+        Assert.Contains("TT Lobby LJ", _obs.Inputs.Keys);
+        Assert.False(_obs.Muted.GetValueOrDefault("TT Lobby LJ"));
+        // The next switch with LJ out of slot 1 mutes it: only MAL's game sound is heard.
+        await _director.ApplyAsync(new OnAir { Layout = "2up", Slots = new List<string?> { "MAL", "LJ" } }, "cut");
+        Assert.True(_obs.Muted.GetValueOrDefault("TT Lobby LJ"));
+        Assert.False(_obs.Muted["TT Lobby MAL"]);
+    }
+
+    [Fact]
+    public async Task Overlapping_cuts_and_fades_end_on_the_casters_own_transition()
+    {
+        lock (_obs) { _obs.Transitions.Add(("Luma", "wipe_transition")); _obs.CurrentTransition = "Luma"; }
+        string Current() { lock (_obs) return _obs.CurrentTransition; }
+
+        // A cut, and a fade straight after (before the cut's put-back): back to Luma, not to the cut.
+        await _director.ApplyAsync(new OnAir { Layout = "full", Slots = new List<string?> { "LJ" } }, "cut");
+        Assert.Equal("Cut", Current());
+        await _director.ApplyAsync(new OnAir { Layout = "4up", Slots = new List<string?> { "LJ", "MAL", null, null } }, "fade");
+        Assert.Equal("Fade", Current());
+        await Task.Delay(2000);
+        Assert.Equal("Luma", Current());
+
+        // A fade, and a cut near the end of it: back to Luma, not to the fade.
+        await _director.ApplyAsync(new OnAir { Layout = "full", Slots = new List<string?> { "MAL" } }, "fade");
+        Assert.Equal("Fade", Current());
+        await Task.Delay(1200);
+        await _director.ApplyAsync(new OnAir { Layout = "4up", Slots = new List<string?> { "MAL", "LJ", null, null } }, "cut");
+        Assert.Equal("Cut", Current());
+        await Task.Delay(1000);
+        Assert.Equal("Luma", Current());
+
+        // Picked by hand in OBS while a cut of ours is in: it stays.
+        await _director.ApplyAsync(new OnAir { Layout = "full", Slots = new List<string?> { "LJ" } }, "cut");
+        lock (_obs) _obs.CurrentTransition = "Fade";
+        await Task.Delay(700);
+        Assert.Equal("Fade", Current());
+    }
 }
 
 /// <summary>The desk's controls without OBS: the hold, Preview and Take, and lobby numbers that stay the same.</summary>

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace TournamentTracker.App.Broadcast
@@ -14,7 +15,8 @@ namespace TournamentTracker.App.Broadcast
     /// revision. The revision goes up whenever anything in it changes: what's on stream and in
     /// Preview, each lobby's phase, players, camera and sabotage, replays, the voice, the hold and
     /// automation, the graphics, OBS streaming and recording. Impostors are left out unless asked for
-    /// with &amp;imp=1: Stream Deck keys sit on a desk that may be filmed.
+    /// with &amp;imp=1 (the players' flags, and the newest replay's title: a kill card's text names the
+    /// killer): Stream Deck keys sit on a desk that may be filmed.
     /// </summary>
     public sealed partial class BroadcastServer
     {
@@ -73,11 +75,13 @@ namespace TournamentTracker.App.Broadcast
                     var full = new JsonObject { ["rev"] = rev };
                     foreach (var kv in node.ToList()) { node.Remove(kv.Key); full[kv.Key] = kv.Value; }
                     byte[] withImp = Encoding.UTF8.GetBytes(full.ToJsonString());
-                    // The same without anyone's impostor flag.
+                    // The same without anyone's impostor flag, and the newest replay by its lobby and kind of
+                    // play (its title is its card's text: "Jake killed Sam in Electrical" names the impostor).
                     if (full["lobbies"] is JsonArray lobbies)
                         foreach (var l in lobbies)
                             if (l?["players"] is JsonArray players)
                                 foreach (var p in players) (p as JsonObject)?.Remove("imp");
+                    if (full["replay"]?["last"] is JsonObject last) last["title"] = last["label"]?.GetValue<string>();
                     byte[] plain = Encoding.UTF8.GetBytes(full.ToJsonString());
                     lock (_deckLock) { _deckJson = (withImp, plain); _deckBuiltAt = DateTime.UtcNow; }
                     if (changed)
@@ -144,7 +148,7 @@ namespace TournamentTracker.App.Broadcast
                     playing = replays?.Playing == true,
                     speed = replays?.Speed ?? 100,
                     ready = replays?.ReadyCount ?? 0,
-                    last = newest == null ? null : new { id = newest.Id, lobby = newest.Lobby, title = NameTag.Plain(newest.Title) },
+                    last = newest == null ? null : new { id = newest.Id, lobby = newest.Lobby, title = NameTag.Plain(newest.Title), label = ReplayLabel(newest) },
                 },
                 hold = desk.Held,
                 auto = new { grid = desk.AutoGrid, intermission = desk.AutoIntermission, @switch = desk.HealthConfig.AutoSwitch },
@@ -201,6 +205,17 @@ namespace TournamentTracker.App.Broadcast
                 port = Port,
                 portWarning = PortWarning,
             };
+        }
+
+        /// <summary>
+        /// A replay as a key may name it without saying who did what: its lobby and the kind of play
+        /// ("LJ: winning kill"). "Replay that" clips' own titles say only that already.
+        /// </summary>
+        internal static string ReplayLabel(Clip clip)
+        {
+            if (clip.Rule == "instant") return NameTag.Plain(clip.Title);
+            string play = clip.Rule.Length == 0 ? "replay" : Regex.Replace(clip.Rule, "(?<=[a-z])(?=[A-Z])", " ").ToLowerInvariant();
+            return clip.Lobby.Length == 0 ? play : $"{clip.Lobby}: {play}";
         }
 
         // ---- Key pictures ---------------------------------------------------------------------------------

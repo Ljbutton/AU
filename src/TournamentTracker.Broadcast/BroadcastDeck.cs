@@ -16,7 +16,8 @@ namespace TournamentTracker.App.Broadcast
     /// <remarks>
     /// Every answer is JSON {ok, message} with a status the key can show: 200 done, 202 accepted
     /// (queued, or armed for when play resumes), 401 wrong key, 404 no such action or lobby, 409
-    /// refused (with why), 423 locked (or switching held), 503 OBS isn't connected (nothing was done).
+    /// refused (with why), 423 locked (or switching held), 500 it went wrong on the way (with what, e.g.
+    /// OBS not answering), 503 OBS isn't connected (nothing was done).
     /// The same press twice within 300 ms counts once ("ignored repeat").
     /// </remarks>
     public sealed partial class BroadcastServer
@@ -221,54 +222,100 @@ namespace TournamentTracker.App.Broadcast
 
         // ---- Panic, and undo ---------------------------------------------------------------------------
 
-        private sealed class PanicState { public OnAir Air = new OnAir(); public bool MuteAll, WasHeld, AlertsPaused; }
+        private sealed class PanicState { public OnAir Air = new OnAir(); public bool MuteAll, WasHeld, AlertsPaused, VoiceFailed; }
         private PanicState? _panic;
+
+        /// <summary>The panic still holds in full: the be-right-back screen on, switching held and every lobby voice muted (in OBS too).</summary>
+        private bool PanicInEffect(CasterDesk desk, PanicState p) =>
+            desk.OnAir.Layout == "slate" && desk.Held && !p.VoiceFailed && (_obs == null || _obs.Settings.Voice.MuteAll);
+
+        /// <summary>
+        /// Something of the panic is still there to undo: its be-right-back screen, its hold or its mute.
+        /// Each put right by hand (another lobby cut to, the hold released, the voice back on), it's
+        /// over: Undo undoes the last switch, and the next Panic is a new one.
+        /// </summary>
+        private bool PanicLeft(CasterDesk desk, PanicState p) =>
+            desk.OnAir.Layout == "slate" || desk.Held && !p.WasHeld || _obs != null && _obs.Settings.Voice.MuteAll && !p.MuteAll;
 
         /// <summary>
         /// One press when something must come off stream now (a slur in voice, roles leaking): a fade to
         /// the be-right-back screen, every lobby voice muted, the graphics cleared, alerts paused and
         /// automatic switching held. Undo puts it all back. (With a stream delay, what's already sent
-        /// still airs: the delay's own "stop streaming" is in OBS.)
+        /// still airs: the delay's own "stop streaming" is in OBS.) The picture goes first: OBS failing
+        /// to mute the voice doesn't stop it, and is said (pressed again, the mute is tried again).
         /// </summary>
         public async Task<(int Status, string Message)> PanicAsync()
         {
             var desk = _desk;
             if (desk == null) return (423, "Red Alert is locked.");
-            if (_panic != null) return (200, "Already on the be-right-back screen: Undo puts it back.");
             var obs = _obs;
-            _panic = new PanicState { Air = desk.OnAir, MuteAll = obs?.Settings.Voice.MuteAll ?? false, WasHeld = desk.Held, AlertsPaused = desk.Alerts.Settings.Paused };
-            desk.SetHold(true, null, "Panic");
-            if (obs != null)
+            var was = _panic;
+            if (was != null && PanicInEffect(desk, was)) return (200, "Already on the be-right-back screen: Undo puts it back.");
+            // Part of a panic undone by hand: it's put in full again, and Undo still goes back to before
+            // it (to the lobby cut to by hand, when its be-right-back screen was left). Over: a new one.
+            PanicState p;
+            if (was != null && PanicLeft(desk, was))
             {
-                obs.Settings.Voice.MuteAll = true;
-                await obs.VoiceChangedAsync().ConfigureAwait(false);
+                p = was;
+                if (desk.OnAir.Layout != "slate") p.Air = desk.OnAir;
             }
+            else p = new PanicState { Air = desk.OnAir, MuteAll = obs?.Settings.Voice.MuteAll ?? false, WasHeld = desk.Held, AlertsPaused = desk.Alerts.Settings.Paused };
+            desk.SetHold(true, null, "Panic");
+            desk.ShowSlate("deck", "fade");
             desk.Graphics.Clear();
             desk.HidePlayerCard();
             desk.Alerts.SetPaused(true);
-            desk.ShowSlate("deck", "fade");
+            p.VoiceFailed = false;
+            _panic = p;
+            string? voice = null;
+            if (obs != null)
+            {
+                obs.Settings.Voice.MuteAll = true;
+                try { await obs.VoiceChangedAsync().ConfigureAwait(false); }
+                catch (Exception e)
+                {
+                    p.VoiceFailed = true;
+                    voice = e.Message;
+                }
+            }
+            if (voice != null)
+            {
+                Log.Warn("Panic: be right back, switching held, but OBS didn't mute the lobby voice: " + voice);
+                return (500, $"Panic: be right back and switching held, but the lobby voice didn't mute ({voice}). Mute it in OBS, or press Panic again.");
+            }
             Log.Warn("Panic: be right back, lobby voice muted, switching held.");
             return (200, "Panic: be right back, lobby voice muted, switching held. Undo puts it back.");
         }
 
-        /// <summary>After Panic: what was on, the voice, the alerts and the hold as they were. Null when there was no panic.</summary>
-        private async Task<string?> UndoPanicAsync()
+        /// <summary>
+        /// After Panic: the voice, the alerts and the hold as they were, and (still on its be-right-back
+        /// screen) what was on. Null when there's no panic to undo (none, or it was all put right by
+        /// hand), so Undo goes on to undo the last switch instead.
+        /// </summary>
+        private async Task<(int Status, string Message)?> UndoPanicAsync()
         {
             var p = _panic;
             var desk = _desk;
             if (p == null || desk == null) return null;
             _panic = null;
+            if (!PanicLeft(desk, p)) return null;
+            bool onSlate = desk.OnAir.Layout == "slate";
+            string? voice = null;
             if (_obs is { } obs)
             {
                 obs.Settings.Voice.MuteAll = p.MuteAll;
-                await obs.VoiceChangedAsync().ConfigureAwait(false);
+                try { await obs.VoiceChangedAsync().ConfigureAwait(false); }
+                catch (Exception e) { voice = e.Message; }
             }
             desk.Alerts.SetPaused(p.AlertsPaused);
             if (!p.WasHeld) desk.SetHold(false);
-            if (p.Air.Layout is not ("none" or "slate" or "replay")) desk.Restore(p.Air, "deck");
+            // Left by hand for a lobby: that stays on.
+            if (onSlate && p.Air.Layout is not ("none" or "slate" or "replay")) desk.Restore(p.Air, "deck");
             desk.ForgetBack();
-            Log.Info("Panic undone.");
-            return p.Air.Layout is "none" or "slate" or "replay" ? "Panic undone: voice and alerts back (still on the be-right-back screen)." : "Panic undone: back to what was on.";
+            Log.Info("Panic undone." + (voice != null ? " OBS didn't set the lobby voice: " + voice : ""));
+            string said = !onSlate ? "Panic undone: voice, alerts and automatic switching back (what's on stays)."
+                : p.Air.Layout is "none" or "slate" or "replay" ? "Panic undone: voice and alerts back (still on the be-right-back screen)." : "Panic undone: back to what was on.";
+            return voice == null ? (200, said) : (500, $"{said} But OBS didn't set the lobby voice ({voice}): check it in OBS.");
         }
 
         // ---- The Stream Deck -----------------------------------------------------------------------------
@@ -465,7 +512,7 @@ namespace TournamentTracker.App.Broadcast
                 }
                 case "undo":
                 {
-                    if (await UndoPanicAsync().ConfigureAwait(false) is { } undone) return (200, undone);
+                    if (await UndoPanicAsync().ConfigureAwait(false) is { } undone) return undone;
                     if (desk.AutoSwitched is { } note)
                     {
                         if (!ObsLive) return (503, NoObs);

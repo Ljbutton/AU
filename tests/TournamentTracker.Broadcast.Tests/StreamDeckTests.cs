@@ -284,4 +284,96 @@ public class StreamDeckTests : IAsyncLifetime
         await Task.Delay(350);
         Assert.Equal(HttpStatusCode.Conflict, (await Press("undo")).Status);
     }
+
+    [Fact]
+    public async Task Panic_put_right_by_hand_is_over_so_the_next_panic_works_and_undo_undoes_the_last_switch()
+    {
+        await ConnectObs();
+        Snap("Lobby 2", "ingame");
+        Snap("Lobby 3", "ingame");
+        Assert.Equal(HttpStatusCode.OK, (await Press("lobby/3", "&t=cut")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await Press("panic")).Status);
+        Assert.Equal("slate", Desk.OnAir.Layout);
+
+        // Put right by hand instead of Undo: another lobby, voice back, hold released.
+        Assert.Equal(HttpStatusCode.OK, (await Press("lobby/2", "&t=cut")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await Press("voice/mute/off")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await Press("hold/off")).Status);
+        Assert.False(Desk.Held);
+
+        // A second incident: Panic does it all again (not "already on the be-right-back screen").
+        var (status, body) = await Press("panic");
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.DoesNotContain("Already", body.GetProperty("message").GetString());
+        Assert.Equal("slate", Desk.OnAir.Layout);
+        Assert.True(Desk.Held);
+        Assert.True((await State()).GetProperty("voice").GetProperty("muteAll").GetBoolean());
+        // Undo goes back to the lobby that was on when it came, not to the first panic's.
+        Assert.Equal(HttpStatusCode.OK, (await Press("undo")).Status);
+        Assert.Equal("full", Desk.OnAir.Layout);
+        Assert.Equal("Lobby 2", Desk.OnAir.Slots[0]);
+        Assert.False(Desk.Held);
+
+        // Put right by hand again, then Undo: the last switch is undone, the voice and the hold stay as set.
+        await Task.Delay(350);
+        Assert.Equal(HttpStatusCode.OK, (await Press("panic")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await Press("lobby/3", "&t=cut")).Status);
+        await Task.Delay(350);
+        Assert.Equal(HttpStatusCode.OK, (await Press("voice/mute/off")).Status);
+        await Task.Delay(350);
+        Assert.Equal(HttpStatusCode.OK, (await Press("hold/off")).Status);
+        var (undone, said) = await Press("undo");
+        Assert.Equal(HttpStatusCode.OK, undone);
+        Assert.DoesNotContain("Panic", said.GetProperty("message").GetString());
+        Assert.False(Desk.Held);
+        Assert.False((await State()).GetProperty("voice").GetProperty("muteAll").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Panic_goes_to_be_right_back_even_when_OBS_doesnt_answer_the_voice_mute_and_the_key_hears_why()
+    {
+        await ConnectObs();
+        Snap("Lobby 3", "ingame");
+        var obs = _server.Obs!;
+        obs.VoiceFeeds = () => new List<(string, string)> { ("Lobby 3", "https://vdo.ninja/?view=v3&password=x") };
+        await obs.EnsureVoiceAsync();
+        Assert.Contains("TT Voice Lobby 3", _obs!.Inputs.Keys);
+        Assert.Equal(HttpStatusCode.OK, (await Press("lobby/3", "&t=cut")).Status);
+        await Until(() => !obs.Switching && _obs.Muted.GetValueOrDefault("TT Voice Lobby 3", true) == false);
+
+        // OBS stuck: the voice mute is never answered. The picture still goes, and the key gets an answer.
+        lock (_obs) _obs.Hang.Add("SetInputMute");
+        var (status, body) = await Press("panic");
+        Assert.Equal(HttpStatusCode.InternalServerError, status);
+        Assert.False(body.GetProperty("ok").GetBoolean());
+        Assert.Contains("voice", body.GetProperty("message").GetString());
+        Assert.Equal("slate", Desk.OnAir.Layout);
+        Assert.True(Desk.Held);
+        Assert.True(Desk.Alerts.Settings.Paused);
+
+        // OBS answers again: Panic again mutes the voice (it isn't "already" done).
+        lock (_obs) _obs.Hang.Clear();
+        (status, body) = await Press("panic");
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.DoesNotContain("Already", body.GetProperty("message").GetString());
+        Assert.True(_obs.Muted["TT Voice Lobby 3"]);
+        Assert.Equal(HttpStatusCode.OK, (await Press("undo")).Status);
+        Assert.Equal("Lobby 3", Desk.OnAir.Slots[0]);
+        await Until(() => !_obs.Muted["TT Voice Lobby 3"], 8000);
+    }
+
+    [Fact]
+    public async Task The_newest_replay_is_named_by_its_lobby_and_play_unless_impostors_are_asked_for()
+    {
+        Snap("Lobby 3", "ingame");
+        // A kill clip's title is its card's text, which names the killer.
+        _server.Replays!.Keep(new Clip { Id = "r900", Lobby = "Lobby 3", Rule = "winningKill", Title = "Ann killed Cy in Electrical", State = "ready", File = "x.mp4" });
+        _server.DeckPoke();
+        var plain = await State();
+        var last = plain.GetProperty("replay").GetProperty("last");
+        Assert.Equal("Lobby 3: winning kill", last.GetProperty("title").GetString());
+        Assert.Equal("r900", last.GetProperty("id").GetString());
+        Assert.DoesNotContain("killed", plain.GetRawText());
+        Assert.Equal("Ann killed Cy in Electrical", (await State("&imp=1")).GetProperty("replay").GetProperty("last").GetProperty("title").GetString());
+    }
 }
