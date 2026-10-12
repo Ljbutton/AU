@@ -24,8 +24,32 @@
 
   <ItemGroup>
     <PackageReference Include="BepInEx.Unity.IL2CPP" Version="$(BepInExVersion)" Private="false" ExcludeAssets="runtime;native" />
-    <PackageReference Include="AmongUs.GameLibs.Steam" Version="$(GameLibsVersion)" PrivateAssets="all" />
+    <!-- GeneratePathProperty: $(PkgAmongUs_GameLibs_Steam) is the restored package's folder (see EmbedGameLibsVersion). -->
+    <PackageReference Include="AmongUs.GameLibs.Steam" Version="$(GameLibsVersion)" PrivateAssets="all" GeneratePathProperty="true" />
     <!-- The game libs are dummy DLLs; this generates the IL2CPP interop assemblies from them at build time. -->
     <PackageReference Include="BepInEx.IL2CPP.MSBuild" Version="2.*-*" PrivateAssets="all" ExcludeAssets="runtime" />
   </ItemGroup>
+
+  <!--
+    Safe mode: the game libraries' version this DLL is compiled against goes into the DLL as
+    [AssemblyMetadata("GameLibsVersion", "2026.9.29")], and the mod compares it with the running
+    game's. With the floating version ("*-*") only the restore knows which one it picked; the package's
+    folder in the NuGet cache is named after it. A pinned -p:GameLibsVersion is the fallback; with
+    neither, nothing is written and the mod treats the version as unknown.
+  -->
+  <Target Name="EmbedGameLibsVersion" BeforeTargets="GetAssemblyAttributes">
+    <PropertyGroup>
+      <_GameLibsDir>$(PkgAmongUs_GameLibs_Steam.TrimEnd('/').TrimEnd('\'))</_GameLibsDir>
+      <_GameLibsBuiltFor Condition="'$(_GameLibsDir)' != ''">$([System.IO.Path]::GetFileName('$(_GameLibsDir)'))</_GameLibsBuiltFor>
+      <_GameLibsBuiltFor Condition="'$(_GameLibsBuiltFor)' == '' and !$(GameLibsVersion.Contains('*'))">$(GameLibsVersion)</_GameLibsBuiltFor>
+    </PropertyGroup>
+    <Message Importance="high" Text="Built for AmongUs.GameLibs.Steam $(_GameLibsBuiltFor) (safe mode compares the game with it)" Condition="'$(_GameLibsBuiltFor)' != ''" />
+    <Warning Text="Couldn't tell which AmongUs.GameLibs.Steam this is built against: safe mode won't compare game versions." Condition="'$(_GameLibsBuiltFor)' == ''" />
+    <ItemGroup Condition="'$(_GameLibsBuiltFor)' != ''">
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>GameLibsVersion</_Parameter1>
+        <_Parameter2>$(_GameLibsBuiltFor)</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
 </Project>

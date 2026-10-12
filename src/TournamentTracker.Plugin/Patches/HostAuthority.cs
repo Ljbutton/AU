@@ -24,8 +24,20 @@ namespace TournamentTracker.Plugin.Patches
         /// <summary>What the version said when Among Us last connected (read again whenever it's in the menus).</summary>
         private static bool _sent;
 
-        /// <summary>The host wants it: the session's setting (on until there's a session).</summary>
-        private static bool Wanted => TournamentPlugin.Session?.HostAuthority ?? true;
+        /// <summary>
+        /// The host wants it: the session's setting (on until there's a session), unless safe mode is on
+        /// (a newer Among Us may not take the flag, or the host-authority rules may have changed).
+        /// </summary>
+        private static bool Wanted
+        {
+            get
+            {
+                bool wanted = TournamentPlugin.Session?.HostAuthority ?? true;
+                if (!wanted || !Safety.On) return wanted;
+                Safety.HeldBack("host authority (the +25 modded flag)");
+                return false;
+            }
+        }
 
         private static bool Online(AmongUsClient? client) => client != null && client.NetworkMode == NetworkModes.OnlineGame;
 
@@ -53,6 +65,7 @@ namespace TournamentTracker.Plugin.Patches
         }
     }
 
+    [Risky]
     [HarmonyPatch(typeof(Constants), nameof(Constants.GetBroadcastVersion))]
     internal static class HostAuthorityVersionPatch
     {
@@ -65,6 +78,7 @@ namespace TournamentTracker.Plugin.Patches
 
     // The game's "is this version modded" check, answered directly: IL2CPP can build the version into
     // it, past the patch above (Town of Host, TOHE and Endless Host Roles answer it the same way).
+    [Risky]
     [HarmonyPatch(typeof(Constants), nameof(Constants.IsVersionModded))]
     internal static class HostAuthorityModdedPatch
     {
@@ -80,7 +94,9 @@ namespace TournamentTracker.Plugin.Patches
     // shields and turned-down shapeshifts to the host, so only the host ever sends these. One arriving
     // at the host came from another player's game (a cheat, or a broken game): the host's game doesn't
     // act on it, and the host is told on Home. Nobody is kicked. Without host authority the server
-    // itself sends some of these (kills), so nothing is checked then.
+    // itself sends some of these (kills), so nothing is checked then; nor in safe mode (a newer game
+    // may send these differently, and a turned-down one would leave the host's game out of step).
+    [Risky]
     [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.HandleRpc))]
     internal static class HostOnlyMessageGuard
     {
@@ -102,7 +118,7 @@ namespace TournamentTracker.Plugin.Patches
             try
             {
                 var client = AmongUsClient.Instance;
-                if (client == null || !client.AmHost || __instance == null || !client.AmModdedHost) return true;
+                if (client == null || !client.AmHost || __instance == null || !client.AmModdedHost || Safety.GameOn) return true;
                 var data = __instance.Data;
                 string who = data != null ? data.PlayerName ?? "?" : "?";
                 TournamentPlugin.Session?.HostOnlyMessageBlocked(who, ((RpcCalls)__0).ToString());

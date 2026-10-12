@@ -30,10 +30,16 @@ namespace TournamentTracker.Plugin
         /// The referee's player ID this game, if the slot is on (their role is decided in RoleChoice).
         /// Looked up by their key (friend code and name), at most twice a second unless <paramref name="fresh"/>.
         /// </summary>
+        /// <remarks>
+        /// None in safe mode: the referee's role isn't held back then (RoleChoice), so they play as an
+        /// ordinary player, and nothing the slot does on the host (no tasks, the ghost, the record kept
+        /// dead, the teleport out of sight, the kill and vote fences) is sent for them. Safe mode as it
+        /// stood when the game's roles were handed out (Safety.GameOn), so it holds for the whole game.
+        /// </remarks>
         public static byte? RefereeId(bool fresh = false)
         {
             var key = TournamentPlugin.Session?.RefSlotKey;
-            if (key == null) return null;
+            if (key == null || Safety.GameOn) return null;
             float now = Time.unscaledTime;
             if (!fresh && now < _refAt && key == _refKey) return _refId;
             _refAt = now + 0.5f;
@@ -60,11 +66,13 @@ namespace TournamentTracker.Plugin
         /// </remarks>
         public static void MakeGhost()
         {
+            if (Safety.GameOn) return;
             var referee = Referee();
             if (referee == null || referee.Data == null || referee.Data.IsDead) return;
             referee.Die(DeathReason.Exile, false);
             referee.Data.IsDead = true;
             referee.Data.SetDirtyBit(uint.MaxValue);
+            NetLog.Sent($"referee {referee.PlayerId}'s record marked dead for sync (the ghost made)");
             // Host authority decides whether the record leaves the host at all: with it the host owns
             // every record (owner -2) and sends it; without it the server owns them (owner -4) and
             // players without the mod keep seeing the referee alive.
@@ -107,6 +115,7 @@ namespace TournamentTracker.Plugin
             }
             if (onlyIfClean && wasDead && data.IsDirty) return;
             data.SetDirtyBit(uint.MaxValue);
+            NetLog.Sent($"referee's record marked for sync ({why})");
             _lastDead = true;
             if (DebugSync) TournamentPlugin.Logger.Info($"Referee record: marked for sync ({why}); IsDead={data.IsDead}.");
         }
@@ -199,6 +208,7 @@ namespace TournamentTracker.Plugin
             var hideout = new Vector2(centre.x, bounds.min.y - 12f);
             // Sent to everyone (a plain SnapTo only moved the referee on the host's screen, so the other
             // players still saw them standing where the game started).
+            NetLog.Sent($"referee moved out of sight (RpcSnapTo {hideout.x:0.0}, {hideout.y:0.0})");
             referee.NetTransform.RpcSnapTo(hideout);
             referee.moveable = false;
             _view ??= centre;

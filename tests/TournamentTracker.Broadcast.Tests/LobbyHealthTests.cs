@@ -100,7 +100,8 @@ public class LobbyHealthTests : IDisposable
         _clock.Advance(1); h.Data("A", Ms(_clock.Now));
         Assert.Equal("green", h.Status("A").Level);
         _clock.Advance(2.5); h.Data("A", Ms(_clock.Now));
-        Assert.Equal("video lost", h.Status("A").Problems.Single());
+        Assert.StartsWith("video lost", h.Status("A").Problems.Single());
+        Assert.Contains("Pick again", h.Status("A").Problems.Single());     // how a host gets a window share back
         Assert.Equal("red", h.Status("A").Level);
         h.Video("A", "ok");
         Assert.Equal("green", h.Status("A").Level);
@@ -457,7 +458,7 @@ public class LobbyHealthTests : IDisposable
         Run(12);
         Assert.Equal("red", H("SIM-1").Level);
         Assert.StartsWith("no data for", H("SIM-1").Problems.Single());
-        Assert.Equal("video lost", H("SIM-2").Problems.Single());
+        Assert.StartsWith("video lost", H("SIM-2").Problems.Single());
         Assert.Equal("audio: voice stream dropped", H("SIM-3").Problems.Single());
         Assert.Equal("yellow", H("SIM-4").Level);
         Assert.StartsWith("high lag", H("SIM-4").Problems.Single());

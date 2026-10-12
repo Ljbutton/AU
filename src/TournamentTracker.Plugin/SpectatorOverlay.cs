@@ -114,13 +114,14 @@ namespace TournamentTracker.Plugin
         }
 
         /// <summary>The host plays as the referee ghost (asked of the session a few times a second, not every frame).</summary>
+        /// <remarks>Never in safe mode: the referee slot is off then, and the host plays as an ordinary player.</remarks>
         private static bool Spectator(TournamentSession session)
         {
             float now = Time.unscaledTime;
             if (now >= _spectatorAt)
             {
                 _spectatorAt = now + 0.5f;
-                _spectator = session.IsSpectator;
+                _spectator = session.IsSpectator && !Safety.GameOn;
             }
             return _spectator;
         }
@@ -225,7 +226,7 @@ namespace TournamentTracker.Plugin
         public static void OnKill(PlayerControl killer, PlayerControl victim)
         {
             var session = TournamentPlugin.Session;
-            if (session == null || !session.IsSpectator || killer == null) return;
+            if (session == null || !session.IsSpectator || Safety.GameOn || killer == null) return;
             var k = Frame.Get(killer.PlayerId);
             if (k == null) return;
             var kp = killer.transform.position;
@@ -708,7 +709,8 @@ namespace TournamentTracker.Plugin
             if (Time.unscaledTime < _next) return;
             _next = Time.unscaledTime + 0.25f;
             var session = TournamentPlugin.Session;
-            bool on = session != null && Game.IsHost && session.IsSpectator;
+            // Not in safe mode: the referee slot is off then, so the host may be playing (red impostor names would be a cheat).
+            bool on = session != null && Game.IsHost && session.IsSpectator && !Safety.GameOn;
             if (!on && !_applied) return;                           // nothing to show, nothing to put back
             var all = PlayerControl.AllPlayerControls;
             ToShow.Clear();

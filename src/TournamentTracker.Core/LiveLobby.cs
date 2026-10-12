@@ -91,6 +91,9 @@ namespace TournamentTracker
         /// </param>
         public void VoiceTick(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, string lobbyCode = "", string map = "", bool publish = true)
         {
+            // Back in the lobby or the menus: the game is over, and safe mode (held for it since its
+            // roles were handed out) follows the host's choice again.
+            if (phase == VoicePhase.Lobby || phase == VoicePhase.Menu) SafeMode?.ReleaseGame();
             bool changed = phase != _phase || lobbyCode != _lobbyCode || players.Count != Players.Count;
             Players = players;
             _phase = phase;
@@ -109,7 +112,8 @@ namespace TournamentTracker
             // people in voice aren't this game's spectators, and their voice is the host's to set.
             var spectators = channel == null || phase == VoicePhase.Menu ? null : Spectators(channel, players, members!);
             // The referee ghost is never muted: take them out of the players and the spectators.
-            string? referee = RefSlotKey == null ? null : Links.Find(RefSlotKey)?.DiscordUserId;
+            string? refKey = ActiveRefSlotKey;
+            string? referee = refKey == null ? null : Links.Find(refKey)?.DiscordUserId;
             if (referee != null) spectators?.Remove(referee);
             var playing = WithoutReferee(players);
 
@@ -311,7 +315,7 @@ namespace TournamentTracker
                 SpectatorsMuted = AutoMute != null && AutoMute.Enabled && _settings.AutoMute.MuteSpectators,
                 RefereeMode = AutoMute != null && AutoMute.Enabled && AutoMute.RefereeMode,
                 CommandPrefix = _settings.CommandPrefix,
-                Referee = RefSlotKey == null ? null : players.FirstOrDefault(p => p.Key == RefSlotKey),
+                Referee = ActiveRefSlotKey is { } refKey ? players.FirstOrDefault(p => p.Key == refKey) : null,
                 Emojis = _crewEmojis,
                 LinkMenuId = LinkMenuWanted ? _linkMenuId : null,
                 Players = WithoutReferee(players).Where(p => !p.Disconnected).Select(p => new StatusPlayer
@@ -343,7 +347,7 @@ namespace TournamentTracker
             h.Add(_settings.AutoMute.MuteSpectators);
             h.Add(spectators);
             h.Add(_settings.CommandPrefix);
-            h.Add(RefSlotKey);
+            h.Add(ActiveRefSlotKey);
             h.Add(_crewEmojis.Count);
             h.Add(LinkMenuWanted);
             h.Add(Links.Version);

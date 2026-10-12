@@ -124,7 +124,15 @@ namespace TournamentTracker.Plugin
                 players = phase == VoicePhase.Menu ? new List<PlayerSnapshot>() : Game.Players();
             _tickPhase = phase;
 
+            // (Safe mode, held for each game from its roles on, is let go here too: session.VoiceTick below.)
             if (phase == VoicePhase.Lobby || phase == VoicePhase.Menu) _roundOver = false;
+            // Safe mode with the referee slot or the rotation on: said on Home in the lobby, before the
+            // game starts (both need the role messages held back, which safe mode doesn't do).
+            if (phase == VoicePhase.Lobby && Game.IsHost && Safety.On)
+            {
+                if (session.RefSlotKey != null) Safety.HeldBack("the referee ghost slot", Safety.RefSlotAdvice);
+                if (session.RotationOn) Safety.HeldBack("the impostor rotation");
+            }
             // Not during the start countdown (or for a few seconds after it stops): putting settings
             // back sends them to every player, and none should go out as the game starts.
             if (phase == VoicePhase.Lobby && Game.IsHost && Game.Starting()) _nextLockCheck = Time.unscaledTime + 3f;
@@ -132,7 +140,9 @@ namespace TournamentTracker.Plugin
             {
                 _nextLockCheck = Time.unscaledTime + 1f;
                 var locked = session.LockedSettings;
-                if (locked != null) session.SettingsRestored(LobbyLock.Enforce(locked));
+                // Safe mode: putting settings back sends them to every player, so the lock only watches.
+                if (locked != null && Safety.On) Safety.HeldBack("the settings lock");
+                else if (locked != null) session.SettingsRestored(LobbyLock.Enforce(locked));
             }
             if (phase == VoicePhase.Tasks && !session.Tracker.InGame && ShipStatus.Instance != null)
                 StartGame();

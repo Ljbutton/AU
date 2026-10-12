@@ -57,6 +57,8 @@ namespace TournamentTracker.App.Broadcast
         public event Action<string>? Closed;
 
         public string? ObsVersion { get; private set; }
+        /// <summary>obs-websocket's own version, from its hello (for the support bundle).</summary>
+        public string? WebSocketVersion { get; private set; }
         public bool Connected => _ws.State == WebSocketState.Open;
 
         /// <summary>Connects and identifies (with the password if OBS asks for one).</summary>
@@ -71,6 +73,7 @@ namespace TournamentTracker.App.Broadcast
                 if (hello.GetProperty("op").GetInt32() != 0) throw new InvalidOperationException("OBS didn't say hello.");
                 var d = hello.GetProperty("d");
                 c.ObsVersion = d.TryGetProperty("obsStudioVersion", out var v) ? v.GetString() : d.TryGetProperty("obsWebSocketVersion", out var w) ? "websocket " + w.GetString() : null;
+                c.WebSocketVersion = d.TryGetProperty("obsWebSocketVersion", out var ws) && ws.ValueKind == JsonValueKind.String ? ws.GetString() : null;
                 var identify = new System.Collections.Generic.Dictionary<string, object> { ["rpcVersion"] = 1, ["eventSubscriptions"] = Subscriptions };
                 if (d.TryGetProperty("authentication", out var auth))
                 {

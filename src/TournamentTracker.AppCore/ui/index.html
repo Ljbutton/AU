@@ -297,6 +297,22 @@ details.advanced[open] summary h2::before{content:'▾ '}
 #hd-card .hd-saved{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line, #333);border-radius:8px;font-size:13px;color:inherit}
 #hd-card .hd-saved b{color:var(--good, #3fb950)}
 @media (max-width:760px){#hd-card .hd-grid{grid-template-columns:minmax(0,1fr)}}
+/* ---- Home: the mod's health (safe mode, a recent disconnect) ---- */
+.health{display:grid;gap:6px;margin-bottom:6px}
+.health:empty{display:none}
+.hcard{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:center;padding:8px 12px;border-radius:12px;border:1.5px solid var(--warn);background:var(--warn-soft);font-size:13.5px}
+.hcard.bad{border-color:var(--danger);background:var(--danger-soft)}
+.hcard b{display:block;font-size:14.5px}
+.hcard.bad b{color:var(--danger)}
+.hcard span{color:var(--fg);opacity:.9}
+.hcard .acts{display:flex;gap:6px;align-items:center}
+.hcard button.x{all:unset;cursor:pointer;color:var(--muted);font-size:16px;padding:0 4px}
+.hcard button.x:hover{color:var(--fg)}
+/* ---- Settings: Your connection ---- */
+.bar{height:8px;border-radius:4px;background:var(--sunk);overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+#net-result ul{margin:6px 0 0;padding-left:20px}
+#net-result li{margin:2px 0}
 </style>
 </head>
 <body>
@@ -328,6 +344,7 @@ details.advanced[open] summary h2::before{content:'▾ '}
     <button class="b primary" id="wait-fix" data-go="settings" hidden style="margin-top:16px">Open Settings</button>
   </div>
   <div id="home-live" hidden>
+    <div id="health" class="health"></div>
     <div id="notices" class="notices" hidden></div>
     <div class="lobby-head">
       <h1 id="phase-title">Lobby</h1>
@@ -365,7 +382,7 @@ details.advanced[open] summary h2::before{content:'▾ '}
           <div class="toggle"><div><b>Referee ghost slot</b><span>With host authority on, players without the mod see the referee as a dead (crossed-out) card in meetings and never on the map; only modded games hide the card completely.</span></div><button class="b" id="t-refslot"></button></div>
           <div class="toggle" id="hostauth-row" hidden title="Needed so players without the mod see the referee as dead. Applies the next time you host from the main menu. Modded lobbies are hidden from public matchmaking, but codes work."><div><b>Host authority</b><span>Players without the mod see the referee as dead. Applies to your next lobby from the main menu; hidden from matchmaking, codes work.</span></div><button class="b" id="t-hostauth"></button></div>
           <div class="toggle"><div><b>Stream overlay</b><span class="mono" id="overlay-url"></span></div><button class="b" id="t-overlay"></button></div>
-          <div class="toggle" id="feed-row"><div><b>Send my game to the caster</b><span id="feed-line">Opens a private VDO.Ninja page in your browser: choose <b>Entire screen</b>, tick <b>Share system audio</b> for the game sound, and leave the tab open.</span></div><div class="row" style="flex-wrap:nowrap"><button class="b" id="feed-again" hidden>Open again</button><button class="b" id="t-feed"></button></div></div>
+          <div class="toggle" id="feed-row"><div><b>Send my game to the caster</b><span id="feed-line">Opens a private VDO.Ninja page in your browser: pick the <b>Among Us window</b> (Window tab) and leave the tab open. The Button sends the game sound and lobby voice.</span></div><div class="row" style="flex-wrap:nowrap"><button class="b" id="feed-again" hidden>Open again</button><button class="b" id="t-feed"></button></div></div>
           <!-- Standings: part of Tools, so Home stays on one screen with the host authority switch. -->
           <div class="row tools-post"><b>Post</b><button class="b sm" data-cmd="leaderboard" title="Post the leaderboard in Discord">Leaderboard</button><button class="b sm" data-cmd="servers" id="post-servers" title="Post the server standings in Discord">Server standings</button><button class="b sm" data-cmd="refresh" title="Post the live lobby message again">Lobby message</button></div>
         </div>
@@ -500,6 +517,17 @@ details.advanced[open] summary h2::before{content:'▾ '}
     <div class="row" style="margin-top:10px"><button class="b primary" id="hd-save">Save and check</button></div>
     <p id="hd-result" class="note" hidden style="margin-top:8px"></p>
   </div>
+  <div class="card" id="net-card">
+    <h2>Your connection</h2>
+    <p class="muted" id="net-needs" style="margin:0 0 8px;font-size:12.5px"></p>
+    <div class="row"><button class="b primary" id="net-go">Check my connection</button><button class="b" id="net-stop" hidden>Stop</button><span class="muted" id="net-phase" style="font-size:12.5px"></span></div>
+    <div class="bar" id="net-bar" hidden><i></i></div>
+    <p class="note bad" id="net-error" hidden style="margin-top:8px"></p>
+    <div id="net-result" hidden style="margin-top:10px"></div>
+    <div class="toggle" style="margin-top:10px"><div><b>What to share</b><span>The Among Us window keeps the rest of your screen private; the lobby voice sends the game sound. Entire screen can carry the sound itself (Share system audio).</span></div>
+      <select id="share-mode" aria-label="What to share"><option value="window">The Among Us window</option><option value="screen">Entire screen</option></select></div>
+    <div class="toggle"><div><b>Lower quality</b><span>720p at 30 fps, at most 2.5 Mbps instead of 1080p: for a slow upload.</span></div><button class="b" id="share-low"></button></div>
+  </div>
   <div class="card" id="twitch-card">
     <h2>Your Twitch</h2>
     <p class="muted" style="margin:0 0 8px">Shown on the tournament stream with your lobby, with the Twitch logo, so viewers can find your stream. Sent with your game when you turn on "Send my game to the caster".</p>
@@ -519,6 +547,12 @@ details.advanced[open] summary h2::before{content:'▾ '}
       <div class="toggle" style="margin-top:10px"><div><b>Mod console window</b><span>The black BepInEx window with the mod's log when Among Us starts. Hidden for everyone by default; this only changes it on this PC. The log is always in Mod and updates → Open log.</span></div><button class="b" id="t-console"></button></div>
       <p class="muted" style="margin:8px 0 0;font-size:12.5px">Only people with an administration code see this. Lock hides it again; paste the code into Setup code to come back.</p>
     </div>
+  </div>
+  <div class="card" id="help-card">
+    <h2>Help</h2>
+    <p class="muted" style="margin:0 0 8px">Something went wrong? Save a support bundle and send it to the organiser: one zip with The Button's and the mod's logs, settings and versions. Bot tokens, webhooks, codes and passwords are taken out first.</p>
+    <div class="row"><button class="b primary" id="support-go">Save support bundle</button></div>
+    <p id="support-result" class="note" hidden style="margin-top:8px"></p>
   </div>
   <details class="card advanced">
     <summary><h2>Advanced</h2><span class="muted">Files, for troubleshooting</span></summary>
@@ -677,6 +711,7 @@ function renderChecks(st) {
     a.configured && ['Voice', a.voiceConnected && !a.voiceProblem, a.voiceProblem ? 'Discord bot problem' : a.voiceConnected ? 'Discord voice connected' : 'Connecting to Discord', a.voiceProblem ? 'bad' : a.voiceConnected ? 'ok' : 'warn'],
     a.configured && players.length > 0 && ['Links', linked === players.length, `${linked}/${players.length} linked`, linked === players.length ? 'ok' : 'warn'],
     a.liveProblem && ['Live', false, 'Lobby message can\'t post', 'bad'],
+    feed.available && netCheck(),
     feed.available && ['Video', !!feed.on, feed.on ? (sp.open ? 'Sending video' : 'Sending video (page not open yet)') : 'Not sending video', feed.on ? (sp.open ? 'ok' : 'warn') : 'off'],
     ld.on && (ld.problem ? ['Data', false, 'Live data not posting', 'bad', null, 'Live data: ' + ld.problem]
       : ld.ago == null ? ['Data', false, 'Live data: not posted yet', 'warn']
@@ -687,6 +722,46 @@ function renderChecks(st) {
   lastFeedNote = sp.note || '';
 }
 let lastFeedNote = '';
+// The last Check my connection, in the host checklist (Settings has the details, and runs it).
+function netCheck() {
+  const c = S.connCheck || {}, r = c.result;
+  if (c.running) return ['Net', false, 'Checking your connection…', 'warn', 'settings'];
+  if (!r) return ['Net', false, 'Connection not checked', 'warn', 'settings'];
+  const cls = r.level === 'good' || r.level === 'ok' ? 'ok' : r.level;
+  return ['Net', cls === 'ok', r.uploadText ? `Upload ${r.uploadText}` : 'Connection problem', cls, 'settings'];
+}
+
+// ---- Home: the mod's health (safe mode, a recent disconnect) ----------------------------------------
+let dismissedDc = '';
+try { dismissedDc = localStorage.getItem('dc-dismissed') || ''; } catch (e) { }
+function renderHealth() {
+  const h = S.health || {}, sm = h.safeMode, d = h.lastDisconnect, cards = [];
+  if (sm && sm.on) cards.push(`<div class="hcard bad"><div><b>${esc(sm.title)}</b><span>${esc(sm.say)}</span></div>
+    <div class="acts"><button class="b sm danger" data-safemode="off" title="Run the mod's in-game changes on this game version anyway (remembered for this version only; pressed during a game, from the next game)">Run normally anyway</button></div></div>`);
+  else if (sm && sm.overridden) cards.push(`<div class="hcard"><div><b>${esc(sm.title)}</b><span>${esc(sm.say)}</span></div>
+    <div class="acts"><button class="b sm" data-cmd="safemode on" title="Safe mode decides by itself again (pressed during a game, from the next game)">Back to automatic</button></div></div>`);
+  if (d && d.show && d.at !== dismissedDc) {
+    const at = new Date(d.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    cards.push(`<div class="hcard${d.inGame ? ' bad' : ''}"><div><b>${esc(d.title)}</b><span>${esc(at)}${d.minutesAgo > 0 ? ` (${d.minutesAgo} min ago)` : ''} · ${esc(d.explain)}</span></div>
+      <div class="acts"><button class="x" data-dc="${esc(d.at)}" title="Dismiss">✕</button></div></div>`);
+  }
+  setHTML($('health'), cards.join(''));
+}
+$('health').addEventListener('click', e => {
+  const x = e.target.closest('[data-dc]');
+  if (x) { dismissedDc = x.dataset.dc; try { localStorage.setItem('dc-dismissed', dismissedDc); } catch (err) { } renderHealth(); return; }
+  // Run normally anyway: a second click to be sure (Among Us may crash on a version the mod wasn't built for).
+  const b = e.target.closest('[data-safemode]');
+  if (!b) return;
+  if (!b._sure) {
+    b._sure = true; b.textContent = 'Sure? Click again';
+    setTimeout(() => { b._sure = false; b.textContent = 'Run normally anyway'; }, 5000);
+    return;
+  }
+  b._sure = false; b.textContent = 'Run normally anyway';
+  cmd('safemode off');
+});
+
 function renderHome() {
   const st = S.status;
   $('home-wait').hidden = !!st; $('home-live').hidden = !st;
@@ -711,6 +786,7 @@ function renderHome() {
     }
     return;
   }
+  renderHealth();
   $('phase-title').textContent = TITLES[st.phase] || st.phase;
   const facts = [['Lobby', st.lobby || '—'], ['Code', st.lobbyCode || '—'], st.server && ['Server', st.server], ['Map', st.map || '—'], st.mode === 'Tournament' && ['Round', st.round || '—'], ['Players', st.players.filter(p => !p.referee).length]].filter(Boolean);
   setHTML($('facts'), facts.map(([k, v]) => `<div class="fact"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join(''));
@@ -730,6 +806,12 @@ function renderHome() {
   $('feed-row').hidden = !feed.available;
   $('t-feed').textContent = feed.on ? 'On' : 'Off'; $('t-feed').classList.toggle('on', !!feed.on);
   $('feed-again').hidden = !feed.on;
+  // What to pick on the send page: the Among Us window (the lobby voice brings the game sound) or the entire screen.
+  const sh = S.share || {}, start = 'Opens a private VDO.Ninja page in your browser: ';
+  setHTML($('feed-line'), start + (sh.mode === 'screen'
+    ? (sh.voiceOn ? 'pick <b>Entire screen</b> (leave Share system audio unticked: The Button sends the game sound and lobby voice)' : 'pick <b>Entire screen</b> and tick <b>Share system audio</b> for the game sound')
+    : (sh.voiceOn ? 'pick the <b>Among Us window</b> (Window tab). The Button sends the game sound and lobby voice' : 'pick the <b>Among Us window</b> (Window tab) and tick <b>Send lobby voice</b> there for the game sound'))
+    + (sh.low ? ', at lower quality' : '') + '. Leave the tab open.');
   $('overlay-url').textContent = st.overlay.on ? st.overlay.url : '';
   $('t-lead').textContent = st.lead ? 'Yes' : 'Take over'; $('t-lead').classList.toggle('on', st.lead); $('t-lead').disabled = st.lead || !st.shared;
   $('t-lead').onclick = () => cmd('lead');
@@ -1131,6 +1213,44 @@ $('hd-save').addEventListener('click', async () => {
   } finally { $('hd-save').disabled = false; $('hd-save').textContent = 'Save and check'; }
 });
 
+// ---- Your connection: Check my connection, what to share, lower quality ----------------------------
+$('net-go').addEventListener('click', async () => { const r = await api('POST', '/app/conncheck', { action: 'start' }); toast(r.message); refresh(); });
+$('net-stop').addEventListener('click', async () => { const r = await api('POST', '/app/conncheck', { action: 'cancel' }); toast(r.message); refresh(); });
+$('share-mode').addEventListener('change', async e => { const r = await api('POST', '/app/share', { mode: e.target.value }); toast(r.message); refresh(); });
+$('share-low').addEventListener('click', async () => { const r = await api('POST', '/app/share', { low: String(!(S.share && S.share.low)) }); toast(r.message); refresh(); });
+let netKey = '';
+function renderConnection() {
+  const c = S.connCheck || {}, sh = S.share || {};
+  $('net-needs').textContent = (c.needs || '') + ' The check sends at most 30 MB and takes about 15 seconds.';
+  $('net-go').hidden = !!c.running; $('net-stop').hidden = !c.running;
+  $('net-phase').textContent = c.running ? c.phase : '';
+  $('net-bar').hidden = !c.running;
+  $('net-bar').firstElementChild.style.width = Math.round((c.progress || 0) * 100) + '%';
+  $('net-error').hidden = !c.error; $('net-error').textContent = c.error || '';
+  if (document.activeElement !== $('share-mode')) $('share-mode').value = sh.mode === 'screen' ? 'screen' : 'window';
+  $('share-low').textContent = sh.low ? 'On' : 'Off'; $('share-low').classList.toggle('on', !!sh.low);
+  const r = c.result, key = JSON.stringify(r || null);
+  if (key === netKey) return;
+  netKey = key;
+  $('net-result').hidden = !r;
+  if (!r) { $('net-result').innerHTML = ''; return; }
+  const cls = r.level === 'good' || r.level === 'ok' ? 'good' : r.level === 'warn' ? 'warn' : 'bad';
+  const at = new Date(r.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  $('net-result').innerHTML = `<p class="note ${cls}"><b>${esc(r.headline)}</b></p>
+    <ul>${r.facts.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
+    ${r.advice.length ? `<p style="margin:8px 0 0"><b>What helps</b></p><ul>${r.advice.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+    <p class="muted" style="margin:6px 0 0;font-size:12px">Checked at ${esc(at)} · sent ${esc(r.sent)}</p>`;
+}
+// ---- Help: the support bundle --------------------------------------------------------------------
+$('support-go').addEventListener('click', async () => {
+  const b = $('support-go'); b.disabled = true; b.textContent = 'Saving…';
+  try {
+    const r = await api('POST', '/app/support');
+    const n = $('support-result'); n.hidden = false; n.textContent = r.message; n.className = 'note ' + (r.ok ? 'good' : 'bad');
+  } catch (e) { toast('Couldn\'t save the support bundle.'); }
+  finally { b.disabled = false; b.textContent = 'Save support bundle'; }
+});
+
 function renderSettings() {
   const g = S.game, m = S.mod;
   if (document.activeElement !== $('twitch-name')) $('twitch-name').value = S.twitch || '';
@@ -1159,6 +1279,7 @@ function renderSettings() {
   $('tour-card').hidden = !(S.status && S.status.mode === 'Tournament' && S.status.shared);
   $('conn-line').textContent = S.status ? `Connected to the mod in Among Us (mod ${S.status.version}).` : 'Among Us isn\'t running with the mod right now.';
   renderSetup();
+  renderConnection();
   renderHostDiscord();
   renderAppUpdate();
   renderAdmin();

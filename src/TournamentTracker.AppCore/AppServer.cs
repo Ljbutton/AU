@@ -57,6 +57,12 @@ namespace TournamentTracker.App
         /// <summary>The host's Twitch channel: shown on the tournament stream with their lobby (sent with their game).</summary>
         public string? Twitch { get; set; }
 
+        /// <summary>What the send page shares: "window" (the Among Us window, the default) or "screen" (the entire screen).</summary>
+        public string ShareMode { get; set; } = SendPage.ShareWindow;
+
+        /// <summary>Send the game at 720p, 30 fps, at most 2.5 Mbps: for a slow upload.</summary>
+        public bool LowQuality { get; set; }
+
         /// <summary>
         /// The Button's own token and port, kept across restarts (an update, say), so an open "Send my game
         /// to the caster" tab keeps reaching it. Made the first time.
@@ -86,6 +92,12 @@ namespace TournamentTracker.App
         public string EpicManifests { get; set; } = GameLocator.EpicManifests;
         public IReadOnlyList<string> Fallbacks { get; set; } = GameLocator.Fallbacks;
         public string Downloads { get; set; } = "";
+        /// <summary>Where a support bundle is saved (Downloads when there's no Desktop).</summary>
+        public string Desktop { get; set; } = "";
+        /// <summary>Among Us's own log folder (…\AppData\LocalLow\Innersloth\Among Us), for the support bundle. Null: none.</summary>
+        public string? UnityLogs { get; set; }
+        /// <summary>Check my connection's servers, sizes and timings (shorter, and pretend servers, in tests).</summary>
+        public ConnectionCheck.Options CheckOptions { get; set; } = new ConnectionCheck.Options();
         /// <summary>Opens a folder, file or web link with Windows.</summary>
         public Action<string> Open { get; set; } = _ => { };
         public string Version { get; set; } = "";
@@ -119,6 +131,8 @@ namespace TournamentTracker.App
         private Organizer? _organizer;
         private Voice.VoiceCapture? _voice;
         private readonly object _voiceLock = new object();
+        /// <summary>the-button.log, next to the settings (the organiser's view writes to it too).</summary>
+        private readonly FileLog _log;
         private readonly Timer _voiceIdle;
         private readonly DiscordBridge _bridge;
 
@@ -146,7 +160,7 @@ namespace TournamentTracker.App
             _organizer?.Dispose();
             _organizer = null;
             if (_settings.AdminCode != null && SetupCode.TryParse(_settings.AdminCode, out var code, out _) && code.IsAdmin)
-                _organizer = new Organizer(code, _http, log: new FileLog(string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.GetDirectoryName(_env.SettingsFile), "the-button.log"));
+                _organizer = new Organizer(code, _http, log: _log);
         }
 
         private object SetAdminCode(string text)
@@ -202,6 +216,7 @@ namespace TournamentTracker.App
         {
             _env = env;
             _http = http;
+            _log = new FileLog(string.IsNullOrEmpty(env.SettingsFile) ? null : Path.GetDirectoryName(env.SettingsFile), "the-button.log");
             _settings = AppSettings.Load(env.SettingsFile);
             _installer = new ModInstaller(http);
             _mod = new ModClient(http);
@@ -324,7 +339,7 @@ namespace TournamentTracker.App
             string Arg(string name) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
 
             // A send page that was replaced (Open again) or switched off is told so, and closes itself down.
-            if ((route is "/app/sendinfo" or "/app/sendfeed" or "/app/cam" or "/app/voice/pcm" or "/app/voice" or "/app/names" or "/app/command") && StalePage(query))
+            if ((route is "/app/sendinfo" or "/app/sendfeed" or "/app/cam" or "/app/voice/pcm" or "/app/voice" or "/app/names" or "/app/command" or "/app/share") && StalePage(query))
                 return Text(409, "application/json", "{\"error\":\"replaced\"}");
 
             switch ((method, route))
@@ -357,8 +372,20 @@ namespace TournamentTracker.App
                         if (feed.TryGetProperty("pushUrl", out var pu) && pu.ValueKind == JsonValueKind.String) push = pu.GetString();
                         cam = feed.TryGetProperty("cam", out var c) && c.ValueKind == JsonValueKind.True;
                     }
-                    return Ok(new { pushUrl = push != null && push.StartsWith(TournamentSession.VdoNinja, StringComparison.Ordinal) ? push : null, twitch = _settings.Twitch, cam });
+                    if (push != null && !push.StartsWith(TournamentSession.VdoNinja, StringComparison.Ordinal)) push = null;
+                    // The send page shares through shareUrl (what to share, the quality) and reads its stream name and password from pushUrl.
+                    return Ok(new
+                    {
+                        pushUrl = push,
+                        shareUrl = push == null ? null : SendPage.ShareUrl(push, ShareMode, _settings.LowQuality),
+                        share = new { mode = ShareMode, low = _settings.LowQuality },
+                        twitch = _settings.Twitch,
+                        cam,
+                    });
                 }
+                case ("POST", "/app/share"): return Ok(SetShare(Arg("mode"), Arg("low")));
+                case ("POST", "/app/conncheck"): return Ok(ConnectionCheckCommand(Arg("action")));
+                case ("POST", "/app/support"): return Ok(await SaveSupportBundleAsync().ConfigureAwait(false));
                 case ("GET", "/app/cam"):
                 {
                     // The player camera's next picture, for the send page (which sends it to the caster).
@@ -543,7 +570,189 @@ namespace TournamentTracker.App
                 Connected = status != null,
                 Status = status,
                 Bot = _bridge.Status(),
+                Share = new { Mode = ShareMode, Low = _settings.LowQuality, VoiceOn = !_settings.VoiceOff, Instructions = SendPage.Instructions(ShareMode, !_settings.VoiceOff) },
+                Health = HealthView(status),
+                ConnCheck = ConnectionCheckView(),
             };
+        }
+
+        // ---- The mod's health: safe mode and the last disconnect (Home) ---------------------------
+
+        private string? _seenDisconnect;
+        private bool? _seenSafeMode;
+
+        /// <summary>
+        /// Safe mode and the last disconnect, as Home shows them (null for a mod from before them). Each new
+        /// disconnect and each change of safe mode is written to the-button.log once, for support bundles.
+        /// </summary>
+        private object HealthView(JsonElement? status)
+        {
+            var safe = ModHealth.SafeMode(status);
+            var gone = ModHealth.LastDisconnect(status, DateTime.UtcNow);
+            if (gone != null && _seenDisconnect != gone.At.ToString("o"))
+            {
+                _seenDisconnect = gone.At.ToString("o");
+                _log.Info($"The mod reports a disconnect at {gone.At:yyyy-MM-dd HH:mm:ss} UTC: {gone.Reason}{(gone.Detail != null ? " (" + gone.Detail + ")" : "")}{(gone.InGame ? ", during a game" : "")}");
+            }
+            if (safe != null && _seenSafeMode != safe.On)
+            {
+                _seenSafeMode = safe.On;
+                _log.Info(safe.On ? $"The mod is in safe mode: {safe.Reason ?? "no reason given"} (Among Us {safe.GameVersion ?? "?"}, built for {safe.BuiltFor ?? "?"})."
+                    : $"The mod is running normally{(safe.Overridden ? " (safe mode overridden by the host)" : "")}.");
+            }
+            return new { SafeMode = safe, LastDisconnect = gone };
+        }
+
+        // ---- What the send page shares ----------------------------------------------------------
+
+        private string ShareMode => _settings.ShareMode == SendPage.ShareScreen ? SendPage.ShareScreen : SendPage.ShareWindow;
+
+        /// <summary>The Among Us window or the entire screen, and lower quality: from Settings or the send page (which then asks again what to share).</summary>
+        private object SetShare(string mode, string low)
+        {
+            var said = new List<string>();
+            if ((mode == SendPage.ShareWindow || mode == SendPage.ShareScreen) && mode != ShareMode)
+            {
+                _settings.ShareMode = mode;
+                said.Add(mode == SendPage.ShareWindow ? "Sharing the Among Us window." : "Sharing the entire screen.");
+            }
+            if (low.Length > 0 && (low == "true") != _settings.LowQuality)
+            {
+                _settings.LowQuality = low == "true";
+                said.Add(_settings.LowQuality ? "Lower quality: 720p at 30 fps, at most 2.5 Mbps." : "Full quality: 1080p at up to 60 fps.");
+            }
+            if (said.Count == 0) return new { ok = true, message = "No change." };
+            TrySave();
+            // The send page starts VDO.Ninja again and waits for the host to pick: the "stopped sending"
+            // watch only counts again once the new share has sent a picture.
+            _sendVideoOkAt = DateTime.MinValue;
+            bool open = _sendSeen != DateTime.MinValue && DateTime.UtcNow - _sendSeen < SendPageGone;
+            return new { ok = true, message = string.Join(" ", said) + (open
+                ? " The send page in your browser starts again: pick what to share there (the caster's picture is off until you do)."
+                : " Used the next time you send your game.") };
+        }
+
+        // ---- Check my connection ------------------------------------------------------------------
+
+        private readonly object _checkLock = new object();
+        private CancellationTokenSource? _checkCts;
+        private bool _checkStopped;
+        private volatile string _checkPhase = "";
+        private double _checkProgress;
+        private volatile ConnectionResult? _checkResult;
+        private volatile string? _checkError;
+
+        /// <summary>A whole run never takes longer than this (a server that hangs, say).</summary>
+        private static readonly TimeSpan CheckLimit = TimeSpan.FromSeconds(75);
+
+        /// <summary>"start" runs the check in the background (one at a time); "cancel" stops it.</summary>
+        private object ConnectionCheckCommand(string action)
+        {
+            lock (_checkLock)
+            {
+                if (action == "cancel")
+                {
+                    if (_checkCts == null) return new { ok = false, message = "No check is running." };
+                    _checkStopped = true;
+                    _checkCts.Cancel();
+                    return new { ok = true, message = "Stopping the check." };
+                }
+                if (_checkCts != null) return new { ok = false, message = "The check is already running." };
+                var cts = _checkCts = new CancellationTokenSource(CheckLimit);
+                _checkStopped = false;
+                _checkError = null;
+                _checkPhase = "Starting…";
+                _checkProgress = 0;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var r = await ConnectionCheck.RunAsync(_http, _env.CheckOptions, (phase, done) => { _checkPhase = phase; _checkProgress = done; }, cts.Token).ConfigureAwait(false);
+                        _checkResult = r;
+                        _log.Info($"Connection check: {r.Score.Level}. {string.Join("; ", r.Score.Facts)}; sent {SupportBundle.Size(r.BytesSent)}.");
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        _checkError = _checkStopped ? "Check stopped." : "The check took too long and was stopped: your connection may be very slow, or something is blocking it.";
+                    }
+                    catch (Exception e)
+                    {
+                        _checkError = "The check didn't finish: " + e.Message;
+                    }
+                    finally
+                    {
+                        lock (_checkLock) _checkCts = null;
+                        cts.Dispose();
+                    }
+                });
+                return new { ok = true, message = "Checking your connection (about 15 seconds)…" };
+            }
+        }
+
+        private object ConnectionCheckView()
+        {
+            bool running;
+            lock (_checkLock) running = _checkCts != null;
+            var r = _checkResult;
+            return new
+            {
+                Running = running,
+                Phase = running ? _checkPhase : "",
+                Progress = running ? Math.Round(_checkProgress, 2) : 0,
+                Error = running ? null : _checkError,
+                Needs = ConnectionCheck.Needs,
+                Result = r == null ? null : new
+                {
+                    r.At,
+                    r.Score.Level,
+                    r.Score.Headline,
+                    r.Score.Facts,
+                    r.Score.Advice,
+                    Upload = r.UploadMbps == null ? null : (double?)Math.Round(r.UploadMbps.Value, 1),
+                    UploadText = r.UploadMbps == null ? null : ConnectionCheck.Mbps(r.UploadMbps.Value),
+                    Sent = SupportBundle.Size(r.BytesSent),
+                },
+            };
+        }
+
+        // ---- Support bundle -----------------------------------------------------------------------
+
+        /// <summary>
+        /// Settings → Help → Save support bundle: a zip on the Desktop (or in Downloads) with the logs, settings
+        /// and state that explain a problem, secrets taken out, and its folder opened so it can be sent.
+        /// </summary>
+        private async Task<object> SaveSupportBundleAsync()
+        {
+            TrySave();
+            var mod = ModInstaller.State(GamePath);
+            string? status = mod.Installed && GamePath != null ? await _mod.StatusAsync(GamePath).ConfigureAwait(false) : null;
+            var notes = new List<string>();
+            var r = _checkResult;
+            notes.Add(r == null ? "Connection check: not run since The Button started."
+                : $"Connection check ({r.At:yyyy-MM-dd HH:mm} UTC): {r.Score.Level}. {r.Score.Headline} {string.Join("; ", r.Score.Facts)}." + (r.Score.Advice.Count > 0 ? " Advice given: " + string.Join(" ", r.Score.Advice) : ""));
+            notes.Add($"Sharing: {(ShareMode == SendPage.ShareWindow ? "the Among Us window" : "the entire screen")}{(_settings.LowQuality ? ", lower quality" : "")}; lobby voice {(_settings.VoiceOff ? "off" : "on")}; send page {(_sendSeen != DateTime.MinValue && DateTime.UtcNow - _sendSeen < SendPageGone ? "open (video: " + (_sendVideo.Length > 0 ? _sendVideo : "unknown") + ")" : "not open")}.");
+            if (_feedNote != null) notes.Add("Send page note: " + _feedNote);
+            notes.Add("Discord bot (The Button's): " + JsonSerializer.Serialize(_bridge.Status(), Json));
+            notes.Add("Setup code: " + (SetupCode.TryParse(_settings.SetupCode, out var code, out _) ? code.Describe() : "none") + (_settings.AdminCode != null ? "; administration code saved" : ""));
+            notes.Add($"Updates: The Button automatic {(_settings.AutoUpdateApp ? "on" : "off")}, mod automatic {(_settings.AutoUpdateMod ? "on" : "off")}; newest release seen {_latest?.Tag ?? "not checked yet"}.");
+            var inputs = new ButtonSupport.Inputs
+            {
+                AppVersion = _env.Version, SettingsFile = _env.SettingsFile, GamePath = GamePath, Mod = mod,
+                StatusJson = status, UnityLogFolder = _env.UnityLogs, Notes = notes,
+            };
+            try
+            {
+                string folder = SupportBundle.Folder(_env.Desktop, _env.Downloads);
+                string path = await Task.Run(() => ButtonSupport.Build(inputs).Save(folder, DateTime.Now)).ConfigureAwait(false);
+                _log.Info("Support bundle saved: " + Path.GetFileName(path));
+                try { _env.Open(folder); } catch (Exception) { }
+                string where = folder == _env.Desktop ? "your Desktop" : folder == _env.Downloads ? "Downloads" : folder;
+                return new { ok = true, path, message = $"Saved {Path.GetFileName(path)} to {where}. Send it to the organiser: bot tokens, webhooks, codes and passwords were taken out." };
+            }
+            catch (Exception e)
+            {
+                return new { ok = false, message = "Couldn't save the support bundle: " + e.Message };
+            }
         }
 
         /// <summary>"v1.3.0" is newer than "v1.2.1" (or than nothing recorded).</summary>
@@ -833,10 +1042,7 @@ namespace TournamentTracker.App
             if (status is not JsonElement s || s.ValueKind != JsonValueKind.Object || _sendSeen == DateTime.MinValue) return false;
             bool on = s.TryGetProperty("feed", out var f) && f.ValueKind == JsonValueKind.Object && f.TryGetProperty("on", out var o) && o.ValueKind == JsonValueKind.True;
             if (!on) return false;
-            var now = DateTime.UtcNow;
-            string? why = now - _sendSeen > SendPageGone ? "the VDO.Ninja page was closed"
-                : _sendVideoOkAt != DateTime.MinValue && _sendVideo != "ok" && now - _sendVideoOkAt > VideoGone ? "VDO.Ninja stopped sending the picture"
-                : null;
+            string? why = SendPageStopped(DateTime.UtcNow, _sendSeen, _sendVideoOkAt, _sendVideo);
             if (why == null) return false;
             _sendSeen = DateTime.MinValue;
             _sendVideoOkAt = DateTime.MinValue;
@@ -844,6 +1050,17 @@ namespace TournamentTracker.App
             _feedNote = $"Sending video turned off: {why}. Turn it on again to send.";
             return true;
         }
+
+        /// <summary>
+        /// Why sending should be turned off, or null: the page stopped asking for 15 s, or a picture that
+        /// was going out has stalled (the page says "lost") for 20 s. "unknown" isn't a stall: it's the
+        /// share being picked again (What to share, Lower quality or Pick again start VDO.Ninja over and
+        /// it waits for the host's click) or no viewer connected right now, so it never times out.
+        /// </summary>
+        internal static string? SendPageStopped(DateTime now, DateTime seen, DateTime videoOkAt, string video) =>
+            now - seen > SendPageGone ? "the VDO.Ninja page was closed"
+            : videoOkAt != DateTime.MinValue && video == "lost" && now - videoOkAt > VideoGone ? "VDO.Ninja stopped sending the picture"
+            : null;
 
         // Each send page The Button opens has its own id (in its link). Only the newest is served: an older
         // tab (after Open again) or the tab of a feed that was switched off gets 409 for everything and
@@ -899,6 +1116,8 @@ namespace TournamentTracker.App
                     string id = NewSendPageId();
                     lock (_sendPageLock) _sendPageId = id;
                     try { _env.Open($"{Url}send?token={Token}&page={id}"); } catch (Exception) { }
+                    // What to pick is The Button's to say (the window or the whole screen, and where the sound comes from).
+                    return new { ok = true, replies = new[] { "Sending your game to the caster. " + SendPage.Instructions(ShareMode, !_settings.VoiceOff) } };
                 }
             }
             return JsonDocument.Parse(answer).RootElement;

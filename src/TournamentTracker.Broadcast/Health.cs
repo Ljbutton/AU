@@ -196,7 +196,9 @@ namespace TournamentTracker.App.Broadcast
                     else Bad(2, never ? "never sent game data" : $"no data for {Secs(age)}s");
                 }
                 else if (age >= s.DataYellowSeconds) Bad(1, $"no data for {Secs(age)}s");
-                if (videoFresh && t.Video == "lost" && (now - t.VideoBadSince).TotalSeconds >= s.VideoRedSeconds) Bad(2, "video lost");
+                // A window share ends with the window: after Among Us restarts the host has to pick it again.
+                if (videoFresh && t.Video == "lost" && (now - t.VideoBadSince).TotalSeconds >= s.VideoRedSeconds)
+                    Bad(2, "video lost (if the host restarted Among Us, they should press Pick again on their send page and pick the Among Us window)");
 
                 bool voiceFresh = (now - t.VoiceAt).TotalSeconds < Math.Max(10, s.DataRedSeconds);
                 if (!voiceFresh) st.Audio = "unknown";

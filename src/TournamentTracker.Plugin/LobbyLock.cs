@@ -133,6 +133,7 @@ namespace TournamentTracker.Plugin
                     else if (Enum.TryParse(name, out Int32OptionNames i)) Do(name, () => o.SetInt(i, (int)Math.Round(v)));
                 }
 
+            NetLog.Sent("settings sync (" + string.Join(", ", changed.Count > 4 ? changed.GetRange(0, 4) : changed) + (changed.Count > 4 ? $" and {changed.Count - 4} more" : "") + ")");
             Do("sync", () => GameManager.Instance.LogicOptions.SyncOptions());
             return changed;
         }

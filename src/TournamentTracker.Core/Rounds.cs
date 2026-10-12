@@ -121,7 +121,8 @@ namespace TournamentTracker
             SetRound(round.Value);
             Reply($"Round {Round} started: points start from zero for this round (the running total keeps counting).", false);
             if (Players.Count > 0) Reply($"Round {Round} starts now!", true);
-            if (RotationOn && Players.Count > 0) Reply("Impostor rotation is on: last game's impostors are very unlikely to be impostor again straight away.", true);
+            // Not in safe mode: the mod leaves the game's roles alone then, so there's no rotation.
+            if (RotationOn && !SafeModeThisGame && Players.Count > 0) Reply("Impostor rotation is on: last game's impostors are very unlikely to be impostor again straight away.", true);
             if (previous > 0 && Round > previous) OnRoundAdvanced();
             return true;
         }
