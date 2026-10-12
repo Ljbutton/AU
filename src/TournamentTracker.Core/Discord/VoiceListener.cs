@@ -41,6 +41,26 @@ namespace TournamentTracker.Discord
         /// <summary>Why it stopped trying, if it did.</summary>
         public string? Problem { get; private set; }
 
+        /// <summary>Connected to the voice server and hearing packets right now.</summary>
+        public bool Listening => _listening;
+        private volatile bool _listening;
+
+        /// <summary>
+        /// It has given up (Discord closed the voice connection for good, or it failed too often in a
+        /// row). The gateway then asks Discord for a new voice connection.
+        /// </summary>
+        public bool Stopped => _stopped;
+        private volatile bool _stopped;
+
+        /// <summary>The current connection got as far as Discord's session description.</summary>
+        private volatile bool _connectedOnce;
+
+        /// <summary>Connections in a row that may fail before it gives up.</summary>
+        private const int MaxFailures = 6;
+
+        /// <summary>A connection that worked this long starts the failure count again.</summary>
+        private static readonly TimeSpan StableAfter = TimeSpan.FromSeconds(30);
+
         public VoiceListener(string endpoint, string guildId, string userId, string sessionId, string token, ILog log)
         {
             _endpoint = endpoint.Replace("wss://", "").TrimEnd('/');
@@ -59,20 +79,30 @@ namespace TournamentTracker.Discord
             // End-to-end encryption (DAVE): first as a listener that doesn't take part; if Discord
             // requires it (close 4017), again saying it does. The packet headers are readable either way.
             int dave = 0;
-            for (int attempt = 0; attempt < 6 && !ct.IsCancellationRequested; attempt++)
+            // Only failures in a row count: a listener that sits in the channel all evening and is
+            // dropped now and then (Discord moving voice servers) keeps going.
+            int failures = 0;
+            while (failures < MaxFailures && !ct.IsCancellationRequested)
             {
                 int? closed = null;
+                var started = DateTime.UtcNow;
+                _connectedOnce = false;
                 try { closed = await ConnectOnceAsync(dave, ct).ConfigureAwait(false); }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
                 catch (Exception e) { _log.Warn("Voice (who's talking): " + e.Message); }
-                if (closed == 4017 && dave == 0) { dave = 1; attempt--; continue; }
+                _listening = false;
+                if (closed == 4017 && dave == 0) { dave = 1; continue; }
                 // Session or token no longer good: the gateway gives a new one (the bot rejoins).
                 if (closed is 4004 or 4006 or 4009 or 4011 or 4014 or 4016) { Problem = $"Discord closed the voice connection ({closed})."; break; }
-                try { await Task.Delay(TimeSpan.FromSeconds(Math.Min(10, 1 + attempt * 2)), ct).ConfigureAwait(false); }
+                failures = _connectedOnce && DateTime.UtcNow - started >= StableAfter ? 0 : failures + 1;
+                try { await Task.Delay(TimeSpan.FromSeconds(Math.Min(10, 1 + Math.Max(0, failures - 1) * 2)), ct).ConfigureAwait(false); }
                 catch (OperationCanceledException) { break; }
             }
+            if (failures >= MaxFailures) Problem ??= "The voice connection kept failing.";
+            _listening = false;
             AllQuiet();
             try { await watch.ConfigureAwait(false); } catch (OperationCanceledException) { }
+            _stopped = true;
         }
 
         /// <summary>One voice connection; the close code it ended with, if any.</summary>
@@ -138,6 +168,8 @@ namespace TournamentTracker.Discord
                         case 4: // Session description: connected
                             _log.Info("Voice (who's talking): the bot is listening in the host's voice channel.");
                             Problem = null;
+                            _connectedOnce = true;
+                            _listening = true;
                             break;
 
                         case 5: // Speaking: whose packets are whose
@@ -181,9 +213,15 @@ namespace TournamentTracker.Discord
             for (int attempt = 0; attempt < 5; attempt++)
             {
                 await udp.SendAsync(packet, packet.Length).ConfigureAwait(false);
-                var got = udp.ReceiveAsync();
-                if (await Task.WhenAny(got, Task.Delay(1000, ct)).ConfigureAwait(false) != got) continue;
-                var r = (await got.ConfigureAwait(false)).Buffer;
+                // The receive is cancelled once the second is up: one left waiting would take the
+                // answer meant for the next try.
+                byte[] r;
+                using (var wait = CancellationTokenSource.CreateLinkedTokenSource(ct))
+                {
+                    wait.CancelAfter(1000);
+                    try { r = (await udp.ReceiveAsync(wait.Token).ConfigureAwait(false)).Buffer; }
+                    catch (OperationCanceledException) when (!ct.IsCancellationRequested) { continue; }
+                }
                 if (r.Length < 74 || r[1] != 2) continue;
                 int end = Array.IndexOf(r, (byte)0, 8);
                 string ip = Encoding.ASCII.GetString(r, 8, (end < 0 ? 72 : end) - 8);
@@ -198,15 +236,14 @@ namespace TournamentTracker.Discord
             while (!ct.IsCancellationRequested)
             {
                 UdpReceiveResult r;
-                try
-                {
-                    var got = udp.ReceiveAsync();
-                    var done = await Task.WhenAny(got, Task.Delay(Timeout.Infinite, ct)).ConfigureAwait(false);
-                    if (done != got) return;
-                    r = await got.ConfigureAwait(false);
-                }
+                // The cancellable receive, not a race against Task.Delay(Infinite, ct): each of those
+                // stayed registered on the connection's token until the connection ended, one per
+                // packet (about 50 a second for every person talking), for as long as the bot sat
+                // in the channel.
+                try { r = await udp.ReceiveAsync(ct).ConfigureAwait(false); }
+                catch (OperationCanceledException) { return; }
                 catch (ObjectDisposedException) { return; }
-                catch (SocketException) { continue; }
+                catch (SocketException) { if (ct.IsCancellationRequested) return; continue; }
                 if (RtpSsrc(r.Buffer) is uint ssrc && ssrc != _ssrc) Heard(ssrc);
             }
         }
