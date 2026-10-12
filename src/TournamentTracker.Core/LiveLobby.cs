@@ -41,6 +41,13 @@ namespace TournamentTracker
         private int _statusFailures;
         /// <summary>When a failed status is due to be tried again (session clock ticks; 0: nothing owed).</summary>
         private long _statusRetryAt;
+        /// <summary>
+        /// The status wanted is the last word ("lobby closed"): it goes out without a failed send's
+        /// wait, since the game may be closing and no tick would come to send it after that wait.
+        /// </summary>
+        private bool _statusFinal;
+        /// <summary>The last word may still be tried once more at once when it fails (no tick may come to retry it).</summary>
+        private bool _statusFinalRetry;
 
         /// <summary>A failed status send is due again (checked on every publish tick, without the lock).</summary>
         private bool StatusRetryDue
@@ -366,16 +373,22 @@ namespace TournamentTracker
             _statusClosed = true;
             _statusInputsKnown = false;
             // The last word goes out now, not after a failed send's wait: the game may be closing.
+            // A send still on the wire can fail after this and set a wait again, so the closed
+            // status is also marked final (see SetStatus), which goes past any wait.
             lock (_postLock) NothingOwed();
-            SetStatus(StatusFormatter.Build(new StatusInfo { Phase = VoicePhase.Menu, Label = LobbyLabel() }));
+            SetStatus(StatusFormatter.Build(new StatusInfo { Phase = VoicePhase.Menu, Label = LobbyLabel() }), final: true);
         }
 
-        private void SetStatus(WebhookMessage message) => Work.Post(() =>
+        /// <param name="final">The lobby closed: the last status for this message (see <see cref="_statusFinal"/>).</param>
+        private void SetStatus(WebhookMessage message, bool final = false) => Work.Post(() =>
         {
             string json = JsonSerializer.Serialize(message, WebhookMessage.JsonOptions);
             lock (_postLock)
             {
-                if (json == _statusDesiredJson) return;
+                // Set with the status it goes with (both on this thread, in order): a new lobby's status clears it.
+                _statusFinal = final;
+                if (final) _statusFinalRetry = true;
+                if (json == _statusDesiredJson && !final) return;
                 _statusDesiredJson = json;
                 _statusDesired = message;
             }
@@ -405,11 +418,14 @@ namespace TournamentTracker
                     WebhookMessage? message;
                     string json;
                     string? id;
+                    bool final;
                     lock (_postLock)
                     {
                         if (!repost) _statusFlushQueued = false;
-                        // A send that failed waits its turn (see PublishTick), not tried again on every change meanwhile.
-                        if (!repost && _statusRetryAt != 0 && _clock().Ticks < _statusRetryAt) return;
+                        final = _statusFinal;
+                        // A send that failed waits its turn (see PublishTick), not tried again on every change
+                        // meanwhile. The lobby-closed status doesn't wait: no tick may come after the wait.
+                        if (!repost && !final && _statusRetryAt != 0 && _clock().Ticks < _statusRetryAt) return;
                         message = _statusDesired;
                         json = _statusDesiredJson;
                         id = _statusMessageId;
@@ -566,7 +582,17 @@ namespace TournamentTracker
 
                     // A newer status arrived while this one was on the wire (a failed one waits for its retry).
                     bool again;
-                    lock (_postLock) again = !failed && _statusDesiredJson != _statusSentJson;
+                    lock (_postLock)
+                    {
+                        again = !failed && _statusDesiredJson != _statusSentJson;
+                        // The lobby-closed status failed: the game may be closing, and then no tick comes to
+                        // send it again. It's tried once more now (ShutdownAsync waits for that too).
+                        if (failed && final && _statusFinal && _statusFinalRetry)
+                        {
+                            _statusFinalRetry = false;
+                            again = true;
+                        }
+                    }
                     if (again) ScheduleStatusFlush();
                 }, TaskScheduler.Default).Unwrap();
             }

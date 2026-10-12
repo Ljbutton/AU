@@ -164,6 +164,11 @@ namespace TournamentTracker
         public void GameStarted(string lobbyCode, string map, IReadOnlyList<PlayerSnapshot> players)
         {
             if (Tracker.InGame) return;
+            // The caster's picks were for the last game's players, and ids are used again: this game's
+            // camera and vision pick by themselves until the caster picks (Red Alert sends a pick made
+            // between games again once this game shows in the feed).
+            Spectator.CamPlayer = null;
+            Spectator.Focus = null;
             Players = players;
             string label = LobbyLabel(players);
             players = WithoutReferee(players);
@@ -535,6 +540,8 @@ namespace TournamentTracker
         /// The "lobby closed" status goes first: it's made on the background thread, which is what
         /// queues its edit with the posts. Asked for last, the edit wasn't queued yet when the posts
         /// were waited for, and closing the game usually lost it (the status stayed on the old lobby).
+        /// A "lobby closed" edit that fails is tried once more, queued after the posts waited for:
+        /// that's waited for too, in the same time.
         /// </remarks>
         public async Task ShutdownAsync(TimeSpan timeout)
         {
@@ -542,7 +549,12 @@ namespace TournamentTracker
             Work.Flush(timeout);
             AutoMute?.ReleaseAll();
             if (_dispatcher != null) await _dispatcher.WaitIdleAsync(timeout).ConfigureAwait(false);
-            await Task.WhenAny(PendingPosts, Task.Delay(timeout)).ConfigureAwait(false);
+            var until = DateTime.UtcNow + timeout;
+            for (var posts = PendingPosts; !posts.IsCompleted; posts = PendingPosts)
+            {
+                var left = until - DateTime.UtcNow;
+                if (left <= TimeSpan.Zero || await Task.WhenAny(posts, Task.Delay(left)).ConfigureAwait(false) != posts) break;
+            }
         }
 
         public void Dispose()

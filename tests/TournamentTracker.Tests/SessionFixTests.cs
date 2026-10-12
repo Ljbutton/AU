@@ -153,4 +153,93 @@ public class SessionFixTests : IDisposable
         Assert.Equal(webhook + "/messages/555", last.Url);
         Assert.Contains("closed the lobby", JsonDocument.Parse(last.Body).RootElement.GetProperty("embeds")[0].GetProperty("description").GetString());
     }
+
+    private static string StatusText(Sent sent) =>
+        JsonDocument.Parse(sent.Body).RootElement.GetProperty("embeds")[0].GetProperty("description").GetString() ?? "";
+
+    [Fact]
+    public async Task The_lobby_closed_status_goes_out_even_when_the_edit_before_it_fails_as_the_game_closes()
+    {
+        // An edit is on the wire as the game closes, and it fails (here The Button isn't open). That
+        // sets a wait before the status is sent again, which only the game's ticks end, and none come
+        // now. The "lobby closed" edit queued behind it still goes out.
+        const string webhook = "https://discord.test/api/webhooks/1/abc";
+        using var onWire = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        int patches = 0;
+        _http.Default = r =>
+        {
+            if (r.Method == HttpMethod.Post) return FakeHttp.Json(HttpStatusCode.OK, """{"id":"555"}""");
+            if (Interlocked.Increment(ref patches) > 1) return FakeHttp.Json(HttpStatusCode.OK, "{}");
+            onWire.Set();
+            release.Wait(TimeSpan.FromSeconds(10));
+            return FakeHttp.Json(HttpStatusCode.ServiceUnavailable, "{}", (ButtonBridge.OfflineHeader, "1"));
+        };
+        using var s = Session(configure: c => { c.LiveStatus = true; c.StatsWebhookUrl = webhook; });
+        s.Work.Start();
+        s.VoiceTick(VoicePhase.Lobby, Players.Lobby(), "ABCDEF", "Polus");
+        s.Work.Flush(TimeSpan.FromSeconds(5));
+        await s.PendingPosts;
+
+        s.VoiceTick(VoicePhase.Lobby, Players.Lobby().Take(4).ToList(), "ABCDEF", "Polus");   // two left: an edit
+        Assert.True(onWire.Wait(TimeSpan.FromSeconds(5)));
+        var closing = s.ShutdownAsync(TimeSpan.FromSeconds(5));     // "lobby closed" is queued behind it
+        release.Set();                                               // and the edit on the wire fails
+        await closing;
+
+        var edits = _http.Requests.Where(r => r.Method.Method == "PATCH").ToList();
+        Assert.Equal(2, edits.Count);
+        Assert.Equal(webhook + "/messages/555", edits[1].Url);
+        Assert.Contains("closed the lobby", StatusText(edits[1]));
+    }
+
+    [Fact]
+    public async Task A_lobby_closed_status_that_fails_is_tried_once_more_before_the_game_closes()
+    {
+        // No tick comes to send it again once the game is closing: it's tried once more at once, not forever.
+        const string webhook = "https://discord.test/api/webhooks/1/abc";
+        _http.Default = r => r.Method == HttpMethod.Post
+            ? FakeHttp.Json(HttpStatusCode.OK, """{"id":"555"}""")
+            : FakeHttp.Json(HttpStatusCode.ServiceUnavailable, "{}", (ButtonBridge.OfflineHeader, "1"));
+        using var s = Session(configure: c => { c.LiveStatus = true; c.StatsWebhookUrl = webhook; });
+        s.Work.Start();
+        s.VoiceTick(VoicePhase.Lobby, Players.Lobby(), "ABCDEF", "Polus");
+        s.Work.Flush(TimeSpan.FromSeconds(5));
+        await s.PendingPosts;
+
+        await s.ShutdownAsync(TimeSpan.FromSeconds(8));
+        var edits = _http.Requests.Where(r => r.Method.Method == "PATCH").ToList();
+        Assert.Equal(2, edits.Count);
+        Assert.All(edits, e => Assert.Contains("closed the lobby", StatusText(e)));
+        Assert.True(s.PendingPosts.IsCompleted);                    // ShutdownAsync waited for the second try
+    }
+
+    [Fact]
+    public void The_casters_camera_and_vision_picks_last_one_game_and_the_camera_pick_isnt_saved()
+    {
+        // Player ids are used again in the next game, and Red Alert forgets its pick then: the host's
+        // camera mustn't keep following "player 4" into a game where that's someone else (and a cut
+        // that keeps who the camera follows would then send "auto" and move it).
+        using (var s = Session())
+        {
+            s.GameStarted("QWERTY", "The Skeld", Players.Lobby());
+            s.FeedTick(Frame());
+            s.RunCommand("spec cam 4");
+            s.RunCommand("spec focus 3");
+            Assert.Equal((byte)4, s.CamPlayer());
+            Assert.Equal((byte)3, s.FocusPlayer());
+            Assert.DoesNotContain("CamPlayer", File.ReadAllText(Directory.GetFiles(_dir.Path, "state-*.json").Single()));
+
+            s.GameEnded("HumansByTask", Players.Lobby());
+            s.RunCommand("spec cam 5");                               // picked between games: for the next one
+            Assert.Equal(5, s.Spectator.CamPlayer);
+            s.GameStarted("QWERTY", "The Skeld", Players.Lobby());
+            Assert.Null(s.Spectator.CamPlayer);                       // Red Alert sends it again for this game
+            Assert.Null(s.Spectator.Focus);
+            Assert.True(s.Spectator.Cam);
+            s.RunCommand("spec cam 5");
+        }
+        using (var s = Session())
+            Assert.Null(s.Spectator.CamPlayer);                       // a restart doesn't bring an old pick back
+    }
 }

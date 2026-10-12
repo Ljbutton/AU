@@ -20,7 +20,7 @@ namespace TournamentTracker.Broadcast
         public bool Report { get; set; } = true;
         /// <summary>A small eye by a crewmate's name while an impostor is in their sight.</summary>
         public bool Eye { get; set; } = true;
-        /// <summary>The one crewmate whose vision is shown, or null for every crewmate's.</summary>
+        /// <summary>The one crewmate whose vision is shown, or null for every crewmate's (cleared when a new game starts).</summary>
         public int? Focus { get; set; }
         /// <summary>How much darker everything outside the crewmates' vision is (0–1).</summary>
         public float Dim { get; set; } = 0.22f;
@@ -32,7 +32,12 @@ namespace TournamentTracker.Broadcast
         public bool Cam { get => !CamOff; set => CamOff = !value; }
         /// <summary>Saved as "off" so it's on by default, also for a game saved before it existed.</summary>
         public bool CamOff { get; set; }
-        /// <summary>Who the player camera follows, or null to pick by itself (an impostor closing in, else whoever is busy).</summary>
+        /// <summary>
+        /// Who the player camera follows, or null to pick by itself (an impostor closing in, else whoever
+        /// is busy). For one game only: player ids are used again in the next game, so a new game clears
+        /// it (as Red Alert drops its pick then), and it isn't saved.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
         public int? CamPlayer { get; set; }
         /// <summary>
         /// The player camera is what's on stream for this lobby (Red Alert says so): the host's game
