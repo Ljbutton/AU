@@ -36,7 +36,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.62**, a beta.
+The current release is **v0.1.63**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -121,6 +121,13 @@ own item). It doesn't say who moves on.
 
 The app talks to the mod over a private connection on your computer only (port 8766, with a
 random key the mod writes in its data folder).
+
+**Something went wrong?** **Save support bundle** (Settings → Help) in The Button makes one zip on the Desktop with
+what's needed to work out why (its logs and settings, with setup codes, bot tokens, webhooks and
+passwords taken out), to send as it is with a line on what happened and when. **Before an event**,
+run the [dry run](docs/dry-run.md) with every host and the caster: a 30-minute rehearsal (the
+upload check, sending your game, lobby voice, player cameras, replays and a failure drill) to tick
+off together.
 
 <details><summary>Installing by hand instead</summary>
 
@@ -580,6 +587,14 @@ stream.
   private key), or 8769, 8770 or 8771 when 8768 is taken (the Stream Deck plugin finds it there by
   itself; Settings → Stream Deck warns that copied links need copying again). The OBS pages are on
   `localhost:8767`, as before. The mod uses 8765 and 8766 on the host's PC.
+* **Support bundle and dry run (Settings → Help):** **Save support bundle** puts Red Alert's log
+  (and the one before it), its settings, OBS's newest log and crash report, the versions, the Live
+  desk's warnings and what the desk, OBS, the lobby voice and the lobbies' health were doing into one
+  zip on the Desktop (`RedAlert-support-<date>-<time>.zip`; the lock screen has the button too). The
+  administration code, bot tokens, webhooks, OBS and VDO.Ninja passwords, stream keys, the Stream
+  Deck key and Twitch sign-ins are taken out, so it can be sent as it is. **Dry-run checklist** opens
+  [docs/dry-run.md](docs/dry-run.md): a 30-minute rehearsal with the real hosts, OBS and the Stream
+  Deck, with a failure drill and what to send when something fails.
 * **Files** in `%LOCALAPPDATA%\RedAlert`: `settings.json`, `obs.json`, `caster-priority.json`,
   `lobby-numbers.json`, `roster.csv`, `broadcast.json`, `sponsors.json`, `health.json`, the kept
   games, and `red-alert.log`: what Red Alert did and anything that went wrong (an error in the
@@ -600,9 +615,10 @@ stream.
   `http://localhost:8767/?full=1` adds roles, kills and task bars (for a stream on a delay
   only).
 * **Game video, RedZone style:** each host turns on **Send my game to the caster** (Home →
-  Tools) in their Button. It opens a private VDO.Ninja page in their browser; they choose **Entire
-  screen**, tick **Share system audio** (a window share has no sound on Windows) and leave
-  the tab open. The sound is everything the host's PC plays, Discord included. The link is random, kept for the tournament, and only
+  Tools) in their Button. It opens a private VDO.Ninja page in their browser; they share **the Among
+  Us window** (the default; The Button sends the game sound and lobby voice), or **Entire screen**
+  with **Share system audio** when lobby voice is off (a window share has no sound on Windows), and
+  leave the tab open. The link is random, kept for the tournament, and only
   written in the private results channel. In your OBS:
   * `http://localhost:8767/video` (1920×1080): the lobby you're casting, full frame, with its
     game sound. Every lobby's picture stays connected in the background, so picking a lobby

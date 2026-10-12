@@ -210,6 +210,7 @@ namespace TournamentTracker.Plugin
                 || AmongUsClient.Instance.GameState != InnerNetClient.GameStates.Joined)
                 return false;
             if (text.Length > 100) text = text.Substring(0, 99) + "…";
+            NetLog.Sent("chat: " + (text.Length > 40 ? text.Substring(0, 39) + "…" : text));
             local.RpcSendChat(text);
             return true;
         }

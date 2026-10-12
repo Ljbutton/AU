@@ -123,6 +123,8 @@ namespace TournamentTracker
             if (!force && now < _nextStatusJson) return;
             _nextStatusJson = now.AddSeconds(0.5);
             var last = LastGame;
+            // The player marked as the referee: none in safe mode, where they play (the slot itself is still RefSlot below).
+            string? refKey = ActiveRefSlotKey;
             // Gathered here; turned into JSON off the game's main thread.
             var status = new
             {
@@ -150,7 +152,7 @@ namespace TournamentTracker
                         Dead = p.IsDead, p.Disconnected,
                         DiscordId = string.IsNullOrEmpty(link?.DiscordUserId) ? null : link!.DiscordUserId,
                         DiscordName = string.IsNullOrEmpty(link?.DiscordName) ? null : link!.DiscordName,
-                        Referee = RefSlotKey != null && p.Key == RefSlotKey,
+                        Referee = refKey != null && p.Key == refKey,
                         Voice = VoiceOf(link?.DiscordUserId),
                     };
                 }).ToList(),
@@ -169,6 +171,9 @@ namespace TournamentTracker
                 Rotation = RotationOn,
                 RefSlot = RefSlotKey != null,
                 HostAuthority = new { On = HostAuthority, Active = HostAuthorityActive },
+                // Both new in 0.1.63 (The Button treats them as optional, for older mods).
+                SafeMode = SafeMode?.Status(),
+                LastDisconnect = Disconnects?.Status(),
                 LiveData = LiveDataState(),
                 Overlay = new { On = _overlay != null, Url = _overlay?.Url },
                 Feed = new { Available = FeedAvailable, On = _feedOn && FeedAvailable, PushUrl = _feedOn && FeedAvailable ? FeedPushUrl : null, Cam = _feedOn && FeedAvailable && Spectator.Cam },

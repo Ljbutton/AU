@@ -397,3 +397,47 @@ _Red Alert with the new Stream Deck state, Stream Deck app 6.5+ on the same PC, 
 - [ ] Settings → Stream Deck: link builder (lobby, camera slot/colour, cut or arm, switch) gives a working link; Copy all links; port shown with a warning if not 8768; Copy key; Download plugin and How to set it up links open
 - [ ] Overlay in OBS: switching layouts glides graphics smoothly; sabotage alarm pulses steadily; sponsor break video stops (no sound) when the break ends and restarts on the next break; win counter in the right place in intermission after a player cam; intermission storyline changes without the whole screen flickering; room-code cover fully hides the code
 - [ ] REPLAY tag over replays shows the right title and sponsor and doesn't flicker
+
+
+## New in 0.1.63 (Red Alert 0.3.15)
+
+### The mod (in Among Us)
+- [ ] Mod log at start: "Among Us 2026.x.y (network version …, Application.version "…")", then "Safe mode off (Among Us 2026.x.y, mod built for 2026.x.y)." — "built for" matches the release's BUILT-AGAINST.txt
+- [ ] Mod log at start still says "Self-check: every hook is in place." (now includes DisconnectWatch)
+- [ ] /api/status has safeMode {on: false, reason: null, gameVersion, builtFor, overridden: false}, and lastDisconnect is null on a fresh install
+- [ ] Hosting a lobby, turn Wi-Fi off for about 15 s → log line "Disconnected: Error (network error) — …" (or ClientTimeout / Custom with "It said: …"), ending "(in the lobby ABCDEF, hosting, host authority on)"; the next line says what the mod sent in the 10 s before (or "sent nothing"); The Button's activity log shows the line; status lastDisconnect has at (UTC, ends in Z), reason and inGame: false
+- [ ] Same during a game → "(during a game ABCDEF, …)" and lastDisconnect.inGame is true
+- [ ] BepInEx/config/TournamentTracker/disconnects.json lists the disconnects, newest last, never more than 20; it survives restarting Among Us
+- [ ] Leaving a lobby yourself (Leave button) or closing Among Us adds no "Disconnected:" line
+- [ ] If you ever get kicked or banned while hosting: send the "Disconnected: …" line and the "The mod sent in the 10 s before …" line that follows it (role messages, referee record syncs, RpcSnapTo, settings sync, chat)
+- [ ] Safe mode ON test: run the build workflow with game_libs_version set to an AmongUs.GameLibs.Steam older than your Among Us, install that DLL → log "Safe mode ON (Among Us X, mod built for Y): Among Us X is newer than this mod (built for Y): risky features are off until an update. …"; status safeMode.on is true with that reason
+- [ ] In safe mode, with the referee slot, rotation and settings lock on: Home says (in the lobby) "Safe mode is on, so the referee ghost slot is off this time …" and the same for the impostor rotation; starting a game, the game's own roles stand (log "Roles: safe mode is on …"), with no "Referee ghost:" lines; changed settings aren't put back (Home: "… the settings lock is off …"); the host's screen shows no red impostor names or spectator vision; hostAuthority.active is false while hosting (no +25)
+- [ ] In safe mode, tracking, stats, the caster feed, the overlay, the Discord live status and automute work as usual
+- [ ] In safe mode, send `safemode off` from The Button → reply "Safe mode OFF for Among Us X: …"; status shows on: false, overridden: true; leave to the main menu and host again → host authority is active and the referee slot works; restart Among Us → still off; `safemode on` → back on, and the reply gives the reason
+- [ ] `safemode off` when safe mode isn't on → "Safe mode is already off: everything runs normally on Among Us X." (nothing saved)
+- [ ] Settings → Your connection → **Check my connection**: the progress bar moves and the check ends in about 15 s. It shows upload in Mbps, Discord and VDO.Ninja ms with jitter, "While uploading" ms, data sent (no more than 30 MB) and advice. **Stop** stops it and says "Check stopped." The last result stays.
+- [ ] Home host checklist (with Send my game available): the chip reads "Connection not checked" before a check, then "Upload N Mbps". It is green at 8 Mbps or more, amber under 8, red under 5. Clicking it opens Settings.
+- [ ] On a limited connection (router limit, or a phone hotspot): under 8 Mbps is amber with wired / pause uploads / Lower quality advice. Under 5 is red and adds "Tell the organiser". With speed.cloudflare.com blocked, the result says "Upload: couldn't be measured" (no made-up number).
+- [ ] Send my game: the toast and Home say to pick the Among Us window. The send page opens with "The Among Us window (recommended)" ticked. The browser's picker opens on the **Window** tab, and the send page tab itself isn't offered. Pick Among Us: the caster sees the game, and the game sound arrives through the lobby voice.
+- [ ] Send page → **Entire screen**: VDO.Ninja reloads and the picker opens on Entire screen, with the Share system audio box. Instructions say to leave it unticked with lobby voice on, or tick it with lobby voice off.
+- [ ] Send page with **Send lobby voice** off and window mode: the instructions say a window share has no sound, and to turn lobby voice on or use Entire screen with system audio.
+- [ ] Send page → **Pick again**: VDO.Ninja asks again what to share, and the caster's picture comes back after picking.
+- [ ] **Lower quality** (send page tick box or Settings → Your connection): the caster's picture drops to 720p at 30 fps. Both places show the same setting. Restart The Button: the share choice and quality are kept.
+- [ ] On a slow upload the send page footer shows "Your upload can't keep up, so the picture is lowered…".
+- [ ] Settings → Help → **Save support bundle**: TournamentTracker-support-<date>.zip appears on the Desktop and Explorer opens there. README.txt lists every file. The bundle has the-button.log, settings.json, mod/LogOutput.log, the mod cfg, mod/data/state-*.json, games-list.txt, among-us/Player.log, versions.txt and summary.txt. Search all files: no bot token, no discord.com/api/webhooks link, no TT1- code, no password= value, no AppToken. setup-code.txt and host-discord.json are not in it.
+- [ ] Mod in safe mode (game version it wasn't built for): Home shows a red "Safe mode: <reason>" card with the versions. **Run normally anyway** asks for a second click, then sends `safemode off`. The card becomes "Running normally on a game version the mod wasn't built for" with **Back to automatic**, which sends `safemode on`.
+- [ ] Disconnect (pull the network cable in a lobby, reconnect): Home shows "You were disconnected: the connection to the Among Us server timed out" with time and advice. It is red, with a Referee tab reminder, if it happened during a game. ✕ hides it. It is gone after an hour. Leaving to the main menu on purpose shows no card.
+- [ ] With an older mod (0.1.62, without safeMode/lastDisconnect): Home shows no new cards and everything else works as before.
+
+### Red Alert: support bundle and dry run
+- [ ] Settings → Help → **Save support bundle** → a toast names `RedAlert-support-<date>-<time>.zip`, the file is on the Desktop and the Desktop folder opens; a second save in the same minute makes `…-2.zip`
+- [ ] The zip's README.txt lists every file with what it is, and what was left out or not there
+- [ ] The zip has red-alert.log (and red-alert.log.1 when there is one), settings.json, obs.json, caster-priority.json, broadcast.json, lobby-numbers.json, health.json, twitch.json, versions.txt, summary.txt, state.json and stream-deck.txt; it has no twitch-token.json, roster.csv or sponsors.json
+- [ ] With OBS running: obs/logs/… in the zip is today's session (the newest file in %APPDATA%\obs-studio\logs), even though OBS still has it open; after an OBS crash, obs/crashes/… is the newest crash report
+- [ ] versions.txt: Red Alert, Windows, the window (WebView2), OBS and obs-websocket versions, Source Record found / not installed, ffmpeg, Twitch
+- [ ] summary.txt: the warnings the Live desk showed at that moment, Red Alert's known problems, on stream / Preview / hold / panic, each lobby with its number and health, OBS (scene, streaming and recording, setup check), lobby voice (mute all, who's heard, each host's Discord / Among Us / Sent levels), lobby health, and the latest WARN/ERROR lines of red-alert.log
+- [ ] Search every file in the zip for the administration code (TT1-…), each bot token, the webhook, the OBS password, the Stream Deck key (Settings → Stream Deck → Copy key), the stream key, the Twitch tokens and a host's VDO.Ninja password (password=… in a lobby's OBS source link) → none found; [removed] in their place
+- [ ] state.json has no desk cards, and no players or impostors for any lobby
+- [ ] Red Alert locked (no administration code): the lock screen's **Save support bundle** still saves a zip with the log and settings; summary.txt starts with LOCKED
+- [ ] Settings → Help → **Dry-run checklist** opens docs/dry-run.md on GitHub in the browser (not inside Red Alert); the card's **?** opens its explanation
+- [ ] Run docs/dry-run.md once with the real hosts and the caster before the event; note any step that doesn't match what you see

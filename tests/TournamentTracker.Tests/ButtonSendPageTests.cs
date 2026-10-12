@@ -59,6 +59,56 @@ public class ButtonSendPageTests : IDisposable
     }
 
     [Fact]
+    public void Sending_turns_off_only_when_the_page_closes_or_a_picture_really_stalls()
+    {
+        var t0 = new DateTime(2026, 10, 12, 12, 0, 0, DateTimeKind.Utc);
+        // The share being picked again (What to share, Lower quality, Pick again), or no viewer right now:
+        // "unknown" for as long as it takes, never timed out.
+        Assert.Null(AppServer.SendPageStopped(t0.AddMinutes(2), t0.AddMinutes(2), t0, "unknown"));
+        Assert.Null(AppServer.SendPageStopped(t0.AddMinutes(2), t0.AddMinutes(2), t0, ""));
+        // No picture has gone out yet (or the share changed since): nothing to time out.
+        Assert.Null(AppServer.SendPageStopped(t0.AddMinutes(2), t0.AddMinutes(2), DateTime.MinValue, "lost"));
+        // A picture that was going out has stalled: after 20 s.
+        Assert.Null(AppServer.SendPageStopped(t0.AddSeconds(19), t0.AddSeconds(19), t0, "lost"));
+        Assert.Equal("VDO.Ninja stopped sending the picture", AppServer.SendPageStopped(t0.AddSeconds(21), t0.AddSeconds(21), t0, "lost"));
+        // The page stopped asking for 15 s.
+        Assert.Equal("the VDO.Ninja page was closed", AppServer.SendPageStopped(t0.AddSeconds(16), t0, t0, "ok"));
+    }
+
+    [Fact]
+    public async Task Changing_what_to_share_starts_the_picture_watch_again()
+    {
+        using var app = new AppServer(Env(), new HttpClient(new FakeHttp()));
+        using var http = Client(app);
+        var okAt = typeof(AppServer).GetField("_sendVideoOkAt", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        Assert.Equal(HttpStatusCode.OK, (await http.GetAsync("app/sendfeed?since=0&video=ok")).StatusCode);
+        Assert.NotEqual(DateTime.MinValue, (DateTime)okAt.GetValue(app)!);
+        // Lower quality ticked: the page starts VDO.Ninja over and waits for the host to pick, however long that takes.
+        var reply = await http.PostAsync("app/share", new StringContent("{\"low\":\"true\"}", Encoding.UTF8, "application/json"));
+        Assert.Contains("Lower quality", await reply.Content.ReadAsStringAsync());
+        Assert.Equal(DateTime.MinValue, (DateTime)okAt.GetValue(app)!);
+        // No change: the watch carries on.
+        await http.GetAsync("app/sendfeed?since=0&video=ok");
+        await http.PostAsync("app/share", new StringContent("{\"low\":\"true\"}", Encoding.UTF8, "application/json"));
+        Assert.NotEqual(DateTime.MinValue, (DateTime)okAt.GetValue(app)!);
+    }
+
+    [Fact]
+    public void The_send_page_forgets_the_old_picture_when_VDO_Ninja_starts_over_and_says_how_to_pick_again()
+    {
+        string html = SendPage.Html;
+        // Every reload of VDO.Ninja's page (a new link, the share changed, Pick again) goes through load(),
+        // which reports "unknown" until the new share sends a picture, never a stale "ok" or "lost".
+        Assert.Contains("function load(src){video='unknown';frames=-1;stillFor=0;", html);
+        Assert.Contains("load('about:blank');setTimeout(()=>{if(!retired)load(shareUrl);},300);", html);
+        Assert.Contains("shareUrl=want;load(want);", html);
+        // A picture stalled for 10 s (the shared Among Us window closed): the host is told to pick again.
+        Assert.Contains("id=\"nopic\"", html);
+        Assert.Contains("Restarted Among Us? Press <b>Pick again</b>", html);
+        Assert.Contains("video==='lost'&&stillFor>=5", html);
+    }
+
+    [Fact]
     public void The_send_page_knows_its_id_hands_sound_to_a_worker_and_uses_a_fixed_sdk()
     {
         string html = SendPage.Html;

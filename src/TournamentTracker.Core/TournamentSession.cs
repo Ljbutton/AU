@@ -164,6 +164,9 @@ namespace TournamentTracker
         public void GameStarted(string lobbyCode, string map, IReadOnlyList<PlayerSnapshot> players)
         {
             if (Tracker.InGame) return;
+            // Safe mode is held for the whole game (the mod holds it as the roles are handed out, just
+            // before this), so who counts as the referee can't change half way through.
+            if (SafeMode != null && !SafeMode.HeldForGame) SafeMode.HoldForGame();
             // The caster's picks were for the last game's players, and ids are used again: this game's
             // camera and vision pick by themselves until the caster picks (Red Alert sends a pick made
             // between games again once this game shows in the feed).

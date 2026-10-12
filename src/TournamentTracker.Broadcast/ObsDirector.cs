@@ -141,6 +141,23 @@ namespace TournamentTracker.App.Broadcast
         public string? ObsVersion => _obs?.ObsVersion;
         public string? Scene { get; private set; }
 
+        /// <summary>
+        /// For the support bundle: OBS's version, obs-websocket's and the platform OBS runs on, asked of
+        /// OBS now (GetVersion), else what it said when it connected. All null while OBS isn't connected.
+        /// </summary>
+        public async Task<(string? Obs, string? WebSocket, string? Platform)> VersionsAsync()
+        {
+            var obs = _obs;
+            if (obs == null || !obs.Connected) return (null, null, null);
+            try
+            {
+                var v = await obs.RequestAsync("GetVersion", null, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+                string? S(string name) => v.TryGetProperty(name, out var x) && x.ValueKind == JsonValueKind.String ? x.GetString() : null;
+                return (S("obsVersion") ?? obs.ObsVersion, S("obsWebSocketVersion") ?? obs.WebSocketVersion, S("platformDescription"));
+            }
+            catch (Exception) { return (obs.ObsVersion, obs.WebSocketVersion, null); }
+        }
+
         /// <param name="feeds">Each lobby's video link (with sound), as OBS should load it.</param>
         public ObsDirector(string? settingsPath, CasterDesk desk, Func<IReadOnlyList<(string Lobby, string Url)>> feeds,
             Func<string, int, string?, TimeSpan, Task<ObsClient>>? connect = null)

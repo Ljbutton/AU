@@ -62,7 +62,8 @@ namespace TournamentTracker
         private readonly Dictionary<(string, byte, byte), DateTime> _witnessed = new Dictionary<(string, byte, byte), DateTime>();
 
         /// <summary>True when this game is the spectator: the host, playing as the referee ghost.</summary>
-        public bool IsSpectator => RefSlotKey != null && Players.Any(p => p.IsHost && p.Key == RefSlotKey);
+        /// <remarks>Never in safe mode: the referee slot is off then, and the host plays as an ordinary player.</remarks>
+        public bool IsSpectator => ActiveRefSlotKey is { } key && Players.Any(p => p.IsHost && p.Key == key);
 
         /// <summary>Notes a crewmate doing something, for picking whose vision to show.</summary>
         private void Active(byte? playerId)

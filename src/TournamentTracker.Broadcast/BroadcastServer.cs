@@ -59,6 +59,10 @@ namespace TournamentTracker.App.Broadcast
         public int CasterPort { get; set; } = CasterServer.DefaultPort;
         /// <summary>This app's own screen; 0 picks any free one. Fixed, so a producer's browser can find it later.</summary>
         public int Port { get; set; } = BroadcastServer.DefaultPort;
+        /// <summary>Where Settings → Save support bundle puts its zip; null: the Windows Desktop (else next to the settings).</summary>
+        public string? SupportFolder { get; set; }
+        /// <summary>OBS's own folder, for its newest log and crash report in the support bundle; null: %APPDATA%\obs-studio.</summary>
+        public string? ObsFolder { get; set; }
     }
 
     /// <summary>
@@ -506,6 +510,13 @@ namespace TournamentTracker.App.Broadcast
                     if (_updateReady == null) return Ok(new { ok = false, message = "No update is waiting." });
                     _ = Task.Run(async () => { await Task.Delay(300).ConfigureAwait(false); _env.Restart(); });
                     return Ok(new { ok = true, message = "Restarting Red Alert…" });
+                case ("POST", "/app/support"):
+                {
+                    // Settings → Save support bundle (also on the lock screen: it works before the code is in).
+                    var said = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("warnings", out var sw) && sw.ValueKind == JsonValueKind.Array
+                        ? sw.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString() ?? "").Take(50).ToList() : new List<string>();
+                    return Ok(await SaveSupportBundleAsync(said, Arg("window")).ConfigureAwait(false));
+                }
                 case ("POST", "/app/admin/code"): return Ok(SetAdminCode(Arg("code")));
                 case ("POST", "/app/admin/checkhost"): return Ok(CheckHostCode(Arg("code")));
                 case ("GET", "/app/admin"):

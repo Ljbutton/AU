@@ -87,6 +87,9 @@ namespace TournamentTracker
                 case "hostauth" when fromHost:
                     HostAuthorityCommand(args);
                     return true;
+                case "safemode" when fromHost:
+                    SafeModeCommand(args);
+                    return true;
                 case "link" when fromHost:
                     LinkCommand(args);
                     return true;

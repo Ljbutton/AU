@@ -37,6 +37,7 @@ namespace TournamentTracker.Plugin.Patches
     // Roles: the impostor rotation and the referee ghost slot are applied to the game's own role
     // choice before it's sent, so each player gets one role message (see RoleChoice).
     // (The referee becomes a ghost in Driver.StartGame, as the intro begins.)
+    [Risky]
     [HarmonyPatch(typeof(RoleManager), nameof(RoleManager.SelectRoles))]
     internal static class RoleChoicePatch
     {
@@ -49,6 +50,7 @@ namespace TournamentTracker.Plugin.Patches
         }
     }
 
+    [Risky]
     [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.RpcSetRole))]
     internal static class RoleOncePatch
     {
@@ -62,6 +64,7 @@ namespace TournamentTracker.Plugin.Patches
     }
 
     // Referee ghost slot: their task message (the game's own, the only one) carries no tasks.
+    [Risky]
     [HarmonyPatch(typeof(ShipStatus), nameof(ShipStatus.Begin))]
     internal static class RefereeTasksPatch
     {
@@ -69,6 +72,7 @@ namespace TournamentTracker.Plugin.Patches
         public static void Postfix() => RefSlot.HandingOutTasks = false;
     }
 
+    [Risky]
     [HarmonyPatch(typeof(NetworkedPlayerInfo), nameof(NetworkedPlayerInfo.RpcSetTasks))]
     internal static class RefereeNoTasksPatch
     {
@@ -77,7 +81,9 @@ namespace TournamentTracker.Plugin.Patches
             if (!RefSlot.HandingOutTasks || __instance == null || TournamentPlugin.Session?.RefSlotKey == null) return;
             try
             {
-                if (RefSlot.RefereeId(fresh: true) == __instance.PlayerId) __0 = new Il2CppStructArray<byte>(0);
+                if (RefSlot.RefereeId(fresh: true) != __instance.PlayerId) return;
+                __0 = new Il2CppStructArray<byte>(0);
+                NetLog.Sent($"referee {__instance.PlayerId}'s task message, with no tasks");
             }
             catch (Exception e) { TournamentPlugin.Logger.Error("Referee tasks hook failed: " + e); }
         }
@@ -85,6 +91,7 @@ namespace TournamentTracker.Plugin.Patches
 
     // Referee ghost slot: the host turns down any kill on the referee (an impostor whose game still
     // shows them can try), the same way the game turns down a kill on someone already dead.
+    [Risky]
     [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.CheckMurder))]
     internal static class RefereeNoKillPatch
     {
@@ -95,6 +102,7 @@ namespace TournamentTracker.Plugin.Patches
             {
                 if (RefSlot.RefereeId(fresh: true) != __0.PlayerId) return true;
                 TournamentPlugin.Logger.Warn($"Referee ghost: turned down {__instance.Data?.PlayerName}'s kill on the referee (dead here: {__0.Data?.IsDead}).");
+                NetLog.Sent($"turned-down kill on the referee (RpcMurderPlayer, not a kill) by player {__instance.PlayerId}");
                 __instance.RpcMurderPlayer(__0, false);
                 return false;
             }
@@ -108,6 +116,7 @@ namespace TournamentTracker.Plugin.Patches
 
     // Second and third fences, in case the kill comes some other way: the host never sends a
     // successful kill on the referee, and its own game never plays one.
+    [Risky]
     [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.RpcMurderPlayer))]
     internal static class RefereeNoKillSentPatch
     {
@@ -118,6 +127,7 @@ namespace TournamentTracker.Plugin.Patches
             {
                 if (RefSlot.RefereeId(fresh: true) != __0.PlayerId) return true;
                 TournamentPlugin.Logger.Warn($"Referee ghost: stopped a kill on the referee by {__instance.Data?.PlayerName} before it was sent.");
+                NetLog.Sent($"turned-down kill on the referee (RpcMurderPlayer, not a kill) by player {__instance.PlayerId}");
                 __instance.RpcMurderPlayer(__0, false);
                 return false;
             }
@@ -155,6 +165,7 @@ namespace TournamentTracker.Plugin.Patches
     // result is worked out again the game's way (most votes; a tie or skip on top sends nobody).
     // Votes themselves aren't touched (an earlier hook on CastVote had the wrong parameter types for
     // this game version, PlayerId rather than byte, and every vote on the host failed).
+    [Risky]
     [HarmonyPatch(typeof(MeetingHud), nameof(MeetingHud.RpcVotingComplete))]
     internal static class RefereeNotVotedOutPatch
     {
@@ -171,6 +182,7 @@ namespace TournamentTracker.Plugin.Patches
                 var (exiled, tie) = VoteTally.Result(votes, refId.Value);
                 __1 = exiled.HasValue && GameData.Instance != null ? GameData.Instance.GetPlayerById(exiled.Value) : null;
                 __2 = tie;
+                NetLog.Sent("meeting result with votes for the referee counted as skips");
                 TournamentPlugin.Logger.Info($"Referee ghost: votes for the referee counted as skips; {(exiled.HasValue ? "player " + exiled.Value + " goes" : tie ? "a tie, nobody goes" : "nobody goes")}.");
             }
             catch (Exception e) { TournamentPlugin.Logger.Error("Referee vote hook failed (the game's own result stands): " + e); }
@@ -283,6 +295,7 @@ namespace TournamentTracker.Plugin.Patches
         });
     }
 
+    [Risky]
     [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.RpcStartMeeting))]
     internal static class RpcStartMeetingPatch
     {

@@ -725,6 +725,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
     <h2>Administration code</h2>
     <p class="muted" style="margin:0 0 8px">Red Alert opens with the tournament's administration code (the organiser's, as in The Button's Organiser tab). It shows who the impostors are: keep this PC's screen off stream.</p>
     <form class="row" id="lock-form"><input id="lock-code" placeholder="Paste the administration code" class="mono" style="flex:1;min-width:240px" autocomplete="off" spellcheck="false"><button class="b primary">Unlock</button></form>
+    <p class="muted" style="margin:8px 0 0;font-size:12.5px">Something not working? <button class="b sup-save" type="button" title="One zip on the Desktop with Red Alert's log and settings, to send: codes, passwords and keys are taken out">Save support bundle</button></p>
   </div>
   <p id="org-problem" class="note bad" hidden></p>
 <section id="caster" class="on">
@@ -1001,6 +1002,11 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       <div class="row"><button class="b" id="upd-check">Check now</button><button class="b primary" id="upd-go" hidden>Update</button><button class="b primary" id="upd-restart" hidden>Restart Red Alert</button></div></div>
     <p class="muted help" style="margin:6px 0 0;font-size:12.5px">Red Alert never updates by itself, so nothing changes mid-broadcast. Update downloads the new version; it runs from the next start (Restart, or next time you open Red Alert).</p>
     <p class="note bad" id="upd-error" hidden style="margin:8px 0 0"></p>
+  </div>
+  <div class="card sup-card" id="sup-card" data-page="settings">
+    <div class="row" style="justify-content:space-between"><div><b>Help</b> <span class="muted" id="sup-line">when something goes wrong, and the rehearsal before the event</span></div>
+      <div class="row"><a class="b" id="sup-dry" href="https://github.com/Ljbutton/AU/blob/HEAD/docs/dry-run.md" target="_blank" rel="noopener" title="A 30-minute rehearsal with the real hosts, OBS and the Stream Deck, ticked off step by step (docs/dry-run.md)">Dry-run checklist</a><button class="b primary sup-save" type="button" id="sup-save" title="One zip on the Desktop to send when something went wrong: codes, passwords and keys are taken out">Save support bundle</button></div></div>
+    <p class="muted help" style="margin:6px 0 0;font-size:12.5px">Something went wrong? <b>Save support bundle</b> puts Red Alert's log, its settings, OBS's newest log and crash report, the versions, the Live desk's warnings and what the desk, OBS, the lobby voice and the lobbies' health were doing into one zip on the Desktop (RedAlert-support-….zip), and opens the folder. The administration code, passwords, keys, tokens and webhooks are taken out, so send it as it is, with a line on what went wrong and when. Hosts save theirs from The Button. The <b>Dry-run checklist</b> is a 30-minute rehearsal with the real hosts, OBS and the Stream Deck, to run through before the event.</p>
   </div>
   <details class="card roster-card" id="roster-card" data-page="players">
     <summary><div><b>Players</b> <span class="muted" id="roster-line"></span></div><button class="b" id="roster-open" title="Open roster.csv">Edit roster</button></summary>
@@ -2717,7 +2723,7 @@ const PAGES = {
   obs: ['OBS', 'The connection, the TT scenes and the swoosh.'],
   voice: ['Lobby voice', 'Each lobby\'s voice and game sound on stream.'],
   players: ['Players', 'Real names from roster.csv, and matching by hand.'],
-  settings: ['Settings', 'Player camera, Stream Deck and updates.'],
+  settings: ['Settings', 'Player camera, Stream Deck, updates and help.'],
 };
 let PAGE = 'live';
 try { const saved = localStorage.getItem('ttb.page'); if (PAGES[saved]) PAGE = saved; } catch (e) { }
@@ -2909,6 +2915,21 @@ function renderUpdate() {
 $('upd-check').addEventListener('click', async () => { const r = await api('POST', '/app/update', { check: 'true' }); toast(r.message); setTimeout(refresh, 2500); });
 $('upd-go').addEventListener('click', async () => { const r = await api('POST', '/app/update'); toast(r.message); refresh(); });
 $('upd-restart').addEventListener('click', async () => { const r = await api('POST', '/app/restart'); toast(r.message); });
+// Settings → Save support bundle (also on the lock screen): the Live desk's warnings go with it, as the caster saw them.
+let supBusy = false;
+async function saveSupport() {
+  if (supBusy) return;
+  supBusy = true;
+  let said = [];
+  try { said = S && S.admin ? warnings().map(x => `${x.title}: ${x.text}`) : []; } catch (e) { said = []; }
+  toast('Saving the support bundle…');
+  try {
+    const r = await api('POST', '/app/support', { warnings: said, window: navigator.userAgent });
+    toast(r.message);
+    if (r.ok && r.file) setText($('sup-line'), 'saved ' + r.file);
+  } finally { supBusy = false; }
+}
+document.querySelectorAll('.sup-save').forEach(b => b.addEventListener('click', saveSupport));
 $('code-form').addEventListener('submit', async e => {
   e.preventDefault();
   const code = $('code-new').value.trim(); if (!code) return toast('Paste the new administration code first.');

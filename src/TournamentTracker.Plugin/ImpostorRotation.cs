@@ -23,7 +23,20 @@ namespace TournamentTracker.Plugin
         {
             Chosen.Clear();
             var session = TournamentPlugin.Session;
-            Collecting = Game.IsHost && session != null && (session.RotationOn || session.RefSlotKey != null);
+            // Safe mode is held from here (the game's first move) until the lobby: the referee slot
+            // can't switch on or off half way through a game.
+            if (Game.IsHost) Safety.HoldForGame();
+            bool wanted = Game.IsHost && session != null && (session.RotationOn || session.RefSlotKey != null);
+            // Safe mode: the game's own role messages go out untouched (holding them back and sending
+            // them again is exactly what a newer game might not accept).
+            if (wanted && Safety.GameOn && session != null)
+            {
+                if (session.RotationOn) Safety.HeldBack("the impostor rotation");
+                if (session.RefSlotKey != null) Safety.HeldBack("the referee ghost slot", Safety.RefSlotAdvice);
+                TournamentPlugin.Logger.Warn("Roles: safe mode is on, so the game's own roles stand this game (no rotation, no referee slot).");
+                wanted = false;
+            }
+            Collecting = wanted;
         }
 
         public static void Finish()
@@ -59,6 +72,7 @@ namespace TournamentTracker.Plugin
                 foreach (var kv in Chosen)
                 {
                     var role = plan.TryGetValue(kv.Key, out var r) ? (RoleTypes)r : kv.Value.Role;
+                    NetLog.Sent($"role for player {kv.Key}: {role}");
                     try { kv.Value.Pc.RpcSetRole(role, kv.Value.Override); }
                     catch (Exception e) { TournamentPlugin.Logger.Error($"Roles: couldn't set player {kv.Key}'s role: {e.Message}"); }
                 }

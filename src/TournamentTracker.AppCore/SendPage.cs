@@ -1,3 +1,5 @@
+using System.Linq;
+
 namespace TournamentTracker.App
 {
     /// <summary>The host's side of the broadcast feed (docs/broadcast-protocol.md).</summary>
@@ -8,6 +10,64 @@ namespace TournamentTracker.App
         /// was used with), so a new release can't change the page under a host in the middle of an event.
         /// </summary>
         public const string SdkUrl = "https://unpkg.com/@vdoninja/sdk@1.6.2/vdoninja-sdk.min.js";
+
+        /// <summary>Share the Among Us window (the default) or the entire screen.</summary>
+        public const string ShareWindow = "window", ShareScreen = "screen";
+
+        /// <summary>Lower quality: 720p at 30 fps, and never more than this (kbps) to anyone watching.</summary>
+        public const int LowQualityKbps = 2500;
+
+        // The link's options this page sets itself (anything the mod put in for them is replaced).
+        private static readonly string[] OwnOptions = { "displaysurface", "selfbrowsersurface", "surfaceswitching", "systemaudio", "maxvideobitrate", "mvb", "maxbitrate" };
+
+        /// <summary>
+        /// The mod's VDO.Ninja push link with what to share. VDO.Ninja's iframe does the screen share itself
+        /// (getDisplayMedia, inside its page), so this page can't look at what was picked; these documented
+        /// options of VDO.Ninja's (passed on to the browser's picker) do the next best thing:
+        /// <list type="bullet">
+        /// <item>window: the picker opens on its Window tab (displaysurface=window); this tab can't be picked
+        /// (selfbrowsersurface=exclude); no "share system audio" box (systemaudio=exclude: a window share
+        /// can't carry sound in Chrome anyway, and The Button's lobby voice sends the game sound).</item>
+        /// <item>screen: the picker opens on Entire screen, where "Share system audio" can be ticked (for game
+        /// sound when the lobby voice is off).</item>
+        /// </list>
+        /// Both let the host switch what's shared from the browser's bar (surfaceswitching=include).
+        /// Lower quality: 720p (quality=1), 30 fps and at most <see cref="LowQualityKbps"/> (maxvideobitrate:
+        /// VDO.Ninja's own cap on what it sends, whatever a viewer asks for), for a slow upload.
+        /// </summary>
+        public static string ShareUrl(string pushUrl, string? mode, bool lowQuality)
+        {
+            int q = pushUrl.IndexOf('?');
+            if (q < 0) return pushUrl;
+            var keep = pushUrl.Substring(q + 1).Split('&', System.StringSplitOptions.RemoveEmptyEntries)
+                .Where(p =>
+                {
+                    string name = p.Split('=')[0].ToLowerInvariant();
+                    return !OwnOptions.Contains(name) && !(lowQuality && (name == "quality" || name == "q" || name == "maxframerate" || name == "mfr"));
+                }).ToList();
+            bool window = mode != ShareScreen;
+            keep.Add("displaysurface=" + (window ? "window" : "monitor"));
+            keep.Add("selfbrowsersurface=exclude");
+            keep.Add("surfaceswitching=include");
+            if (window) keep.Add("systemaudio=exclude");
+            if (lowQuality) keep.AddRange(new[] { "quality=1", "maxframerate=30", "maxvideobitrate=" + LowQualityKbps });
+            return pushUrl.Substring(0, q + 1) + string.Join("&", keep);
+        }
+
+        /// <summary>
+        /// What the host does on the send page, in one sentence or two, for Home and the toast when sending
+        /// starts: which share to pick, and where the game sound comes from.
+        /// </summary>
+        public static string Instructions(string? mode, bool voiceOn)
+        {
+            if (mode == ShareScreen)
+                return voiceOn
+                    ? "In the page that opened, press the share button, pick Entire screen and leave Share system audio unticked (The Button sends the game sound and lobby voice itself). Everything on that screen is sent, so the Among Us window is the private choice. Leave the page open while you play."
+                    : "In the page that opened, press the share button, pick Entire screen and tick Share system audio, so the caster gets the game sound. Everything on that screen is sent. Leave the page open while you play.";
+            return voiceOn
+                ? "In the page that opened, press the share button, open the Window tab and pick Among Us. The Button sends the game sound and lobby voice itself. Leave the page open while you play."
+                : "In the page that opened, press the share button, open the Window tab and pick Among Us. A window share has no sound: turn on Send lobby voice on that page for the game sound (or share Entire screen with system audio instead). Leave the page open while you play.";
+        }
 
         /// <summary>
         /// The host's "send to the caster" page, opened by The Button in their browser: VDO.Ninja
@@ -35,15 +95,30 @@ footer{color:var(--muted);font-size:13px;display:flex;gap:14px}
 #voice .st{font-weight:600}
 #drop{display:none;padding:9px 16px;background:#5a1f24;color:#fff;font-weight:600}
 #drop.on{display:block}
+#nopic{display:none;padding:9px 16px;background:#5a1f24;color:#fff;font-weight:600}
+#nopic.on{display:block}
 #gone{display:none;padding:16px;background:#8a1520;color:#fff;font-weight:700;font-size:18px;text-align:center}
 #gone.on{display:block}
 #retired{display:none;padding:16px;background:#1d2633;color:#fff;font-weight:700;font-size:18px;text-align:center}
 #retired.on{display:block}
+header{display:flex;flex-direction:column;gap:6px}
+.share{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:13.5px;color:var(--muted)}
+.share label{display:flex;align-items:center;gap:5px;cursor:pointer}
+.share label.on{color:var(--fg)}
+.share button{font:inherit;color:var(--fg);background:#1b222b;border:1px solid var(--line);border-radius:6px;padding:3px 10px;cursor:pointer}
+.share button:hover{background:#252c36}
 </style></head><body>
 <div id=""retired"">This tab isn't sending any more: The Button opened a newer one (Open again), or sending was turned off. You can close this tab.</div>
 <div id=""gone"">Live game data isn't reaching The Button. If The Button restarted (an update), click <u>Open again</u> in The Button (Home → Send my game to the caster), then close this tab. The video still goes out.</div>
 <div id=""drop"">Disconnected from caster, reconnecting… Keep playing: nothing is lost, it's all sent when the link is back.</div>
-<header id=""howto"">Sending your game to the caster. Below, press the share button and pick <b>Entire screen</b>. Then leave this tab open while you play.</header>
+<div id=""nopic"">No picture is going out to the caster. Restarted Among Us? Press <b>Pick again</b> below and choose the new <b>Among Us</b> window.</div>
+<header><div id=""howto"">Sending your game to the caster. Below, press the share button, open the <b>Window</b> tab and pick <b>Among Us</b>. Then leave this tab open while you play.</div>
+<div class=""share"" id=""share"">Share:
+  <label><input type=""radio"" name=""sm"" value=""window""> The Among Us window (recommended)</label>
+  <label><input type=""radio"" name=""sm"" value=""screen""> Entire screen</label>
+  <label title=""720p at 30 fps, at most 2.5 Mbps: for a slow upload (Check my connection in The Button tells you)""><input type=""checkbox"" id=""low""> Lower quality (slow upload)</label>
+  <button type=""button"" id=""again"" title=""Shared the wrong thing? Choose again (the caster's picture restarts)"">Pick again</button>
+</div></header>
 <iframe id=""v"" allow=""camera;microphone;display-capture;autoplay;fullscreen;clipboard-write""></iframe>
 <div id=""voice"">
   <span class=""st"" id=""vstate"">Lobby voice: starting…</span>
@@ -52,7 +127,7 @@ footer{color:var(--muted);font-size:13px;display:flex;gap:14px}
   <label class=""src""><input type=""checkbox"" id=""mic""> Include my microphone</label>
   <label class=""src""><input type=""checkbox"" id=""von""> Send lobby voice</label>
 </div>
-<footer><span id=""link"">Connecting to Among Us…</span><span id=""data""></span><span id=""cam""></span></footer>
+<footer><span id=""link"">Connecting to Among Us…</span><span id=""data""></span><span id=""cam""></span><span id=""up""></span></footer>
 <script src=""" + SdkUrl + @"""></script>
 <script>
 const token=new URLSearchParams(location.search).get('token')||'';
@@ -63,6 +138,9 @@ const PROTOCOL=1;   // the broadcast feed's version (FeedProtocol.Version, docs/
 const q=p=>p+(p.includes('?')?'&':'?')+'token='+encodeURIComponent(token)+(page?'&page='+encodeURIComponent(page):'');
 const v=document.getElementById('v');
 let pushUrl=null,since=null,sent=0,lastOk=0,lobby=null,twitch=null;
+// What VDO.Ninja is told to share (the push link with The Button's share options), and the host's choice:
+// the Among Us window (recommended) or the entire screen, and lower quality for a slow upload.
+let shareUrl=null,share={mode:'window',low:false};
 // Reaching The Button: a 401 means it restarted with a new link (an old version), anything else that it's
 // closed or busy. Never silent: the footer says so after 5 s, and the caster is told (health: data 'lost').
 let feedFailSince=0,buttonGone=false,retired=false;
@@ -74,6 +152,31 @@ async function getJson(path){
   return r.json();
 }
 function feedOk(){feedFailSince=0;buttonGone=false;}
+// ---- What to share ------------------------------------------------------------------------------
+// VDO.Ninja's page below does the sharing, so this page can't see what was picked: it opens the browser's
+// picker on the right tab (the Window tab for Among Us), and Pick again asks once more.
+function syncShare(){
+  document.querySelectorAll('input[name=sm]').forEach(e=>{e.checked=e.value===share.mode;e.parentElement.classList.toggle('on',e.checked);});
+  document.getElementById('low').checked=!!share.low;
+  howto();
+}
+function howto(){
+  const voice=!!(VS&&VS.on&&VS.state&&VS.state.supported),unsupported=!!(VS&&VS.state&&!VS.state.supported);
+  const start='Sending your game to the caster. Below, press the share button, ',end=' Then leave this tab open while you play.';
+  document.getElementById('howto').innerHTML=share.mode==='screen'
+    ?(voice?start+'pick <b>Entire screen</b> and leave <b>Share system audio</b> unticked: The Button sends the game sound and the lobby voice itself. Everything on that screen is sent, so <b>The Among Us window</b> is the private choice.'+end
+      :start+'pick <b>Entire screen</b> and tick <b>Share system audio</b> (so the caster gets the game sound).'+end)
+    :(voice?start+'open the <b>Window</b> tab and pick <b>Among Us</b>. The Button sends the game sound and the lobby voice itself.'+end
+      :unsupported?start+'open the <b>Window</b> tab and pick <b>Among Us</b>. A window share has no sound, and the lobby voice needs Windows 10 2004 or later: for the game sound choose <b>Entire screen</b> above and tick <b>Share system audio</b>.'+end
+      :start+'open the <b>Window</b> tab and pick <b>Among Us</b>. A window share has no sound: tick <b>Send lobby voice</b> below for the game sound (or choose <b>Entire screen</b> above and tick <b>Share system audio</b>).'+end);
+}
+function setShare(body){
+  fetch(q('/app/share'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(r=>{if(r.status===409){retire();return;}return info();}).catch(()=>{});
+}
+document.querySelectorAll('input[name=sm]').forEach(e=>e.onchange=()=>{share.mode=e.value;syncShare();setShare({mode:e.value});});
+document.getElementById('low').onchange=e=>{share.low=e.target.checked;setShare({low:String(e.target.checked)});};
+document.getElementById('again').onclick=()=>{if(retired||!shareUrl)return;load('about:blank');setTimeout(()=>{if(!retired)load(shareUrl);},300);};
 function feedFailed(){if(!feedFailSince)feedFailSince=Date.now();}
 const feedLost=()=>buttonGone||(feedFailSince&&Date.now()-feedFailSince>5000);
 // Runs fn every ms, and right away; never again while the last one is still waiting for an answer (two pumps
@@ -85,7 +188,11 @@ async function info(){
     if(retired)return;
     feedOk();
     twitch=r.twitch||null;
-    if(r.pushUrl&&r.pushUrl!==pushUrl){pushUrl=r.pushUrl;v.src=pushUrl;publishVoice();}
+    if(r.share){share=r.share;syncShare();}
+    // A new link, or the share choice changed: VDO.Ninja's page opens again and asks what to share.
+    const want=r.shareUrl||r.pushUrl;
+    if(want&&want!==shareUrl){shareUrl=want;load(want);}
+    if(r.pushUrl&&r.pushUrl!==pushUrl){pushUrl=r.pushUrl;publishVoice();}
     const wantCam=!!(r.cam&&pushUrl);
     if(wantCam!==camOn){camOn=wantCam;if(!camOn)stopCam();}
     if(camOn)publishCam();
@@ -148,14 +255,23 @@ function ack(a){
   if(queue.length<before){resendWait=1000;resendAt=0;}
 }
 // Is the screen share sending pictures? Asked of VDO.Ninja every 2 s; told to the caster with the rest.
-let frames=-1,stillFor=0,video='unknown';
+let frames=-1,stillFor=0,video='unknown',slowFor=0;
+// VDO.Ninja's page starts over (a new link, the share changed, Pick again) and waits for the host to pick:
+// nothing is going out yet, so the picture is 'unknown' (never a stale 'ok' or 'lost') until it says otherwise.
+function load(src){video='unknown';frames=-1;stillFor=0;noPicture();v.src=src;}
+// The picture has stalled for 10 s (the Among Us window it shared closed, say): tell the host how to pick again.
+function noPicture(){document.getElementById('nopic').classList.toggle('on',!retired&&video==='lost'&&stillFor>=5);}
 function askStats(){ if(v.contentWindow) v.contentWindow.postMessage({getStats:true},'*'); }
 function gotStats(st){
   const out=st&&st.outbound?Object.values(st.outbound).filter(Boolean):[];
-  if(!out.length){video='unknown';frames=-1;stillFor=0;return;}
+  if(!out.length){video='unknown';frames=-1;stillFor=0;noPicture();return;}
   const f=Math.max(...out.map(o=>o._framesEncoded||0)),kbps=Math.max(...out.map(o=>o.video_bitrate_kbps||0));
+  // The browser lowers the picture when the upload can't keep up: said here after 6 s of it.
+  slowFor=out.some(o=>o.quality_limitation_reason==='bandwidth')?slowFor+1:0;
+  const up=document.getElementById('up');up.textContent=slowFor>=3?'Your upload can\'t keep up, so the picture is lowered: try Lower quality above, a wired connection, or closing other uploads.':'';up.className=slowFor>=3?'bad':'';
   if(f>frames||kbps>0){stillFor=0;video='ok';}else if(++stillFor>=2)video='lost';
   frames=f;
+  noPicture();
 }
 function health(){ if(lobby) send([{v:PROTOCOL,type:'health',lobby,t:Date.now(),video,data:feedLost()?'lost':'ok',queued:queue.length},{v:PROTOCOL,type:'host',lobby,t:Date.now(),twitch}]); }
 setInterval(()=>{if(retired)return;askStats();health();},2000);
@@ -184,6 +300,7 @@ function watchSdk(sdk,current,problem,gone){
 function retire(){
   if(retired)return;
   retired=true;
+  document.getElementById('nopic').classList.remove('on');
   try{v.src='about:blank';}catch(e){}
   if(vdo){try{vdo.disconnect();}catch(e){}vdo=null;}
   stopCam();
@@ -304,9 +421,7 @@ async function voiceTick(){
     st.textContent=held&&r.on?'Click anywhere on this page to start the lobby sound (the browser holds it back until you do).':!r.on?'Lobby voice: off':!s.supported?'Lobby voice needs Windows 10 2004 or later':voiceProblem||`Lobby voice: Discord ${STATE[s.voice.state]||s.voice.state} · Among Us ${STATE[s.game.state]||s.game.state}${vdo?' · sending':''}`;
     st.className='st '+(voiceProblem||held&&r.on||!working&&r.on?'bad':vdo?'ok':'');
     // With The Button sending the game sound, the screen share must not carry it too.
-    document.getElementById('howto').innerHTML=r.on&&s.supported
-      ?'Sending your game to the caster. Below, press the share button, pick <b>Entire screen</b> and leave <b>Share system audio</b> unticked: The Button sends the game sound and the lobby voice itself. Then leave this tab open while you play.'
-      :'Sending your game to the caster. Below, press the share button, pick <b>Entire screen</b> and tick <b>Share system audio</b> (so the caster gets the game sound). Then leave this tab open while you play.';
+    howto();
     if(ctx) await mic(r.on&&r.mic);
     if(r.on&&!vdo) publishVoice();
     // The caster's tab shows this lobby's voice status.

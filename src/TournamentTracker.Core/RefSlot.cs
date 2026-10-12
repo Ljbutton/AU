@@ -14,13 +14,26 @@ namespace TournamentTracker
         /// <summary>The referee's player key while the slot is on; null when off. Saved.</summary>
         public string? RefSlotKey { get; private set; }
 
-        /// <summary>The referee's player ID in this lobby, if the slot is on and they're here.</summary>
-        public byte? RefSlotPlayerId(IReadOnlyList<PlayerSnapshot> players) =>
-            RefSlotKey == null ? null : players.FirstOrDefault(p => p.Key == RefSlotKey)?.PlayerId;
+        /// <summary>
+        /// The referee's key while the slot really works: null in safe mode, where the mod leaves the
+        /// game's roles alone and the referee plays as an ordinary player (so they're counted, scored,
+        /// muted and shown like one). Held for the whole game (<see cref="SafeModeThisGame"/>).
+        /// </summary>
+        public string? ActiveRefSlotKey => SafeModeThisGame ? null : RefSlotKey;
+
+        /// <summary>The referee's player ID in this lobby, if the slot is on (and not held back by safe mode) and they're here.</summary>
+        public byte? RefSlotPlayerId(IReadOnlyList<PlayerSnapshot> players)
+        {
+            var key = ActiveRefSlotKey;
+            return key == null ? null : players.FirstOrDefault(p => p.Key == key)?.PlayerId;
+        }
 
         /// <summary>The lobby without the referee ghost: who actually plays.</summary>
-        public IReadOnlyList<PlayerSnapshot> WithoutReferee(IReadOnlyList<PlayerSnapshot> players) =>
-            RefSlotKey == null ? players : players.Where(p => p.Key != RefSlotKey).ToList();
+        public IReadOnlyList<PlayerSnapshot> WithoutReferee(IReadOnlyList<PlayerSnapshot> players)
+        {
+            var key = ActiveRefSlotKey;
+            return key == null ? players : players.Where(p => p.Key != key).ToList();
+        }
 
         /// <summary>!refslot on|off. Only the host can be the referee ghost.</summary>
         private void RefSlotCommand(PlayerSnapshot sender, string[] args)
