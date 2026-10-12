@@ -1048,11 +1048,16 @@ function syncList(box, items, keyOf, html, empty) {
     return;
   }
   if (box.dataset.e != null) { box.innerHTML = ''; delete box.dataset.e; }
-  const have = new Map();
-  for (const el of [...box.children]) { if (el.dataset.k != null) have.set(el.dataset.k, el); else el.remove(); }
+  // Keys are made unique on both sides (a second node with a key it already has goes; a second item with a
+  // key already used gets "#2", "#3"…), so two items that share a key can't leave a node behind each render.
+  const have = new Map(), used = new Set();
+  for (const el of [...box.children]) { const k = el.dataset.k; if (k != null && !have.has(k)) have.set(k, el); else el.remove(); }
   let at = 0;
   for (const it of items) {
-    const k = String(keyOf(it)), h = html(it);
+    let k = String(keyOf(it));
+    if (used.has(k)) { let i = 2; while (used.has(k + '#' + i)) i++; k += '#' + i; }
+    used.add(k);
+    const h = html(it);
     let el = have.get(k);
     if (!el || el._h !== h) {
       const n = makeEl(h); n.dataset.k = k; n._h = h;
@@ -1332,6 +1337,9 @@ function panicPress() {
 const holdToggle = () => deckDo('hold/toggle');
 document.addEventListener('keydown', e => {
   if (PAGE !== 'live' || !S || !S.admin || keyWaitVo || keyWait) return;
+  // A held key fires again and again: these keys act once per press (held P would panic, then undo, then
+  // panic again; held H would flip the hold; held Shift+1 would cut again and again).
+  if (e.repeat) return;
   const a = document.activeElement;
   if (/INPUT|TEXTAREA|SELECT/.test(a.tagName) || a.isContentEditable) return;
   if (a.tagName === 'BUTTON' && (e.key === 'Enter' || e.key === ' ')) return;      // a button reached with Tab: the key presses it
@@ -1476,7 +1484,7 @@ function renderWarnings() {
   const w = warnings();
   const rank = x => x.lvl === 'bad' ? 0 : 1;
   w.sort((a, b) => rank(a) - rank(b));
-  syncList($('desk-warn'), w, x => x.title, x => `<div class="warn ${x.lvl === 'bad' ? 'bad' : ''}"><b>${esc(x.title)}</b><span>${esc(x.text)}</span>${x.btns}</div>`,
+  syncList($('desk-warn'), w, x => x.title + '\n' + x.text, x => `<div class="warn ${x.lvl === 'bad' ? 'bad' : ''}"><b>${esc(x.title)}</b><span>${esc(x.text)}</span>${x.btns}</div>`,
     '<p class="muted" style="margin:0;font-size:13px">Nothing needs a look.</p>');
   const top = w[0];
   const rail = $('ld-alerts');
@@ -1493,7 +1501,11 @@ $('ld-keys').addEventListener('click', e => { e.stopPropagation(); const p = $('
 // Popovers (warnings, keys, a lobby's menu, the slot picker) close on Esc or a click elsewhere.
 function closePops() {
   let any = false;
-  for (const id of ['ld-alert-pop', 'keys-pop', 'tile-pop', 'air-pick', 'rp-keymap']) { const p = $(id); if (p && !p.hidden) { p.hidden = true; any = true; } }
+  for (const id of ['ld-alert-pop', 'keys-pop', 'tile-pop', 'air-pick', 'rp-keymap']) {
+    const p = $(id); if (!p || p.hidden) continue;
+    p.hidden = true; any = true;
+    if (id === 'rp-keymap') keyWait = null;         // closed while waiting for a key: the next key isn't a new binding
+  }
   if (any) { TILE_POP = null; $('ld-alerts').setAttribute('aria-expanded', 'false'); }
   return any;
 }
@@ -2603,10 +2615,13 @@ $('rp-bar').addEventListener('click', e => {
 // Keys: work on the Caster tab while a replay is up (not while typing). Change them under Keys.
 const KEY_ACTION = { playPause: ['toggle'], back: ['back'], forward: ['forward'], frameBack: ['frameBack'], frameForward: ['frameForward'], restart: ['restart'], zoomIn: ['zoomIn'], zoomOut: ['zoomOut'],
   panLeft: ['pan', -1, 0], panRight: ['pan', 1, 0], panUp: ['pan', 0, -1], panDown: ['pan', 0, 1], follow: ['follow'], live: ['live'], angle: ['angle'] };
+// Held down, only these keep going (scrubbing, zooming, panning); every other key acts once per press.
+const KEY_REPEATS = new Set(['back', 'forward', 'frameBack', 'frameForward', 'zoomIn', 'zoomOut', 'panLeft', 'panRight', 'panUp', 'panDown']);
 document.addEventListener('keydown', e => {
   if (!$('caster').classList.contains('on') || !RP || !RP.hotkeys) return;
   if (keyWait) {
     e.preventDefault();
+    if (e.code === 'Escape') { keyWait = null; renderKeys(); return; }        // Esc: keep the key it had
     const map = {}; map[keyWait] = e.code; keyWait = null;
     api('POST', '/app/admin/replay', { action: 'hotkeys', map }).then(r => { toast(r.message); loadFull().then(renderKeys); });
     return;
@@ -2616,6 +2631,7 @@ document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.altKey || e.metaKey) return;
   const name = Object.keys(RP.hotkeys || {}).find(k => RP.hotkeys[k] === e.code);
   if (!name) return;
+  if (e.repeat && !KEY_REPEATS.has(name)) { if (RP.now || !KEY_ACTION[name]) e.preventDefault(); return; }
   if (name === 'grid') { e.preventDefault(); show('', 'grid'); return; }
   if (name === 'alertsPause') { e.preventDefault(); api('POST', '/app/admin/broadcast', { action: 'alerts' }).then(r => { toast(r.message); loadDesk(); }); return; }
   if (name === 'intermission') { e.preventDefault(); intermissionToggle(); return; }
