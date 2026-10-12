@@ -111,7 +111,14 @@ namespace TournamentTracker.App.Broadcast
 
         public string? Folder => _folder;
 
+        /// <summary>Goes up whenever a game is added, filled in or removed (what's worked out from the games is new).</summary>
+        public int Version { get { lock (_lock) return _version; } }
+        private int _version;
+
         public List<ArchivedGame> Games { get { lock (_lock) return _games.ToList(); } }
+
+        /// <summary>Today (local date) on the archive's clock.</summary>
+        public DateTime Day => _clock().ToLocalTime().Date;
 
         /// <summary>Today's games (local date), oldest first.</summary>
         public List<ArchivedGame> Today() { var d = _clock().ToLocalTime().Date; lock (_lock) return _games.Where(g => g.StartedAt.ToLocalTime().Date == d).ToList(); }
@@ -207,6 +214,7 @@ namespace TournamentTracker.App.Broadcast
                         _live.Remove(lobby);
                         if (m.TryGetProperty("abandoned", out var ab) && ab.ValueKind == JsonValueKind.True) break;
                         _games.Add(g);
+                        _version++;
                         done = g;
                         break;
                 }
@@ -239,6 +247,7 @@ namespace TournamentTracker.App.Broadcast
                     }
                     g.Scored = true;
                     changed.Add(g);
+                    _version++;
                 }
             foreach (var g in changed) Save(g);
         }
@@ -251,6 +260,7 @@ namespace TournamentTracker.App.Broadcast
             {
                 gone = _games.Where(g => which(g.Lobby) || which(g.Referee)).ToList();
                 _games.RemoveAll(gone.Contains);
+                _version++;
                 foreach (var k in _live.Keys.Where(which).ToList()) _live.Remove(k);
             }
             if (_folder != null)

@@ -97,11 +97,46 @@ namespace TournamentTracker.App.Broadcast
 
         private static string Time(double s) => $"{(int)s / 60}:{(int)s % 60:00}";
 
+        // The notes as last worked out (before pins and focus), and from which games: the desk asks on
+        // every poll and the intermission screen 4 times a second, and the games change a few times an hour.
+        private (int Archive, int Tables, string Day, List<Note> Notes)? _made;
+
         /// <summary>
         /// Every note that applies now, most relevant first. <paramref name="focus"/>: players in the
         /// lobbies on stream (or about to be), whose notes go first.
         /// </summary>
         public List<Note> Notes(ISet<string> focus, int max = 40)
+        {
+            // Asking the tables for the round first has them notice new games (their version goes up then).
+            var tables = _tables();
+            int tablesVersion = 0;
+            if (tables != null) { _ = tables.CurrentRound; tablesVersion = tables.Version; }
+            var key = (_archive.Version, tablesVersion, _archive.Day.ToString("yyyy-MM-dd") + "|" + DateTime.Now.ToString("yyyy-MM-dd"));
+            List<Note> made;
+            lock (_lock) made = _made is { } m && (m.Archive, m.Tables, m.Day) == key ? m.Notes : null!;
+            if (made == null)
+            {
+                made = Make();
+                lock (_lock) _made = (key.Item1, key.Item2, key.Item3, made);
+            }
+            // Copies: pins and focus are added to each caller's own.
+            var notes = made.Select(n => new Note { Id = n.Id, Kind = n.Kind, Text = n.Text, Players = n.Players, Weight = n.Weight }).ToList();
+            lock (_lock)
+            {
+                foreach (var n in notes)
+                {
+                    n.Pinned = _state.Pinned.Contains(n.Id);
+                    if (n.Players.Any(focus.Contains)) n.Weight += 5;
+                    if (n.Pinned) n.Weight += 100;
+                }
+                return notes.Where(n => !_state.Dismissed.Contains(n.Id) && !_state.Used.Contains(n.Id))
+                    .GroupBy(n => n.Id).Select(g => g.First())
+                    .OrderByDescending(n => n.Weight).Take(max).ToList();
+            }
+        }
+
+        /// <summary>Every note today's games make (before pins, dismissals and focus).</summary>
+        private List<Note> Make()
         {
             var today = _archive.Today();
             var notes = new List<Note>();
@@ -171,19 +206,7 @@ namespace TournamentTracker.App.Broadcast
                 }
             }
 
-            notes = Merge(notes, day);
-            lock (_lock)
-            {
-                foreach (var n in notes)
-                {
-                    n.Pinned = _state.Pinned.Contains(n.Id);
-                    if (n.Players.Any(focus.Contains)) n.Weight += 5;
-                    if (n.Pinned) n.Weight += 100;
-                }
-                return notes.Where(n => !_state.Dismissed.Contains(n.Id) && !_state.Used.Contains(n.Id))
-                    .GroupBy(n => n.Id).Select(g => g.First())
-                    .OrderByDescending(n => n.Weight).Take(max).ToList();
-            }
+            return Merge(notes, day);
         }
     }
 }

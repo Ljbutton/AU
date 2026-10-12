@@ -130,8 +130,23 @@ namespace TournamentTracker.App.Broadcast
             lock (_switchLock)
             {
                 if (!ReferenceEquals(next, OnAir)) return;
+                // What was on before a switch by hand, for Undo.
+                if (next.By is "button" or "deck" && _raised != null && _raised.Layout is not ("none" or "replay") && !SameAir(_raised, next)) _previous = _raised;
+                _raised = next;
                 Switch?.Invoke(next);
             }
+        }
+
+        private OnAir? _raised, _previous;
+
+        private static bool SameAir(OnAir a, OnAir b) => a.Layout == b.Layout && a.Slots.SequenceEqual(b.Slots, StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Undo a switch by hand: what was on before it, on stream again. Null when there's nothing to go back to.</summary>
+        public OnAir? Back(string by = "deck")
+        {
+            OnAir? back;
+            lock (_switchLock) { back = _previous; _previous = null; }
+            return back == null ? null : Restore(back, by);
         }
 
         /// <summary>The tournament's players: real names for everyone in the lobbies.</summary>
@@ -517,15 +532,27 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>The players a card is about (the key player first), for its Card buttons.</summary>
-        private List<object> CardPeople(Card card)
+        private List<object> CardPeople(Card card) => CardWho(card).Select(w => (object)new { w.Key, w.Name, w.Color }).ToList();
+
+        private List<(string Key, string Name, int Color)> CardWho(Card card)
         {
-            var list = new List<object>();
+            var list = new List<(string, string, int)>();
             if (card.Source is not { } src || src.ValueKind != JsonValueKind.Object) return list;
             var seen = new HashSet<string>();
             foreach (var prop in new[] { "killer", "impostor", "caller", "ejected", "player", "witness", "victim", "body", "crewmate" })
                 if (src.TryGetProperty(prop, out var p) && p.ValueKind == JsonValueKind.Object && WhoIs(card.Lobby, p) is { } w && seen.Add(w.Key))
-                    list.Add(new { w.Key, w.Name, w.Color });
+                    list.Add(w);
             return list;
+        }
+
+        /// <summary>The top notification's key player (the desk's C key, the Stream Deck's card key), or null.</summary>
+        public (string Key, string Lobby)? TopCardPlayer()
+        {
+            List<Card> cards;
+            lock (_lock) cards = _cards.Where(c => !c.Dismissed && !c.System).OrderByDescending(c => c.Value).ThenByDescending(c => c.Updated).Select(c => c.Snapshot()).ToList();
+            foreach (var c in cards)
+                if (CardWho(c) is { Count: > 0 } who) return (who[0].Key, c.Lobby);
+            return null;
         }
 
         /// <summary>Roster names for a lobby's players (player key → name), for its referee's nameplates and events.</summary>

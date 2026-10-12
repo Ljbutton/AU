@@ -39,6 +39,15 @@ namespace TournamentTracker.App.Broadcast
         public double Margin { get; set; } = 0.12;
         /// <summary>If the video arrives later than the data, by this much (milliseconds): shifts the crop to match.</summary>
         public int VideoDelayMs { get; set; }
+        /// <summary>
+        /// Old clips are cleared away (oldest first; never one a montage or the archive uses) once Red
+        /// Alert's clips take more than this many GB (0: no limit)…
+        /// </summary>
+        public double KeepGb { get; set; } = 30;
+        /// <summary>…or are older than this many days (0: no limit)…</summary>
+        public double KeepDays { get; set; } = 7;
+        /// <summary>…and more while the disk has less than this many GB free (0: not by that).</summary>
+        public double MinFreeGb { get; set; } = 15;
         /// <summary>Where OBS saves the clips. Empty: Videos\TT Replays.</summary>
         public string Folder { get; set; } = "";
         public string Format { get; set; } = "mp4";

@@ -575,6 +575,21 @@ namespace TournamentTracker.App.Broadcast
             _desk.ObsChanged(new OnAir { Layout = layout, Slots = slots, Scene = scene });
         }
 
+        /// <summary>What the Live desk needs about OBS several times a second: connected, the switch, missing pictures, what's going out. No setup checks.</summary>
+        public object LiveStatus() => new
+        {
+            Connected,
+            Problem,
+            Scene,
+            SwitchingTo, SwitchProblem,
+            Swoosh = new { Settings.Swoosh.On, Problem = SwooshProblem },
+            Output = OutputView(),
+            Missing = Connected ? _desk.OnAir.Slots.Where(l => l != null).Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(l => (Lobby: l!, Why: SourceIssue(l!))).Where(x => x.Why != null).ToDictionary(x => x.Lobby, x => x.Why!) : new Dictionary<string, string>(),
+            ReplayProblem, CamProblem,
+            DesktopAudioOn = Connected ? DesktopAudioOn : new List<string>(),
+        };
+
         public object Status() => new
         {
             Connected,

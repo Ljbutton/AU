@@ -119,6 +119,8 @@ public class BroadcastServerTests : IDisposable
         await Call(deck, HttpMethod.Get, $"deck/lobby/{two}?key={key}");
 
         // The camera on the lobby on stream: the host is told who to follow (over the desk page's link).
+        // Only in a game: in a meeting or between games the camera is armed for when play resumes.
+        for (int i = 0; i < 300 && desk.Board.Lobby(busy!)?.Phase != "ingame"; i++) await Task.Delay(100);
         Assert.True((await Call(deck, HttpMethod.Get, $"deck/cam?key={key}")).GetProperty("ok").GetBoolean());
         Assert.Equal("cam", desk.OnAir.Layout);
         Assert.Equal(busy, desk.OnAir.Slots[0]);

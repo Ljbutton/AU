@@ -41,6 +41,12 @@ namespace TournamentTracker.App.Broadcast
 
         public string? Path => _path;
         public string? Problem { get; private set; }
+        /// <summary>
+        /// Goes up whenever who's who could have changed (the file read again, a pick by hand, simulation's
+        /// players added or taken away), so names worked out before are worked out again.
+        /// </summary>
+        public int Version => _version + Extra.Count * 7919;
+        private int _version;
         /// <summary>Extra entries used in simulation mode (the fake players), never written to the file.</summary>
         public List<RosterEntry> Extra { get; } = new List<RosterEntry>();
 
@@ -83,7 +89,7 @@ namespace TournamentTracker.App.Broadcast
                 if (stamp == _stamp) return;
                 _stamp = stamp;
                 var (entries, problem) = Parse(File.ReadAllText(_path));
-                lock (_lock) _entries = entries;
+                lock (_lock) { _entries = entries; _version++; }
                 Problem = problem;
             }
             catch (Exception e) { Problem = $"{FileName} couldn't be read ({e.Message}); using the last good copy."; }
@@ -154,9 +160,13 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>The roster entry for a lobby player, and how it was found.</summary>
         public (RosterEntry? Entry, MatchHow How) Match(string key, string? discordId, string inGameName)
         {
-            var all = Entries;
+            // The roster as it is (it's replaced whole when the file is read again, never changed in
+            // place) and simulation's extras: no copy of the whole roster for every name asked for.
+            Refresh();
+            List<RosterEntry> entries;
             string? manual;
-            lock (_lock) _overrides.TryGetValue(key, out manual);
+            lock (_lock) { entries = _entries; _overrides.TryGetValue(key, out manual); }
+            IEnumerable<RosterEntry> all = Extra.Count == 0 ? entries : entries.Concat(Extra.ToArray());
             if (manual != null)
             {
                 if (manual.Length == 0) return (null, MatchHow.Manual);          // picked "nobody"
@@ -186,6 +196,7 @@ namespace TournamentTracker.App.Broadcast
             {
                 if (rosterName == null) _overrides.Remove(key);
                 else _overrides[key] = rosterName;
+                _version++;
                 try
                 {
                     if (_overridesPath != null) File.WriteAllText(_overridesPath, JsonSerializer.Serialize(_overrides, new JsonSerializerOptions { WriteIndented = true }));
