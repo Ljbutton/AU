@@ -258,3 +258,130 @@ _Unused code was removed. If anything below misbehaves, it's likely from the cle
 - [ ] Host with the mod on PC (referee slot on), join from a phone without the mod, start a game, call a meeting → the referee's card is crossed out (dead) on the phone
 - [ ] With `[Debug] RefereeRecordSync = true` in BepInEx/config/com.ljbutton.tournamenttracker.cfg: the log shows "Referee record written for sending: IsDead=True…" after the intro and before each meeting, and no "found alive" / "changed to false" warnings
 - [ ] The Button → Home → Tools: the Referee ghost slot says players without the mod see a crossed-out card
+
+## New in 0.1.62 (Red Alert 0.3.14)
+
+### The mod (in Among Us)
+- [ ] Player camera on stream for a full game with the F10 profiler on → no regular stutter every second or two; the log has no "Player camera: reading the pixels the slower way" line (if it has one, send it: the camera fell back to the old way but kept working)
+- [ ] Player camera picture looks as before: right way up, normal colours; the dark area outside the followed player's sight follows them and stops at walls; standing still at a task it stays right, and a door closing changes it within a moment
+- [ ] Referee spectator view (vision dim, rings, eye by a crewmate's name) looks and behaves as before; in the F10 summary, OverlayLate and OverlayDim are lower than in 0.1.61
+- [ ] Red Alert switches the player cam pick, the game sound (cam/wide) and the vision → no "[Tracker] Spectator view: …" line in the host's chat or in the referee's mini chat at the next meeting; The Button's own buttons (Next round, etc.) still answer in the host's chat
+- [ ] Caster picks a player in Red Alert, waits more than 10 s, the player is killed → the player cam stays on them for about 4 s (the kill is seen), then moves on
+- [ ] Save a new setup in The Button during a game → after the game the tracker restarts → Red Alert keeps receiving that lobby's events and snapshots straight away (the lobby doesn't go quiet)
+- [ ] Live status on, close Among Us from the lobby → the Discord status message changes to "The host closed the lobby"
+- [ ] Update, start Among Us, host an online lobby with the referee slot on, start a game → log line "Referee ghost: … owner -2 … host authority (modded host): True"
+- [ ] Phone without the mod in that lobby: the referee is never seen on the map; in meetings their card is crossed out (dead); no kick or ban over 3 or more full games
+- [ ] Join the modded lobby by code from a phone, and from a console if you can → works; the lobby isn't in the public game list
+- [ ] Send `hostauth off` while in a lobby → the reply says the lobby keeps host authority until you leave to the main menu; go to the main menu, host again, start a game → MakeGhost log says "host authority (modded host): False" and Home shows "Host authority is off…"; `hostauth on` and re-host puts it back
+- [ ] The app's status (/api/status) has hostAuthority.on and hostAuthority.active (active is true while hosting with it, null in the menus)
+- [ ] Normal games with host authority → no "message … came from another player's game" notices on Home (kills, meetings, names, guardian angel shields all work as usual)
+- [ ] First meeting of each game: the referee's mini chat starts empty ("Chat shows here."), with no lines from the lobby or the previous game
+- [ ] Referee's mini vitals list stays in place down the left edge with the player cam on, and never appears in the player cam picture; it shows up after the intro (and after the Airship spawn pick)
+- [ ] Referee's card is taken off the meeting list on the host's screen and on a modded player's game
+- [ ] Referee's task bar still fills live during play
+- [ ] Player cam on stream on every map → the followed player's footsteps are heard
+- [ ] Mod log at start: "Self-check: every hook is in place." (the new version, modded-check and HandleRpc hooks included)
+
+### The Button
+- [ ] The Button, Referee tab at the default window (and maximised at 1080p): the page doesn't scroll; Waiting and Games on the left, Points and Results channel on the right; long lists scroll inside their own card
+- [ ] Referee tab, very small window (125% scaling, or narrower than 880 px): falls back to one column and the page scrolls; nothing is cut off
+- [ ] Referee tab: type a void reason at the top and press Void on a waiting game, on a sent game, and "Void this game": each void carries the reason and the box empties
+- [ ] Referee tab: type an amount in a player's box while the game list redraws (submit another game, or wait for a refresh): the box keeps focus and the cursor; + and − still work
+- [ ] Referee tab, Points: tabs for this lobby / every lobby / running total; the chosen tab is remembered after a restart; the cut line and green "moves on" rows are kept; hidden columns are in the row tooltip
+- [ ] Referee tab: "Reset points…" opens a small box under the top line; Escape or Cancel closes it; typing RESET and pressing Reset all points still resets
+- [ ] Referee tab with an administration code: Results channel is folded (open state remembered); the lobby list is filled when the tab opens (without visiting Home or Organiser first); !adjust / void / any-command still post
+- [ ] Home → Tools with the new mod: Host authority switch shows and sends "hostauth on/off"; with an older mod the switch doesn't show and nothing breaks
+- [ ] Home: referee slot on, host authority on but the lobby was hosted before it was switched on: the checklist shows "Restart hosting from the main menu so host authority takes effect"; after rehosting from the main menu it goes away
+- [ ] Home: the Post Leaderboard / Server standings / Lobby message buttons (now at the bottom of Tools) post as before; Home still fits the default window
+- [ ] Send my game to the caster: press Open again: the old tab shows "This tab isn't sending any more" and stops sharing; only the new tab sends, and lobby voice isn't choppy
+- [ ] Send my game to the caster: switch it Off in The Button: the open tab stops sharing the screen and lobby voice and says so
+- [ ] Restart The Button (update) with the send tab open: the tab keeps sending (no "isn't sending" banner)
+- [ ] Lobby voice with the send tab behind Among Us or the browser minimised for several minutes: the caster hears smooth Discord and game sound (no half-second gaps)
+- [ ] Close the send tab: within about a minute The Button stops capturing Discord and game sound (CPU drops); opening the page again brings the voice back
+- [ ] Lobby voice: drag a level slider: the level changes on the caster's side; Wi-Fi blip: voice says "reconnecting" and comes back without a second stream on the caster's side
+- [ ] Player camera on, then Among Us closed: the browser doesn't spin; camera pictures still smooth when back on
+- [ ] Organiser tab: lobby ages count up every couple of seconds, cards don't flicker; clicking items in the Home checklist and the update pill works on the first click
+- [ ] The Button next to Among Us: the starfield still drifts; CPU/GPU use of The Button is lower than before; minimised, it draws nothing
+- [ ] Update automatically, with Among Us running and a newer mod out: the mod still updates by itself shortly after Among Us closes
+
+### Discord bots (inside The Button and the mod)
+- [ ] Bot gateway: pull the network for ~10 s during a lobby; the bot comes back (resumes) and a /link used during the drop is still answered; the log shows no rapid reconnect loop.
+- [ ] Bot with a reset/wrong token: The Button shows "Discord turned down the bot's token…" and stops reconnecting.
+- [ ] Talking lights: host sits in voice 30+ min with people talking; The Button's memory stays flat; lights keep working after the host moves channel.
+- [ ] Disconnect the bot from the voice channel in Discord: within ~15–30 s it rejoins and talking lights return.
+- [ ] Automute: a muted player leaves voice mid-game; the log doesn't show retries every 2 minutes; when they rejoin voice they get the current state straight away (not stuck muted).
+- [ ] Automute with 10+ players and a short meeting: right after the meeting ends nobody is left in the meeting's mute state.
+- [ ] Crash (The Button only): mid-game with players muted, end The Button in Task Manager, reopen it with Among Us still running: players get the game's state back; after the game everyone is unmuted.
+- [ ] Crash (both): mid-game, end Among Us and The Button in Task Manager, reopen only The Button: within ~30 s everyone is unmuted and BepInEx/config/TournamentTracker/button-muted.json is gone.
+- [ ] Among Us crash with The Button open: end Among Us mid-game: within ~35 s everyone is unmuted.
+- [ ] Close The Button normally with 10 players muted/deafened: all are unmuted.
+- [ ] Live status: pull the network while players join, reconnect: the status message catches up within a minute without another change.
+- [ ] Live data: same test; the lobby in the Organiser tab / Red Alert shows current data again within a minute.
+- [ ] Organiser / Red Alert: with 100+ messages in the results channel since a lobby's last game, that lobby still shows and keeps updating.
+- [ ] Round end in a tournament: report, game file, lobby standings and round summary each post once (no duplicates).
+- [ ] Results still post through The Button after it is closed and reopened mid-session, and nothing posts twice.
+
+### Stream Deck plugin
+## Stream Deck plugin
+_Red Alert with the new Stream Deck state, Stream Deck app 6.5+ on the same PC, RedAlert.streamDeckPlugin from the broadcast-v release._
+- [ ] Double-click RedAlert.streamDeckPlugin — the Stream Deck app installs "Red Alert" and its actions show under Red Alert, with the Red Alert version.
+- [ ] Drag a Lobby key before pairing — it shows SET UP across the top.
+- [ ] Paste the port and key from Red Alert (Settings → Stream Deck) into "Red Alert connection" and press Test — it says how many lobbies there are and whether OBS is connected; a wrong key says the key is wrong.
+- [ ] Close Red Alert — every key shows OFFLINE within a few seconds and comes back by itself when Red Alert opens again.
+- [ ] Lobby keys 1–4 — the one on stream has a red border and PGM, the one in Preview a green border and PVW, phase and crew v impostors match the desk.
+- [ ] Sabotage in a lobby — its key shows the system and seconds, flashing, counting down.
+- [ ] Lobby key set to Preview, then Take — the lobby goes to Preview (green on the desk too), Take puts it on stream with the transition picked.
+- [ ] Lobby key set to "Add it to Preview" on two lobbies, then Take as 2-up — both lobbies go on stream side by side.
+- [ ] Player cam keys slot 1–10 (the lobby on stream) — each shows the right crewmate colour and name; a dead player goes dim with DEAD; the followed player has a ring, red while the camera is on stream.
+- [ ] Press a player cam key in play — the camera cuts to them (tick). In a meeting — the key shows ARMED and the camera goes on when play resumes, no frozen picture.
+- [ ] Player cam key for a lobby whose host isn't sending a camera — NO CAM on the key, and a press shows the alert triangle (no tick).
+- [ ] Wide and Cut to cam — back to the whole map, then back to the same player's camera.
+- [ ] Toggles (mute all, hold, auto grid, auto intermission, auto switch, standings, alerts) — each shows ON/OFF (MUTED, HELD, PAUSED) matching Red Alert, and switches it when pressed; switching on the desk updates the key within a second.
+- [ ] Replay that, Play last, Back to live, Speed — replay plays the on-air lobby's last seconds; the speed key shows 100/50/25%.
+- [ ] Break keys and Panic — the break screen goes up; Panic fades to Be right back and mutes lobby voice in one press.
+- [ ] Press a key many times fast — only one request is sent at a time, nothing switches twice.
+- [ ] No key, settings panel or plugin log ever shows who the impostors are; the plugin log (plugin's logs folder) has paths and answers, never the key.
+- [ ] Stream Deck +: Preview dial turn picks the lobby (strip shows it), push takes; Player dial turn arms the next living player, push cuts to them, tap goes wide; Replay dial scrubs by frames slowly and seconds quickly, push plays/pauses.
+- [ ] Custom path key with gfx/skip and with voice/listen/2 — each works and ticks.
+
+### Red Alert: switching engine, Stream Deck, replays
+- [ ] Red Alert: Stream Deck `/deck/lobby/1?key=...` puts lobby 1 on; a wrong key answers 401, an unknown lobby 404, OBS closed (no simulation) 503; pressing the same key twice fast shows "ignored repeat"
+- [ ] Red Alert: lobby numbers on the Stream Deck stay the same after closing and reopening Red Alert (lobby-numbers.json); a lobby called "Lobby 3" is number 3 when free
+- [ ] Red Alert: Stream Deck pvw/lobby + pvw/add builds Preview (green tally on the desk and on the keys), Take puts it on stream; take?t=cut cuts with no swoosh, t=fade fades
+- [ ] Red Alert: player camera key while the lobby is in a meeting answers 202 "armed" and the camera goes on by itself when play resumes; pressing it again disarms; with cameras off it is refused (409)
+- [ ] Red Alert: camera follow (cam/1/slot3, colour, next/prev) reaches the host's game within a couple of seconds and is sent again until the host has it
+- [ ] Red Alert: /deck/state?key=... waits and answers as soon as something changes (rev goes up); no impostor flags in it unless &imp=1; /deck/img keys draw lobby tally/phase and player heads
+- [ ] Red Alert: Hold on: auto grid, auto intermission, the camera going back to the map, auto switch off a dropped lobby, break end and armed cameras all wait, and the desk says what was held back; the caster's own switches still go
+- [ ] Red Alert: Panic fades to be-right-back, mutes lobby voice, clears graphics, pauses alerts and holds; Undo puts the previous view, voice and alerts back
+- [ ] Red Alert: Replay "that" plays the on-air lobby's last ~8 s with no card; "last" plays the newest clip again; slow motion cycles 50%/25%/100% (quiet while slowed)
+- [ ] Red Alert: OBS stream stopped/reconnecting, not recording, dropped frames and low disk show as warnings on the desk within a few seconds
+- [ ] Red Alert: /app/admin/program.jpg shows OBS's program picture (blank 204 with OBS closed)
+- [ ] Red Alert: many quick Stream Deck presses in a row end with OBS showing exactly what the desk shows, with the right lobby's sound
+- [ ] Red Alert: Mute all (hotkey or deck) silences lobby voice in OBS immediately
+- [ ] Red Alert: minimised or covered by an OBS projector, host commands and the desk keep running at full speed
+- [ ] Red Alert: an error in the window is written to red-alert.log and Red Alert keeps running; past 1 MB the log moves to red-alert.log.1
+- [ ] Red Alert: old replay clip files (TT *) are cleared by size/age/free disk; clips used by a montage or the archive, or playing, stay
+- [ ] Red Alert: if port 8768 is taken, Red Alert uses 8769–8771 and the Stream Deck page warns about the port change
+
+### Red Alert: one-screen Live desk
+- [ ] Red Alert Live desk at 1920x1080 (and 1536x864 / 125% scaling): everything on one screen, no page scroll; only the three bottom columns (and a full action panel) scroll
+- [ ] Status bar: PROGRAM/BREAK/OFF AIR tag with OBS STREAMING/REC times; AUDIO pill shows who is heard, click mutes all (pill flashes red, click again unmutes); OBS, LOBBIES, REPLAYS, AUTO/HOLD pills; shot timer
+- [ ] Warning line shows the worst warning and "+N"; click opens the list with its Fix/Undo buttons; Esc or a click elsewhere closes it; disconnecting OBS shows "OBS not connected"
+- [ ] Click a lobby tile: green PVW border and it appears in the PREVIEW box; Ctrl+click a second: 2-up in Preview; TAKE (or Enter) puts it on (red PGM borders), Preview empties
+- [ ] Double-click a tile: that lobby full screen at once; hover buttons PVW / +PVW / CUT / camera work
+- [ ] Right-click a tile: menu with Preview / Add / On stream now / Listen, host view (lit, vision, eye, whose-vision picker stays open while choosing) and player cards
+- [ ] Keys: 1-9 Preview, Shift+1-9 cut, Enter Take, Esc clear, H hold on/off, P twice panic (P once shows "Sure? Panic"; while a replay is up P is its other angle), N action into Preview, G grid into Preview
+- [ ] Cut / Swoosh / Fade choice is used by Take, cuts and camera cuts (and remembered after a restart)
+- [ ] PROGRAM box shows OBS's own picture (about 2 per second) with OBS connected; a drawing of the layout without OBS
+- [ ] Tiles: phase chip (MEETING yellow), crew v imps, tasks, flashing sabotage countdown, tier glow, health dot, camera / ARMED badge, red play badge for a ready replay (click plays it), voice meter
+- [ ] Player cams: tabs per lobby (default the Preview lobby, else Program), chips in colour order with heads; click = camera on them (ARMED in a meeting), Shift+click = only follow; Prev/Next, Cut to cam, Wide; one line per other lobby
+- [ ] Replay that, Play last and ready-replay buttons; replay controls in the action panel with slow motion 100/50/25%; the cursor moves while playing
+- [ ] After-game prompt: buttons stay clickable while the countdown ticks; sponsor read Done/Snooze; Sponsor break button counts down
+- [ ] Panic: be right back, AUDIO "All muted", PANIC pill, "Undo panic" puts everything back
+- [ ] Hold blocks auto grid / intermission; the held-back switch shows as a toast and a warning with Release hold
+- [ ] Clicking cards, Save replay and player-card buttons always works (no lost clicks while polls run); tooltips stay up
+- [ ] Other pages (Health, Montages, Graphics, Standings, Sponsors, Twitch, OBS, Lobby voice, Players, Settings) still work; lobby voice Discord/Among Us/Sent meters move; Twitch clip picker keeps the chosen clip
+- [ ] Lobby pictures don't reconnect when another lobby starts sending
+- [ ] Settings → Stream Deck: link builder (lobby, camera slot/colour, cut or arm, switch) gives a working link; Copy all links; port shown with a warning if not 8768; Copy key; Download plugin and How to set it up links open
+- [ ] Overlay in OBS: switching layouts glides graphics smoothly; sabotage alarm pulses steadily; sponsor break video stops (no sound) when the break ends and restarts on the next break; win counter in the right place in intermission after a player cam; intermission storyline changes without the whole screen flickering; room-code cover fully hides the code
+- [ ] REPLAY tag over replays shows the right title and sponsor and doesn't flicker
