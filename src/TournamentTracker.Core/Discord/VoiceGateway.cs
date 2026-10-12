@@ -195,6 +195,8 @@ namespace TournamentTracker.Discord
     /// <summary>
     /// A minimal Discord gateway connection: identify with the GUILDS and GUILD_VOICE_STATES
     /// intents (neither is privileged), heartbeat, and reconnect when dropped. It only listens.
+    /// A dropped connection is resumed where Discord allows it, so the events in between (a /link,
+    /// a !start in the results channel) arrive late instead of never.
     /// </summary>
     public sealed class VoiceGateway : IVoicePresence, IBotGateway
     {
@@ -204,17 +206,43 @@ namespace TournamentTracker.Discord
         private const int MessageIntents = (1 << 9) | (1 << 15);
         private int _intents = BaseIntents;
 
+        /// <summary>Discord lets a bot identify once every 5 seconds (and about 1000 times a day).</summary>
+        private static readonly TimeSpan IdentifyGap = TimeSpan.FromSeconds(5.5);
+        /// <summary>A connection that lasted this long starts the reconnect wait from the beginning again.</summary>
+        private static readonly TimeSpan StableAfter = TimeSpan.FromSeconds(60);
+        /// <summary>Resumes in a row that may fail before a fresh session is started instead.</summary>
+        private const int MaxResumeFailures = 3;
+        /// <summary>
+        /// How long after the last working connection a session is still picked up, while no
+        /// connection gets as far as Discord. Past that a fresh session is started on the main
+        /// address: the resume address itself may be what can't be reached.
+        /// </summary>
+        private static readonly TimeSpan ResumeWindow = TimeSpan.FromMinutes(5);
+
         private readonly string _token;
         private readonly Uri _url;
         private readonly ILog _log;
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
+        private readonly Random _random = new Random();
         private Task? _run;
-        private int? _sequence;
+        /// <summary>The last event number Discord sent (-1: none yet). Read by the heartbeat on another thread.</summary>
+        private long _sequence = -1;
         private readonly string _guildId;
         private Func<object, Task>? _send;
         private readonly object _voiceLock = new object();
         private string? _voiceWanted, _voiceSession, _voiceToken, _voiceEndpoint, _voiceIn;
         private VoiceListener? _listener;
+
+        // Where the session can be picked up after a drop (op 6 RESUME). Only the run loop touches these.
+        private string? _sessionId;
+        private Uri? _resumeUrl;
+        private int _resumeFailures;
+        private DateTime _workedUntil;
+        private DateTime _lastIdentify = DateTime.MinValue;
+
+        // The voice self-check: when the bot should be listening but isn't, and how often it asked again.
+        private DateTime? _voiceLostAt;
+        private int _rejoins;
 
         public VoiceGateway(string token, string guildId, ILog log, string url = DefaultUrl, bool listenToMessages = false)
         {
@@ -233,6 +261,15 @@ namespace TournamentTracker.Discord
         public event Action<string, JsonElement>? Dispatched;
         public IReadOnlyList<VoiceMember> Members => State.Members;
 
+        /// <summary>Scales every wait between connections (tests make them short).</summary>
+        internal double WaitScale { get; set; } = 1;
+
+        /// <summary>How often the bot checks it is listening where it should be.</summary>
+        internal TimeSpan VoiceCheckEvery { get; set; } = TimeSpan.FromSeconds(5);
+
+        /// <summary>How long the bot may be out of the voice channel it should be in before it asks again (doubling each time).</summary>
+        internal TimeSpan RejoinAfter { get; set; } = TimeSpan.FromSeconds(15);
+
         public void Start() => _run ??= Task.Run(() => RunAsync(_cts.Token));
 
         // ---- In a voice channel, to see who's talking ------------------------------------------
@@ -245,6 +282,8 @@ namespace TournamentTracker.Discord
             {
                 if (channelId == _voiceWanted) return;
                 _voiceWanted = channelId;
+                _voiceLostAt = null;
+                _rejoins = 0;
                 send = _send;
                 if (channelId == null) StopListening();
             }
@@ -267,7 +306,13 @@ namespace TournamentTracker.Discord
                     string? channel = d.TryGetProperty("channel_id", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() : null;
                     if (channel != _voiceIn) StopListening();
                     _voiceIn = channel;
-                    if (channel == null) return;
+                    if (channel == null)
+                    {
+                        // Out of voice: the next join brings a new voice server and token.
+                        _voiceToken = null;
+                        _voiceEndpoint = null;
+                        return;
+                    }
                 }
                 else if (type == "VOICE_SERVER_UPDATE")
                 {
@@ -296,50 +341,216 @@ namespace TournamentTracker.Discord
             if (old != null) Task.Run(old.Dispose);
         }
 
-        private async Task RunAsync(CancellationToken ct)
+        /// <summary>
+        /// Every few seconds: the bot should be listening in a voice channel but isn't (its listener
+        /// gave up, Discord took it out of voice, or a join went unanswered). It asks Discord again,
+        /// waiting twice as long after each try, so talking lights come back by themselves.
+        /// </summary>
+        private async Task WatchVoiceAsync(CancellationToken ct)
         {
-            int failures = 0;
             while (!ct.IsCancellationRequested)
             {
-                try
-                {
-                    await ConnectOnceAsync(ct).ConfigureAwait(false);
-                    failures = 0;
-                }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                {
-                    return;
-                }
-                catch (FatalGatewayException e)
-                {
-                    _log.Error("Discord gateway refused the bot: " + e.Message + " Spectator muting and auto-link are off.");
-                    State.Problem = e.Code switch
-                    {
-                        4004 => "Discord turned down the bot's token: it was reset or copied wrong. Ask the organiser for a new setup code.",
-                        4013 or 4014 => "Discord won't give the bot what it needs. The organiser should check the bot's settings in the Discord Developer Portal (Bot → Privileged Gateway Intents).",
-                        _ => $"Discord refused the bot (code {e.Code}). Ask the organiser to check it.",
-                    };
-                    return;
-                }
-                catch (Exception e)
-                {
-                    failures++;
-                    _log.Warn($"Discord gateway disconnected ({e.Message}); reconnecting");
-                }
-                State.Connected = false;
-                try { await Task.Delay(TimeSpan.FromSeconds(Math.Min(60, 2 * Math.Max(1, failures))), ct).ConfigureAwait(false); }
+                try { await Task.Delay(VoiceCheckEvery, ct).ConfigureAwait(false); }
                 catch (OperationCanceledException) { return; }
+                try { CheckVoice(); }
+                catch (Exception e) { _log.Warn("Voice (who's talking) check failed: " + e.Message); }
             }
         }
 
-        private async Task ConnectOnceAsync(CancellationToken ct)
+        internal void CheckVoice()
         {
+            Func<object, Task>? send;
+            string wanted;
+            bool leaveFirst;
+            var now = DateTime.UtcNow;
+            lock (_voiceLock)
+            {
+                if (_listener != null && _listener.Listening) _rejoins = 0;
+                bool fine = _voiceWanted == null || _send == null || (_listener != null && !_listener.Stopped);
+                if (fine)
+                {
+                    _voiceLostAt = null;
+                    return;
+                }
+                _voiceLostAt ??= now;
+                var wait = TimeSpan.FromTicks(RejoinAfter.Ticks * (1L << Math.Min(_rejoins, 5)));
+                if (now - _voiceLostAt.Value < wait) return;
+                _voiceLostAt = now;
+                // What the old listener had is no good any more: wait for Discord's new voice server.
+                StopListening();
+                _voiceToken = null;
+                _voiceEndpoint = null;
+                // First ask for the same channel again; if that wasn't enough, leave and come back.
+                leaveFirst = _rejoins > 0 && _voiceIn != null;
+                _rejoins++;
+                send = _send;
+                wanted = _voiceWanted!;
+            }
+            _log.Info("Voice (who's talking): the bot isn't listening in the host's voice channel; asking Discord again.");
+            _ = RejoinAsync(send!, wanted, leaveFirst);
+        }
+
+        private async Task RejoinAsync(Func<object, Task> send, string channel, bool leaveFirst)
+        {
+            try
+            {
+                if (leaveFirst)
+                {
+                    await SendVoiceState(send, null).ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+                }
+                lock (_voiceLock) { if (_voiceWanted != channel || _send != send) return; }
+                await SendVoiceState(send, channel).ConfigureAwait(false);
+            }
+            catch (Exception e) { _log.Warn("Voice (who's talking): couldn't ask to join again: " + e.Message); }
+        }
+
+        // ---- The connection ----------------------------------------------------------------------
+
+        /// <summary>How one connection ended, for the run loop's next step.</summary>
+        private sealed class Ending
+        {
+            /// <summary>READY or RESUMED came: the connection was really working.</summary>
+            public bool Working;
+            public DateTime Started = DateTime.UtcNow;
+            public DateTime Ended;
+            /// <summary>Discord said the session is invalid (op 9): it asks for a 1–5 s pause.</summary>
+            public bool InvalidSession;
+            public bool Resuming;
+            /// <summary>Discord's gateway answered (Hello): not a connection that never got there.</summary>
+            public bool Reached;
+        }
+
+        private async Task RunAsync(CancellationToken ct)
+        {
+            var voiceWatch = Task.Run(() => WatchVoiceAsync(ct));
+            int failures = 0;
+            try
+            {
+                while (!ct.IsCancellationRequested)
+                {
+                    var ending = new Ending();
+                    try
+                    {
+                        await ConnectOnceAsync(ending, ct).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    {
+                        return;
+                    }
+                    catch (FatalGatewayException e)
+                    {
+                        _log.Error("Discord gateway refused the bot: " + e.Message + " Spectator muting and auto-link are off.");
+                        State.Problem = e.Code switch
+                        {
+                            4004 => "Discord turned down the bot's token: it was reset or copied wrong. Ask the organiser for a new setup code.",
+                            4013 or 4014 => "Discord won't give the bot what it needs. The organiser should check the bot's settings in the Discord Developer Portal (Bot → Privileged Gateway Intents).",
+                            _ => $"Discord refused the bot (code {e.Code}). Ask the organiser to check it.",
+                        };
+                        State.Connected = false;
+                        return;
+                    }
+                    catch (Exception e)
+                    {
+                        _log.Warn($"Discord gateway disconnected ({e.Message}); reconnecting");
+                    }
+                    State.Connected = false;
+                    if (ending.Ended == default) ending.Ended = DateTime.UtcNow;
+
+                    // Only a resume Discord answered without resuming counts. A network that is down
+                    // (no route, DNS) fails every connect at once, and Discord still keeps the session:
+                    // forgetting it after a few seconds would lose what happened in between.
+                    if (ending.Working)
+                    {
+                        _resumeFailures = 0;
+                        _workedUntil = ending.Ended;
+                    }
+                    else if (ending.Resuming && (ending.Reached
+                        ? ++_resumeFailures >= MaxResumeFailures
+                        : ending.Ended - _workedUntil >= Scaled(ResumeWindow)))
+                    {
+                        ForgetSession();
+                    }
+
+                    // A connection that got going and lasted starts the count again. Anything else
+                    // (refused, dropped at once, Discord closing it straight away) waits longer each
+                    // time, so the bot never hammers Discord with identifies.
+                    failures = ending.Working && ending.Ended - ending.Started >= StableAfter ? 0 : failures + 1;
+                    var wait = ReconnectWait(failures, ending.InvalidSession);
+                    try { await Task.Delay(Scaled(wait), ct).ConfigureAwait(false); }
+                    catch (OperationCanceledException) { return; }
+                }
+            }
+            finally
+            {
+                try { await voiceWatch.ConfigureAwait(false); } catch (Exception) { }
+            }
+        }
+
+        /// <summary>
+        /// The pause before connecting again: about a second after a working connection dropped
+        /// (or Discord asked to reconnect), 1–5 s after an invalid session (as Discord asks), and
+        /// 2, 4, 8… up to 60 s while connections keep failing.
+        /// </summary>
+        internal TimeSpan ReconnectWait(int failures, bool invalidSession)
+        {
+            double floor;
+            lock (_random) floor = invalidSession ? 1 + _random.NextDouble() * 4 : 0.5 + _random.NextDouble();
+            double backoff = failures <= 1 ? 0 : Math.Min(60, 2 << Math.Min(failures - 2, 5));
+            return TimeSpan.FromSeconds(Math.Max(floor, backoff));
+        }
+
+        private TimeSpan Scaled(TimeSpan t) => TimeSpan.FromTicks((long)(t.Ticks * Math.Max(0, WaitScale)));
+
+        private void ForgetSession()
+        {
+            _sessionId = null;
+            _resumeUrl = null;
+            _resumeFailures = 0;
+            Interlocked.Exchange(ref _sequence, -1);
+        }
+
+        private int? Sequence
+        {
+            get
+            {
+                long s = Interlocked.Read(ref _sequence);
+                return s < 0 ? (int?)null : (int)s;
+            }
+        }
+
+        /// <summary>
+        /// Discord's resume address, only if it is a Discord gateway (or the same host the bot was
+        /// told to use): the bot's token goes there.
+        /// </summary>
+        internal Uri? ResumeUri(string? url)
+        {
+            if (string.IsNullOrEmpty(url) || !Uri.TryCreate(url, UriKind.Absolute, out var u)) return null;
+            if (u.Scheme != _url.Scheme) return null;
+            bool discord = u.Host.Equals("discord.gg", StringComparison.OrdinalIgnoreCase) || u.Host.EndsWith(".discord.gg", StringComparison.OrdinalIgnoreCase)
+                || u.Host.Equals("discord.com", StringComparison.OrdinalIgnoreCase) || u.Host.EndsWith(".discord.com", StringComparison.OrdinalIgnoreCase);
+            if (!discord && !u.Host.Equals(_url.Host, StringComparison.OrdinalIgnoreCase)) return null;
+            return new Uri(u.GetLeftPart(UriPartial.Authority) + "/" + _url.Query);
+        }
+
+        private async Task ConnectOnceAsync(Ending ending, CancellationToken ct)
+        {
+            bool resume = _sessionId != null && _resumeUrl != null && Sequence != null;
+            ending.Resuming = resume;
+            if (!resume)
+            {
+                // Never identify faster than Discord allows, whatever made the last connection end.
+                var since = DateTime.UtcNow - _lastIdentify;
+                if (since < Scaled(IdentifyGap)) await Task.Delay(Scaled(IdentifyGap) - since, ct).ConfigureAwait(false);
+            }
+
             using var socket = new ClientWebSocket();
-            await socket.ConnectAsync(_url, ct).ConfigureAwait(false);
+            await socket.ConnectAsync(resume ? _resumeUrl! : _url, ct).ConfigureAwait(false);
+            ending.Started = DateTime.UtcNow;
             using var connection = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var sendLock = new SemaphoreSlim(1, 1);
             Task? heartbeat = null;
-            bool acked = true;
+            int acked = 1;
 
             async Task Send(object payload)
             {
@@ -357,80 +568,124 @@ namespace TournamentTracker.Discord
                     if (doc == null) return;
                     var root = doc.RootElement;
                     int op = root.GetProperty("op").GetInt32();
-                    if (root.TryGetProperty("s", out var s) && s.ValueKind == JsonValueKind.Number) _sequence = s.GetInt32();
+                    if (root.TryGetProperty("s", out var s) && s.ValueKind == JsonValueKind.Number) Interlocked.Exchange(ref _sequence, s.GetInt64());
 
                     switch (op)
                     {
                         case 10: // Hello
+                            ending.Reached = true;
                             int interval = root.GetProperty("d").GetProperty("heartbeat_interval").GetInt32();
+                            int jitter;
+                            lock (_random) jitter = _random.Next(Math.Max(1, interval));
                             heartbeat = Task.Run(async () =>
                             {
-                                await Task.Delay(new Random().Next(interval), connection.Token).ConfigureAwait(false);
+                                await Task.Delay(jitter, connection.Token).ConfigureAwait(false);
                                 while (!connection.IsCancellationRequested)
                                 {
-                                    if (!acked)
+                                    if (Interlocked.Exchange(ref acked, 0) == 0)
                                     {
-                                        // No ack since the last beat: the connection is dead.
+                                        // No ack since the last beat: the connection is dead (resumed next).
                                         connection.Cancel();
                                         return;
                                     }
-                                    acked = false;
-                                    await Send(new { op = 1, d = _sequence }).ConfigureAwait(false);
+                                    await Send(new { op = 1, d = Sequence }).ConfigureAwait(false);
                                     await Task.Delay(interval, connection.Token).ConfigureAwait(false);
                                 }
                             });
-                            await Send(new
+                            if (resume)
                             {
-                                op = 2,
-                                d = new
+                                await Send(new { op = 6, d = new { token = _token, session_id = _sessionId, seq = Sequence } }).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                _lastIdentify = DateTime.UtcNow;
+                                Interlocked.Exchange(ref _sequence, -1);
+                                await Send(new
                                 {
-                                    token = _token,
-                                    intents = _intents,
-                                    properties = new { os = "windows", browser = "TournamentTracker", device = "TournamentTracker" },
-                                },
-                            }).ConfigureAwait(false);
+                                    op = 2,
+                                    d = new
+                                    {
+                                        token = _token,
+                                        intents = _intents,
+                                        properties = new { os = "windows", browser = "TournamentTracker", device = "TournamentTracker" },
+                                    },
+                                }).ConfigureAwait(false);
+                            }
                             break;
                         case 11: // Heartbeat ack
-                            acked = true;
+                            Interlocked.Exchange(ref acked, 1);
                             break;
                         case 1: // Heartbeat request
-                            await Send(new { op = 1, d = _sequence }).ConfigureAwait(false);
+                            await Send(new { op = 1, d = Sequence }).ConfigureAwait(false);
                             break;
-                        case 7: // Reconnect
-                        case 9: // Invalid session
+                        case 7: // Reconnect: Discord wants this session picked up on a new connection
+                            return;
+                        case 9: // Invalid session: d says whether it can still be resumed
+                            bool resumable = root.TryGetProperty("d", out var d9) && d9.ValueKind == JsonValueKind.True;
+                            if (!resumable) ForgetSession();
+                            ending.InvalidSession = true;
                             return;
                         case 0:
                             string type = root.GetProperty("t").GetString() ?? "";
-                            State.Dispatch(type, root.GetProperty("d"));
-                            if (type == "VOICE_STATE_UPDATE" || type == "VOICE_SERVER_UPDATE") VoiceEvent(type, root.GetProperty("d"));
+                            var data = root.GetProperty("d");
+                            State.Dispatch(type, data);
+                            if (type == "VOICE_STATE_UPDATE" || type == "VOICE_SERVER_UPDATE") VoiceEvent(type, data);
                             if (type == "READY")
                             {
+                                _sessionId = data.TryGetProperty("session_id", out var sid) && sid.ValueKind == JsonValueKind.String ? sid.GetString() : null;
+                                _resumeUrl = ResumeUri(data.TryGetProperty("resume_gateway_url", out var ru) && ru.ValueKind == JsonValueKind.String ? ru.GetString() : null);
+                                ending.Working = true;
                                 State.Connected = true;
                                 string? wanted;
                                 lock (_voiceLock) { _send = Send; wanted = _voiceWanted; StopListening(); _voiceIn = null; }
                                 if (wanted != null) await SendVoiceState(Send, wanted).ConfigureAwait(false);
                             }
-                            Dispatched?.Invoke(type, root.GetProperty("d").Clone());
+                            else if (type == "RESUMED")
+                            {
+                                // The same session: the missed events came just before this. The voice
+                                // connection is separate and carried on; only a voice change asked for
+                                // while disconnected still has to be sent.
+                                ending.Working = true;
+                                State.Connected = true;
+                                string? wanted;
+                                bool differs;
+                                lock (_voiceLock) { _send = Send; wanted = _voiceWanted; differs = _voiceWanted != _voiceIn; }
+                                if (differs) await SendVoiceState(Send, wanted).ConfigureAwait(false);
+                            }
+                            Dispatched?.Invoke(type, data.Clone());
                             break;
                     }
                 }
             }
             finally
             {
+                ending.Ended = DateTime.UtcNow;
                 lock (_voiceLock) _send = null;
                 connection.Cancel();
-                if (heartbeat != null) { try { await heartbeat.ConfigureAwait(false); } catch (OperationCanceledException) { } }
+                // The heartbeat's own failure (a send on a socket Discord just closed) must not hide
+                // why Discord closed it: a refused token would otherwise reconnect forever.
+                if (heartbeat != null) { try { await heartbeat.ConfigureAwait(false); } catch (Exception) { } }
                 var closeStatus = socket.CloseStatus;
-                if (closeStatus.HasValue && (int)closeStatus.Value == 4014 && (_intents & MessageIntents) != 0)
+                if (closeStatus.HasValue)
                 {
-                    // The Message Content intent isn't turned on: keep voice working without channel commands.
-                    _intents = BaseIntents;
-                    _log.Warn("The bot's Message Content Intent is off, so results-channel commands (!lobbies, !start…) won't be heard. Voice features carry on.");
-                    State.Warning = "The bot's Message Content Intent is off, so referee commands in the results channel (!adjust, !void, !start…) aren't heard. The organiser turns it on in the Discord Developer Portal.";
-                    throw new IOException("reconnecting without message intents");
+                    int code = (int)closeStatus.Value;
+                    if (code == 4014 && (_intents & MessageIntents) != 0)
+                    {
+                        // The Message Content intent isn't turned on: keep voice working without channel commands.
+                        _intents = BaseIntents;
+                        ForgetSession();
+                        _log.Warn("The bot's Message Content Intent is off, so results-channel commands (!lobbies, !start…) won't be heard. Voice features carry on.");
+                        State.Warning = "The bot's Message Content Intent is off, so referee commands in the results channel (!adjust, !void, !start…) aren't heard. The organiser turns it on in the Discord Developer Portal.";
+                        throw new IOException("reconnecting without message intents");
+                    }
+                    if (IsFatal(code))
+                    {
+                        ForgetSession();
+                        throw new FatalGatewayException(code, $"close code {code} {socket.CloseStatusDescription}");
+                    }
+                    // Sequence out of order, or the session timed out: it can't be resumed.
+                    if (code == 4007 || code == 4009) ForgetSession();
                 }
-                if (closeStatus.HasValue && IsFatal((int)closeStatus.Value))
-                    throw new FatalGatewayException((int)closeStatus.Value, $"close code {(int)closeStatus.Value} {socket.CloseStatusDescription}");
             }
         }
 

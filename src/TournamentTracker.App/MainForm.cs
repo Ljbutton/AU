@@ -27,10 +27,16 @@ namespace TournamentTracker.App
         private bool _pageReady;
         /// <summary>Our own title bar (the page's); false once the normal window frame is back (no WebView2).</summary>
         private bool _borderless = true;
+        /// <summary>Where the window's place and size are kept between runs (Red Alert's); null: not kept (The Button's).</summary>
+        private readonly string? _placementFile;
 
         private int Edge => Math.Max(4, (int)Math.Round(5 * DeviceDpi / 96.0));
 
-        public MainForm(string url, string userData)
+        /// <param name="placementFile">
+        /// Red Alert's: the window opens where and as big as it was left, kept in this file; the first time,
+        /// maximised (its Live desk is laid out for the whole screen). Null (The Button): 1180 × 780, centred.
+        /// </param>
+        public MainForm(string url, string userData, string? placementFile = null)
         {
             _url = url;
             _userData = userData;
@@ -40,6 +46,8 @@ namespace TournamentTracker.App
             ClientSize = new Size(1180, 780);
             MinimumSize = new Size(760, 520);
             StartPosition = FormStartPosition.CenterScreen;
+            _placementFile = placementFile;
+            if (placementFile != null) Place(placementFile);
             Padding = new Padding(Edge);
             DoubleBuffered = true;
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch (Exception) { }
@@ -80,6 +88,47 @@ namespace TournamentTracker.App
                     Process.Start(new ProcessStartInfo(_url) { UseShellExecute = true });
                 }
             };
+        }
+
+        /// <summary>
+        /// Where the window was left ("x,y,width,height,max" in <paramref name="file"/>), if that's still on a
+        /// screen (a second monitor or projector may have gone); else maximised.
+        /// </summary>
+        private void Place(string file)
+        {
+            try
+            {
+                var parts = File.Exists(file) ? File.ReadAllText(file).Trim().Split(',') : Array.Empty<string>();
+                var n = new int[4];
+                if (parts.Length == 5 && Enumerable.Range(0, 4).All(i => int.TryParse(parts[i], out n[i])))
+                {
+                    var r = new Rectangle(n[0], n[1], n[2], n[3]);
+                    if (r.Width >= MinimumSize.Width && r.Height >= MinimumSize.Height && Screen.AllScreens.Any(sc => sc.WorkingArea.IntersectsWith(r)))
+                    {
+                        StartPosition = FormStartPosition.Manual;
+                        Bounds = r;
+                        if (parts[4].Trim() == "max") WindowState = FormWindowState.Maximized;
+                        return;
+                    }
+                }
+            }
+            catch (Exception) { }
+            WindowState = FormWindowState.Maximized;
+        }
+
+        /// <summary>Red Alert's window: where it is and how big (its size before maximising, and whether it is), for next time.</summary>
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            base.OnFormClosing(e);
+            if (_placementFile == null) return;
+            try
+            {
+                var r = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+                if (r.Width < MinimumSize.Width || r.Height < MinimumSize.Height) return;
+                Directory.CreateDirectory(Path.GetDirectoryName(_placementFile)!);
+                File.WriteAllText(_placementFile, $"{r.X},{r.Y},{r.Width},{r.Height},{(WindowState == FormWindowState.Maximized ? "max" : "normal")}");
+            }
+            catch (Exception) { }
         }
 
         /// <summary>The page's title bar: "drag", "min", "max" and "close".</summary>

@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Red Alert</title>
+<!--
+  The settings panel Stream Deck shows beside a Red Alert key. Everything is in this one file (no
+  web fonts or libraries from the internet: the PC at an event may be offline). It talks to Stream
+  Deck over the socket Stream Deck opens for it: the key's own settings, the plugin's global settings
+  (Red Alert's host, port and key) and a few messages to the plugin (Test, the lobbies and players).
+-->
+<style>
+  :root { color-scheme: dark; --bg: #2d2d2d; --fg: #d8d8d8; --muted: #969696; --line: #3d3d3d; --field: #3d3d3d; --red: #e10600; --good: #46c28b; --bad: #ff6b61; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 10px 12px 16px; background: var(--bg); color: var(--fg); font: 12px/1.4 "Segoe UI", system-ui, sans-serif; }
+  .row { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 8px; margin: 6px 0; }
+  .row > label:first-child { color: var(--muted); text-align: right; }
+  select, input[type=text], input[type=password], input[type=number] { width: 100%; background: var(--field); color: var(--fg); border: 1px solid var(--line); border-radius: 3px; padding: 4px 6px; font: inherit; }
+  button { background: #4b4b4b; color: var(--fg); border: 1px solid #5a5a5a; border-radius: 3px; padding: 4px 12px; font: inherit; cursor: pointer; }
+  button:hover { background: #575757; }
+  .hint { color: var(--muted); margin: 4px 0 4px 104px; }
+  .hidden { display: none !important; }
+  h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; font-weight: 600; }
+  details { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 4px; }
+  summary { cursor: pointer; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 6px 0; }
+  .result { margin: 6px 0 0 104px; }
+  .result.ok { color: var(--good); }
+  .result.bad { color: var(--bad); }
+  .inline { display: flex; gap: 8px; align-items: center; }
+  .inline input[type=checkbox] { margin: 0; }
+</style>
+</head>
+<body>
+
+<div id="fields"></div>
+
+<details id="connection">
+  <summary>Red Alert connection</summary>
+  <div class="row"><label for="host">Host</label><input id="host" type="text" placeholder="127.0.0.1" spellcheck="false"></div>
+  <div class="row"><label for="port">Port</label><input id="port" type="number" min="1" max="65535" placeholder="8768"></div>
+  <div class="row"><label for="key">Key</label><input id="key" type="password" placeholder="from Red Alert: Settings → Stream Deck" spellcheck="false" autocomplete="off"></div>
+  <div class="row"><span></span><span class="inline"><input id="show" type="checkbox"><label for="show">Show the key</label></span></div>
+  <div class="row"><span></span><span><button id="test" type="button">Test</button></span></div>
+  <div id="result" class="result"></div>
+  <p class="hint">One connection for every Red Alert key. Copy the port and key from Red Alert (Settings → Stream Deck). Stream Deck has to run on the same PC as Red Alert.</p>
+</details>
+
+<script>
+"use strict";
+
+// The settings every action starts with: the same as `defaults` in src/actions.js (a test checks).
+/* DEFAULTS-START */
+const DEFAULTS = {
+  "lobby": { "lobby": "1", "mode": "cut", "t": "" },
+  "cam": { "target": "pgm", "lobbyNo": "1", "who": "slot", "slot": "1", "colour": "red", "mode": "cut" },
+  "take": { "as": "", "t": "" },
+  "wide": {},
+  "camcut": { "target": "pgm", "lobbyNo": "1" },
+  "layout": { "layout": "quad" },
+  "replay": { "op": "last" },
+  "toggle": { "which": "mute", "press": "toggle" },
+  "break": { "kind": "brb" },
+  "panic": {},
+  "undo": {},
+  "custom": { "path": "gfx/skip", "label": "" },
+  "dial.preview": { "as": "", "t": "" },
+  "dial.player": { "target": "pgm", "lobbyNo": "1" },
+  "dial.replay": {}
+};
+/* DEFAULTS-END */
+
+const COLOURS = ["red", "blue", "green", "pink", "orange", "yellow", "black", "white", "purple", "brown", "cyan", "lime", "maroon", "rose", "banana", "gray", "tan", "coral"];
+const TRANSITION = [["", "Red Alert's usual"], ["cut", "Cut"], ["swoosh", "Swoosh"]];
+const LAYOUTS = [["full", "Full screen"], ["2up", "2-up"], ["quad", "Quad"], ["grid", "Grid"], ["cams", "Player cameras"]];
+const TARGET = [["pgm", "The lobby on stream"], ["pvw", "The lobby in Preview"], ["lobby", "Lobby number…"]];
+const range = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => String(from + i));
+
+let socket = null;
+let uuid = "";
+let actionId = "";
+let kind = "";
+let settings = {};
+let lobbies = [];
+let gotSummary = false;
+
+const $ = (id) => document.getElementById(id);
+
+function send(event, extra) {
+  if (socket && socket.readyState === 1) socket.send(JSON.stringify(Object.assign({ event, context: uuid }, extra || {})));
+}
+function toPlugin(payload) {
+  send("sendToPlugin", { action: actionId, payload });
+}
+
+// ---- The key's own settings -------------------------------------------------------------------
+
+function lobbyLabel(no) {
+  const l = lobbies.find((x) => String(x.no) === String(no));
+  return l ? `${no} · ${l.name}${l.online ? "" : " (offline)"}` : String(no);
+}
+
+function lobbyNumbers() {
+  const seen = new Set(range(1, 12));
+  for (const l of lobbies) seen.add(String(l.no));
+  return [...seen].sort((a, b) => Number(a) - Number(b)).map((n) => [n, lobbyLabel(n)]);
+}
+
+/** The players of the lobby a camera key points at, by slot, to name the slots in the list. */
+function slotNames() {
+  const target = settings.target === "lobby" ? lobbies.find((l) => String(l.no) === String(settings.lobbyNo)) : null;
+  const names = {};
+  for (const p of (target ? target.players : [])) names[p.slot] = `${p.name} (${p.colour}${p.dead ? ", dead" : ""})`;
+  return range(1, 15).map((n) => [n, names[n] ? `Slot ${n}: ${names[n]}` : `Slot ${n}`]);
+}
+
+/** The fields each action shows: [setting, label, options or "text", shown when]. */
+function fieldsFor(k) {
+  const lobbyNo = ["lobbyNo", "Number", lobbyNumbers, (s) => s.target === "lobby"];
+  const target = ["target", "Lobby", TARGET];
+  switch (k) {
+    case "lobby":
+      return [
+        ["lobby", "Lobby", () => lobbyNumbers().concat([["next", "Next lobby"], ["prev", "Previous lobby"], ["action", "Where the action is"]])],
+        ["mode", "Press", [["cut", "Cut it to stream"], ["preview", "Put it in Preview"], ["add", "Add it to Preview (2-up, quad)"]]],
+        ["t", "Transition", TRANSITION, (s) => s.mode !== "preview" && s.mode !== "add"],
+      ];
+    case "cam":
+      return [
+        target, lobbyNo,
+        ["who", "Player", [["slot", "By slot"], ["colour", "By colour"], ["next", "Next player"], ["prev", "Previous player"], ["auto", "Auto (it picks)"]]],
+        ["slot", "Slot", slotNames, (s) => s.who === "slot"],
+        ["colour", "Colour", COLOURS.map((c) => [c, c[0].toUpperCase() + c.slice(1)]), (s) => s.who === "colour"],
+        ["mode", "Press", [["cut", "Cut to the camera"], ["arm", "Arm (set who it follows, no cut)"]]],
+      ];
+    case "take":
+    case "dial.preview":
+      return [["as", "Take as", [["", "The layout in Preview"]].concat(LAYOUTS)], ["t", "Transition", TRANSITION]];
+    case "camcut":
+    case "dial.player":
+      return [target, lobbyNo];
+    case "layout":
+      return [["layout", "Layout", LAYOUTS]];
+    case "replay":
+      return [["op", "Replay", [["last", "Play the last clip"], ["that", "Replay that (the last seconds on stream)"], ["live", "Back to live"], ["toggle", "Play / pause"], ["back", "Back"], ["forward", "Forward"], ["frameback", "Frame back"], ["frameforward", "Frame forward"], ["restart", "Restart"], ["zoomin", "Zoom in"], ["zoomout", "Zoom out"], ["follow", "Follow the player"], ["angle", "Other angle"], ["slow", "Speed 100 / 50 / 25%"]]]];
+    case "toggle":
+      return [
+        ["which", "Toggle", [["mute", "Mute all lobby voice"], ["hold", "Hold (no automatic switching)"], ["autogrid", "Auto grid"], ["autointermission", "Auto intermission"], ["autoswitch", "Auto switch"], ["standings", "Standings on stream"], ["alerts", "Alerts (on or paused)"]]],
+        ["press", "Press", [["toggle", "Switch it"], ["on", "Always on"], ["off", "Always off"]]],
+      ];
+    case "break":
+      return [["kind", "Break", [["brb", "Be right back"], ["intermission", "Intermission"], ["sponsor", "Sponsor break"], ["off", "End the break"]]]];
+    case "custom":
+      return [
+        ["preset", "Common", [["", "Pick one to fill the path…"], ["gfx/skip", "Skip the graphic on screen"], ["gfx/clear", "Clear the graphics queue"], ["gfx/card", "Top player card"], ["prompt/show", "Show the after-game prompt"], ["prompt/skip", "Skip the after-game prompt"], ["undo", "Undo (the panic, an auto switch, or the last switch)"], ["voice/listen/1", "Listen to lobby 1"], ["voice/listen/off", "Stop listening"], ["spec/lit", "Host view: lights"], ["spec/vision", "Host view: vision"], ["spec/eye", "Host view: eye"], ["lobby/action", "Where the action is"], ["cam/on", "Player cameras on"], ["cam/off", "Player cameras off"]]],
+        ["path", "Path", "text"],
+        ["label", "Key text", "text"],
+      ];
+    default:
+      return [];
+  }
+}
+
+const HINTS = {
+  wide: "Back to the whole map from a player camera.",
+  panic: "One press: fades to Be right back, mutes lobby voice and holds switching. While that panic is on the key says UNDO PANIC: press it again to put it all back.",
+  undo: "Takes back the panic while there is one, else an automatic switch away from a lobby that dropped, else the last switch made by hand. Lit while a panic is on.",
+  "dial.replay": "Turn to scrub: slowly by frames, quickly by seconds. Push to play or pause, tap the strip for the speed.",
+  "dial.preview": "Turn to pick the Preview lobby, push to Take, tap the strip to clear Preview.",
+  "dial.player": "Turn to pick who the camera follows (no cut), push to cut to the camera, tap the strip to go back wide.",
+  cam: "Slots are the players in colour order, living and dead, and stay the same all game. Arm sets who the camera follows without cutting; in a meeting a cut waits and goes on when play resumes.",
+  custom: "Any Red Alert Stream Deck link, by the part after /deck/ (for example gfx/skip). The key and port come from the connection below.",
+};
+
+function render() {
+  const box = $("fields");
+  box.textContent = "";
+  for (const [name, label, options, when] of fieldsFor(kind)) {
+    if (when && !when(settings)) continue;
+    const row = document.createElement("div");
+    row.className = "row";
+    const l = document.createElement("label");
+    l.textContent = label;
+    l.htmlFor = "f-" + name;
+    row.appendChild(l);
+    let input;
+    if (options === "text") {
+      input = document.createElement("input");
+      input.type = "text";
+      input.spellcheck = false;
+      input.value = settings[name] ?? "";
+      input.addEventListener("change", () => update(name, input.value.trim()));
+    } else {
+      input = document.createElement("select");
+      for (const [value, text] of (typeof options === "function" ? options() : options)) {
+        const o = document.createElement("option");
+        o.value = value;
+        o.textContent = text;
+        input.appendChild(o);
+      }
+      const current = name === "preset" ? "" : String(settings[name] ?? "");
+      if (![...input.options].some((o) => o.value === current)) {
+        const o = document.createElement("option");
+        o.value = current;
+        o.textContent = current;
+        input.appendChild(o);
+      }
+      input.value = current;
+      input.addEventListener("change", () => (name === "preset" ? (input.value && update("path", input.value)) : update(name, input.value)));
+    }
+    input.id = "f-" + name;
+    row.appendChild(input);
+    box.appendChild(row);
+  }
+  if (HINTS[kind]) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.textContent = HINTS[kind];
+    box.appendChild(p);
+  }
+}
+
+function update(name, value) {
+  settings[name] = value;
+  send("setSettings", { payload: settings });
+  render();
+}
+
+// ---- The connection to Red Alert (global settings) --------------------------------------------
+
+function connection() {
+  return { host: $("host").value.trim() || "127.0.0.1", port: $("port").value.trim() || "8768", key: $("key").value.trim() };
+}
+
+function saveConnection() {
+  const c = connection();
+  send("setGlobalSettings", { payload: c });
+  toPlugin(Object.assign({ event: "connection" }, c));
+}
+
+function showResult(ok, message) {
+  const r = $("result");
+  r.className = "result " + (ok ? "ok" : "bad");
+  r.textContent = message;
+}
+
+for (const id of ["host", "port", "key"]) $(id).addEventListener("change", saveConnection);
+$("show").addEventListener("change", () => ($("key").type = $("show").checked ? "text" : "password"));
+$("test").addEventListener("click", () => {
+  saveConnection();
+  showResult(true, "Testing…");
+  $("result").className = "result";
+  toPlugin(Object.assign({ event: "test" }, connection()));
+});
+
+// ---- Stream Deck ----------------------------------------------------------------------------------
+
+function onMessage(msg) {
+  if (msg.event === "didReceiveGlobalSettings") {
+    const g = (msg.payload && msg.payload.settings) || {};
+    $("host").value = g.host || "127.0.0.1";
+    $("port").value = g.port || "8768";
+    $("key").value = g.key || "";
+    if (!g.key) $("connection").open = true;
+  } else if (msg.event === "didReceiveSettings") {
+    settings = Object.assign({}, DEFAULTS[kind] || {}, (msg.payload && msg.payload.settings) || {});
+    render();
+  } else if (msg.event === "sendToPropertyInspector") {
+    const p = msg.payload || {};
+    if (p.event === "testResult") showResult(Boolean(p.ok), String(p.message || ""));
+    if (p.event === "summary") {
+      gotSummary = true;
+      lobbies = Array.isArray(p.lobbies) ? p.lobbies : [];
+      render();
+    }
+  }
+}
+
+// Stream Deck calls this when the panel opens.
+window.connectElgatoStreamDeckSocket = function (port, inUUID, registerEvent, info, actionInfo) {
+  uuid = inUUID;
+  let action = {};
+  try { action = JSON.parse(actionInfo || "{}"); } catch (e) { action = {}; }
+  actionId = action.action || "";
+  kind = actionId.replace(/^com\.ljbutton\.redalert\./, "");
+  settings = Object.assign({}, DEFAULTS[kind] || {}, (action.payload && action.payload.settings) || {});
+  render();
+  socket = new WebSocket("ws://127.0.0.1:" + port);
+  socket.onopen = () => {
+    socket.send(JSON.stringify({ event: registerEvent, uuid: inUUID }));
+    send("getGlobalSettings");
+    // The plugin may not know this panel is open yet: ask for the lobbies again until it answers.
+    toPlugin({ event: "hello" });
+    setTimeout(() => gotSummary || toPlugin({ event: "hello" }), 700);
+    setTimeout(() => gotSummary || toPlugin({ event: "hello" }), 2000);
+  };
+  socket.onmessage = (e) => {
+    try { onMessage(JSON.parse(e.data)); } catch (err) { /* not for us */ }
+  };
+};
+</script>
+</body>
+</html>

@@ -10,6 +10,9 @@ namespace TournamentTracker.Control
     /// <summary>Just enough HTTP/1.1 for the local API: one request per connection.</summary>
     public static class HttpRequest
     {
+        /// <summary>The longest header taken (request line, headers and the blank line).</summary>
+        private const int MaxHeader = 16 * 1024;
+
         public static async Task<(string Method, string Path, Dictionary<string, string> Headers, string Body)> ReadAsync(NetworkStream stream)
         {
             var (method, path, headers, body) = await ReadRawAsync(stream, 1_000_000).ConfigureAwait(false);
@@ -17,19 +20,34 @@ namespace TournamentTracker.Control
         }
 
         /// <summary>The same, with the body as bytes (files, up to <paramref name="limit"/>).</summary>
+        /// <remarks>
+        /// The header is read in chunks (a browser's usually arrives in one), not a byte at a time:
+        /// read byte by byte, with the whole header turned back into text after every byte to look
+        /// for its end, a 700-byte browser header took 700 reads and half a megabyte of garbage, on
+        /// every request to the mod, The Button and Red Alert. Whatever arrived after the blank line
+        /// is the start of the body; the rest of Content-Length is read after it.
+        /// </remarks>
         public static async Task<(string Method, string Path, Dictionary<string, string> Headers, byte[] Body)> ReadRawAsync(Stream stream, int limit)
         {
-            var head = new StringBuilder();
-            var buffer = new byte[1];
-            // Read the header byte by byte up to the blank line, then exactly Content-Length bytes.
-            while (!head.ToString().EndsWith("\r\n\r\n", StringComparison.Ordinal))
+            var buffer = new byte[4096];
+            int filled = 0, end = -1;
+            while (true)
             {
-                int n = await stream.ReadAsync(buffer, 0, 1).ConfigureAwait(false);
-                if (n == 0) break;
-                head.Append((char)buffer[0]);
-                if (head.Length > 16 * 1024) throw new IOException("header too long");
+                if (filled == buffer.Length) Array.Resize(ref buffer, buffer.Length * 2);
+                int n = await stream.ReadAsync(buffer, filled, buffer.Length - filled).ConfigureAwait(false);
+                if (n == 0) break;                                  // closed before the blank line: what came is the header
+                int from = Math.Max(0, filled - 3);                 // the blank line can straddle two reads
+                filled += n;
+                end = HeaderEnd(buffer, from, filled);
+                if (end >= 0 || filled > MaxHeader) break;
             }
-            var lines = head.ToString().Split(new[] { "\r\n" }, StringSplitOptions.None);
+            if (end > MaxHeader || (end < 0 && filled > MaxHeader)) throw new IOException("header too long");
+            int headLength = end >= 0 ? end : filled;
+
+            // Each byte is one character (the header is ASCII; anything else reads as Latin-1, as before).
+            var chars = new char[headLength];
+            for (int i = 0; i < headLength; i++) chars[i] = (char)buffer[i];
+            var lines = new string(chars).Split(new[] { "\r\n" }, StringSplitOptions.None);
             var first = lines[0].Split(' ');
             var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             for (int i = 1; i < lines.Length; i++)
@@ -41,7 +59,9 @@ namespace TournamentTracker.Control
             if (headers.TryGetValue("content-length", out var len) && int.TryParse(len, out int length) && length > 0 && length < limit)
             {
                 var data = new byte[length];
-                int read = 0;
+                // The body's first bytes may have come with the header.
+                int read = Math.Min(filled - headLength, length);
+                if (read > 0) Buffer.BlockCopy(buffer, headLength, data, 0, read);
                 while (read < length)
                 {
                     int n = await stream.ReadAsync(data, read, length - read).ConfigureAwait(false);
@@ -51,6 +71,14 @@ namespace TournamentTracker.Control
                 body = read == length ? data : data.AsSpan(0, read).ToArray();
             }
             return (first.Length > 0 ? first[0] : "", first.Length > 1 ? first[1] : "/", headers, body);
+        }
+
+        /// <summary>Where the header ends (just past its blank line, "\r\n\r\n"), looking from <paramref name="from"/>; -1 if it hasn't yet.</summary>
+        private static int HeaderEnd(byte[] buffer, int from, int filled)
+        {
+            for (int i = from; i + 3 < filled; i++)
+                if (buffer[i] == '\r' && buffer[i + 1] == '\n' && buffer[i + 2] == '\r' && buffer[i + 3] == '\n') return i + 4;
+            return -1;
         }
 
         public static async Task WriteAsync(NetworkStream stream, int status, string type, byte[] body)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -43,24 +44,45 @@ namespace TournamentTracker.Discord
             public string Base => $"http://127.0.0.1:{Port}/";
         }
 
+        /// <summary>
+        /// The file as last read, by path: it is asked for on every Discord request and every poll,
+        /// so it is only read again when its time or size changes (a look at the file, not a read).
+        /// </summary>
+        private static readonly ConcurrentDictionary<string, (DateTime Time, long Length, Link? Link)> Known =
+            new ConcurrentDictionary<string, (DateTime, long, Link?)>(StringComparer.OrdinalIgnoreCase);
+
         /// <summary>Where The Button is, or null when it isn't open.</summary>
         public static Link? Read(string dataDir)
         {
             try
             {
                 string file = Path.Combine(dataDir, FileName);
-                if (!File.Exists(file)) return null;
+                var info = new FileInfo(file);
+                if (!info.Exists)
+                {
+                    Known.TryRemove(file, out _);
+                    return null;
+                }
+                var time = info.LastWriteTimeUtc;
+                long length = info.Length;
+                if (Known.TryGetValue(file, out var known) && known.Time == time && known.Length == length) return known.Link;
                 var json = JsonDocument.Parse(File.ReadAllText(file)).RootElement;
                 var link = new Link { Port = json.GetProperty("port").GetInt32(), Token = json.GetProperty("token").GetString() ?? "" };
-                return link.Port > 0 && link.Token.Length > 0 ? link : null;
+                var result = link.Port > 0 && link.Token.Length > 0 ? link : null;
+                Known[file] = (time, length, result);
+                return result;
             }
             catch (Exception) { return null; }
         }
+
+        /// <summary>Reads the file afresh next time (The Button didn't answer where it said it was).</summary>
+        internal static void Forget(string dataDir) => Known.TryRemove(Path.Combine(dataDir, FileName), out _);
 
         public static void Write(string dataDir, int port, string token)
         {
             Directory.CreateDirectory(dataDir);
             File.WriteAllText(Path.Combine(dataDir, FileName), JsonSerializer.Serialize(new { port, token }));
+            Forget(dataDir);
         }
 
         /// <summary>Removes the file, if it's this Button's (another one may have taken over).</summary>
@@ -68,6 +90,7 @@ namespace TournamentTracker.Discord
         {
             try { if (Read(dataDir)?.Token == token) File.Delete(Path.Combine(dataDir, FileName)); }
             catch (Exception) { }
+            Forget(dataDir);
         }
 
         /// <summary>The mod's HTTP client for Discord: every Discord request goes through The Button.</summary>
@@ -120,11 +143,16 @@ namespace TournamentTracker.Discord
                 }
                 HttpResponseMessage response;
                 try { response = await base.SendAsync(relay, ct).ConfigureAwait(false); }
-                catch (HttpRequestException) { return Offline(request); }   // The Button closed without tidying up
+                catch (HttpRequestException)
+                {
+                    Forget(_dataDir);
+                    return Offline(request);   // The Button closed without tidying up
+                }
                 // Not The Button's relay (an old file, someone else on that port): treat The Button as closed.
                 if (!response.Headers.Contains(RelayedHeader))
                 {
                     response.Dispose();
+                    Forget(_dataDir);
                     return Offline(request);
                 }
                 response.RequestMessage = request;
@@ -221,10 +249,18 @@ namespace TournamentTracker.Discord
             request.Headers.TryAddWithoutValidation(ButtonBridge.TokenHeader, link.Token);
             HttpResponseMessage response;
             try { response = await _http.SendAsync(request, ct).ConfigureAwait(false); }
-            catch (HttpRequestException) { return false; }
+            catch (HttpRequestException)
+            {
+                ButtonBridge.Forget(_dataDir);
+                return false;
+            }
             using (response)
             {
-                if (!response.IsSuccessStatusCode) return false;
+                if (!response.IsSuccessStatusCode)
+                {
+                    ButtonBridge.Forget(_dataDir);
+                    return false;
+                }
                 using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
                 Apply(doc.RootElement);
             }

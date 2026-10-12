@@ -373,7 +373,9 @@ namespace TournamentTracker.App.Broadcast
             bool changed = false;
             string? moved = null;
             string? from = null;
-            if (s.AutoSwitch)
+            // Held: a lobby that drops stays on stream until the caster moves (its card still comes up).
+            if (s.AutoSwitch && WouldMoveOffDown(air) && HoldBack("Auto switch off a lobby that dropped")) { }
+            else if (s.AutoSwitch)
             {
                 switch (air.Layout)
                 {
@@ -430,6 +432,17 @@ namespace TournamentTracker.App.Broadcast
             return changed;
         }
 
+        /// <summary>Whether auto switch would move off a lobby that's down now (so the hold can say it stopped it).</summary>
+        private bool WouldMoveOffDown(OnAir air) => air.Layout switch
+        {
+            "full" or "break" => air.Slots.FirstOrDefault() is { } on && FreshlyDown(on),
+            "2up" or "4up" => air.Slots.Where(x => x != null).Select(x => x!).ToList() is { Count: > 0 } live
+                && (live.All(IsDown) && live.Any(FreshlyDown) || live.Any(l => DownLong(l) && FreshlyDown(l))),
+            "grid" => air.Slots.Any(x => x != null) && GridLobbies().Concat(air.Slots.Where(x => x != null).Select(x => x!)).All(IsDown) && GridLobbies().Concat(air.Slots.Where(x => x != null).Select(x => x!)).Any(FreshlyDown),
+            "slate" => air.By == "health" && Board.Ranking().Any(r => r.Online && !IsDown(r.Lobby) && r.Phase != "menu"),
+            _ => false,
+        };
+
         /// <summary>
         /// Off a lobby that's down: the next lobby worth showing, else the grid, else the "be right back"
         /// slate (or intermission when nobody was mid-game). Says where it went.
@@ -452,17 +465,56 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>"Technical difficulties: be right back", with the standings and storylines taking turns.</summary>
-        public OnAir ShowSlate(string by = "button")
+        public OnAir ShowSlate(string by = "button", string? transition = null)
         {
             OnAir next;
             lock (_lock)
             {
-                next = new OnAir { Layout = "slate", Slots = new List<string?>(), By = by, Since = _clock() };
+                if (_onAir.Layout is not ("intermission" or "replay" or "none" or "slate")) _beforeSlate = _onAir;
+                next = new OnAir { Layout = "slate", Slots = new List<string?>(), By = by, Since = _clock(), Transition = transition };
                 _onAir = next;
             }
             Left(next);
-            Switch?.Invoke(next);
+            Raise(next);
+            Touch();
             return next;
+        }
+
+        private OnAir? _beforeSlate;
+
+        /// <summary>
+        /// Off the be-right-back screen, a sponsor break or intermission (the Stream Deck's "end break"):
+        /// back to what was on before, else the top lobby. Null when none of them is on.
+        /// </summary>
+        public OnAir? EndBreak(string by = "deck", string? transition = null)
+        {
+            var air = OnAir;
+            switch (air.Layout)
+            {
+                case "intermission": return EndIntermission(by, transition);
+                case "break": return Show(Break?.Lobby ?? air.Slots.FirstOrDefault() ?? "", "full", null, null, by, transition);
+                case "slate":
+                {
+                    OnAir? back;
+                    lock (_lock) { back = _beforeSlate; _beforeSlate = null; }
+                    return Restore(back, by, transition);
+                }
+                default: return null;
+            }
+        }
+
+        /// <summary>What was on before (a layout and its lobbies), on stream again; else the top lobby.</summary>
+        public OnAir Restore(OnAir? back, string by = "deck", string? transition = null)
+        {
+            var lobbies = back?.Slots.Where(x => x != null).Select(x => x!).ToList() ?? new List<string>();
+            return back?.Layout switch
+            {
+                "grid" => ShowGrid(by, lobbies.Count > 0 ? lobbies : null, transition),
+                "2up" or "4up" or "cams" => Show("", back.Layout, null, back.Slots.Select(x => x ?? "").ToList(), by, transition),
+                "full" or "cam" or "break" when lobbies.Count > 0 => Show(lobbies[0], back.Layout == "cam" ? "cam" : "full", null, null, by, transition),
+                "intermission" => ShowIntermission(by, transition),
+                _ => Show(Board.Ranking().FirstOrDefault(r => r.Online && !IsDown(r.Lobby))?.Lobby ?? "", "full", null, null, by, transition),
+            };
         }
 
         /// <summary>Removes a lobby from the health panel (its referee has gone for the day).</summary>

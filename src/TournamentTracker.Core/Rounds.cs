@@ -33,6 +33,8 @@ namespace TournamentTracker
             public bool FeedOn { get; set; }
             /// <summary>What the referee ghost's screen shows (lit map, vision, "!", eye).</summary>
             public TournamentTracker.Broadcast.SpectatorSettings? Spectator { get; set; }
+            /// <summary>The host turned host authority off (saved as "off" so it's on by default, also for a state saved before it existed).</summary>
+            public bool HostAuthorityOff { get; set; }
         }
 
         /// <summary>Counted games this lobby has played per round.</summary>
@@ -75,6 +77,7 @@ namespace TournamentTracker
                     _feedId = state?.FeedId;
                     _feedKey = state?.FeedKey;
                     _feedOn = state?.FeedOn ?? false;
+                    _hostAuthorityOff = state?.HostAuthorityOff ?? false;
                 }
             }
             catch (Exception e)
@@ -92,7 +95,7 @@ namespace TournamentTracker
         private void SaveState() => TrySave(() =>
         {
             Directory.CreateDirectory(_dataDir);
-            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames, LastImpostors = _lastImpostors, Plan = Plan, OverlayOn = _overlayOn, StatusChannel = _statusChosen, AutoMuteOff = _autoMuteOff, FeedId = _feedId, FeedKey = _feedKey, FeedOn = _feedOn, Spectator = Spectator }));
+            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames, LastImpostors = _lastImpostors, Plan = Plan, OverlayOn = _overlayOn, StatusChannel = _statusChosen, AutoMuteOff = _autoMuteOff, FeedId = _feedId, FeedKey = _feedKey, FeedOn = _feedOn, Spectator = Spectator, HostAuthorityOff = _hostAuthorityOff }));
         }, "state");
 
         /// <summary>!r3 or !round 3 sets the round; !round on its own says which it is.</summary>

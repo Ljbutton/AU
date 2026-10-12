@@ -38,6 +38,8 @@ namespace TournamentTracker.App.Broadcast
         private View _lastView = new View(0.5, 0.5, 1);
         private OnAir? _returnTo;
         private string? _sponsorKey;
+        // Slow motion: the clip's speed (percent of normal).
+        private int _speed = 100;
         private readonly List<Clip> _montages = new List<Clip>();
 
         public string? Problem { get; private set; }
@@ -66,8 +68,15 @@ namespace TournamentTracker.App.Broadcast
                 if (S.On && S.OnEveryKill && S.AutoSave.Contains(card.Rule) && CanSave)
                     _ = Task.Run(() => SaveAsync(card));
             };
-            if (loop) _timer = new Timer(_ => _ = TickAsync(), null, 100, 33);
+            if (loop)
+            {
+                _timer = new Timer(_ => _ = TickAsync(), null, 100, 33);
+                // Old clips are cleared away now and then (never the ones a montage or the archive uses).
+                _cleanTimer = new Timer(_ => { try { CleanUp(); } catch (Exception) { } }, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(10));
+            }
         }
+
+        private Timer? _cleanTimer;
 
         public Clip? Find(string id) { lock (_lock) return _clips.FirstOrDefault(c => c.Id == id) ?? _montages.FirstOrDefault(c => c.Id == id); }
 
@@ -159,12 +168,71 @@ namespace TournamentTracker.App.Broadcast
         public async Task<Clip> SaveAsync(Card card)
         {
             var clip = Describe(card);
+            Keep(clip);
+            _desk.SetClip(card.Id, clip.Id, "saving");
+            await SaveClipAsync(clip).ConfigureAwait(false);
+            _desk.SetClip(card.Id, clip.Id, clip.State);
+            Saved?.Invoke(clip);
+            return clip;
+        }
+
+        internal void Keep(Clip clip)
+        {
             lock (_lock)
             {
                 _clips.Add(clip);
                 if (_clips.Count > 400) _clips.RemoveRange(0, _clips.Count - 400);
             }
-            _desk.SetClip(card.Id, clip.Id, "saving");
+        }
+
+        /// <summary>
+        /// "Replay that" (vMix's instant replay without marking anything first): the last few seconds of
+        /// a lobby, saved now with no card, played as soon as it's ready when <paramref name="play"/>.
+        /// The wide shot (no crop to follow), both angles when the camera is on. Only played over what
+        /// it was asked over: a panic, a hold, a break or another lobby since leaves it ready for "last".
+        /// </summary>
+        public Clip SaveNow(string lobby, bool play = true)
+        {
+            var now = _clock();
+            var air = _desk.OnAir;
+            bool held = _desk.Held;
+            var live = _desk.Board.Lobby(lobby);
+            var clip = new Clip
+            {
+                Id = "r" + Interlocked.Increment(ref _seq), Lobby = lobby, Rule = "instant",
+                Title = $"{lobby}: the last {S.PreSeconds:0} seconds", Pre = S.PreSeconds, Post = 0, EventAt = now,
+                Round = live?.Round ?? 0, Game = live?.Game,
+            };
+            Keep(clip);
+            _ = Task.Run(async () =>
+            {
+                await SaveClipAsync(clip).ConfigureAwait(false);
+                Saved?.Invoke(clip);
+                if (play && clip.State == "ready" && StillOver(air, held, lobby)) await PlayAsync(clip).ConfigureAwait(false);
+            });
+            return clip;
+        }
+
+        /// <summary>
+        /// What a "replay that" was asked over is still on stream: the same switch, or that lobby live
+        /// in another layout (not in a break or a replay), and no hold since.
+        /// </summary>
+        private bool StillOver(OnAir air, bool heldThen, string lobby)
+        {
+            if (_desk.Held && !heldThen) return false;
+            var now = _desk.OnAir;
+            return ReferenceEquals(now, air) || now.Layout is not ("break" or "replay") && now.Has(lobby);
+        }
+
+        /// <summary>The newest clip ready to play (a montage isn't one), or null.</summary>
+        public Clip? Newest()
+        {
+            lock (_lock) return _clips.LastOrDefault(c => c.State == "ready");
+        }
+
+        /// <summary>Has OBS write a clip's buffer once the seconds after its moment have passed; its state says how it went.</summary>
+        private async Task SaveClipAsync(Clip clip)
+        {
             try
             {
                 // A simulated lobby's picture is a stand-in page: its clip is a stand-in too (OBS or not).
@@ -172,7 +240,7 @@ namespace TournamentTracker.App.Broadcast
                 {
                     if (Builder?.Ffmpeg == null) throw new InvalidOperationException("ffmpeg isn't installed: simulation makes its clips with it (Montages → Get ffmpeg).");
                     await StandInAsync(clip).ConfigureAwait(false);
-                    return Done();
+                    return;
                 }
                 if (!_obs.Connected) throw new InvalidOperationException("Connect OBS first: replays come from its replay buffer.");
                 var now = _clock();
@@ -210,14 +278,6 @@ namespace TournamentTracker.App.Broadcast
             {
                 clip.State = "failed";
                 clip.Problem = e.Message;
-            }
-            return Done();
-
-            Clip Done()
-            {
-                _desk.SetClip(card.Id, clip.Id, clip.State);
-                Saved?.Invoke(clip);
-                return clip;
             }
         }
 
@@ -303,6 +363,9 @@ namespace TournamentTracker.App.Broadcast
             if (clip.State != "ready" || clip.File == null) return clip.State == "saving" ? "The replay is still being saved." : "No replay: " + (clip.Problem ?? "it wasn't saved.");
             try
             {
+                // Each replay starts at normal speed.
+                await _obs.NormalSpeedAsync().ConfigureAwait(false);
+                lock (_lock) _speed = 100;
                 double duration = await _obs.LoadClipAsync(clip.File).ConfigureAwait(false);
                 clip.Duration = duration;
                 double start = clip.StartAt(S.VideoDelayMs);
@@ -411,6 +474,7 @@ namespace TournamentTracker.App.Broadcast
                     case "wide": lock (_lock) { _follow = !_follow; } await TickAsync(true).ConfigureAwait(false); return null;
                     case "live": return await LiveAsync().ConfigureAwait(false);
                     case "angle": return await AngleAsync(clip).ConfigureAwait(false);
+                    case "slow": return await SlowAsync().ConfigureAwait(false);
                     default: return "Unknown control: " + action;
                 }
             }
@@ -435,6 +499,24 @@ namespace TournamentTracker.App.Broadcast
             lock (_lock) { _cursor = at; _cursorAt = _clock(); _playing = playing; _zoomBy = 1; _panX = _panY = 0; }
             await TickAsync(true).ConfigureAwait(false);
             return clip.Angle == "cam" ? "Player camera angle." : "Whole map angle.";
+        }
+
+        /// <summary>Slow motion in turn: 100% → 50% → 25% → 100%, from the same moment, playing or paused as before.</summary>
+        public int Speed { get { lock (_lock) return _speed; } }
+
+        private async Task<string?> SlowAsync()
+        {
+            int next;
+            double at;
+            bool playing;
+            lock (_lock) { next = _speed == 100 ? 50 : _speed == 50 ? 25 : 100; at = _playing ? _cursor + (_clock() - _cursorAt).TotalSeconds * _speed / 100.0 : _cursor; playing = _playing; }
+            // OBS starts the clip again when its speed changes: back to the same moment.
+            await _obs.SetReplaySpeedAsync(next).ConfigureAwait(false);
+            await _obs.SeekAsync(at).ConfigureAwait(false);
+            await _obs.MediaAsync(playing ? "play" : "pause").ConfigureAwait(false);
+            lock (_lock) { _speed = next; _cursor = at; _cursorAt = _clock(); _playing = playing; }
+            await TickAsync(true).ConfigureAwait(false);
+            return null;
         }
 
         private async Task SeekToAsync(double seconds)
@@ -475,9 +557,16 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Whether a replay or montage is up, and which.</summary>
         public Clip? Now => _now;
 
+        /// <summary>A replay is up and playing (not paused or ended).</summary>
+        public bool Playing { get { lock (_lock) return _now != null && _playing; } }
+
+        /// <summary>How many saved clips are ready to play.</summary>
+        public int ReadyCount { get { lock (_lock) return _clips.Count(c => c.State == "ready"); } }
+
+        /// <summary>Where the clip is now (media time: slow motion moves it more slowly).</summary>
         private double Cursor()
         {
-            lock (_lock) return _playing ? _cursor + (_clock() - _cursorAt).TotalSeconds : _cursor;
+            lock (_lock) return _playing ? _cursor + (_clock() - _cursorAt).TotalSeconds * _speed / 100.0 : _cursor;
         }
 
         /// <summary>About 30 times a second while a replay is up: keeps the crop on the players.</summary>
@@ -491,7 +580,7 @@ namespace TournamentTracker.App.Broadcast
                 var now = _clock();
                 double dt = _lastTick == default ? 0 : Math.Min(0.25, (now - _lastTick).TotalSeconds);
                 _lastTick = now;
-                if (_playing) _played += dt;
+                if (_playing) _played += dt * Speed / 100.0;
                 Clip? ended = null;
                 if (now >= _nextSync)
                 {
@@ -517,8 +606,8 @@ namespace TournamentTracker.App.Broadcast
                 {
                     EndSponsor();
                     Ended?.Invoke(ended);
-                    // A montage played in intermission goes back to it by itself.
-                    if (ended.Rule == "montage" && _returnTo?.Layout == "intermission") { await LiveAsync().ConfigureAwait(false); return; }
+                    // A montage played in intermission goes back to it by itself (not while switching is held).
+                    if (ended.Rule == "montage" && _returnTo?.Layout == "intermission" && !_desk.Held) { await LiveAsync().ConfigureAwait(false); return; }
                 }
                 // During a montage, each moment's key player gets their card.
                 if (clip.Rule == "montage" && _moments.Count > 0)
@@ -562,6 +651,30 @@ namespace TournamentTracker.App.Broadcast
                 }).ToList();
         }
 
+        /// <summary>Just the replay on stream now (for the Live desk's quick answer and the Stream Deck), or null.</summary>
+        public object? NowState()
+        {
+            lock (_lock)
+            {
+                var c = _now;
+                if (c == null) return null;
+                return new
+                {
+                    ClipId = c.Id, c.Lobby, c.Title, Montage = c.Rule == "montage",
+                    Playing = _playing, Ended = _ended, Speed = _speed,
+                    Cursor = Math.Round(Cursor(), 3),
+                    Duration = c.Duration,
+                    Start = Math.Round(c.StartAt(S.VideoDelayMs), 3),
+                    Event = c.Duration == null || c.SavedAt == null ? (double?)null : Math.Round(c.Duration.Value - (c.SavedAt.Value - c.EventAt).TotalSeconds, 3),
+                    View = new { _lastView.X, _lastView.Y, _lastView.Zoom },
+                    ZoomBy = Math.Round(_zoomBy, 2),
+                    Follow = _follow && _panX == 0 && _panY == 0,
+                    c.Angle,
+                    HasCam = c.CamFile != null,
+                };
+            }
+        }
+
         public object State()
         {
             var now = _clock();
@@ -573,6 +686,8 @@ namespace TournamentTracker.App.Broadcast
                     On = S.On,
                     Problem = Problem ?? _obs.ReplayProblem,
                     Folder = _obs.ClipFolder,
+                    DiskFreeGb = DiskFreeGb(),
+                    CleanUp = CleanUpNote,
                     S.PreSeconds, S.PostSeconds, S.MaxZoom, S.BufferSeconds,
                     Hotkeys = S.Hotkeys,
                     Clips = _clips.AsEnumerable().Reverse().Take(30).Select(x => new
@@ -585,7 +700,7 @@ namespace TournamentTracker.App.Broadcast
                     Now = c == null ? null : new
                     {
                         ClipId = c.Id, c.Lobby, c.Title, Montage = c.Rule == "montage",
-                        Playing = _playing, Ended = _ended,
+                        Playing = _playing, Ended = _ended, Speed = _speed,
                         Cursor = Math.Round(Cursor(), 3),
                         Duration = c.Duration,
                         Start = Math.Round(c.StartAt(S.VideoDelayMs), 3),
@@ -600,10 +715,90 @@ namespace TournamentTracker.App.Broadcast
             }
         }
 
+        // ---- Clips on disk: the newest kept, old ones cleared away ------------------------------------
+
+        /// <summary>Files a montage, the montage archive or anything else still needs (never cleared away).</summary>
+        public Func<ISet<string>>? Protected { get; set; }
+        /// <summary>A clip younger than this is never cleared away (it may be about to be played).</summary>
+        public static TimeSpan KeepAtLeast { get; set; } = TimeSpan.FromHours(2);
+        /// <summary>What the last clean-up did (shown with the replays), or null.</summary>
+        public string? CleanUpNote { get; private set; }
+
+        /// <summary>Free space on the clip folder's disk, in GB (null when it can't be told).</summary>
+        public double? DiskFreeGb()
+        {
+            try
+            {
+                string folder = Folder;
+                string? root = Path.GetPathRoot(Path.GetFullPath(folder));
+                return root == null ? null : Math.Round(new DriveInfo(root).AvailableFreeSpace / 1073741824.0, 1);
+            }
+            catch (Exception) { return null; }
+        }
+
+        /// <summary>
+        /// Clears old clips away so a day of auto-saved replays can't fill the disk: only Red Alert's own
+        /// clip files (named "TT …" in the clip folder, and simulation's stand-ins), oldest first, until
+        /// they fit in <see cref="ReplaySettings.KeepGb"/> and none is older than
+        /// <see cref="ReplaySettings.KeepDays"/>, and more while the disk is under
+        /// <see cref="ReplaySettings.MinFreeGb"/> free. Never one used by a montage or the archive, one
+        /// marked used, the one playing, or one younger than <see cref="KeepAtLeast"/>. Returns how many went.
+        /// </summary>
+        public int CleanUp(DateTime? now = null)
+        {
+            var s = S;
+            if (s.KeepGb <= 0 && s.KeepDays <= 0 && s.MinFreeGb <= 0) return 0;
+            string folder = Folder;
+            if (!Directory.Exists(folder)) return 0;
+            var t = now ?? DateTime.UtcNow;
+            var keep = new HashSet<string>(Protected?.Invoke() ?? new HashSet<string>(), StringComparer.OrdinalIgnoreCase);
+            lock (_lock)
+            {
+                foreach (var c in _clips.Where(c => c.Used || c.State == "saving"))
+                    foreach (var f in new[] { c.File, c.CamFile }) if (f != null) keep.Add(Path.GetFullPath(f));
+                if (_now != null) foreach (var f in new[] { _now.File, _now.CamFile }) if (f != null) keep.Add(Path.GetFullPath(f));
+            }
+            var files = new DirectoryInfo(folder).EnumerateFiles("TT *").Concat(Directory.Exists(Path.Combine(folder, "Simulated")) ? new DirectoryInfo(Path.Combine(folder, "Simulated")).EnumerateFiles() : Enumerable.Empty<FileInfo>())
+                .Where(f => f.Extension.ToLowerInvariant() is ".mp4" or ".mkv" or ".mov" or ".flv" or ".ts" or ".webm")
+                .OrderBy(f => f.LastWriteTimeUtc).ToList();
+            long total = files.Sum(f => f.Length);
+            double? free = DiskFreeGb();
+            int gone = 0;
+            long freed = 0;
+            foreach (var f in files)
+            {
+                bool tooMuch = s.KeepGb > 0 && total > s.KeepGb * 1073741824.0;
+                bool tooOld = s.KeepDays > 0 && t - f.LastWriteTimeUtc > TimeSpan.FromDays(s.KeepDays);
+                bool diskLow = s.MinFreeGb > 0 && free is { } gb && gb + freed / 1073741824.0 < s.MinFreeGb;
+                if (!tooMuch && !tooOld && !diskLow) continue;
+                if (t - f.LastWriteTimeUtc < KeepAtLeast || keep.Contains(f.FullName)) continue;
+                try
+                {
+                    long size = f.Length;
+                    f.Delete();
+                    string thumb = Path.Combine(f.DirectoryName ?? folder, "Thumbs", Path.GetFileNameWithoutExtension(f.Name) + ".jpg");
+                    if (File.Exists(thumb)) File.Delete(thumb);
+                    total -= size;
+                    freed += size;
+                    gone++;
+                    lock (_lock)
+                    {
+                        _clips.RemoveAll(c => c.File != null && string.Equals(Path.GetFullPath(c.File), f.FullName, StringComparison.OrdinalIgnoreCase));
+                        foreach (var c in _clips.Where(c => c.CamFile != null && string.Equals(Path.GetFullPath(c.CamFile), f.FullName, StringComparison.OrdinalIgnoreCase))) { c.CamFile = null; c.CamSavedAt = null; }
+                    }
+                }
+                catch (Exception) { }
+            }
+            if (gone > 0) CleanUpNote = $"Cleared away {gone} old replay clip{(gone == 1 ? "" : "s")} ({freed / 1048576.0:0} MB) at {t.ToLocalTime():HH:mm}.";
+            return gone;
+        }
+
         public void Dispose()
         {
             _timer?.Dispose();
             _timer = null;
+            _cleanTimer?.Dispose();
+            _cleanTimer = null;
         }
     }
 }

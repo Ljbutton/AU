@@ -388,6 +388,7 @@ namespace TournamentTracker.App.Broadcast
                 foreach (var p in _players) { p.X = Rand(0.1, 0.9); p.Y = Rand(0.1, 0.9); }
                 _tasks = 0;
                 _sab = null; _sabLeft = null; _danger = false; _bodyToReport = null;
+                SpecCamPick = null; SpecFocus = null;          // as the mod: a pick is for one game (ids are used again)
                 _phase = "ingame";
                 _gameStart = _now;
                 _rec = new GameRecord { GameNumber = _gameNo, Host = Label, Round = _round, Map = _map, StartedUtc = _now, Mode = "Tournament", Tournament = "Simulated Cup" };

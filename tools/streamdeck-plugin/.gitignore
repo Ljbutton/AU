@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.streamDeckPlugin
+# Made by `npm run build`.
+com.ljbutton.redalert.sdPlugin/bin/
+com.ljbutton.redalert.sdPlugin/imgs/
+com.ljbutton.redalert.sdPlugin/logs/

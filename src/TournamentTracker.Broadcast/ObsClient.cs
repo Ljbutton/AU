@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text;
@@ -16,14 +18,31 @@ namespace TournamentTracker.App.Broadcast
         public ObsException(string request, int code, string? comment) : base($"OBS refused {request}: {comment ?? "code " + code}") => Code = code;
     }
 
+    /// <summary>One request's answer inside a batch (<see cref="ObsClient.BatchAsync"/>).</summary>
+    public readonly struct ObsResult
+    {
+        public string Type { get; }
+        public bool Ok { get; }
+        public int Code { get; }
+        public string? Comment { get; }
+        public JsonElement Data { get; }
+        public ObsResult(string type, bool ok, int code, string? comment, JsonElement data) { Type = type; Ok = ok; Code = code; Comment = comment; Data = data; }
+        public ObsException Error() => new ObsException(Type, Code, Comment);
+    }
+
     /// <summary>
     /// A connection to OBS through obs-websocket 5 (built into OBS 28 and newer): sends requests
     /// and waits for their answers, and passes on the events it's subscribed to.
     /// </summary>
     public sealed class ObsClient : IAsyncDisposable
     {
-        /// <summary>Event subscriptions: General (1), Scenes (4), Inputs (8), SceneItems (128), MediaInputs (256), Vendors (512), InputVolumeMeters (65536, the level meters).</summary>
-        public const int Subscriptions = 1 | 4 | 8 | 128 | 256 | 512 | 65536;
+        /// <summary>
+        /// Event subscriptions: General (1), Scenes (4), Inputs (8), Outputs (64, the stream and the
+        /// recording starting and stopping), SceneItems (128), MediaInputs (256), Vendors (512),
+        /// InputVolumeMeters (65536, the level meters).
+        /// </summary>
+        public const int Subscriptions = 1 | 4 | 8 | 64 | 128 | 256 | 512 | 65536;
+        private static readonly JsonElement Empty = JsonDocument.Parse("{}").RootElement.Clone();
 
         private readonly ClientWebSocket _ws = new ClientWebSocket();
         private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonElement>> _pending = new ConcurrentDictionary<string, TaskCompletionSource<JsonElement>>();
@@ -103,13 +122,55 @@ namespace TournamentTracker.App.Broadcast
             try
             {
                 await SendRawAsync(new { op = 6, d = new { requestType = type, requestId = id, requestData = data ?? new { } } }, _cts.Token).ConfigureAwait(false);
-                var done = await Task.WhenAny(tcs.Task, Task.Delay(timeout ?? TimeSpan.FromSeconds(5))).ConfigureAwait(false);
-                if (done != tcs.Task) throw new TimeoutException($"OBS didn't answer {type}.");
-                var d = await tcs.Task.ConfigureAwait(false);
-                var status = d.GetProperty("requestStatus");
-                if (!status.GetProperty("result").GetBoolean())
-                    throw new ObsException(type, status.GetProperty("code").GetInt32(), status.TryGetProperty("comment", out var c) ? c.GetString() : null);
-                return d.TryGetProperty("responseData", out var r) ? r.Clone() : JsonDocument.Parse("{}").RootElement.Clone();
+                JsonElement d;
+                // WaitAsync cancels its own timer when the answer comes (no 5 s Task.Delay left behind per request).
+                try { d = await tcs.Task.WaitAsync(timeout ?? TimeSpan.FromSeconds(5)).ConfigureAwait(false); }
+                catch (TimeoutException) { throw new TimeoutException($"OBS didn't answer {type}."); }
+                var result = Result(type, d);
+                if (!result.Ok) throw result.Error();
+                return result.Data;
+            }
+            finally { _pending.TryRemove(id, out _); }
+        }
+
+        /// <summary>One answer as a result (the message is already a copy of its own: nothing to clone again).</summary>
+        private static ObsResult Result(string type, JsonElement d)
+        {
+            var status = d.GetProperty("requestStatus");
+            bool ok = status.GetProperty("result").GetBoolean();
+            return new ObsResult(d.TryGetProperty("requestType", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() ?? type : type, ok,
+                status.TryGetProperty("code", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt32() : 0,
+                status.TryGetProperty("comment", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString() : null,
+                d.TryGetProperty("responseData", out var r) && r.ValueKind == JsonValueKind.Object ? r : Empty);
+        }
+
+        /// <summary>
+        /// Several requests in one message (obs-websocket's RequestBatch), done by OBS one after another
+        /// as fast as it can, each answered (a failed one doesn't stop the rest unless
+        /// <paramref name="haltOnFailure"/>). One round trip instead of one per request, so a switch's
+        /// moves, shows, hides and mutes land together. Answers in the same order.
+        /// </summary>
+        public async Task<List<ObsResult>> BatchAsync(IReadOnlyList<(string Type, object? Data)> requests, bool haltOnFailure = false, TimeSpan? timeout = null)
+        {
+            var results = new List<ObsResult>();
+            if (requests.Count == 0) return results;
+            string id = "tt" + Interlocked.Increment(ref _next);
+            var tcs = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _pending[id] = tcs;
+            try
+            {
+                var list = requests.Select((r, i) => new { requestType = r.Type, requestId = id + "." + i, requestData = r.Data ?? new { } }).ToList();
+                // executionType 0: SerialRealtime (in order, as fast as possible).
+                await SendRawAsync(new { op = 8, d = new { requestId = id, haltOnFailure, executionType = 0, requests = list } }, _cts.Token).ConfigureAwait(false);
+                JsonElement d;
+                try { d = await tcs.Task.WaitAsync(timeout ?? TimeSpan.FromSeconds(5 + requests.Count * 0.05)).ConfigureAwait(false); }
+                catch (TimeoutException) { throw new TimeoutException($"OBS didn't answer a batch of {requests.Count} ({requests[0].Type}…)."); }
+                if (d.TryGetProperty("results", out var rs) && rs.ValueKind == JsonValueKind.Array)
+                {
+                    int i = 0;
+                    foreach (var r in rs.EnumerateArray()) results.Add(Result(i < requests.Count ? requests[i++].Type : "?", r));
+                }
+                return results;
             }
             finally { _pending.TryRemove(id, out _); }
         }
@@ -122,18 +183,28 @@ namespace TournamentTracker.App.Broadcast
             finally { _send.Release(); }
         }
 
+        // One reader at a time (the hello, then the read loop), so its buffers are kept and reused:
+        // OBS sends level meters 20 times a second, and a new 16 KB buffer and copy for each added up.
+        private readonly byte[] _buffer = new byte[16384];
+        private readonly System.IO.MemoryStream _message = new System.IO.MemoryStream();
+
         private async Task<JsonElement> ReceiveAsync(CancellationToken ct)
         {
-            var buffer = new byte[16384];
-            using var ms = new System.IO.MemoryStream();
+            _message.SetLength(0);
             while (true)
             {
-                var r = await _ws.ReceiveAsync(buffer, ct).ConfigureAwait(false);
+                var r = await _ws.ReceiveAsync(_buffer, ct).ConfigureAwait(false);
                 if (r.MessageType == WebSocketMessageType.Close) throw new WebSocketException("OBS closed the connection" + (_ws.CloseStatusDescription is { Length: > 0 } why ? ": " + why : "."));
-                ms.Write(buffer, 0, r.Count);
+                if (r.EndOfMessage && _message.Length == 0)
+                {
+                    using var one = JsonDocument.Parse(new ReadOnlyMemory<byte>(_buffer, 0, r.Count));
+                    return one.RootElement.Clone();
+                }
+                _message.Write(_buffer, 0, r.Count);
                 if (r.EndOfMessage) break;
             }
-            using var doc = JsonDocument.Parse(ms.ToArray());
+            using var doc = JsonDocument.Parse(new ReadOnlyMemory<byte>(_message.GetBuffer(), 0, (int)_message.Length));
+            if (_message.Capacity > 1 << 20) { _message.SetLength(0); _message.Capacity = 16384; }     // a huge one (a screenshot) isn't kept
             return doc.RootElement.Clone();
         }
 
@@ -147,7 +218,7 @@ namespace TournamentTracker.App.Broadcast
                     var msg = await ReceiveAsync(_cts.Token).ConfigureAwait(false);
                     int op = msg.GetProperty("op").GetInt32();
                     var d = msg.GetProperty("d");
-                    if (op == 7 && _pending.TryGetValue(d.GetProperty("requestId").GetString() ?? "", out var tcs)) tcs.TrySetResult(d);
+                    if ((op == 7 || op == 9) && _pending.TryGetValue(d.GetProperty("requestId").GetString() ?? "", out var tcs)) tcs.TrySetResult(d);
                     else if (op == 5)
                     {
                         try { Event?.Invoke(d.GetProperty("eventType").GetString() ?? "", d.TryGetProperty("eventData", out var ed) ? ed : default); }

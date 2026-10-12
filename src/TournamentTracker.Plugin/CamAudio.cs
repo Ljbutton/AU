@@ -24,6 +24,7 @@ namespace TournamentTracker.Plugin
         private static FootstepWatcher[] _watchers = Array.Empty<FootstepWatcher>();
         private static SkeldShipRoom[] _rooms = Array.Empty<SkeldShipRoom>();
         private static bool _logged;
+        private static IntPtr _watchersOf;
 
         public static void Update()
         {
@@ -49,8 +50,13 @@ namespace TournamentTracker.Plugin
             try
             {
                 if (player.FootSteps == null) return false;
-                if (Time.unscaledTime >= _nextWatchers || _watchers.Length + _rooms.Length == 0)
+                // Looked for again on a new map and every 5 s, not on every step of a map that has none
+                // of them: each look goes through the whole scene, twice.
+                var ship = ShipStatus.Instance;
+                IntPtr map = ship is null ? IntPtr.Zero : ship.Pointer;
+                if (Time.unscaledTime >= _nextWatchers || map != _watchersOf)
                 {
+                    _watchersOf = map;
                     _nextWatchers = Time.unscaledTime + 5f;
                     _watchers = Object.FindObjectsOfType<FootstepWatcher>().OrderByDescending(w => w.Priority).ToArray();
                     _rooms = Object.FindObjectsOfType<SkeldShipRoom>().ToArray();

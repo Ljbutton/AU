@@ -20,7 +20,7 @@ namespace TournamentTracker.Broadcast
         public bool Report { get; set; } = true;
         /// <summary>A small eye by a crewmate's name while an impostor is in their sight.</summary>
         public bool Eye { get; set; } = true;
-        /// <summary>The one crewmate whose vision is shown, or null for every crewmate's.</summary>
+        /// <summary>The one crewmate whose vision is shown, or null for every crewmate's (cleared when a new game starts).</summary>
         public int? Focus { get; set; }
         /// <summary>How much darker everything outside the crewmates' vision is (0–1).</summary>
         public float Dim { get; set; } = 0.22f;
@@ -32,7 +32,12 @@ namespace TournamentTracker.Broadcast
         public bool Cam { get => !CamOff; set => CamOff = !value; }
         /// <summary>Saved as "off" so it's on by default, also for a game saved before it existed.</summary>
         public bool CamOff { get; set; }
-        /// <summary>Who the player camera follows, or null to pick by itself (an impostor closing in, else whoever is busy).</summary>
+        /// <summary>
+        /// Who the player camera follows, or null to pick by itself (an impostor closing in, else whoever
+        /// is busy). For one game only: player ids are used again in the next game, so a new game clears
+        /// it (as Red Alert drops its pick then), and it isn't saved.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
         public int? CamPlayer { get; set; }
         /// <summary>
         /// The player camera is what's on stream for this lobby (Red Alert says so): the host's game
@@ -91,12 +96,15 @@ namespace TournamentTracker
             var game = Tracker.Current;
             if (!Spectator.Cam || game == null) { _camOn = null; return null; }
             bool Alive(int id) => game.ById((byte)id) is { DeathCause: null };
-            if (Spectator.CamPlayer is int chosen && game.ById((byte)chosen) != null)
-            {
-                // The caster's pick, still followed a few seconds after they die (to see the kill).
-                if (Alive(chosen) || _camOn == chosen && _clock() - _camSince < TimeSpan.FromSeconds(4)) return Keep((byte)chosen, chosen: true);
-            }
             var now = _clock();
+            if (Spectator.CamPlayer is int chosen && game.ById((byte)chosen) is { } picked)
+            {
+                // The caster's pick, still followed for a few seconds after they die (to see the kill).
+                // Timed from the death: timed from when the camera first went to them, a pick held
+                // longer than that had no time left by the kill and the camera cut away at once.
+                bool justDied = picked.DiedAtSeconds is double died && (now - game.StartedUtc).TotalSeconds - died < 4;
+                if (Alive(chosen) || justDied) return Keep((byte)chosen, chosen: true);
+            }
             var hunter = _danger.Where(d => Alive(d.Key.Imp) && Alive(d.Key.Crew)).OrderByDescending(d => d.Value).Select(d => (byte?)d.Key.Imp).FirstOrDefault();
             if (hunter != null) return Keep(hunter.Value, chosen: false);
             if (_camOn is byte current && Alive(current) && now - _camSince < TimeSpan.FromSeconds(4)) return current;
@@ -134,12 +142,18 @@ namespace TournamentTracker
         }
 
         /// <summary>spec lit|report|eye on|off · spec vision off|focus|rings · spec focus auto|&lt;player id&gt; · spec dim 0.22 · spec cam on|off|auto|&lt;player id&gt; · spec audio cam|wide</summary>
+        /// <remarks>
+        /// These are the caster's switches (Red Alert, through the host's Button), so their answers go
+        /// to the log only, never the host's chat: the referee's screen is on stream, and its mini chat
+        /// showed "[Tracker] Spectator view: …" every time the caster changed the camera.
+        /// </remarks>
         private void SpectatorCommand(string[] args)
         {
             string what = args.ElementAtOrDefault(0)?.ToLowerInvariant() ?? "";
             string value = args.ElementAtOrDefault(1)?.ToLowerInvariant() ?? "";
             var s = Spectator;
             bool On(bool current) => value == "on" ? true : value == "off" ? false : !current;
+            void Say(string text) { if (_answeringApp) Log(text); else Reply(text, false); }
             switch (what)
             {
                 case "lit": s.Lit = On(s.Lit); break;
@@ -165,11 +179,12 @@ namespace TournamentTracker
                     if (float.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float dim)) s.Dim = Math.Max(0, Math.Min(0.8f, dim));
                     break;
                 default:
-                    Reply("Spectator view: spec lit|report|eye on|off, spec vision off|focus|rings, spec focus auto|<player>, spec cam on|off|auto|<player>, spec audio cam|wide.", false);
+                    Say("Spectator view: spec lit|report|eye on|off, spec vision off|focus|rings, spec focus auto|<player>, spec cam on|off|auto|<player>, spec audio cam|wide.");
                     return;
             }
-            SaveState();
-            Reply($"Spectator view: map {(s.Lit ? "lit" : "normal")}, vision {s.Vision}{(s.Focus.HasValue ? $" (on player {s.Focus})" : "")}, \"!\" {(s.Report ? "on" : "off")}, eye {(s.Eye ? "on" : "off")}, player camera {(s.Cam ? s.CamPlayer.HasValue ? $"on player {s.CamPlayer}" : "on (picks by itself)" : "off")}.", false);
+            // The game sound follows the stream and isn't saved: nothing to write (Red Alert sends it at every switch).
+            if (what != "audio") SaveState();
+            Say($"Spectator view: map {(s.Lit ? "lit" : "normal")}, vision {s.Vision}{(s.Focus.HasValue ? $" (on player {s.Focus})" : "")}, \"!\" {(s.Report ? "on" : "off")}, eye {(s.Eye ? "on" : "off")}, player camera {(s.Cam ? s.CamPlayer.HasValue ? $"on player {s.CamPlayer}" : "on (picks by itself)" : "off")}.");
         }
 
         /// <summary>The spectator view's state, for the caster's snapshot.</summary>

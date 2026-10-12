@@ -224,12 +224,15 @@ namespace TournamentTracker.App.Broadcast
 
         // ---- Playing a clip ---------------------------------------------------------------------
 
-        /// <summary>Loads a clip into the replay Media Source (paused at its start); answers with its length in seconds.</summary>
+        /// <summary>The replay's speed (percent of normal: 100, 50 or 25), as the Media Source plays it.</summary>
+        public int ReplaySpeed { get; private set; } = 100;
+
+        /// <summary>Loads a clip into the replay Media Source (paused at its start), at <see cref="ReplaySpeed"/>; answers with its length in seconds.</summary>
         public async Task<double> LoadClipAsync(string file)
         {
             var obs = _obs ?? throw new InvalidOperationException("Not connected to OBS.");
             if (_clipItem == null) await EnsureReplaySceneAsync().ConfigureAwait(false);
-            await obs.RequestAsync("SetInputSettings", new { inputName = Live(Settings.Replay.ClipSource), inputSettings = new { local_file = file, is_local_file = true } }).ConfigureAwait(false);
+            await obs.RequestAsync("SetInputSettings", new { inputName = Live(Settings.Replay.ClipSource), inputSettings = new { local_file = file, is_local_file = true, speed_percent = ReplaySpeed } }).ConfigureAwait(false);
             for (int i = 0; i < 40; i++)
             {
                 var st = await MediaStatusAsync().ConfigureAwait(false);
@@ -246,6 +249,31 @@ namespace TournamentTracker.App.Broadcast
             var st = await obs.RequestAsync("GetMediaInputStatus", new { inputName = Live(Settings.Replay.ClipSource) }).ConfigureAwait(false);
             double Ms(string p) => st.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.Number ? x.GetDouble() / 1000 : 0;
             return (st.TryGetProperty("mediaState", out var s) ? s.GetString() ?? "" : "", Ms("mediaDuration"), Ms("mediaCursor"));
+        }
+
+        /// <summary>
+        /// Slow motion: the Media Source's speed (OBS's "speed_percent", 1–200). OBS starts the clip
+        /// again when it changes, so the caller seeks back to where it was. Below 100% the clip's own
+        /// sound is muted (slowed down, it only drones).
+        /// </summary>
+        public async Task SetReplaySpeedAsync(int percent)
+        {
+            var obs = _obs ?? throw new InvalidOperationException("Not connected to OBS.");
+            percent = Math.Max(1, Math.Min(200, percent));
+            await obs.RequestAsync("SetInputSettings", new { inputName = Live(Settings.Replay.ClipSource), inputSettings = new { speed_percent = percent } }).ConfigureAwait(false);
+            ReplaySpeed = percent;
+            try { await obs.RequestAsync("SetInputMute", new { inputName = Live(Settings.Replay.ClipSource), inputMuted = percent < 100 }).ConfigureAwait(false); }
+            catch (ObsException) { }
+        }
+
+        /// <summary>A new replay starts at normal speed (its sound back on).</summary>
+        public async Task NormalSpeedAsync()
+        {
+            if (ReplaySpeed == 100) return;
+            ReplaySpeed = 100;
+            if (_obs is { } obs)
+                try { await obs.RequestAsync("SetInputMute", new { inputName = Live(Settings.Replay.ClipSource), inputMuted = false }).ConfigureAwait(false); }
+                catch (ObsException) { }
         }
 
         public Task MediaAsync(string action) =>

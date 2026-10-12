@@ -168,6 +168,7 @@ namespace TournamentTracker
                 Lock = new { Available = _settings.LobbySettings != null && _settings.Mode != TrackerMode.Standard, On = LockedSettings != null, Settings = _settings.LobbySettings },
                 Rotation = RotationOn,
                 RefSlot = RefSlotKey != null,
+                HostAuthority = new { On = HostAuthority, Active = HostAuthorityActive },
                 LiveData = LiveDataState(),
                 Overlay = new { On = _overlay != null, Url = _overlay?.Url },
                 Feed = new { Available = FeedAvailable, On = _feedOn && FeedAvailable, PushUrl = _feedOn && FeedAvailable ? FeedPushUrl : null, Cam = _feedOn && FeedAvailable && Spectator.Cam },
@@ -179,6 +180,71 @@ namespace TournamentTracker
                 Notices = NoticesForApp(),
             };
             Work.Post(() => _statusJson = JsonSerializer.Serialize(status, ApiJson));
+        }
+
+        // ---- Host authority (the "+25" modded flag) -------------------------------------------------
+        // The mod tells Among Us's servers it's a host-only mod (Innersloth's documented flag, as Town of
+        // Host and others do): the host then keeps every player's record, so the referee's "dead" reaches
+        // players without the mod. The game sends its version as it connects, so a change applies from
+        // the main menu, not to the lobby it's in.
+
+        /// <summary>Host authority wanted (saved per tournament; on unless the host turned it off).</summary>
+        public bool HostAuthority => !_hostAuthorityOff;
+        private bool _hostAuthorityOff;
+
+        /// <summary>What the game says while hosting: host authority really is on in this lobby. Null when not hosting (set by the mod).</summary>
+        public bool? HostAuthorityActive { get; set; }
+
+        private bool _toldNoHostAuthority;
+
+        /// <summary>
+        /// The referee became a ghost in a lobby without host authority (from the mod): players without
+        /// the mod keep seeing them alive. Said on Home once a session.
+        /// </summary>
+        public void RefereeWithoutHostAuthority()
+        {
+            if (_toldNoHostAuthority) return;
+            _toldNoHostAuthority = true;
+            Note(HostAuthority
+                ? "Host authority isn't on in this lobby yet, so players without the mod see the referee alive. Leave to the main menu and host again: it's turned on as Among Us connects."
+                : "Host authority is off, so players without the mod see the referee alive. Turn it on (hostauth on), leave to the main menu and host again.");
+        }
+
+        private readonly Dictionary<(string, string), DateTime> _blockedSaid = new Dictionary<(string, string), DateTime>();
+
+        /// <summary>
+        /// The host's game turned down a message only the host may send (an exile, a kill, a meeting,
+        /// a role, a name…) that came from another player's game: a cheat or a broken game. Logged and
+        /// on Home at most once a minute per player and kind (a cheat can send hundreds). Nobody is
+        /// kicked: the host decides.
+        /// </summary>
+        public void HostOnlyMessageBlocked(string player, string kind)
+        {
+            var now = _clock();
+            var key = (player, kind);
+            if (_blockedSaid.TryGetValue(key, out var last) && now - last < TimeSpan.FromMinutes(1)) return;
+            _blockedSaid[key] = now;
+            _log.Warn($"Host authority: turned down a {kind} message for {player} from another player's game (only the host sends those).");
+            Note($"A {kind} message for {player} came from another player's game, and only the host sends those. Your game turned it down (other players' games may still have acted on it). If it keeps happening, someone may be cheating.");
+        }
+
+        /// <summary>!hostauth on|off: the "+25" host-only mod flag, used from the next time Among Us connects.</summary>
+        private void HostAuthorityCommand(string[] args)
+        {
+            string arg = args.FirstOrDefault()?.ToLowerInvariant() ?? "";
+            if (arg == "on" || arg == "off")
+            {
+                _hostAuthorityOff = arg == "off";
+                _toldNoHostAuthority = false;
+                SaveState();
+            }
+            // Hosting now with the other setting: it changes once Among Us connects again.
+            string lobby = HostAuthorityActive is bool active && active != HostAuthority
+                ? active ? " This lobby keeps it until you leave to the main menu." : " This lobby doesn't have it yet: leave to the main menu and host again."
+                : "";
+            Reply(HostAuthority
+                ? "Host authority is ON: your game keeps every player's record, so players without the mod see the referee as dead. It's sent as Among Us connects, so it applies from the main menu (the next lobby you host)." + lobby
+                : "Host authority is OFF: the server keeps the player records, so players without the mod see the referee alive. It applies from the main menu (the next lobby you host)." + lobby, false);
         }
 
         /// <summary>"deafened", "muted", "open", or null when automute isn't handling them.</summary>

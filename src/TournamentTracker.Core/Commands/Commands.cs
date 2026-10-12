@@ -84,6 +84,9 @@ namespace TournamentTracker
                 case "spec" when fromHost:
                     SpectatorCommand(args);
                     return true;
+                case "hostauth" when fromHost:
+                    HostAuthorityCommand(args);
+                    return true;
                 case "link" when fromHost:
                     LinkCommand(args);
                     return true;

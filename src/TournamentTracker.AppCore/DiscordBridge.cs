@@ -51,21 +51,64 @@ namespace TournamentTracker.App
         /// <summary>The voice channel the mod wants the bot in, to see who's talking (the host's).</summary>
         private string? _voiceWanted;
         private DateTime _modSeen = DateTime.MinValue;
+        /// <summary>The mod's last Discord request through here.</summary>
+        private DateTime _relaySeen = DateTime.MinValue;
         private string? _wroteTo;
-        /// <summary>Who The Button has server-muted or deafened (and with which bot), to put right when it closes.</summary>
+        /// <summary>
+        /// Who The Button has server-muted or deafened (and with which bot token; "" when not known,
+        /// from an earlier run), to put right when the game can't any more.
+        /// </summary>
         private readonly Dictionary<(string Guild, string User), string> _muted = new Dictionary<(string, string), string>();
+        /// <summary>Members The Button unmutes itself (the game is gone), with when to try next.</summary>
+        private readonly Dictionary<(string Guild, string User), Owed> _owed = new Dictionary<(string, string), Owed>();
+        /// <summary>
+        /// Members a run of The Button that didn't close properly (a crash, a power cut) had muted.
+        /// Null once it's known what to do with them: a game still running from before takes them
+        /// over (it sends everyone's state again when The Button is back); otherwise they're unmuted.
+        /// </summary>
+        private HashSet<(string Guild, string User)>? _orphans;
+        private readonly DateTime _started = DateTime.UtcNow;
+        private readonly DiscordRest _rest;
+        private readonly SemaphoreSlim _releasing = new SemaphoreSlim(1, 1);
+        private readonly object _fileLock = new object();
+        private string? _savedMuted;
+
+        private sealed class Owed
+        {
+            public string Token = "";
+            public DateTime NextTry;
+            public int Failures;
+        }
+
+        /// <summary>The file in the mod's folder listing who The Button has muted, so a crash doesn't leave them that way.</summary>
+        public const string MutedFileName = "button-muted.json";
 
         /// <summary>How long a request for news is held open.</summary>
         public TimeSpan Wait { get; set; } = ButtonGateway.Wait;
         /// <summary>The mod hasn't asked for this long: it's closed, so the setup code's bot is used.</summary>
         public static readonly TimeSpan ModGone = TimeSpan.FromSeconds(60);
 
+        /// <summary>
+        /// The mod (Among Us) hasn't been heard from for this long: it closed or crashed, and whoever
+        /// it left muted is unmuted. A running game asks again at least every <see cref="Wait"/>.
+        /// </summary>
+        public TimeSpan ReleaseAfter { get; set; } = ButtonGateway.Wait + TimeSpan.FromSeconds(10);
+
+        /// <summary>
+        /// News that arrives while a request waits is held this long before the answer goes back,
+        /// so a burst (several people starting to talk at once, a move's two voice events) is one
+        /// round trip for the mod instead of one each.
+        /// </summary>
+        public TimeSpan Batch { get; set; } = TimeSpan.FromMilliseconds(100);
+
         public DiscordBridge(Func<BotConfig?> fromSetup, Func<string?> modDir, HttpClient? discord = null, Func<BotConfig, IBotGateway>? connect = null)
         {
             _fromSetup = fromSetup;
             _modDir = modDir;
             _discord = discord ?? new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            _rest = new DiscordRest(_discord, NullLog.Instance);
             _connect = connect ?? (c => new VoiceGateway(c.Token, c.GuildId, NullLog.Instance, listenToMessages: c.Listen));
+            _orphans = LoadMuted();
             var bytes = new byte[18];
             using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(bytes);
             Token = Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_');
@@ -117,7 +160,7 @@ namespace TournamentTracker.App
         {
             while (!_cts.IsCancellationRequested)
             {
-                try { Reconcile(); WriteFile(); }
+                try { Reconcile(); WriteFile(); CheckReleases(); }
                 catch (Exception) { }
                 try { await Task.Delay(TimeSpan.FromSeconds(3), _cts.Token).ConfigureAwait(false); }
                 catch (OperationCanceledException) { return; }
@@ -161,6 +204,7 @@ namespace TournamentTracker.App
         private void Heard(string epoch, string type, JsonElement data)
         {
             if (!Passed.Contains(type)) return;
+            if (type == "VOICE_STATE_UPDATE") BackInVoice(data);
             lock (_lock)
             {
                 if (epoch != _epoch) return;
@@ -256,21 +300,41 @@ namespace TournamentTracker.App
                 voice = j.TryGetProperty("voice", out var v) && v.ValueKind == JsonValueKind.String && v.GetString() is { Length: > 0 } vc ? vc : null;
             }
             catch (Exception) { return Answer.Json(400, new { message = "Bad request" }); }
-            lock (_lock) { _modWants = wants; _modSeen = DateTime.UtcNow; _voiceWanted = voice; }
+            bool decided;
+            lock (_lock)
+            {
+                _modWants = wants;
+                _modSeen = DateTime.UtcNow;
+                _voiceWanted = voice;
+                decided = _orphans != null;
+                if (decided) DecideOrphans(survivor: epoch.Length > 0 && epoch != _epoch);
+            }
+            if (decided)
+            {
+                SaveMuted();
+                _ = ReleaseAsync(all: false, CancellationToken.None);
+            }
             Reconcile();
 
             var until = DateTime.UtcNow + Wait;
+            bool waited = false, batched = false;
             while (true)
             {
                 Task news;
+                bool batch = false;
                 lock (_lock)
                 {
                     var state = _gateway?.State;
                     List<object>? events = null;
                     long first = _events.Count > 0 ? _events[0].Seq : _seq + 1;
                     if (epoch != _epoch || since > _seq || since < first - 1) events = Snapshot();
-                    else if (_seq > since) events = _events.Where(x => x.Seq > since).Select(x => (object)new { t = x.Type, d = x.Data }).ToList();
-                    if (events != null || DateTime.UtcNow >= until)
+                    else if (_seq > since)
+                    {
+                        // News came while this waited: the rest of a burst gets a moment to arrive.
+                        if (waited && !batched && Batch > TimeSpan.Zero) batch = true;
+                        else events = _events.Where(x => x.Seq > since).Select(x => (object)new { t = x.Type, d = x.Data }).ToList();
+                    }
+                    if (!batch && (events != null || DateTime.UtcNow >= until))
                         return Answer.Json(200, new
                         {
                             epoch = _epoch,
@@ -282,8 +346,22 @@ namespace TournamentTracker.App
                         });
                     news = _news.Task;
                 }
+                if (batch)
+                {
+                    batched = true;
+                    try { await Task.Delay(Batch, _cts.Token).ConfigureAwait(false); }
+                    catch (OperationCanceledException) { return Answer.Json(503, new { message = "Closing" }); }
+                    continue;
+                }
                 var left = until - DateTime.UtcNow;
-                if (left > TimeSpan.Zero) await Task.WhenAny(news, Task.Delay(left, _cts.Token)).ConfigureAwait(false);
+                if (left > TimeSpan.Zero)
+                {
+                    // The timer is stopped as soon as news comes, rather than left running for the rest of the wait.
+                    using var stop = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+                    await Task.WhenAny(news, Task.Delay(left, stop.Token)).ConfigureAwait(false);
+                    stop.Cancel();
+                }
+                waited = true;
                 if (_cts.IsCancellationRequested) return Answer.Json(503, new { message = "Closing" });
             }
         }
@@ -310,7 +388,7 @@ namespace TournamentTracker.App
         }
 
         private static readonly string[] Copied = { "Authorization", "X-Audit-Log-Reason" };
-        private static readonly string[] Returned = { "X-RateLimit-Remaining", "X-RateLimit-Reset-After", "X-RateLimit-Bucket", "Retry-After" };
+        private static readonly string[] Returned = { "X-RateLimit-Remaining", "X-RateLimit-Reset-After", "X-RateLimit-Bucket", "X-RateLimit-Global", "X-RateLimit-Scope", "Retry-After" };
 
         /// <summary>Sends one of the mod's requests on to Discord, and Discord's answer back.</summary>
         private async Task<Answer> RelayAsync(string method, Dictionary<string, string> headers, byte[] body)
@@ -327,6 +405,7 @@ namespace TournamentTracker.App
                 if (headers.TryGetValue("content-type", out var ct)) request.Content.Headers.TryAddWithoutValidation("Content-Type", ct);
             }
             Answer answer;
+            lock (_lock) _relaySeen = DateTime.UtcNow;
             try
             {
                 using var response = await _discord.SendAsync(request, _cts.Token).ConfigureAwait(false);
@@ -340,9 +419,17 @@ namespace TournamentTracker.App
                     if (response.Headers.TryGetValues(name, out var values)) answer.Headers.Add((name, values.First()));
                 if (response.IsSuccessStatusCode && method == "PATCH") NoteMute(url, request, body);
             }
+            catch (Exception e) when (!_cts.IsCancellationRequested && e is HttpRequestException && e.InnerException is SocketException)
+            {
+                // No connection to Discord at all: nothing was sent, so the mod may safely send it again.
+                answer = Answer.Json(503, new { message = "Couldn't reach Discord: " + e.Message });
+                answer.Headers.Add((DiscordRest.NotSentHeader, "1"));
+            }
             catch (Exception e) when (!_cts.IsCancellationRequested)
             {
-                answer = Answer.Json(502, new { message = "Discord didn't answer: " + e.Message });
+                // Sent, but no answer (a timeout): it may have gone through, which the mod has to know
+                // before it posts a report again.
+                answer = Answer.Json(504, new { message = "Discord didn't answer: " + e.Message });
             }
             answer.Headers.Add((ButtonBridge.RelayedHeader, "1"));
             return answer;
@@ -359,36 +446,251 @@ namespace TournamentTracker.App
                 bool on = j.TryGetProperty("mute", out var mu) && mu.ValueKind == JsonValueKind.True
                     || j.TryGetProperty("deaf", out var de) && de.ValueKind == JsonValueKind.True;
                 var key = (m.Groups[1].Value, m.Groups[2].Value);
+                string token = auth.First();
+                if (token.StartsWith("Bot ", StringComparison.Ordinal)) token = token.Substring(4);
                 lock (_lock)
                 {
-                    if (on) _muted[key] = auth.First();
+                    // The game decides about this member again: anything owed from before is dropped.
+                    _owed.Remove(key);
+                    _orphans?.Remove(key);
+                    if (on) _muted[key] = token;
                     else _muted.Remove(key);
                 }
+                SaveMuted();
             }
             catch (JsonException) { }
+        }
+
+        /// <summary>
+        /// The first word from the mod since The Button started decides about members an earlier run
+        /// left muted: a game that was running before (it carries the old run's epoch) sends
+        /// everyone's state again itself, so they're kept as muted; a game that started afresh
+        /// doesn't know them, so they're unmuted. Called with <see cref="_lock"/> held.
+        /// </summary>
+        private void DecideOrphans(bool survivor)
+        {
+            if (_orphans == null) return;
+            foreach (var key in _orphans)
+            {
+                if (survivor) _muted.TryAdd(key, "");
+                else Owe(key, "");
+            }
+            _orphans = null;
+        }
+
+        /// <summary>This member is to be unmuted by The Button (with <see cref="_lock"/> held).</summary>
+        private void Owe((string Guild, string User) key, string token)
+        {
+            if (!_owed.TryGetValue(key, out var owed)) _owed[key] = owed = new Owed();
+            if (token.Length > 0) owed.Token = token;
+            owed.NextTry = DateTime.MinValue;
+        }
+
+        /// <summary>
+        /// Every few seconds: the game has gone quiet (Among Us closed or crashed while The Button
+        /// stays open), or no game came back after a crash. Whoever it left muted is unmuted.
+        /// </summary>
+        internal void CheckReleases()
+        {
+            bool changed = false;
+            lock (_lock)
+            {
+                var now = DateTime.UtcNow;
+                if (_orphans != null && now - _started >= ReleaseAfter)
+                {
+                    DecideOrphans(survivor: false);
+                    changed = true;
+                }
+                var heard = _modSeen > _relaySeen ? _modSeen : _relaySeen;
+                if (_muted.Count > 0 && now - heard >= ReleaseAfter)
+                {
+                    foreach (var kv in _muted) Owe(kv.Key, kv.Value);
+                    _muted.Clear();
+                    changed = true;
+                }
+                if (_owed.Count == 0 && !changed) return;
+            }
+            if (changed) SaveMuted();
+            _ = ReleaseAsync(all: false, CancellationToken.None);
+        }
+
+        /// <summary>Someone owed an unmute came back to voice: try now (Discord can only unmute people in voice).</summary>
+        private void BackInVoice(JsonElement data)
+        {
+            if (data.ValueKind != JsonValueKind.Object
+                || !data.TryGetProperty("user_id", out var u) || u.ValueKind != JsonValueKind.String
+                || !data.TryGetProperty("channel_id", out var c) || c.ValueKind != JsonValueKind.String) return;
+            string user = u.GetString() ?? "";
+            string guild = data.TryGetProperty("guild_id", out var g) && g.ValueKind == JsonValueKind.String ? g.GetString() ?? "" : "";
+            lock (_lock)
+            {
+                if (!_owed.TryGetValue((guild, user), out var owed)) return;
+                owed.NextTry = DateTime.MinValue;
+            }
+            _ = ReleaseAsync(all: false, CancellationToken.None);
+        }
+
+        /// <summary>A bot token that can unmute in this server: the one that muted, else the mod's or the setup code's bot.</summary>
+        private string? TokenFor(string guild, string known)
+        {
+            if (known.Length > 0) return known;
+            lock (_lock)
+            {
+                if (_modWants != null && _modWants.GuildId == guild) return _modWants.Token;
+                if (_config != null && _config.GuildId == guild) return _config.Token;
+            }
+            BotConfig? setup = null;
+            try { setup = _fromSetup(); } catch (Exception) { }
+            return setup != null && setup.GuildId == guild ? setup.Token : null;
+        }
+
+        /// <summary>
+        /// Unmutes and undeafens who's owed it (<paramref name="all"/>: everyone, now), a few at a
+        /// time, through Discord's rate limit. Whoever isn't done stays in the file in the mod's
+        /// folder: tried again later, when they're back in voice, or at the next start.
+        /// </summary>
+        private async Task ReleaseAsync(bool all, CancellationToken ct)
+        {
+            if (!all && !_releasing.Wait(0)) return;              // a round is already going
+            if (all && !await _releasing.WaitAsync(Timeout.Infinite, ct).ConfigureAwait(false)) return;
+            try
+            {
+                List<((string Guild, string User) Key, Owed Owed)> due;
+                lock (_lock)
+                {
+                    var now = DateTime.UtcNow;
+                    due = _owed.Where(kv => all || kv.Value.NextTry <= now).Select(kv => (kv.Key, kv.Value)).ToList();
+                    // Not tried again before its time, even if this round doesn't get to it.
+                    foreach (var (_, owed) in due) owed.NextTry = now + TimeSpan.FromSeconds(15);
+                }
+                if (due.Count == 0) return;
+                using var lanes = new SemaphoreSlim(MuteLanes, MuteLanes);
+                await Task.WhenAll(due.Select(async item =>
+                {
+                    await lanes.WaitAsync(ct).ConfigureAwait(false);
+                    try { await ReleaseOneAsync(item.Key, item.Owed, ct).ConfigureAwait(false); }
+                    finally { lanes.Release(); }
+                })).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { }
+            finally
+            {
+                _releasing.Release();
+                SaveMuted();
+            }
+        }
+
+        /// <summary>Unmutes sent at once (like the mod's own, per bot): quick, and Discord's limit is still honoured.</summary>
+        private const int MuteLanes = 4;
+
+        private async Task ReleaseOneAsync((string Guild, string User) key, Owed owed, CancellationToken ct)
+        {
+            string? token = TokenFor(key.Guild, owed.Token);
+            if (token == null) return;                     // no bot for this server yet: tried again later
+            DiscordResult result;
+            try { result = await _rest.SetVoiceStateAsync(token, key.Guild, key.User, () => (false, false), "The Button closed", ct).ConfigureAwait(false); }
+            catch (OperationCanceledException) { return; }
+            catch (Exception) { result = new DiscordResult { Ok = false }; }
+            lock (_lock)
+            {
+                // The game took this member over meanwhile.
+                if (!_owed.TryGetValue(key, out var current) || current != owed) return;
+                if (result.Ok || (result.Status >= 400 && result.Status < 500 && result.Status != 429 && !result.IsNotInVoice))
+                {
+                    // Done, or never possible (they left the server, the bot lost its permission).
+                    _owed.Remove(key);
+                    return;
+                }
+                owed.Failures++;
+                owed.NextTry = DateTime.UtcNow + (result.IsNotInVoice
+                    ? TimeSpan.FromMinutes(5)                // or as soon as the gateway sees them back in voice
+                    : TimeSpan.FromSeconds(Math.Min(300, 15 << Math.Min(owed.Failures - 1, 5))));
+            }
         }
 
         /// <summary>Unmutes everyone The Button left muted (the game can't any more once it's closed).</summary>
         internal async Task ReleaseAllAsync(TimeSpan timeout)
         {
-            List<KeyValuePair<(string Guild, string User), string>> muted;
-            lock (_lock) { muted = _muted.ToList(); _muted.Clear(); }
-            if (muted.Count == 0) return;
-            using var cts = new CancellationTokenSource(timeout);
-            await Task.WhenAll(muted.Select(async x =>
+            lock (_lock)
             {
+                // Not heard from a game since the start: whoever an earlier run left muted is let go too.
+                DecideOrphans(survivor: false);
+                foreach (var kv in _muted) Owe(kv.Key, kv.Value);
+                _muted.Clear();
+                if (_owed.Count == 0) return;
+            }
+            SaveMuted();
+            using var cts = new CancellationTokenSource(timeout);
+            await ReleaseAsync(all: true, cts.Token).ConfigureAwait(false);
+        }
+
+        // ---- The list of muted members, kept on disk ---------------------------------------------
+
+        private string? MutedFile()
+        {
+            string? dir = _wroteTo;
+            if (dir == null)
+            {
+                try { dir = _modDir(); } catch (Exception) { dir = null; }
+            }
+            return dir == null ? null : Path.Combine(dir, MutedFileName);
+        }
+
+        /// <summary>Who an earlier run left muted (null: nobody).</summary>
+        private HashSet<(string Guild, string User)>? LoadMuted()
+        {
+            try
+            {
+                string? file = MutedFile();
+                if (file == null || !File.Exists(file)) return null;
+                var set = new HashSet<(string, string)>();
+                using var doc = JsonDocument.Parse(File.ReadAllText(file));
+                if (doc.RootElement.TryGetProperty("muted", out var list) && list.ValueKind == JsonValueKind.Array)
+                    foreach (var e in list.EnumerateArray())
+                        if (e.TryGetProperty("guild", out var g) && e.TryGetProperty("user", out var u)
+                            && g.GetString() is { Length: > 0 } guild && u.GetString() is { Length: > 0 } user)
+                            set.Add((guild, user));
+                _savedMuted = null;
+                return set.Count > 0 ? set : null;
+            }
+            catch (Exception) { return null; }
+        }
+
+        /// <summary>
+        /// Writes who The Button has muted (server and user IDs, no tokens) next to the mod's
+        /// button.json, so the next start can unmute them if The Button or the game crashed.
+        /// </summary>
+        private void SaveMuted()
+        {
+            List<(string Guild, string User)> keys;
+            lock (_lock)
+            {
+                keys = _muted.Keys.Concat(_owed.Keys).Concat(_orphans ?? Enumerable.Empty<(string, string)>())
+                    .Distinct().OrderBy(k => k.Item1, StringComparer.Ordinal).ThenBy(k => k.Item2, StringComparer.Ordinal).ToList();
+            }
+            string json = JsonSerializer.Serialize(new { muted = keys.Select(k => new { guild = k.Guild, user = k.User }) });
+            lock (_fileLock)
+            {
+                if (json == _savedMuted) return;
                 try
                 {
-                    using var req = new HttpRequestMessage(new HttpMethod("PATCH"), $"{DiscordRest.DefaultApiBase}/guilds/{x.Key.Guild}/members/{x.Key.User}")
+                    string? file = MutedFile();
+                    if (file == null || !Directory.Exists(Path.GetDirectoryName(Path.GetDirectoryName(file)))) return;
+                    if (keys.Count == 0)
                     {
-                        Content = new StringContent("{\"mute\":false,\"deaf\":false}", Encoding.UTF8, "application/json"),
-                    };
-                    req.Headers.TryAddWithoutValidation("Authorization", x.Value);
-                    req.Headers.TryAddWithoutValidation("X-Audit-Log-Reason", "The Button closed");
-                    using var _ = await _discord.SendAsync(req, cts.Token).ConfigureAwait(false);
+                        if (File.Exists(file)) File.Delete(file);
+                    }
+                    else
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+                        string temp = file + ".tmp";
+                        File.WriteAllText(temp, json);
+                        File.Move(temp, file, overwrite: true);
+                    }
+                    _savedMuted = json;
                 }
                 catch (Exception) { }
-            })).ConfigureAwait(false);
+            }
         }
 
         private static async Task WriteAsync(Stream stream, Answer a)
