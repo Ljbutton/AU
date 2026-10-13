@@ -272,6 +272,7 @@ namespace TournamentTracker.App
                 return Text(200, "text/html; charset=utf-8", Resource("docs/setup-codes.html"));
             if (method == "GET" && UiFiles.Asset(typeof(AppServer).Assembly, route) is { } asset) return (200, asset.Type, asset.Body);
             if (method == "GET" && route == "/logo.png") return (200, "image/png", ResourceBytes("ui/logo.png"));
+            if (method == "GET" && route == "/base.css") return (200, "text/css; charset=utf-8", ResourceBytes("ui/base.css"));
             if (!route.StartsWith("/app/", StringComparison.Ordinal)) return Text(404, "text/plain", "Not found");
 
             headers.TryGetValue("x-app-token", out var token);

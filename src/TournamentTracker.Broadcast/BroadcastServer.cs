@@ -433,6 +433,7 @@ namespace TournamentTracker.App.Broadcast
                     "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Replay</title></head><body style=\"margin:0\">"
                     + Resource("ui/viewer-body.html") + "</body></html>");
             if (method == "GET" && UiFiles.Asset(typeof(BroadcastServer).Assembly, route) is { } asset) return (200, asset.Type, asset.Body);
+            if (method == "GET" && route == "/base.css") return (200, "text/css; charset=utf-8", ResourceBytes("ui/base.css"));
             // Stream Deck links: their own key (they can't send the app's header, and must survive restarts).
             if (route.StartsWith("/deck/", StringComparison.Ordinal) && (method == "GET" || method == "POST")) return await Deck(route, query).ConfigureAwait(false);
             if (!route.StartsWith("/app/", StringComparison.Ordinal)) return Text(404, "text/plain", "Not found");

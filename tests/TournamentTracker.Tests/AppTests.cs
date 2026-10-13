@@ -310,6 +310,11 @@ public class AppTests : IDisposable
         var head = await anon.GetByteArrayAsync("/crew/17.png");            // every colour has a head, up to coral
         Assert.Equal(new byte[] { 0x89, (byte)'P', (byte)'N', (byte)'G' }, head.Take(4).ToArray());
         Assert.Equal(HttpStatusCode.NotFound, (await anon.GetAsync("/crew/18.png")).StatusCode);
+        // The look it shares with Red Alert.
+        Assert.Contains("<link rel=\"stylesheet\" href=\"/base.css\">", page);
+        var css = await anon.GetAsync("/base.css");
+        Assert.Equal("text/css", css.Content.Headers.ContentType?.MediaType);
+        Assert.Contains(".winctl{", await css.Content.ReadAsStringAsync());
     }
 
     [Fact]
