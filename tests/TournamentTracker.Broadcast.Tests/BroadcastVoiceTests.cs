@@ -10,7 +10,6 @@ public class BroadcastVoiceTests : IDisposable
 {
     private readonly TempDir _dir = new();
     private readonly FakeClock _clock = new();
-    private static readonly JsonSerializerOptions Camel = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public void Dispose() => _dir.Dispose();
 
@@ -21,18 +20,18 @@ public class BroadcastVoiceTests : IDisposable
         try
         {
             desk.Apply(JsonSerializer.Serialize(new { type = "voice", lobby = "LJ", t = 1, on = true, sending = true, discord = "capturing", game = "not running", voiceDb = -12.5, gameDb = -60, mic = true }));
-            var lj = JsonSerializer.SerializeToElement(desk.VoiceState(), Camel).EnumerateArray().Single(x => x.GetProperty("lobby").GetString() == "LJ");
+            var lj = JsonSerializer.SerializeToElement(desk.VoiceState(), TestJson.Camel).EnumerateArray().Single(x => x.GetProperty("lobby").GetString() == "LJ");
             Assert.True(lj.GetProperty("online").GetBoolean());
             Assert.True(lj.GetProperty("sending").GetBoolean());
             Assert.Equal("not running", lj.GetProperty("game").GetString());
             Assert.Equal(-12.5, lj.GetProperty("voiceDb").GetDouble());
             Assert.True(lj.GetProperty("mic").GetBoolean());
             _clock.Advance(10);
-            Assert.False(JsonSerializer.SerializeToElement(desk.VoiceState(), Camel)[0].GetProperty("online").GetBoolean());
+            Assert.False(JsonSerializer.SerializeToElement(desk.VoiceState(), TestJson.Camel)[0].GetProperty("online").GetBoolean());
 
             desk.Simulate(true);
             _clock.Advance(3); desk.SimTick();
-            var sim = JsonSerializer.SerializeToElement(desk.VoiceState(), Camel).EnumerateArray().Where(x => x.GetProperty("reported").GetBoolean() && x.GetProperty("online").GetBoolean()).ToList();
+            var sim = JsonSerializer.SerializeToElement(desk.VoiceState(), TestJson.Camel).EnumerateArray().Where(x => x.GetProperty("reported").GetBoolean() && x.GetProperty("online").GetBoolean()).ToList();
             Assert.True(sim.Count >= 4);
         }
         finally { desk.Dispose(); }

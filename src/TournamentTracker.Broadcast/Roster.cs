@@ -33,13 +33,13 @@ namespace TournamentTracker.App.Broadcast
         public const string OverridesName = "roster-overrides.json";
         public const string Header = "name,discord_id,in_game_names,friend_codes,pronunciation";
 
-        private readonly string? _path, _overridesPath;
+        private readonly WatchedFile? _file;
+        private readonly string? _overridesPath;
         private readonly object _lock = new object();
-        private DateTime _stamp, _nextCheck;
         private List<RosterEntry> _entries = new List<RosterEntry>();
         private Dictionary<string, string> _overrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        public string? Path => _path;
+        public string? Path => _file?.Path;
         public string? Problem { get; private set; }
         /// <summary>
         /// Goes up whenever who's who could have changed (the file read again, a pick by hand, simulation's
@@ -52,13 +52,12 @@ namespace TournamentTracker.App.Broadcast
 
         public Roster(string? path)
         {
-            _path = path;
+            _file = path == null ? null : new WatchedFile(path, file => file.Write(Header + "\n" +
+                "# One player per line. in_game_names and friend_codes can hold several, split with ;\n" +
+                "# Example (the # makes a line a note; delete it to use the line):\n" +
+                "# Jake Rivera,123456789012345678,JakeR;jakey,coolfox#1234,JAKE rivv-AIR-uh\n", Encoding.UTF8));
             _overridesPath = path == null ? null : System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path) ?? ".", OverridesName);
-            try
-            {
-                if (_overridesPath != null && File.Exists(_overridesPath))
-                    _overrides = new Dictionary<string, string>(JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(_overridesPath)) ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
-            }
+            try { if (Files.ReadJson<Dictionary<string, string>>(_overridesPath) is { } saved) _overrides = new Dictionary<string, string>(saved, StringComparer.OrdinalIgnoreCase); }
             catch (Exception) { }
             Refresh(force: true);
         }
@@ -68,27 +67,14 @@ namespace TournamentTracker.App.Broadcast
             get { Refresh(); lock (_lock) return _entries.Concat(Extra).ToList(); }
         }
 
-        /// <summary>Re-reads roster.csv when it changes (writing an example the first time).</summary>
+        /// <summary>Re-reads roster.csv when it changes (an example is written the first time).</summary>
         public void Refresh(bool force = false)
         {
-            if (_path == null) return;
-            var now = DateTime.UtcNow;
-            if (!force && now < _nextCheck) return;
-            _nextCheck = now.AddSeconds(2);
+            if (_file == null) return;
             try
             {
-                if (!File.Exists(_path))
-                {
-                    Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_path)!);
-                    File.WriteAllText(_path, Header + "\n" +
-                        "# One player per line. in_game_names and friend_codes can hold several, split with ;\n" +
-                        "# Example (the # makes a line a note; delete it to use the line):\n" +
-                        "# Jake Rivera,123456789012345678,JakeR;jakey,coolfox#1234,JAKE rivv-AIR-uh\n", Encoding.UTF8);
-                }
-                var stamp = File.GetLastWriteTimeUtc(_path);
-                if (stamp == _stamp) return;
-                _stamp = stamp;
-                var (entries, problem) = Parse(File.ReadAllText(_path));
+                if (_file.Changed(force) is not { } text) return;
+                var (entries, problem) = Parse(text);
                 lock (_lock) { _entries = entries; _version++; }
                 Problem = problem;
             }
@@ -197,10 +183,7 @@ namespace TournamentTracker.App.Broadcast
                 if (rosterName == null) _overrides.Remove(key);
                 else _overrides[key] = rosterName;
                 _version++;
-                try
-                {
-                    if (_overridesPath != null) File.WriteAllText(_overridesPath, JsonSerializer.Serialize(_overrides, new JsonSerializerOptions { WriteIndented = true }));
-                }
+                try { if (_overridesPath != null) Files.WriteJson(_overridesPath, _overrides, new JsonSerializerOptions { WriteIndented = true }); }
                 catch (Exception) { }
             }
         }

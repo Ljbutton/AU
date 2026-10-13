@@ -115,13 +115,11 @@ namespace TournamentTracker
                     _overlayStandingsFor = Combined;
                     _overlayStandingsRound = Round;
                     _overlayStandings = Stats.Standings.Lobby(Combined.GameRecords, LobbyLabel(), Round, _settings.AdvanceCount, _settings.GamesPerRound)
-                        .Take(10).Select(r => (object)new { r.Stats.Name, Points = ReportFormatterPts(r.Stats.Points) }).ToList();
+                        .Take(10).Select(r => (object)new { r.Stats.Name, Points = Discord.ReportFormatter.Pts(r.Stats.Points) }).ToList();
                 }
                 return _overlayStandings;
             }
-            return Store.Leaderboard().Take(10).Select(t => (object)new { t.Name, Points = ReportFormatterPts(t.Points) }).ToList();
+            return Store.Leaderboard().Take(10).Select(t => (object)new { t.Name, Points = Discord.ReportFormatter.Pts(t.Points) }).ToList();
         }
-
-        private static string ReportFormatterPts(double v) => Discord.ReportFormatter.Pts(v);
     }
 }

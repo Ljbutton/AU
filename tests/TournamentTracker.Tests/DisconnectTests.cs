@@ -1,5 +1,4 @@
 using System.Text.Json;
-using TournamentTracker.Control;
 using TournamentTracker.Discord;
 using Xunit;
 
@@ -14,14 +13,6 @@ public class DisconnectTests : IDisposable
     private readonly TempDir _dir = new();
     private readonly FakeClock _clock = new();
     public void Dispose() => _dir.Dispose();
-
-    private sealed class Lines : ILog
-    {
-        public List<string> All { get; } = new();
-        public void Info(string message) => All.Add(message);
-        public void Warn(string message) => All.Add(message);
-        public void Error(string message) => All.Add(message);
-    }
 
     private DisconnectHistory History(ILog? log = null) => new(_dir.Path, log ?? NullLog.Instance, clock: () => _clock.Now);
 
@@ -100,7 +91,7 @@ public class DisconnectTests : IDisposable
     [Fact]
     public void A_kick_is_logged_in_one_clear_line_with_what_the_mod_sent_before()
     {
-        var log = new Lines();
+        var log = new ListLog();
         var history = History(log);
         history.Sends.Add("role for player 4: Crewmate");
         _clock.Advance(2);
@@ -117,7 +108,7 @@ public class DisconnectTests : IDisposable
     [Fact]
     public void A_connection_that_never_got_in_says_so()
     {
-        var log = new Lines();
+        var log = new ListLog();
         var r = History(log).Record("Custom", 8, "Couldn't connect", inGame: false, lobby: null, host: false, moddedFlag: false, safeMode: true);
         Assert.Equal("Couldn't connect", r.Detail);
         Assert.Contains("It said: \"Couldn't connect\".", log.All[0]);
@@ -156,7 +147,7 @@ public class DisconnectTests : IDisposable
     public void A_broken_file_starts_a_new_list()
     {
         File.WriteAllText(Path.Combine(_dir.Path, DisconnectHistory.FileName), "[{oops");
-        var log = new Lines();
+        var log = new ListLog();
         var history = History(log);
         Assert.Empty(history.All);
         Assert.Null(history.Status());
@@ -188,9 +179,7 @@ public class DisconnectTests : IDisposable
         var record = s.Disconnects.Record("Custom", 8, "The server closed the room", inGame: false, lobby: "ABCDEF", host: true, moddedFlag: false, safeMode: false);
         s.DisconnectSeen(record);
 
-        var control = JsonDocument.Parse(File.ReadAllText(Path.Combine(_dir.Path, ControlServer.FileName))).RootElement;
-        using var http = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{control.GetProperty("port").GetInt32()}/") };
-        http.DefaultRequestHeaders.Add("X-TT-Token", control.GetProperty("token").GetString());
+        using var http = AppHttp.Control(_dir.Path);
         var status = JsonDocument.Parse(await http.GetStringAsync("api/status")).RootElement;
         var last = status.GetProperty("lastDisconnect");
         Assert.Equal("2026-09-01T18:00:00.0000000Z", last.GetProperty("at").GetString());

@@ -110,16 +110,8 @@ namespace TournamentTracker.App.Broadcast
                 stop = _now != null && (which(_now.Lobby) || gone.Any(c => c.Id == _now.Id) || alsoPlaying?.Contains(_now.Id) == true);
                 if (stop) { _now = null; _playing = false; _returnTo = null; }
             }
-            if (stop)
-            {
-                try { await _obs.MediaAsync("pause").ConfigureAwait(false); } catch (Exception) { }
-                EndSponsor();
-                TagChanged?.Invoke(JsonSerializer.Serialize(new { on = false }));
-                OnChanged?.Invoke(false);
-            }
-            foreach (var c in gone)
-                foreach (var f in new[] { c.File, c.Thumbnail })
-                    try { if (f != null && File.Exists(f)) File.Delete(f); } catch (Exception) { }
+            if (stop) await OffAsync().ConfigureAwait(false);
+            foreach (var c in gone) { Files.Delete(c.File); Files.Delete(c.Thumbnail); }
             return gone.Select(c => c.Id).ToHashSet();
         }
 
@@ -139,9 +131,9 @@ namespace TournamentTracker.App.Broadcast
             clip.Game = live?.Game;
             if (card.Source is { } src)
             {
-                if (src.TryGetProperty("room", out var room) && room.ValueKind == JsonValueKind.String) clip.Room = room.GetString();
-                if (src.TryGetProperty("round", out var rd) && rd.ValueKind == JsonValueKind.Number) clip.Round = rd.GetInt32();
-                if (src.TryGetProperty("game", out var gm) && gm.ValueKind == JsonValueKind.String) clip.Game = gm.GetString();
+                if (src.Str("room") is { } room) clip.Room = room;
+                if (src.Int("round") is { } round) clip.Round = round;
+                if (src.Str("game") is { } game) clip.Game = game;
                 // The key player: who the play is about (their player card comes up with the replay).
                 string? keyProp = card.Rule switch { "kill" or "winningKill" => "killer", "witnessedKill" => "impostor", "meeting" => "caller", "eject" => "ejected", "witnessedVent" or "vent" => "player", _ => null };
                 if (card.Rule == "witnessedVent") keyProp = "impostor";
@@ -149,9 +141,9 @@ namespace TournamentTracker.App.Broadcast
                 {
                     clip.KeyPlayerId = kid.GetInt32();
                     clip.KeyPlayer = live != null && live.People.TryGetValue(kid.GetInt32(), out var lp) && lp.Key.Length > 0 ? lp.Key
-                        : kp.TryGetProperty("key", out var kk) && kk.ValueKind == JsonValueKind.String ? kk.GetString() : null;
+                        : kp.Str("key");
                 }
-                if (src.TryGetProperty("t", out var t) && t.ValueKind == JsonValueKind.Number) clip.EventAt = _desk.Tracks.ToCaster(card.Lobby, t.GetInt64());
+                if (src.Long("t") is { } t) clip.EventAt = _desk.Tracks.ToCaster(card.Lobby, t);
                 foreach (var who in new[] { "killer", "victim", "impostor", "crewmate", "player", "witness", "caller", "body", "ejected" })
                     if (src.TryGetProperty(who, out var p) && p.ValueKind == JsonValueKind.Object && p.TryGetProperty("id", out var id) && !clip.Focus.Contains(id.GetInt32()))
                         clip.Focus.Add(id.GetInt32());
@@ -282,11 +274,7 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>Who the lobby's player camera is following now, as its host last said.</summary>
-        private int? CamFollowing(string lobby)
-        {
-            var spec = _desk.Board.Lobby(lobby)?.Spec;
-            return spec is { } s && s.TryGetProperty("camOn", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt32() : (int?)null;
-        }
+        private int? CamFollowing(string lobby) => CasterDesk.CamOf(_desk.Board.Lobby(lobby)?.Spec).Following;
 
         /// <summary>Simulation without OBS: a stand-in video (the lobby and the play over moving colours) made with ffmpeg.</summary>
         private async Task StandInAsync(Clip clip)
@@ -534,10 +522,7 @@ namespace TournamentTracker.App.Broadcast
         {
             OnAir? back;
             lock (_lock) { back = _returnTo; _now = null; _playing = false; _returnTo = null; }
-            try { await _obs.MediaAsync("pause").ConfigureAwait(false); } catch (Exception) { }
-            EndSponsor();
-            TagChanged?.Invoke(JsonSerializer.Serialize(new { on = false }));
-            OnChanged?.Invoke(false);
+            await OffAsync().ConfigureAwait(false);
             if (back != null && back.Layout != "none" && back.Layout != "replay")
             {
                 _desk.Show("", back.Layout, null, back.Slots.Select(x => x ?? "").ToList());
@@ -546,6 +531,15 @@ namespace TournamentTracker.App.Broadcast
             var top = _desk.Board.Ranking().FirstOrDefault(r => r.Online);
             if (top != null) _desk.Show(top.Lobby);
             return "Back to live.";
+        }
+
+        /// <summary>The replay scene let go: OBS's player paused, the sponsor's appearance over, the REPLAY tag off.</summary>
+        private async Task OffAsync()
+        {
+            try { await _obs.MediaAsync("pause").ConfigureAwait(false); } catch (Exception) { }
+            EndSponsor();
+            TagChanged?.Invoke(JsonSerializer.Serialize(new { on = false }));
+            OnChanged?.Invoke(false);
         }
 
         private void EndSponsor()
@@ -680,7 +674,6 @@ namespace TournamentTracker.App.Broadcast
             var now = _clock();
             lock (_lock)
             {
-                var c = _now;
                 return new
                 {
                     On = S.On,
@@ -697,20 +690,7 @@ namespace TournamentTracker.App.Broadcast
                         At = x.EventAt.ToString("o"),
                         Ago = Math.Max(0, (int)(now - x.EventAt).TotalSeconds),
                     }).ToList(),
-                    Now = c == null ? null : new
-                    {
-                        ClipId = c.Id, c.Lobby, c.Title, Montage = c.Rule == "montage",
-                        Playing = _playing, Ended = _ended, Speed = _speed,
-                        Cursor = Math.Round(Cursor(), 3),
-                        Duration = c.Duration,
-                        Start = Math.Round(c.StartAt(S.VideoDelayMs), 3),
-                        Event = c.Duration == null || c.SavedAt == null ? (double?)null : Math.Round(c.Duration.Value - (c.SavedAt.Value - c.EventAt).TotalSeconds, 3),
-                        View = new { _lastView.X, _lastView.Y, _lastView.Zoom },
-                        ZoomBy = Math.Round(_zoomBy, 2),
-                        Follow = _follow && _panX == 0 && _panY == 0,
-                        c.Angle,
-                        HasCam = c.CamFile != null,
-                    },
+                    Now = NowState(),
                 };
             }
         }

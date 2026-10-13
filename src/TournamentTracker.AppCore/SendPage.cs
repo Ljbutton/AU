@@ -93,14 +93,10 @@ footer{color:var(--muted);font-size:13px;display:flex;gap:14px}
 #voice .meter i{display:block;height:100%;width:0;background:var(--good);transition:width .15s}
 #voice input[type=range]{width:110px}
 #voice .st{font-weight:600}
-#drop{display:none;padding:9px 16px;background:#5a1f24;color:#fff;font-weight:600}
-#drop.on{display:block}
-#nopic{display:none;padding:9px 16px;background:#5a1f24;color:#fff;font-weight:600}
-#nopic.on{display:block}
-#gone{display:none;padding:16px;background:#8a1520;color:#fff;font-weight:700;font-size:18px;text-align:center}
-#gone.on{display:block}
-#retired{display:none;padding:16px;background:#1d2633;color:#fff;font-weight:700;font-size:18px;text-align:center}
-#retired.on{display:block}
+#drop,#nopic{display:none;padding:9px 16px;background:#5a1f24;color:#fff;font-weight:600}
+#gone,#retired{display:none;padding:16px;background:#8a1520;color:#fff;font-weight:700;font-size:18px;text-align:center}
+#retired{background:#1d2633}
+#drop.on,#nopic.on,#gone.on,#retired.on{display:block}
 header{display:flex;flex-direction:column;gap:6px}
 .share{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:13.5px;color:var(--muted)}
 .share label{display:flex;align-items:center;gap:5px;cursor:pointer}
@@ -136,6 +132,7 @@ const token=new URLSearchParams(location.search).get('token')||'';
 const page=new URLSearchParams(location.search).get('page')||'';
 const PROTOCOL=1;   // the broadcast feed's version (FeedProtocol.Version, docs/broadcast-protocol.md)
 const q=p=>p+(p.includes('?')?'&':'?')+'token='+encodeURIComponent(token)+(page?'&page='+encodeURIComponent(page):'');
+const post=(path,body)=>fetch(q(path),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 const v=document.getElementById('v');
 let pushUrl=null,since=null,sent=0,lastOk=0,lobby=null,twitch=null;
 // What VDO.Ninja is told to share (the push link with The Button's share options), and the host's choice:
@@ -171,8 +168,7 @@ function howto(){
       :start+'open the <b>Window</b> tab and pick <b>Among Us</b>. A window share has no sound: tick <b>Send lobby voice</b> below for the game sound (or choose <b>Entire screen</b> above and tick <b>Share system audio</b>).'+end);
 }
 function setShare(body){
-  fetch(q('/app/share'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-    .then(r=>{if(r.status===409){retire();return;}return info();}).catch(()=>{});
+  post('/app/share',body).then(r=>{if(r.status===409){retire();return;}return info();}).catch(()=>{});
 }
 document.querySelectorAll('input[name=sm]').forEach(e=>e.onchange=()=>{share.mode=e.value;syncShare();setShare({mode:e.value});});
 document.getElementById('low').onchange=e=>{share.low=e.target.checked;setShare({low:String(e.target.checked)});};
@@ -204,7 +200,7 @@ function send(items){ if(v.contentWindow&&!retired) v.contentWindow.postMessage(
 // Part 22: every message from Among Us is kept until the caster says it arrived, and sent again (with its
 // own time, marked as sent again) while it hasn't, less often the longer the link is down. Old snapshots and
 // positions are no use late, so only a tiny stand-in for each is kept; the events all are.
-let queue=[],acked=0,everAcked=false,resendAt=0,resendWait=1000;
+let queue=[],everAcked=false,resendAt=0,resendWait=1000;
 function trim(){
   const now=Date.now();
   for(let i=0;i<queue.length;i++){const q=queue[i];if(!q.stub&&(q.it.type==='snap'||q.it.type==='track')&&now-q.first>15000){q.it={v:PROTOCOL,type:'skip',lobby:q.it.lobby,src:q.it.src,seq:q.it.seq,t:q.it.t};q.stub=true;}}
@@ -251,7 +247,7 @@ function ack(a){
   if(!a||typeof a!=='object')return;
   const before=queue.length;
   queue=queue.filter(x=>!(x.it.src in a)||x.it.seq>a[x.it.src]);
-  everAcked=true;acked=Date.now();
+  everAcked=true;
   if(queue.length<before){resendWait=1000;resendAt=0;}
 }
 // Is the screen share sending pictures? Asked of VDO.Ninja every 2 s; told to the caster with the rest.
@@ -282,9 +278,9 @@ addEventListener('message',e=>{
   const got=e.data&&e.data.dataReceived;const cmd=got&&got.ttc;
   if(got&&got.ttack){ack(got.ttack);return;}
   // Roster names for this lobby's players, for the referee's nameplates.
-  if(got&&got.ttn&&typeof got.ttn==='object'){fetch(q('/app/names'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({names:got.ttn})}).catch(()=>{});return;}
+  if(got&&got.ttn&&typeof got.ttn==='object'){post('/app/names',{names:got.ttn}).catch(()=>{});return;}
   if(typeof cmd!=='string'||!/^spec [a-z]+( [a-z0-9.]+)?$/.test(cmd))return;
-  fetch(q('/app/command'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:cmd})}).catch(()=>{});
+  post('/app/command',{command:cmd}).catch(()=>{});
 });
 // VDO.Ninja's SDK reconnects by itself after a drop (and says it will): it's only let go, and a new one
 // started, when it won't or gave up, so two never send the same stream at once.
@@ -388,7 +384,7 @@ async function publishVoice(){
       vdo=sdk;voiceProblem='';retryWait=5000;
       // Dropped later: VDO.Ninja tries again itself; if it gives up, a new one is started (5 s, 10 s … 1 min apart).
       try{ watchSdk(sdk,()=>vdo,on=>{voiceProblem=on?'Lobby voice dropped: reconnecting…':'';},()=>{vdo=null;voiceProblem='Lobby voice dropped: reconnecting…';}); }catch(x){}
-      if(!noticeSent){ noticeSent=true; fetch(q('/app/command'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:'voicenotice'})}).catch(()=>{}); }
+      if(!noticeSent){ noticeSent=true; post('/app/command',{command:'voicenotice'}).catch(()=>{}); }
     }catch(e){
       // A half-made connection is let go, not left trying in the background.
       if(sdk){ try{sdk.disconnect();}catch(x){} }
@@ -431,7 +427,7 @@ async function voiceTick(){
   }catch(e){}
   finally{ ticking=false; }
 }
-function save(body){ fetch(q('/app/voice'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(()=>voiceTick()).catch(()=>{}); }
+function save(body){ post('/app/voice',body).then(()=>voiceTick()).catch(()=>{}); }
 // A level slider being dragged: saved once it rests for a moment (or is let go), not for every step.
 let levelBody=null,levelTimer=0;
 function saveLevel(body){ levelBody=Object.assign(levelBody||{},body); clearTimeout(levelTimer); levelTimer=setTimeout(saveLevelNow,150); }
@@ -486,13 +482,17 @@ function endCamStream(){
   camTracks.forEach(t=>{try{t.stop();}catch(x){}});
   camTracks=[];camWriter=null;camCanvas=null;
 }
+// A picture into the camera's stream: a frame for the track generator, or drawn on the canvas.
+function camDraw(picture){
+  try{
+    if(camWriter){const f=new VideoFrame(picture(),{timestamp:Math.round(performance.now()*1000)});camWriter.write(f).catch(()=>{});}
+    else if(camCanvas)camCanvas.getContext('2d').drawImage(picture(),0,0,camCanvas.width,camCanvas.height);
+  }catch(x){}
+}
 function gotCam(e){
   if(e.data&&e.data.retired){retire();return;}
   const bmp=e.data;camFrames++;lastCamAt=Date.now();
-  try{
-    if(camWriter){const f=new VideoFrame(bmp,{timestamp:Math.round(performance.now()*1000)});camWriter.write(f).catch(()=>{});}
-    else if(camCanvas)camCanvas.getContext('2d').drawImage(bmp,0,0,camCanvas.width,camCanvas.height);
-  }catch(x){}
+  camDraw(()=>bmp);
   bmp.close();
 }
 // No new picture for a moment (a meeting, the game over: the game stops drawing the camera): a clean
@@ -506,13 +506,7 @@ function pausedPicture(){
   g.fillStyle='#9aa6b2';g.font='24px Segoe UI, system-ui, sans-serif';g.fillText('Back when play resumes',480,306);
   return pausedCard=c;
 }
-setInterval(()=>{
-  if(!camVdo||Date.now()-lastCamAt<1500)return;
-  try{
-    if(camWriter){const f=new VideoFrame(pausedPicture(),{timestamp:Math.round(performance.now()*1000)});camWriter.write(f).catch(()=>{});}
-    else if(camCanvas)camCanvas.getContext('2d').drawImage(pausedPicture(),0,0,camCanvas.width,camCanvas.height);
-  }catch(x){}
-},500);
+setInterval(()=>{if(camVdo&&Date.now()-lastCamAt>=1500)camDraw(pausedPicture);},500);
 function publishCam(){
   if(retired||!pushUrl||!camOn||camVdo||camPublishing||Date.now()<camRetryAt)return;
   const u=new URL(pushUrl),id=u.searchParams.get('push'),pw=u.searchParams.get('password');

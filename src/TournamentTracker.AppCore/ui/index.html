@@ -5,88 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Button</title>
 <link rel="icon" href="/logo.png">
+<link rel="stylesheet" href="/base.css">
 <style>
 @font-face{font-family:"Amatic SC";font-weight:700;font-display:swap;src:url(/fonts/amatic-sc-700.woff2) format("woff2")}
 @font-face{font-family:"Varela Round";font-weight:400;font-display:swap;src:url(/fonts/varela-round.woff2) format("woff2")}
-@font-face{font-family:"Teko";font-weight:700;font-display:swap;src:url(/fonts/teko-700.woff2) format("woff2")}
-@font-face{font-family:"Rajdhani";font-weight:700;font-display:swap;src:url(/fonts/rajdhani-700.woff2) format("woff2")}
-:root{
-  --bg:#000;--panel:rgba(14,17,24,.78);--panel-solid:#0e1118;--sunk:rgba(255,255,255,.07);--fg:#f2f4f7;--muted:#9aa4b2;--line:rgba(255,255,255,.16);--edge:rgba(255,255,255,.75);
-  --accent:#1fa143;--accent-2:#147a2c;--accent-fg:#03140a;--accent-soft:rgba(22,128,46,.16);--hi:#ff2d55;--hi-soft:rgba(255,45,85,.14);--good:#46c28b;--good-soft:rgba(70,194,139,.16);--warn:#ffc15a;--warn-soft:rgba(255,193,90,.14);
-  --danger:#ff6b61;--danger-soft:rgba(255,107,97,.15);color-scheme:dark;
-}
 :root{--hand:"Amatic SC","Segoe Print",cursive;--round:"Varela Round","Segoe UI",system-ui,sans-serif;--mono:"Cascadia Mono",Consolas,ui-monospace,monospace}
-*{box-sizing:border-box}
-html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--round);display:grid;grid-template-columns:172px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);overflow:hidden}
 #space{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
-header,nav,main{position:relative;z-index:1}
-header{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:8px 18px;border-bottom:2px solid rgba(22,128,46,.55);background:linear-gradient(90deg,rgba(22,128,46,.12),rgba(0,0,0,.35) 45%);backdrop-filter:blur(2px)}
-.brand{display:flex;align-items:center;gap:10px}
-/* The name in the tournament type: white "THE", red "BUTTON", and the tagline in the game's hand-drawn type. */
-.brand .word{display:flex;flex-direction:column;line-height:.86}
-.brand .word b{font:700 42px/1 "Teko","Rajdhani",sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#fff}
-.brand .word b span{color:var(--accent)}
 .logo{width:40px;height:40px;object-fit:contain}
-.alerts{display:flex;flex-wrap:wrap;gap:8px;margin-left:8px}
-/* Window buttons (The Button's window has no frame of its own; the header is its title bar). */
-header{user-select:none}
-.winctl{margin-left:auto;align-self:flex-start;display:flex;margin-top:-8px;margin-right:-18px}
-.winctl button{all:unset;width:46px;height:34px;display:grid;place-items:center;color:var(--muted);cursor:default}
-.winctl button:hover{background:rgba(255,255,255,.1);color:var(--fg)}
-.winctl button.x:hover{background:#e81123;color:#fff}
-.winctl svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.1}
-.winctl .i-restore,body.maxed .winctl .i-max{display:none}
-body.maxed .winctl .i-restore{display:block}
 .alert{all:unset;cursor:pointer;font:13px var(--round);padding:4px 11px;border-radius:99px;border:1.5px solid var(--warn);color:var(--warn);background:var(--warn-soft)}
 .alert.bad{border-color:var(--danger);color:var(--danger);background:var(--danger-soft)}
 .alert.good{border-color:var(--good);color:var(--good);background:var(--good-soft)}
 .alert[disabled]{cursor:default;opacity:.8}
 .alert:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
-nav{padding:14px 10px;display:flex;flex-direction:column;gap:4px;border-right:1px solid var(--line);background:rgba(0,0,0,.25)}
-nav button{all:unset;cursor:pointer;padding:6px 14px 6px 18px;border-radius:12px;font:700 27px/1.15 var(--hand);letter-spacing:.05em;color:var(--muted)}
-nav button:hover{color:var(--fg);background:rgba(255,255,255,.04)}
-/* The page you're on: a rounded green bar and a green glow fading to the right. */
-nav button.on{color:#fff;box-shadow:inset 5px 0 0 var(--accent);background:linear-gradient(90deg,rgba(22,128,46,.38),rgba(22,128,46,.05))}
-nav button:focus-visible{outline:2px solid var(--accent)}
-main{overflow:auto;padding:16px 22px 22px}
-section{display:none}
-section.on{display:grid;gap:14px;align-content:start}
-h1{font:700 44px/1 var(--hand);letter-spacing:.05em;margin:0}
-h2{font:700 27px/1 var(--hand);letter-spacing:.05em;margin:0 0 8px}
 .sub{color:var(--muted);margin:0}
-.card{background:var(--panel);border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:inset 0 2px 0 rgba(22,128,46,.35)}
-.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:5px 14px;margin:0}
 .kv dt{color:var(--muted)}.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
-button.b{font:700 21px/1 var(--hand);letter-spacing:.05em;white-space:nowrap;padding:6px 14px 5px;border-radius:10px;border:2px solid var(--edge);background:transparent;color:var(--fg);cursor:pointer}
-button.b:hover{background:var(--sunk)}
-button.b.primary{background:linear-gradient(180deg,#22aa48,var(--accent-2));border-color:var(--accent);color:var(--accent-fg)}
-button.b.danger{border-color:var(--danger);color:var(--danger)}
-button.b.on{border-color:var(--hi);color:var(--hi);background:var(--hi-soft)}
-button.b:disabled{opacity:.4;cursor:default}
-button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-input,textarea{font:14px var(--round);color:var(--fg);background:var(--sunk);border:1.5px solid var(--line);border-radius:9px;padding:6px 10px;min-width:0}
-textarea{width:100%;font:12px var(--mono);resize:vertical}
-.note{padding:9px 12px;border-radius:10px;margin:0}
 .note.warn{background:var(--warn-soft);color:var(--warn)}
-.note.bad{background:var(--danger-soft);color:var(--danger)}
-.note.good{background:var(--good-soft);color:var(--fg)}
-.muted{color:var(--muted)}
-.mono{font-family:var(--mono);font-size:12.5px}
-table{border-collapse:collapse;width:100%}
-td{padding:6px 4px;border-bottom:1px solid var(--line)}
-tr:last-child td{border-bottom:0}
-.empty{padding:26px;text-align:center;color:var(--muted)}
 .toggle{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:3px 0}
 .toggle b{font-weight:400}.toggle span{display:block;color:var(--muted);font-size:12px}
 .tools-post{gap:6px;padding-top:7px;margin-top:4px;border-top:1px solid var(--line)}
 .tools-post>b{font-weight:400;margin-right:2px}
 .tools-post button.b.sm{font-size:16px;padding:2px 8px 1px}
 .pill{font-size:12px;padding:1px 8px;border-radius:99px;background:var(--sunk);color:var(--muted);white-space:nowrap}
-#toast{position:fixed;right:18px;bottom:18px;max-width:420px;background:var(--panel-solid);color:var(--fg);border:2px solid var(--edge);padding:10px 14px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.4);opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;z-index:5}
-#toast.show{opacity:1;transform:none}
-[hidden]{display:none!important}
 
 /* ---- Home (the lobby): everything on one screen ---- */
 .lobby-head{display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap}
@@ -212,11 +152,11 @@ button.b.sm{font-size:18px;padding:3px 10px 2px;border-width:1.5px;border-radius
 @container (max-width:400px){.ref-lb .pts .x2{display:none}.ref-lb .pts .nm span{max-width:110px}}
 /* Results channel (administration code): folded until needed. */
 .ref-col>details.ref-tools{flex:none;display:block}
-details.ref-tools summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:10px;min-width:0}
-details.ref-tools summary::-webkit-details-marker{display:none}
+details.ref-tools summary,details.advanced summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:10px;min-width:0}
+details.ref-tools summary::-webkit-details-marker,details.advanced summary::-webkit-details-marker{display:none}
 details.ref-tools summary h2{font-size:24px;margin:0;white-space:nowrap}
-details.ref-tools summary h2::before{content:'▸ ';font-size:.8em}
-details.ref-tools[open] summary h2::before{content:'▾ '}
+details.ref-tools summary h2::before,details.advanced summary h2::before{content:'▸ ';font-size:.8em}
+details.ref-tools[open] summary h2::before,details.advanced[open] summary h2::before{content:'▾ '}
 details.ref-tools summary .muted{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 details.ref-tools .row{margin-top:6px}
 details.ref-tools input,details.ref-tools select{padding:4px 8px}
@@ -284,11 +224,8 @@ details.ref-tools input,details.ref-tools select{padding:4px 8px}
 .award .w.first{font-weight:700}
 .award .w .v{color:var(--muted);font-size:12px}
 .sub-h{font:600 13px var(--round);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 6px}
-details.advanced summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:12px}
-details.advanced summary::-webkit-details-marker{display:none}
+details.advanced summary{gap:12px}
 details.advanced summary h2{margin:0}
-details.advanced summary h2::before{content:'▸ ';font-size:.8em}
-details.advanced[open] summary h2::before{content:'▾ '}
 #hd-card .hd-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}
 #hd-card label{display:grid;gap:4px;font-size:12.5px;color:var(--muted);min-width:0}
 #hd-card label input{width:100%}
@@ -562,11 +499,9 @@ details.advanced[open] summary h2::before{content:'▾ '}
 </main>
 <div id="toast" role="status" aria-live="polite"></div>
 
+<script src="/base.js"></script>
 <script>
 const TOKEN = '__APP_TOKEN__';
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const head = c => `/crew/${c >= 0 && c < 18 ? c : 15}.png`;
 // For parts drawn on every refresh: only replaced when they changed. Replacing a button between the press and
 // the release of a click loses the click, and resets hover and keyboard focus.
 function setHTML(el, html) { if (el._html !== html) { el._html = html; el.innerHTML = html; } }
@@ -576,7 +511,6 @@ async function api(method, path, body) {
   const r = await fetch(path, { method, headers: { 'X-App-Token': TOKEN, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   return r.json();
 }
-function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 4200); }
 async function cmd(command) {
   const r = await api('POST', '/app/command', { command });
   toast(r.replies && r.replies.length ? r.replies.join(' ') : 'Sent.');
@@ -677,7 +611,9 @@ function renderAlerts() {
 }
 
 // ---- Home: the lobby ----------------------------------------------------------------------
-function onOff(el, on, command) { el.textContent = on ? 'On' : 'Off'; el.classList.toggle('on', on); el.onclick = () => cmd(`${command} ${on ? 'off' : 'on'}`); }
+// A switch's button: its word and its lit look.
+function lit(el, on, yes = 'On', no = 'Off') { el.textContent = on ? yes : no; el.classList.toggle('on', !!on); }
+function onOff(el, on, command) { lit(el, on); el.onclick = () => cmd(`${command} ${on ? 'off' : 'on'}`); }
 async function feed(on) {
   const r = await api('POST', '/app/feed', { on: on ? 'true' : 'false' });
   toast(r.replies && r.replies.length ? r.replies.join(' ') : 'Sent.');
@@ -731,9 +667,13 @@ function netCheck() {
   return ['Net', cls === 'ok', r.uploadText ? `Upload ${r.uploadText}` : 'Connection problem', cls, 'settings'];
 }
 
+// What this window remembers (dismissed, folded, the tab picked); a window without storage remembers nothing.
+function stored(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+function store(key, value) { try { localStorage.setItem(key, value); } catch (e) { } }
+
 // ---- Home: the mod's health (safe mode, a recent disconnect) ----------------------------------------
-let dismissedDc = '';
-try { dismissedDc = localStorage.getItem('dc-dismissed') || ''; } catch (e) { }
+const clock = t => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+let dismissedDc = stored('dc-dismissed') || '';
 function renderHealth() {
   const h = S.health || {}, sm = h.safeMode, d = h.lastDisconnect, cards = [];
   if (sm && sm.on) cards.push(`<div class="hcard bad"><div><b>${esc(sm.title)}</b><span>${esc(sm.say)}</span></div>
@@ -741,15 +681,14 @@ function renderHealth() {
   else if (sm && sm.overridden) cards.push(`<div class="hcard"><div><b>${esc(sm.title)}</b><span>${esc(sm.say)}</span></div>
     <div class="acts"><button class="b sm" data-cmd="safemode on" title="Safe mode decides by itself again (pressed during a game, from the next game)">Back to automatic</button></div></div>`);
   if (d && d.show && d.at !== dismissedDc) {
-    const at = new Date(d.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    cards.push(`<div class="hcard${d.inGame ? ' bad' : ''}"><div><b>${esc(d.title)}</b><span>${esc(at)}${d.minutesAgo > 0 ? ` (${d.minutesAgo} min ago)` : ''} · ${esc(d.explain)}</span></div>
+    cards.push(`<div class="hcard${d.inGame ? ' bad' : ''}"><div><b>${esc(d.title)}</b><span>${esc(clock(d.at))}${d.minutesAgo > 0 ? ` (${d.minutesAgo} min ago)` : ''} · ${esc(d.explain)}</span></div>
       <div class="acts"><button class="x" data-dc="${esc(d.at)}" title="Dismiss">✕</button></div></div>`);
   }
   setHTML($('health'), cards.join(''));
 }
 $('health').addEventListener('click', e => {
   const x = e.target.closest('[data-dc]');
-  if (x) { dismissedDc = x.dataset.dc; try { localStorage.setItem('dc-dismissed', dismissedDc); } catch (err) { } renderHealth(); return; }
+  if (x) { dismissedDc = x.dataset.dc; store('dc-dismissed', dismissedDc); renderHealth(); return; }
   // Run normally anyway: a second click to be sure (Among Us may crash on a version the mod wasn't built for).
   const b = e.target.closest('[data-safemode]');
   if (!b) return;
@@ -804,7 +743,7 @@ function renderHome() {
   onOff($('t-overlay'), st.overlay.on, 'overlay');
   const feed = st.feed || {};
   $('feed-row').hidden = !feed.available;
-  $('t-feed').textContent = feed.on ? 'On' : 'Off'; $('t-feed').classList.toggle('on', !!feed.on);
+  lit($('t-feed'), feed.on);
   $('feed-again').hidden = !feed.on;
   // What to pick on the send page: the Among Us window (the lobby voice brings the game sound) or the entire screen.
   const sh = S.share || {}, start = 'Opens a private VDO.Ninja page in your browser: ';
@@ -813,7 +752,7 @@ function renderHome() {
     : (sh.voiceOn ? 'pick the <b>Among Us window</b> (Window tab). The Button sends the game sound and lobby voice' : 'pick the <b>Among Us window</b> (Window tab) and tick <b>Send lobby voice</b> there for the game sound'))
     + (sh.low ? ', at lower quality' : '') + '. Leave the tab open.');
   $('overlay-url').textContent = st.overlay.on ? st.overlay.url : '';
-  $('t-lead').textContent = st.lead ? 'Yes' : 'Take over'; $('t-lead').classList.toggle('on', st.lead); $('t-lead').disabled = st.lead || !st.shared;
+  lit($('t-lead'), st.lead, 'Yes', 'Take over'); $('t-lead').disabled = st.lead || !st.shared;
   $('t-lead').onclick = () => cmd('lead');
 
   renderAutomute(st);
@@ -859,11 +798,10 @@ $('link-row').onsubmit = async e => {
 };
 
 // ---- Warnings from the game (a player left, extra game, settings put back…) --------------------
-let dismissedNotice = 0;
-try { dismissedNotice = +localStorage.getItem('notice-dismissed') || 0; } catch (e) { }
+let dismissedNotice = +stored('notice-dismissed') || 0;
 function dismissNotices(upTo) {
   dismissedNotice = Math.max(dismissedNotice, upTo);
-  try { localStorage.setItem('notice-dismissed', String(dismissedNotice)); } catch (e) { }
+  store('notice-dismissed', String(dismissedNotice));
   noticesKey = ''; renderNotices(S.status);
 }
 let noticesKey = '', noticesOpen = false;
@@ -875,10 +813,9 @@ function renderNotices(st) {
   noticesKey = key;
   if (!all.length) noticesOpen = false;
   const shown = noticesOpen ? all : all.slice(0, 1);
-  const when = n => new Date(n.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   $('notices').hidden = !all.length;
   $('notices').classList.toggle('open', noticesOpen);
-  $('notices').innerHTML = shown.map((n, i) => `<div class="notice"><span class="when">${when(n)}</span><span class="txt" title="${esc(n.text)}">${esc(n.text)}</span>`
+  $('notices').innerHTML = shown.map((n, i) => `<div class="notice"><span class="when">${clock(n.at)}</span><span class="txt" title="${esc(n.text)}">${esc(n.text)}</span>`
     + (i === 0 && all.length > 1 ? `<button class="more" data-more>${noticesOpen ? 'Show less' : `${all.length - 1} more`}</button>` : '<span></span>')
     + `<button title="${i === 0 && all.length > 1 ? 'Dismiss all' : 'Dismiss'}" data-dismiss="${i === 0 ? all[0].id : n.id}">✕</button></div>`).join('');
   $('notices').querySelectorAll('[data-dismiss]').forEach(b => b.onclick = () => dismissNotices(+b.dataset.dismiss));
@@ -912,12 +849,11 @@ function renderAutomute(st) {
 }
 
 // ---- Points (on the Referee tab): one table at a time, a tab for each -------------------------------
-let pointsKey = '', ptsTab = 0;
-try { ptsTab = +localStorage.getItem('ref-pts-tab') || 0; } catch (e) { }
+let pointsKey = '', ptsTab = +stored('ref-pts-tab') || 0;
 $('pts-tabs').addEventListener('click', e => {
   const b = e.target.closest('[data-ptab]'); if (!b) return;
   ptsTab = +b.dataset.ptab;
-  try { localStorage.setItem('ref-pts-tab', String(ptsTab)); } catch (e) { }
+  store('ref-pts-tab', String(ptsTab));
   renderPoints();
 });
 function renderPoints() {
@@ -930,7 +866,7 @@ function renderPoints() {
     $('points-list').innerHTML = `<p class="empty">${S.status ? 'No games yet.' : 'Start Among Us with the mod to see the points.'}</p>`;
     return;
   }
-  const i = Math.min(ptsTab, secs.length - 1), sec = secs[i], n = v => (Math.round(v * 100) / 100).toString();
+  const i = Math.min(ptsTab, secs.length - 1), sec = secs[i];
   // "Round 2 · LJ's lobby" → "LJ's lobby", "Round 2 · every lobby" → "Every lobby", "Running total".
   const label = t => { const s = String(t).replace(/^Round \d+ · /, ''); return s.charAt(0).toUpperCase() + s.slice(1); };
   $('pts-tabs').innerHTML = secs.length > 1 ? secs.map((s, k) => `<button class="b sm${k === i ? ' on' : ''}" data-ptab="${k}" title="${esc(s.title)}">${esc(label(s.title))}</button>`).join('') : '';
@@ -940,12 +876,13 @@ function renderPoints() {
   $('points-list').innerHTML = sec.rows.length ? `<table class="pts"><thead><tr><th></th><th class="l">Player</th><th>Points</th>${sec.withTotal ? '<th>Total</th>' : ''}<th class="x2">Games</th><th>W-L</th><th class="x">Imp wins</th><th class="x">Kills</th><th class="x">Votes</th></tr></thead><tbody>
     ${sec.rows.map(r => `<tr class="${r.advancing ? 'up' : ''}${sec.cut && r.rank === sec.cut ? ' cut' : ''}" title="${esc(`Games ${r.games} · impostor wins ${r.impostor} · kills ${r.kills} · votes ${r.votes}`)}"><td class="rk">${r.rank}</td>
       <td class="l"><div class="nm"><img src="${head(r.color)}" alt=""><span>${esc(r.name)}</span>${r.discord ? `<span class="at">@${esc(r.discord)}</span>` : ''}</div></td>
-      <td class="big">${n(r.points)}</td>${sec.withTotal ? `<td>${n(r.total)}</td>` : ''}<td class="x2">${r.games}</td><td>${r.wins}-${r.losses}</td><td class="x">${esc(r.impostor)}</td><td class="x">${r.kills}</td><td class="x">${esc(r.votes)}</td></tr>`).join('')}
+      <td class="big">${r2(r.points)}</td>${sec.withTotal ? `<td>${r2(r.total)}</td>` : ''}<td class="x2">${r.games}</td><td>${r.wins}-${r.losses}</td><td class="x">${esc(r.impostor)}</td><td class="x">${r.kills}</td><td class="x">${esc(r.votes)}</td></tr>`).join('')}
     </tbody></table>` : '<p class="empty">No counted games yet.</p>';
 }
 
 // ---- Referee: games waiting for Submit, every game's void, points changes, reset --------------
 let gamesKey = '';
+const r2 = v => (Math.round(v * 100) / 100).toString();
 const r3 = v => Math.round(v * 1000) / 1000;
 const pn = v => (v > 0 ? '+' : '') + r3(v);
 // A referee change: any positive amount with up to 3 significant figures (0.125, 1.25, 12.5, 125). Empty means 1.
@@ -955,6 +892,8 @@ function refAmount(text) {
   const n = Number(t);
   return n > 0 && n <= 1000 && Number(n.toPrecision(3)) === n ? n : null;
 }
+const BAD_AMOUNT = 'Use a number above 0 with up to 3 significant figures, e.g. 0.125, 1.25, 12.5 or 125.';
+const voidButton = g => g.voided ? `<button class="b sm" data-gact="unvoidgame">Unvoid</button>` : `<button class="b sm danger" data-gact="voidgame" title="Uses the void reason at the top">Void</button>`;
 const amounts = {};
 // short: one line (the Games list), with the void reason in the tooltip.
 function winLine(g, short) {
@@ -986,7 +925,7 @@ function renderGames() {
   $('ref-wait-list').innerHTML = waiting.map(g => `<div class="wg${g.voided ? ' voided' : ''}" data-game="${esc(g.name)}">
     <div class="wg-h"><b>Game ${esc(g.name)}</b>${g.round ? `<span class="pill">Round ${g.round}</span>` : ''}${winLine(g)}<span class="muted">${esc(g.map)} · ${Math.round(g.minutes)} min</span>
       ${g.settingsIssues && g.settingsIssues.length ? `<span class="pill bad" title="${esc(g.settingsIssues.join(', '))}">Wrong settings</span>` : ''}
-      <span class="wg-acts">${g.voided ? `<button class="b sm" data-gact="unvoidgame">Unvoid</button>` : `<button class="b sm danger" data-gact="voidgame" title="Uses the void reason at the top">Void</button>`}
+      <span class="wg-acts">${voidButton(g)}
       <button class="b sm primary" data-gact="verify">${g.voided ? 'Done (stays off Discord)' : 'Submit points'}</button></span></div>
     <div class="wg-p">${g.players.map(p => `<div class="wp${p.impostor ? ' imp' : ''}" data-key="${esc(p.key)}">
       <img src="${head(p.color)}" alt="" title="${p.impostor ? 'Impostor' : 'Crewmate'}"><span class="nm" title="${esc(p.name)}${p.impostor ? ' (impostor)' : ''}">${esc(p.name)}</span>
@@ -1004,7 +943,7 @@ function renderGames() {
     return `<tr class="${g.voided ? 'voided' : ''}" data-game="${esc(g.name)}">
       <td><b>${esc(g.name)}</b>${g.round ? ` <span class="muted">R${g.round}</span>` : ''}</td><td>${winLine(g, true)}</td>
       <td class="muted when" title="${esc(g.map)} · ${esc(at)}">${esc(g.map)} · ${esc(at)}</td>
-      <td class="act">${g.voided ? `<button class="b sm" data-gact="unvoidgame">Unvoid</button>` : `<button class="b sm danger" data-gact="voidgame" title="Uses the void reason at the top">Void</button>`}</td></tr>`;
+      <td class="act">${voidButton(g)}</td></tr>`;
   }).join('')
     : `<tr><td class="empty">${waiting.length ? 'Sent games show here.' : 'No games yet. Each game you host shows up here when it ends.'}</td></tr>`;
 }
@@ -1021,7 +960,7 @@ document.addEventListener('click', e => {
   if (step) {
     const name = step.closest('[data-game]').dataset.game, row = step.closest('[data-key]'), key = row.dataset.key;
     const box = row.querySelector('.amt'), n = refAmount(box.value);
-    if (n === null) { box.classList.add('bad'); box.focus(); return toast('Use a number above 0 with up to 3 significant figures, e.g. 0.125, 1.25, 12.5 or 125.'); }
+    if (n === null) { box.classList.add('bad'); box.focus(); return toast(BAD_AMOUNT); }
     delete amounts[name + '|' + key];
     box.value = '';
     cmd(`adjust ${name} ${key} ${step.dataset.step < 0 ? '-' : ''}${n} referee`);
@@ -1071,9 +1010,9 @@ function renderReferee() {
   if (sel.dataset.labels !== labels.join('|')) { sel.dataset.labels = labels.join('|'); sel.innerHTML = labels.map(l => `<option>${esc(l)}</option>`).join(''); if (cur) sel.value = cur; }
 }
 // Folded or open as it was left.
-try { $('home-ref').open = localStorage.getItem('ref-tools-open') === '1'; } catch (e) { }
+$('home-ref').open = stored('ref-tools-open') === '1';
 $('home-ref').addEventListener('toggle', () => {
-  try { localStorage.setItem('ref-tools-open', $('home-ref').open ? '1' : '0'); } catch (e) { }
+  store('ref-tools-open', $('home-ref').open ? '1' : '0');
   if ($('home-ref').open) loadOrganiser();
 });
 $('adj-lobby').addEventListener('focus', loadOrganiser);
@@ -1090,7 +1029,7 @@ async function orgPost(text) { const r = await api('POST', '/app/admin/command',
 function orgAdjust(sign) {
   const who = $('adj-player').value.trim(), raw = $('adj-points').value.trim(), n = raw ? refAmount(raw) : null;
   if (!who || !raw) return toast('Pick the player and the points.');
-  if (n === null) return toast('Use a number above 0 with up to 3 significant figures, e.g. 0.125, 1.25, 12.5 or 125.');
+  if (n === null) return toast(BAD_AMOUNT);
   orgPost(`!adjust ${$('adj-lobby').value} ${who} ${sign}${n} ${$('adj-reason').value.trim()}`.trim());
   $('adj-points').value = '';
 }
@@ -1134,37 +1073,36 @@ function drawOrganiser() {
   const aw = awardsList();
   $('org-awards').innerHTML = !aw ? '<p class="empty">No games yet.</p>' : aw.map(c => `<div class="award"><div class="t">${esc(c.title)}</div><div class="muted" style="font-size:12px">${esc(c.note)}</div>
     ${c.top.length ? c.top.map((p, i) => `<div class="w${i === 0 ? ' first' : ''}"><img src="${head(p.color)}" alt=""><span>${esc(p.name)}</span><span class="v">${esc(p.value)}</span></div>`).join('') : '<div class="muted" style="font-size:12.5px">Nobody yet</div>'}</div>`).join('');
-  const st = ORG.standings, n = v => (Math.round(v * 100) / 100).toString();
+  const st = ORG.standings;
   const table = (title, note, rows, cut) => `<div class="card"><h2>${esc(title)}</h2><p class="muted" style="margin:0 0 8px;font-size:12.5px">${esc(note)}</p><div class="pts-wrap"><table class="pts"><thead><tr><th></th><th class="l">Player</th><th>Points</th><th>Total</th><th>Games</th><th>W-L</th></tr></thead><tbody>
-    ${rows.map(r => `<tr class="${r.advancing ? 'up' : ''}${cut && r.rank === cut ? ' cut' : ''}"><td class="rk">${r.rank}</td><td class="l"><div class="nm" style="display:flex;align-items:center;gap:7px"><img src="${head(r.color)}" alt="" style="width:22px;height:22px"><span>${esc(r.name)}</span></div></td><td class="big">${n(r.points)}</td><td>${n(r.total)}</td><td>${r.games}</td><td>${r.wins}-${r.losses}</td></tr>`).join('')}</tbody></table></div></div>`;
+    ${rows.map(r => `<tr class="${r.advancing ? 'up' : ''}${cut && r.rank === cut ? ' cut' : ''}"><td class="rk">${r.rank}</td><td class="l"><div class="nm" style="display:flex;align-items:center;gap:7px"><img src="${head(r.color)}" alt="" style="width:22px;height:22px"><span>${esc(r.name)}</span></div></td><td class="big">${r2(r.points)}</td><td>${r2(r.total)}</td><td>${r.games}</td><td>${r.wins}-${r.losses}</td></tr>`).join('')}</tbody></table></div></div>`;
   $('org-standings').innerHTML = !st ? '<div class="card"><p class="empty">No games in this round yet.</p></div>'
     : st.lobbies.map(l => table(`${l.lobby}'s lobby`, `Round ${ORG.standingsRound} · ${l.played >= ORG.perRound ? 'final' : `after game ${l.played} of ${ORG.perRound}`} · top ${ORG.advance} move on`, l.rows, ORG.advance)).join('')
       + table('Every lobby', `Round ${ORG.standingsRound}${ORG.standingsFinal ? ' · final' : ''} · ${st.games} games`, st.all, 0);
 }
 
 // ---- Settings -------------------------------------------------------------------------------
+// A button's request: its answer as a toast, and everything drawn again.
+async function post(path, body) { const r = await api('POST', path, body); toast(r.message); refresh(); return r; }
+// An answer kept on the page under its button, green or red.
+function showResult(id, r) { const n = $(id); n.hidden = false; n.textContent = r.message; n.className = 'note ' + (r.ok ? 'good' : 'bad'); }
 $('game-change').addEventListener('click', () => { $('game-pick').hidden = false; $('game-input').value = S?.game?.path || ''; $('game-input').focus(); });
-$('game-save').addEventListener('click', async () => { const r = await api('POST', '/app/game', { path: $('game-input').value }); toast(r.message); if (r.ok) $('game-pick').hidden = true; refresh(); });
-$('mod-install').addEventListener('click', async () => { const r = await api('POST', '/app/install'); toast(r.message); refresh(); });
+$('game-save').addEventListener('click', async () => { if ((await post('/app/game', { path: $('game-input').value })).ok) $('game-pick').hidden = true; });
+$('mod-install').addEventListener('click', () => post('/app/install'));
 // The one Update button: installs or repairs the mod, or updates whatever is out (The Button, the mod, or both).
-$('upd-go').addEventListener('click', async () => {
-  const m = S.mod || {};
-  const r = await api('POST', !m.installed || needsRepair(m) ? '/app/install' : '/app/updateall');
-  toast(r.message); refresh();
-});
+$('upd-go').addEventListener('click', () => { const m = S.mod || {}; post(!m.installed || needsRepair(m) ? '/app/install' : '/app/updateall'); });
 $('twitch-form').addEventListener('submit', async e => {
   e.preventDefault();
-  const r = await api('POST', '/app/twitch', { name: $('twitch-name').value });
-  toast(r.message); if (r.ok) $('twitch-name').blur(); refresh();
+  if ((await post('/app/twitch', { name: $('twitch-name').value })).ok) $('twitch-name').blur();
 });
 $('code-save').addEventListener('click', async () => {
   const r = await api('POST', '/app/setup', { code: $('code').value });
-  const n = $('code-result'); n.hidden = false; n.textContent = r.message; n.className = 'note ' + (r.ok ? 'good' : 'bad');
+  showResult('code-result', r);
   if (r.ok) { $('code').value = ''; codeChanging = false; }
   await refresh();
   if (r.admin) go('organiser');
 });
-$('code-clear').addEventListener('click', async () => { const r = await api('POST', '/app/setup/clear'); toast(r.message); refresh(); });
+$('code-clear').addEventListener('click', () => post('/app/setup/clear'));
 
 // ---- Your Discord: the host's own bots and channels ----------------------------------------
 const hdRemove = new Set();
@@ -1204,8 +1142,7 @@ $('hd-save').addEventListener('click', async () => {
   for (const k of ['public', 'status']) { const el = $('hd-' + k); if (el.value.trim() || el._cleared) body[k] = el.value.trim(); }
   $('hd-save').disabled = true; $('hd-save').textContent = 'Checking with Discord…';
   try {
-    const r = await api('POST', '/app/hostdiscord', body);
-    const n = $('hd-result'); n.hidden = false; n.textContent = r.message; n.className = 'note ' + (r.ok ? 'good' : 'bad');
+    showResult('hd-result', await api('POST', '/app/hostdiscord', body));
     hdRemove.clear(); $('hd-guild')._typed = false; $('hd-public').value = ''; $('hd-status').value = '';
     $('hd-public')._cleared = $('hd-status')._cleared = false;
     $('hd-bots')._key = '';
@@ -1214,10 +1151,10 @@ $('hd-save').addEventListener('click', async () => {
 });
 
 // ---- Your connection: Check my connection, what to share, lower quality ----------------------------
-$('net-go').addEventListener('click', async () => { const r = await api('POST', '/app/conncheck', { action: 'start' }); toast(r.message); refresh(); });
-$('net-stop').addEventListener('click', async () => { const r = await api('POST', '/app/conncheck', { action: 'cancel' }); toast(r.message); refresh(); });
-$('share-mode').addEventListener('change', async e => { const r = await api('POST', '/app/share', { mode: e.target.value }); toast(r.message); refresh(); });
-$('share-low').addEventListener('click', async () => { const r = await api('POST', '/app/share', { low: String(!(S.share && S.share.low)) }); toast(r.message); refresh(); });
+$('net-go').addEventListener('click', () => post('/app/conncheck', { action: 'start' }));
+$('net-stop').addEventListener('click', () => post('/app/conncheck', { action: 'cancel' }));
+$('share-mode').addEventListener('change', e => post('/app/share', { mode: e.target.value }));
+$('share-low').addEventListener('click', () => post('/app/share', { low: String(!(S.share && S.share.low)) }));
 let netKey = '';
 function renderConnection() {
   const c = S.connCheck || {}, sh = S.share || {};
@@ -1228,14 +1165,14 @@ function renderConnection() {
   $('net-bar').firstElementChild.style.width = Math.round((c.progress || 0) * 100) + '%';
   $('net-error').hidden = !c.error; $('net-error').textContent = c.error || '';
   if (document.activeElement !== $('share-mode')) $('share-mode').value = sh.mode === 'screen' ? 'screen' : 'window';
-  $('share-low').textContent = sh.low ? 'On' : 'Off'; $('share-low').classList.toggle('on', !!sh.low);
+  lit($('share-low'), sh.low);
   const r = c.result, key = JSON.stringify(r || null);
   if (key === netKey) return;
   netKey = key;
   $('net-result').hidden = !r;
   if (!r) { $('net-result').innerHTML = ''; return; }
   const cls = r.level === 'good' || r.level === 'ok' ? 'good' : r.level === 'warn' ? 'warn' : 'bad';
-  const at = new Date(r.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const at = clock(r.at);
   $('net-result').innerHTML = `<p class="note ${cls}"><b>${esc(r.headline)}</b></p>
     <ul>${r.facts.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
     ${r.advice.length ? `<p style="margin:8px 0 0"><b>What helps</b></p><ul>${r.advice.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
@@ -1245,8 +1182,7 @@ function renderConnection() {
 $('support-go').addEventListener('click', async () => {
   const b = $('support-go'); b.disabled = true; b.textContent = 'Saving…';
   try {
-    const r = await api('POST', '/app/support');
-    const n = $('support-result'); n.hidden = false; n.textContent = r.message; n.className = 'note ' + (r.ok ? 'good' : 'bad');
+    showResult('support-result', await api('POST', '/app/support'));
   } catch (e) { toast('Couldn\'t save the support bundle.'); }
   finally { b.disabled = false; b.textContent = 'Save support bundle'; }
 });
@@ -1268,8 +1204,8 @@ function renderSettings() {
   $('mod-result').className = 'note ' + (/^(Installed|Updated|Repaired)/.test(m.installResult) ? 'good' : 'bad');
   // One switch for both: The Button's own updates and the mod's.
   const u = S.appUpdate || {}, autoOn = !!m.auto && (!u.supported || !!u.auto);
-  const ma = $('mod-auto'); ma.textContent = autoOn ? 'On' : 'Off'; ma.classList.toggle('on', autoOn);
-  ma.onclick = async () => {
+  lit($('mod-auto'), autoOn);
+  $('mod-auto').onclick = async () => {
     const on = String(!autoOn);
     await api('POST', '/app/modauto', { on });
     if (u.supported) await api('POST', '/app/autoupdate', { on });
@@ -1287,13 +1223,13 @@ function renderSettings() {
 function renderAdmin() {
   const on = !!S.admin;
   $('admin-card').hidden = !on;
-  $('t-console').textContent = S.modConsole ? 'Shown' : 'Hidden'; $('t-console').classList.toggle('on', !!S.modConsole);
-  $('t-console').onclick = async () => { const r = await api('POST', '/app/modconsole', { on: String(!S.modConsole) }); toast(r.message); refresh(); };
+  lit($('t-console'), S.modConsole, 'Shown', 'Hidden');
+  $('t-console').onclick = () => post('/app/modconsole', { on: String(!S.modConsole) });
   $('admin-line').textContent = on ? `Unlocked: ${S.admin.tournament}. The Organiser tab is open.` : '';
   $('nav-organiser').hidden = !on;
   if (!on && $('organiser').classList.contains('on')) go('settings');
 }
-$('admin-lock').addEventListener('click', async () => { const r = await api('POST', '/app/admin/code', { code: '' }); toast(r.message); refresh(); });
+$('admin-lock').addEventListener('click', () => post('/app/admin/code', { code: '' }));
 
 // Both versions on one line, and one button for whatever needs doing.
 function renderAppUpdate() {
@@ -1380,26 +1316,6 @@ setInterval(() => {
   orgTick++;
   if ($('organiser').classList.contains('on') || (orgTick % 5 === 0 && S && S.admin && $('points').classList.contains('on') && $('home-ref').open)) loadOrganiser();
 }, 2000);
-
-// ---- Window: the header is the title bar (drag, double-click to maximise) --------------------
-(() => {
-  const host = window.chrome && window.chrome.webview;
-  if (!host) return;
-  $('winctl').hidden = false;
-  document.querySelector('header').addEventListener('mousedown', e => {
-    if (e.button !== 0 || e.target.closest('button,a,input,select,textarea,.alert')) return;
-    e.preventDefault();
-    host.postMessage('drag');
-  });
-  $('winctl').addEventListener('click', e => { const b = e.target.closest('[data-win]'); if (b) host.postMessage(b.dataset.win); });
-  host.addEventListener('message', e => {
-    if (typeof e.data === 'string' && e.data.startsWith('maximized:')) {
-      const on = e.data === 'maximized:true';
-      document.body.classList.toggle('maxed', on);
-      document.querySelector('[data-win="max"]').title = on ? 'Restore' : 'Maximise';
-    }
-  });
-})();
 </script>
 </body>
 </html>

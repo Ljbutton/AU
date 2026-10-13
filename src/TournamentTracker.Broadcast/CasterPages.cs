@@ -61,18 +61,7 @@ tick();setInterval(tick,700);
 <script>
 // The game sound of the lobby on air, and only that one.
 const soundOn=new URLSearchParams(location.search).get('sound')!=='0';
-let soundFrame=null;
-function playSound(d){
-  const cast=(d.lobbies||[]).find(l=>l.label===d.cast);
-  const src=soundOn&&cast&&cast.sound||null;
-  if((soundFrame&&soundFrame.dataset.src)===src)return;
-  if(soundFrame){soundFrame.remove();soundFrame=null;}
-  if(!src)return;
-  soundFrame=document.createElement('iframe');
-  soundFrame.className='sound';soundFrame.allow='autoplay';soundFrame.dataset.src=src;soundFrame.src=src;
-  document.body.appendChild(soundFrame);
-}
-</script></body></html>";
+</script>" + Sound;
 
         /// <summary>Every lobby at once, silent (?sound=1 plays the lobby on air). OBS Browser source 1920×1080.</summary>
         public const string Multiview = Head + @"
@@ -127,10 +116,15 @@ tick();setInterval(tick,1000);
 <script>
 // Silent unless ?sound=1: the video page normally carries the sound, and two would double it.
 const soundOn=new URLSearchParams(location.search).get('sound')==='1';
+</script>" + Sound;
+
+        /// <summary>The cast lobby's game sound in a hidden frame (while the page's soundOn says so), for the video and multiview pages.</summary>
+        private const string Sound = @"
+<script>
 let soundFrame=null;
 function playSound(d){
   const cast=(d.lobbies||[]).find(l=>l.label===d.cast);
-  const src=cast&&cast.sound||null;
+  const src=soundOn&&cast&&cast.sound||null;
   if((soundFrame&&soundFrame.dataset.src)===src)return;
   if(soundFrame){soundFrame.remove();soundFrame=null;}
   if(!src)return;

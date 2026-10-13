@@ -144,7 +144,7 @@ namespace TournamentTracker
                 Reply($"Round {round} was started from Discord: it begins after this game.", false);
                 return;
             }
-            ApplyRound(round);
+            StartRound(round, "was started from Discord", sayRotation: false);
         }
 
         /// <summary>
@@ -168,22 +168,13 @@ namespace TournamentTracker
             });
         }
 
-        private void ApplyRound(int round)
-        {
-            int previous = Round;
-            SetRound(round);
-            Reply($"Round {Round} was started from Discord: points start from zero for this round (the running total keeps counting).", false);
-            if (Players.Count > 0) Reply($"Round {Round} starts now!", true);
-            if (previous > 0 && Round > previous) OnRoundAdvanced();
-        }
-
         /// <summary>Called after a game ends: a round started from Discord during it takes effect now.</summary>
         private void ApplyPendingRound()
         {
             if (_pendingRound is int round)
             {
                 _pendingRound = null;
-                ApplyRound(round);
+                StartRound(round, "was started from Discord", sayRotation: false);
             }
         }
 

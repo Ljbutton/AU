@@ -43,9 +43,7 @@ public class ControlApiTests : IDisposable
         _clock.Advance(5);
         s.VoiceTick(Voice.VoicePhase.Lobby, lobby);
 
-        var control = JsonDocument.Parse(File.ReadAllText(Path.Combine(_dir.Path, ControlServer.FileName))).RootElement;
-        using var http = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{control.GetProperty("port").GetInt32()}/") };
-        http.DefaultRequestHeaders.Add("X-TT-Token", control.GetProperty("token").GetString());
+        using var http = AppHttp.Control(_dir.Path);
         var points = JsonDocument.Parse(await http.GetStringAsync("api/status")).RootElement.GetProperty("points");
         var sections = points.GetProperty("sections");
         Assert.Equal("Round 1 · Dana's lobby", sections[0].GetProperty("title").GetString());
@@ -101,9 +99,7 @@ public class ControlApiTests : IDisposable
     public async Task A_frozen_game_gets_a_clear_answer_instead_of_hanging()
     {
         using var s = Session();
-        var control = JsonDocument.Parse(File.ReadAllText(Path.Combine(_dir.Path, ControlServer.FileName))).RootElement;
-        using var http = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{control.GetProperty("port").GetInt32()}/") };
-        http.DefaultRequestHeaders.Add("X-TT-Token", control.GetProperty("token").GetString());
+        using var http = AppHttp.Control(_dir.Path);
         var answer = JsonDocument.Parse(await (await http.PostAsync("api/command", new StringContent("{\"command\":\"r3\"}"))).Content.ReadAsStringAsync()).RootElement;
         Assert.False(answer.GetProperty("ok").GetBoolean());                // nobody pumped
     }

@@ -90,7 +90,7 @@ namespace TournamentTracker.App.Broadcast
                     Save();
                 }
                 var scenes = Settings.Scenes.Values.Concat(new[] { Settings.Replay.Scene }).ToList();
-                var have = (await obs.RequestAsync("GetSceneList").ConfigureAwait(false)).GetProperty("scenes").EnumerateArray().Select(x => x.GetProperty("sceneName").GetString()).ToHashSet();
+                var have = await SceneNamesAsync(obs).ConfigureAwait(false);
                 string duck = Settings.Voice.DuckUnder.Trim();
                 bool duckChanged = duck != _duckWas;
                 var inScenes = scenes.Where(have.Contains).ToList();

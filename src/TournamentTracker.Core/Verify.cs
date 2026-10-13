@@ -81,11 +81,8 @@ namespace TournamentTracker
             if (LastGame != null && Is(LastGame)) return LastGame;
             foreach (var f in LocalGameFiles())
             {
-                try
-                {
-                    var g = JsonSerializer.Deserialize<GameRecord>(File.ReadAllText(f.FullName));
-                    if (g != null && Is(g)) return g;
-                }
+                // A hand-edited or broken file (e.g. no host) is skipped, not the end of the search.
+                try { if (ReadGameFile(f.FullName) is GameRecord g && Is(g)) return g; }
                 catch (Exception) { }
             }
             return null;
@@ -126,31 +123,14 @@ namespace TournamentTracker
             if (args.Length == 0) { Reply("Which game? e.g. voidgame LJ-3 lobby restarted", false); return; }
             var game = FindGame(args[0]);
             if (game == null) { Reply($"No game {args[0]} on this PC.", false); return; }
-            string reason = string.Join(" ", args.Skip(1)).Trim();
-            if (game.Voided == makeVoid) { Reply($"Game {game.Name} is already {(makeVoid ? "void" : "counted")}.", false); return; }
-            SetVoid(game, makeVoid, reason);
-            if (IsWaiting(game))
-            {
-                SaveHeld();
-                Reply(makeVoid ? $"Game {game.Name} is void: it won't count, and won't go to Discord." : $"Game {game.Name} counts again (still waiting for Submit).", false);
-                return;
-            }
-            string text = makeVoid
-                ? $"Game {game.Name} is void{(reason.Length > 0 ? ": " + reason : "")}. It no longer counts."
-                : $"Game {game.Name} counts again.";
-            Reply(text, false);
-            AnnounceVoid(game, text);
+            VoidFinished(game, makeVoid, string.Join(" ", args.Skip(1)).Trim(), false);
         }
 
         private void SetVoid(GameRecord game, bool makeVoid, string reason)
         {
-            if (makeVoid && game.Counted) { Store.Remove(game); CountRoundGame(game, -1); CountImpostorGames(game, -1); }
-            game.Voided = makeVoid;
-            game.VoidReason = makeVoid ? reason : "";
-            if (!makeVoid && game.Counted) { Store.Apply(game); CountRoundGame(game, 1); CountImpostorGames(game, 1); }
+            ApplyVoid(game, makeVoid, reason);
             if (LastGame != null && LastGame.Id == game.Id && !ReferenceEquals(LastGame, game)) { LastGame.Voided = game.Voided; LastGame.VoidReason = game.VoidReason; }
-            TrySave(() => Store.Save(_statsPath), "stats");
-            TrySave(() => SaveGameFile(game), "game record");
+            SaveStatsAndGame(game);
             _points = null;
         }
 
@@ -184,8 +164,7 @@ namespace TournamentTracker
             player.PointBreakdown.Add(new PointLine("Referee" + (reason.Length > 0 ? ": " + reason : ""), change));
             player.Points = player.Points + change;
             if (counted) Store.Apply(game);
-            TrySave(() => Store.Save(_statsPath), "stats");
-            TrySave(() => SaveGameFile(game), "game record");
+            SaveStatsAndGame(game);
             _points = null;
             string what = $"{player.Name} {(change > 0 ? "+" : "")}{change.ToString("0.###", CultureInfo.InvariantCulture)} in game {game.Name}{(reason.Length > 0 ? " (" + reason + ")" : "")}";
             if (IsWaiting(game)) { Reply($"Points changed: {what}. Still waiting for Submit.", false); return; }

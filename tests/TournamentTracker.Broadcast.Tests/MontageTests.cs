@@ -9,7 +9,6 @@ public class MontageTests : IDisposable
 {
     private readonly TempDir _dir = new();
     private readonly FakeClock _clock = new();
-    private static readonly JsonSerializerOptions Camel = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public void Dispose() => _dir.Dispose();
 
@@ -210,7 +209,7 @@ public class MontageTests : IDisposable
             await montages.PlayAsync(game.Id);
             // Simulated games are never proof of delivery: nothing goes in the sponsor log.
             Assert.Empty(desk.Sponsors.Appearances());
-            var moments = JsonSerializer.SerializeToElement(replays.Moments(), Camel);
+            var moments = JsonSerializer.SerializeToElement(replays.Moments(), TestJson.Camel);
             Assert.True(moments.EnumerateArray().Single(m => m.GetProperty("id").GetString() == clip.Id).GetProperty("used").GetBoolean());
         }
         finally
@@ -316,7 +315,7 @@ public class MontageTests : IDisposable
             Assert.True(desk.GridSponsors.ContainsKey(4), string.Join(",", desk.OnAir.Slots.Select(x => x ?? "-")) + " " + desk.OnAir.Layout);
             Assert.Equal("Acme", desk.GridSponsors[4].Name);
             var app = new BroadcastApp(desk, () => null, null);
-            var state = JsonSerializer.SerializeToElement(app.State(), Camel);
+            var state = JsonSerializer.SerializeToElement(app.State(), TestJson.Camel);
             Assert.Equal("Acme", state.GetProperty("extras").GetProperty("sponsorTiles").GetProperty("4").GetProperty("name").GetString());
             desk.Show("LJ");
             Assert.Contains(desk.Sponsors.Appearances(), a => a.Placement == "grid");

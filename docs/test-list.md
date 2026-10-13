@@ -441,3 +441,30 @@ _Red Alert with the new Stream Deck state, Stream Deck app 6.5+ on the same PC, 
 - [ ] Red Alert locked (no administration code): the lock screen's **Save support bundle** still saves a zip with the log and settings; summary.txt starts with LOCKED
 - [ ] Settings → Help → **Dry-run checklist** opens docs/dry-run.md on GitHub in the browser (not inside Red Alert); the card's **?** opens its explanation
 - [ ] Run docs/dry-run.md once with the real hosts and the caster before the event; note any step that doesn't match what you see
+
+## New in 0.1.64 (Red Alert 0.3.16)
+_Nothing new to see: this release shrinks the code and merges logic both apps had their own copy of. Everything should look and work exactly as in 0.1.63, so these checks cover the parts that now share one copy._
+
+### Both apps
+- [ ] The Button and Red Alert look the same as before: fonts, colours, buttons, cards, the toast in the corner
+- [ ] Title bar in both: drag to move, double-click to maximise and back, the minimise / maximise / close buttons work
+- [ ] Starting a second copy of either app brings the open one to the front instead
+- [ ] Links that open the browser (help, GitHub, the dry-run checklist) still open it
+- [ ] Settings → Updates: Check now finds nothing newer once you're on 0.1.64 / 0.3.16; The Button never offers a Red Alert release, and Red Alert never offers a Button release
+- [ ] Logs: the-button.log starts again past 1 MB; red-alert.log keeps the one before as red-alert.log.1
+- [ ] Save support bundle in both: same files as in 0.1.63, and still nothing secret in them
+
+### The Button and the mod
+- [ ] The Button connects to the mod (Home shows the lobby); commands from The Button still get their answers
+- [ ] Settings switches (mod auto-update, mod console, The Button auto-update) stay as set after restarting The Button
+- [ ] Stream overlay page and crewmate heads load in OBS
+- [ ] Discord: live status edits, game reports with the data file, the private count, standings, round start posts, prelim posts, /link and /unlink, void and verify — all worded as before
+- [ ] Automute and who's-talking lights still follow Discord voice
+- [ ] Mod on screen: the meeting mini chat, mini vitals, the replay theatre's info line, the talking speaker icon and the spectator eyes look as before; no new slow frames in the F10 profiler
+
+### Red Alert
+- [ ] Stream Deck keeps working without re-pairing (its key is unchanged)
+- [ ] Preview / Take, quad and grid, player cams, Hold, Panic / Undo, intermission, BRB
+- [ ] Replay that / Play last: the replay layer shows on top in OBS, and the swoosh too
+- [ ] Editing roster.csv or sponsors.json while Red Alert runs: the change shows within a few seconds
+- [ ] Lobby numbers stay the same after a restart

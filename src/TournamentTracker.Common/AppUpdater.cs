@@ -15,6 +15,23 @@ namespace TournamentTracker.App
     {
         public static string OldPath(string exePath) => Path.ChangeExtension(exePath, ".old.exe");
 
+        /// <summary>
+        /// "v1.3.0" is newer than "v1.2.1" (or than nothing recorded). <paramref name="prefix"/> is taken off
+        /// first: Red Alert's releases are tagged "broadcast-v0.2.0".
+        /// </summary>
+        public static bool Newer(string tag, string? installed, string prefix = "")
+        {
+            Version? V(string? t)
+            {
+                t ??= "";
+                if (prefix.Length > 0) t = t.Replace(prefix, "");
+                return Version.TryParse(t.TrimStart('v', 'V'), out var v) ? v : null;
+            }
+            var l = V(tag);
+            var i = V(installed);
+            return l != null && (i == null || l > i);
+        }
+
         /// <summary>Downloads and swaps in the new version. Returns "" when done, or what went wrong.</summary>
         public static async Task<string> InstallAsync(HttpClient http, string url, string exePath, string appName = "The Button")
         {

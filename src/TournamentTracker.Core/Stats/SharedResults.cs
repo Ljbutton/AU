@@ -213,10 +213,7 @@ namespace TournamentTracker.Stats
         /// </summary>
         public async Task<bool> SettleVoidAsync(string channelId, GameRecord game, byte[] file, IEnumerable<VoidResult> commands)
         {
-            string text = game.Voided
-                ? $"Game {game.Name} is void{(game.VoidReason.Length > 0 ? ": " + game.VoidReason : "")}. It no longer counts."
-                : $"Game {game.Name} counts again.";
-            var result = await _rest.PostFileAsync(_token, channelId, text, FileNameFor(game), file).ConfigureAwait(false);
+            var result = await _rest.PostFileAsync(_token, channelId, VoidNotice(game), FileNameFor(game), file).ConfigureAwait(false);
             if (!result.Ok)
             {
                 _log.Error($"Could not repost game {game.Name}: {result}");
@@ -226,6 +223,11 @@ namespace TournamentTracker.Stats
                 await _rest.AddReactionAsync(_token, channelId, c.Command.MessageId, "✅").ConfigureAwait(false);
             return true;
         }
+
+        /// <summary>"Game LJ-3 is void: reason. It no longer counts." or "Game LJ-3 counts again."</summary>
+        public static string VoidNotice(GameRecord game) => game.Voided
+            ? $"Game {game.Name} is void{(game.VoidReason.Length > 0 ? ": " + game.VoidReason : "")}. It no longer counts."
+            : $"Game {game.Name} counts again.";
 
         public static string FileNameFor(GameRecord game) => FilePrefix + game.Id + ".json";
 

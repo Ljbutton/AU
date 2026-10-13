@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text;
 using System.Text.Json;
 using TournamentTracker.App.Broadcast;
 using TournamentTracker.Setup;
@@ -28,8 +27,7 @@ public class StreamDeckTests : IAsyncLifetime
         File.WriteAllBytes(Path.Combine(folder, "swoosh.webm"), new byte[] { 1 });
         File.WriteAllText(Path.Combine(folder, ObsSettings.FileName), JsonSerializer.Serialize(new { swoosh = new { path = Path.Combine(folder, "swoosh.webm"), transitionPointMs = 0 } }));
         _server = new BroadcastServer(new BroadcastEnvironment { SettingsFile = Path.Combine(_dir.Path, "RedAlert", "settings.json"), Port = 0, CasterPort = 0, Version = "0.1.0" }, new HttpClient(new FakeHttp()));
-        _app = new HttpClient { BaseAddress = new Uri(_server.Url) };
-        _app.DefaultRequestHeaders.Add("X-App-Token", _server.Token);
+        _app = AppHttp.Client(_server.Url, _server.Token);
         _deck = new HttpClient { BaseAddress = new Uri(_server.Url) };
         var admin = new SetupCode { Mode = "admin", TournamentId = "c", TournamentName = "Cup", BotTokens = new() { "admin" }, ResultsChannelId = "results" };
         Assert.True((await Post("app/admin/code", new { code = admin.Encode() })).GetProperty("ok").GetBoolean());
@@ -44,13 +42,8 @@ public class StreamDeckTests : IAsyncLifetime
         _dir.Dispose();
     }
 
-    private async Task<JsonElement> Get(string path) => JsonDocument.Parse(await _app.GetStringAsync(path)).RootElement.Clone();
-
-    private async Task<JsonElement> Post(string path, object body)
-    {
-        var r = await _app.PostAsync(path, new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"));
-        return JsonDocument.Parse(await r.Content.ReadAsStringAsync()).RootElement.Clone();
-    }
+    private Task<JsonElement> Get(string path) => AppHttp.Get(_app, path);
+    private Task<JsonElement> Post(string path, object body) => AppHttp.Post(_app, path, body);
 
     /// <summary>A Stream Deck press (POST, like the plugin; the key in the query).</summary>
     private async Task<(HttpStatusCode Status, JsonElement Body)> Press(string path, string more = "")
@@ -88,11 +81,7 @@ public class StreamDeckTests : IAsyncLifetime
         Assert.True(r.GetProperty("ok").GetBoolean(), r.GetProperty("message").GetString());
     }
 
-    private static async Task Until(Func<bool> done, int ms = 5000)
-    {
-        for (int i = 0; i < ms / 20 && !done(); i++) await Task.Delay(20);
-        Assert.True(done());
-    }
+    private static Task Until(Func<bool> done, int ms = 5000) => Wait.For(done, ms);
 
     [Fact]
     public async Task Every_answer_says_with_its_status_whether_it_happened()

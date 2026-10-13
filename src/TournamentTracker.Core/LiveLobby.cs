@@ -262,9 +262,6 @@ namespace TournamentTracker
         internal static string NormalizeName(string name) =>
             new string(name.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
 
-        /// <summary>A player unlinked themselves: don't auto-link them again this session.</summary>
-        private void BlockAutoLink(string playerKey) => _noAutoLink.Add(playerKey);
-
         // ---- Live status message ------------------------------------------------------------
 
         private string StatusWebhook =>
@@ -448,6 +445,14 @@ namespace TournamentTracker
                     DiscordResult? refused = null;
                     // The last step didn't go through (and wasn't turned down for good): not sent.
                     bool failed = false;
+                    // Discord's answer to editing the message in place: 404, someone deleted it (a new one is posted).
+                    void Edited(DiscordResult edit)
+                    {
+                        failed = !edit.Ok && edit.Status != 404 && edit.Status != 400;
+                        if (edit.Status == 404) id = null;
+                        else if (edit.Status == 400) refused = edit;
+                        else if (!edit.Ok) _log.Warn("Could not update the live status: " + edit);
+                    }
 
                     try
                     {
@@ -487,14 +492,7 @@ namespace TournamentTracker
                                 await _rest.DeleteMessageAsync(token!, channel, id).ConfigureAwait(false);
                                 id = null;
                             }
-                            if (id != null)
-                            {
-                                var edit = await _rest.EditEmbedsAsync(token!, channel, id, message).ConfigureAwait(false);
-                                failed = !edit.Ok && edit.Status != 404 && edit.Status != 400;
-                                if (edit.Status == 404) id = null;
-                                else if (edit.Status == 400) refused = edit;
-                                else if (!edit.Ok) _log.Warn("Could not update the live status: " + edit);
-                            }
+                            if (id != null) Edited(await _rest.EditEmbedsAsync(token!, channel, id, message).ConfigureAwait(false));
                             if (id == null && refused == null)
                             {
                                 var created = await _rest.PostEmbedsAsync(token!, channel, message).ConfigureAwait(false);
@@ -524,14 +522,7 @@ namespace TournamentTracker
                                 await _rest.DeleteWebhookMessageAsync(url, id).ConfigureAwait(false);
                                 id = null;
                             }
-                            if (id != null)
-                            {
-                                var edit = await _rest.EditWebhookMessageAsync(url, id, plain).ConfigureAwait(false);
-                                failed = !edit.Ok && edit.Status != 404 && edit.Status != 400;
-                                if (edit.Status == 404) id = null;      // someone deleted it; post a new one
-                                else if (edit.Status == 400) refused = edit;
-                                else if (!edit.Ok) _log.Warn("Could not update the live status: " + edit);
-                            }
+                            if (id != null) Edited(await _rest.EditWebhookMessageAsync(url, id, plain).ConfigureAwait(false));
                             if (id == null && refused == null)
                             {
                                 var created = await _rest.ExecuteWebhookAsync(url, plain).ConfigureAwait(false);

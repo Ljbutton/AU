@@ -50,7 +50,7 @@ namespace TournamentTracker
             string lobby = LobbyLabel();
             var rows = Stats.Standings.Lobby(Combined.GameRecords, lobby, Round, _settings.AdvanceCount, _settings.GamesPerRound);
             int played = Stats.Standings.GamesPlayed(Combined.GameRecords, lobby, Round);
-            await PostNowAsync(StandingsFormatter.Lobby(_settings.TournamentName, lobby.Length > 0 ? lobby : "This lobby", Round, rows,
+            await PostNowAsync(_settings.StatsWebhookUrl, StandingsFormatter.Lobby(_settings.TournamentName, lobby.Length > 0 ? lobby : "This lobby", Round, rows,
                 _settings.AdvanceCount, played, _settings.GamesPerRound)).ConfigureAwait(false);
             await NoteTiebreaksAsync(Combined).ConfigureAwait(false);
         }
@@ -85,7 +85,7 @@ namespace TournamentTracker
                 .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
                 .Select(g => (g.Key, g.Count()))
                 .ToList();
-            await PostNowAsync(StandingsFormatter.Round(_settings.TournamentName, Round, rows, progress, _settings.GamesPerRound)).ConfigureAwait(false);
+            await PostNowAsync(_settings.StatsWebhookUrl, StandingsFormatter.Round(_settings.TournamentName, Round, rows, progress, _settings.GamesPerRound)).ConfigureAwait(false);
         }
 
         /// <summary>Servers ranked by their players' total points; home servers come from the preliminary channels.</summary>
@@ -101,7 +101,7 @@ namespace TournamentTracker
                 if (data != null) prelims.AddRange(data.Games.Where(g => g.Mode == nameof(TrackerMode.Preliminary)));
             }
             var servers = Stats.Standings.Servers(prelims, Combined.GameRecords, Round);
-            await PostNowAsync(StandingsFormatter.Servers(_settings.TournamentName, servers)).ConfigureAwait(false);
+            await PostNowAsync(_settings.StatsWebhookUrl, StandingsFormatter.Servers(_settings.TournamentName, servers)).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -135,13 +135,6 @@ namespace TournamentTracker
                 if (load.Notes.Contains(text)) continue;   // already posted before a restart
                 await Shared.PostNoteAsync(text).ConfigureAwait(false);
             }
-        }
-
-        private async Task PostNowAsync(WebhookMessage message)
-        {
-            if (string.IsNullOrWhiteSpace(_settings.StatsWebhookUrl)) return;
-            var result = await _rest.ExecuteWebhookAsync(_settings.StatsWebhookUrl, message).ConfigureAwait(false);
-            if (!result.Ok) _log.Error("Discord webhook post failed: " + result);
         }
     }
 }

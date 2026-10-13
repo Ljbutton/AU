@@ -10,7 +10,6 @@ public class StatsBroadcastTests : IDisposable
 {
     private readonly TempDir _dir = new();
     private readonly FakeClock _clock = new();
-    private static readonly JsonSerializerOptions Camel = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public void Dispose() => _dir.Dispose();
 
@@ -123,7 +122,7 @@ public class StatsBroadcastTests : IDisposable
                 ["crewVote"] = new() { [last.Key] = -5 },
             });
             var lines = desk.Tables.OnTheLine(lobby, desk.Games[0].Round, ifEnded, 10, new Dictionary<string, (string, int)> { [last.Key] = (last.Name, last.Color) });
-            var imp = JsonSerializer.SerializeToElement(lines[0], Camel);
+            var imp = JsonSerializer.SerializeToElement(lines[0], TestJson.Camel);
             Assert.Equal("If impostors win", imp.GetProperty("title").GetString());
             Assert.Equal($"{last.Name} moves to 1st", NameTag.Plain(imp.GetProperty("moves")[0].GetString()!));
         }
@@ -150,7 +149,7 @@ public class StatsBroadcastTests : IDisposable
         Assert.Null(tables.Change);
         games.Add(G(2, "Impostors"));
         tables.Update(new[] { "LJ" }, _clock.Now);
-        var change = JsonSerializer.SerializeToElement(tables.Change, Camel);
+        var change = JsonSerializer.SerializeToElement(tables.Change, TestJson.Camel);
         Assert.Equal("LJ", change.GetProperty("lobby").GetString());
         Assert.Contains(change.GetProperty("rows").EnumerateArray(), r => r.GetProperty("was").ValueKind == JsonValueKind.Number);
     }

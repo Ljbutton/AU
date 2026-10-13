@@ -153,7 +153,7 @@ namespace TournamentTracker.App.Broadcast
 
         public void Apply(JsonElement m)
         {
-            string lobby = Str(m, "lobby") ?? "";
+            string lobby = m.Str("lobby") ?? "";
             if (lobby.Length == 0) return;
             List<(string Lobby, Play Play)>? changed = null;
             lock (_lock)
@@ -161,13 +161,13 @@ namespace TournamentTracker.App.Broadcast
                 if (!_lobbies.TryGetValue(lobby, out var l)) _lobbies[lobby] = l = new LobbyLive { Lobby = lobby };
                 var now = _clock();
                 l.LastSeen = now;
-                l.Game = Str(m, "game") ?? l.Game;
-                l.Round = Int(m, "round") ?? l.Round;
-                l.Clock = Dbl(m, "clock");
+                l.Game = m.Str("game") ?? l.Game;
+                l.Round = m.Int("round") ?? l.Round;
+                l.Clock = m.Num("clock");
                 try
                 {
-                    if (Str(m, "type") == "snap") Snapshot(l, m, now);
-                    else if (Str(m, "type") == "event") Event(l, m, now);
+                    if (m.Str("type") == "snap") Snapshot(l, m, now);
+                    else if (m.Str("type") == "event") Event(l, m, now);
                 }
                 finally
                 {
@@ -183,22 +183,22 @@ namespace TournamentTracker.App.Broadcast
 
         private void Snapshot(LobbyLive l, JsonElement m, DateTime now)
         {
-            l.Phase = Str(m, "phase") ?? l.Phase;
-            l.Map = Str(m, "map") ?? l.Map;
-            l.Crew = Int(m, "crewAlive");
-            l.Imps = Int(m, "impAlive");
-            l.TaskPct = Int(m, "taskPct");
-            l.Danger = Bool(m, "danger") ?? false;
-            l.Video = Bool(m, "video") ?? false;
+            l.Phase = m.Str("phase") ?? l.Phase;
+            l.Map = m.Str("map") ?? l.Map;
+            l.Crew = m.Int("crewAlive");
+            l.Imps = m.Int("impAlive");
+            l.TaskPct = m.Int("taskPct");
+            l.Danger = m.Bool("danger") ?? false;
+            l.Video = m.Bool("video") ?? false;
             if (m.TryGetProperty("spec", out var spec) && spec.ValueKind == JsonValueKind.Object) l.Spec = spec.Clone();
             if (m.TryGetProperty("players", out var people) && people.ValueKind == JsonValueKind.Array) People(l, people, replace: true);
             l.IfEnded = m.TryGetProperty("ifEnded", out var ie) && ie.ValueKind == JsonValueKind.Object ? ie.Clone() : null;
             if (m.TryGetProperty("sabotage", out var s) && s.ValueKind == JsonValueKind.Object)
             {
-                l.Sabotage = Str(s, "system");
-                l.SabotageCritical = Bool(s, "critical") ?? false;
-                l.SabotageLeft = Dbl(s, "timeLeft");
-                l.SabotageFixing = Dbl(s, "fixing");
+                l.Sabotage = s.Str("system");
+                l.SabotageCritical = s.Bool("critical") ?? false;
+                l.SabotageLeft = s.Num("timeLeft");
+                l.SabotageFixing = s.Num("fixing");
             }
             else
             {
@@ -262,12 +262,12 @@ namespace TournamentTracker.App.Broadcast
             var people = replace ? new Dictionary<int, LobbyPlayer>() : new Dictionary<int, LobbyPlayer>(l.People);
             foreach (var p in list.EnumerateArray())
             {
-                int id = Int(p, "id") ?? -1;
+                int id = p.Int("id") ?? -1;
                 if (id < 0) continue;
                 people[id] = new LobbyPlayer
                 {
-                    Id = id, Name = Str(p, "name") ?? "", Color = Int(p, "color") ?? 0, Key = Str(p, "key") ?? "",
-                    Discord = Str(p, "discord"), Imp = Bool(p, "imp"), Dead = Bool(p, "dead"),
+                    Id = id, Name = p.Str("name") ?? "", Color = p.Int("color") ?? 0, Key = p.Str("key") ?? "",
+                    Discord = p.Str("discord"), Imp = p.Bool("imp"), Dead = p.Bool("dead"),
                 };
             }
             l.People = people;
@@ -284,62 +284,62 @@ namespace TournamentTracker.App.Broadcast
         private string? Tag(LobbyLive l, JsonElement m, string prop)
         {
             if (!m.TryGetProperty(prop, out var p) || p.ValueKind != JsonValueKind.Object) return null;
-            int id = Int(p, "id") ?? -1;
-            string fallback = Str(p, "display") ?? Str(p, "name") ?? Str(p, "colorName") ?? "?";
-            return NameTag.Make(Int(p, "color") ?? 0, DisplayName(l, id, fallback));
+            int id = p.Int("id") ?? -1;
+            string fallback = p.Str("display") ?? p.Str("name") ?? p.Str("colorName") ?? "?";
+            return NameTag.Make(p.Int("color") ?? 0, DisplayName(l, id, fallback));
         }
 
         private void Event(LobbyLive l, JsonElement m, DateTime now)
         {
-            string kind = Str(m, "kind") ?? "";
+            string kind = m.Str("kind") ?? "";
             string? Name(string prop) => Tag(l, m, prop);
-            string Id(string prop) => m.TryGetProperty(prop, out var p) && p.ValueKind == JsonValueKind.Object ? (Int(p, "id") ?? -1).ToString() : "?";
+            string Id(string prop) => m.TryGetProperty(prop, out var p) && p.ValueKind == JsonValueKind.Object ? (p.Int("id") ?? -1).ToString() : "?";
             string In(string? room) => room == null ? "" : " in " + room;
             switch (kind)
             {
                 case "kill":
                 {
-                    bool winning = Bool(m, "winning") ?? false;
-                    string text = $"{Name("killer") ?? "Someone"} killed {Name("victim") ?? "someone"}{In(Str(m, "room"))}";
-                    Add(l, now, $"kill:{Long(m, "t")}", winning ? "winningKill" : "kill", winning ? text + ": impostors win" : text, m);
+                    bool winning = m.Bool("winning") ?? false;
+                    string text = $"{Name("killer") ?? "Someone"} killed {Name("victim") ?? "someone"}{In(m.Str("room"))}";
+                    Add(l, now, $"kill:{m.Long("t")}", winning ? "winningKill" : "kill", winning ? text + ": impostors win" : text, m);
                     break;
                 }
                 case "eject":
                 {
                     string? who = Name("ejected");
-                    if (who == null) Add(l, now, $"eject:{Long(m, "t")}", "ejectSkipped", Bool(m, "tie") == true ? "Tied vote: nobody ejected" : "Vote skipped", m);
-                    else Add(l, now, $"eject:{Long(m, "t")}", "eject", $"{who} ejected: {(Bool(m, "wasImpostor") == true ? "Impostor" : "not the Impostor")}", m);
+                    if (who == null) Add(l, now, $"eject:{m.Long("t")}", "ejectSkipped", m.Bool("tie") == true ? "Tied vote: nobody ejected" : "Vote skipped", m);
+                    else Add(l, now, $"eject:{m.Long("t")}", "eject", $"{who} ejected: {(m.Bool("wasImpostor") == true ? "Impostor" : "not the Impostor")}", m);
                     l.MeetingText = null;
                     l.MeetingSource = null;
                     break;
                 }
                 case "meeting":
                     l.MeetingSource = m.Clone();
-                    l.MeetingText = Bool(m, "emergency") == true
+                    l.MeetingText = m.Bool("emergency") == true
                         ? $"{Name("caller") ?? "Someone"} called an emergency meeting"
                         : $"{Name("caller") ?? "Someone"} reported {Name("body") ?? "a"}'s body";
                     if (l.Plays.TryGetValue("meeting", out var mp) && mp.Ended == null) { mp.Text = l.MeetingText; mp.Updated = now; mp.Source = l.MeetingSource; Changed(l, mp); }
                     break;
                 case "danger":
-                    if (Str(m, "state") == "start")
+                    if (m.Str("state") == "start")
                     {
-                        l.DangerText = $"{Name("impostor") ?? "An impostor"} alone with {Name("crewmate") ?? "a crewmate"}{In(Str(m, "room"))}, kill ready";
+                        l.DangerText = $"{Name("impostor") ?? "An impostor"} alone with {Name("crewmate") ?? "a crewmate"}{In(m.Str("room"))}, kill ready";
                         l.DangerSource = m.Clone();
                         if (l.Plays.TryGetValue("danger", out var dp) && dp.Ended == null) { dp.Text = l.DangerText; dp.Updated = now; dp.Source = l.DangerSource; Changed(l, dp); }
                     }
                     break;
                 case "vent":
-                    if (Str(m, "action") == "enter")
-                        Add(l, now, $"vent:{Id("player")}", "vent", $"{Name("player") ?? "Someone"} vented{In(Str(m, "room"))}", m);
+                    if (m.Str("action") == "enter")
+                        Add(l, now, $"vent:{Id("player")}", "vent", $"{Name("player") ?? "Someone"} vented{In(m.Str("room"))}", m);
                     break;
                 case "witnessed_kill":
-                    Add(l, now, $"witnessed:{Long(m, "t")}", "witnessedKill", $"{Name("witness") ?? "Someone"} SAW {Name("impostor") ?? "the impostor"} kill{In(Str(m, "room"))}", m);
+                    Add(l, now, $"witnessed:{m.Long("t")}", "witnessedKill", $"{Name("witness") ?? "Someone"} SAW {Name("impostor") ?? "the impostor"} kill{In(m.Str("room"))}", m);
                     break;
                 case "witnessed_vent":
-                    Add(l, now, $"witnessedVent:{Id("witness")}:{Id("impostor")}", "witnessedVent", $"{Name("witness") ?? "Someone"} SAW {Name("impostor") ?? "the impostor"} vent{In(Str(m, "room"))}", m);
+                    Add(l, now, $"witnessedVent:{Id("witness")}:{Id("impostor")}", "witnessedVent", $"{Name("witness") ?? "Someone"} SAW {Name("impostor") ?? "the impostor"} vent{In(m.Str("room"))}", m);
                     break;
                 case "gameStart":
-                    l.Map = Str(m, "map") ?? l.Map;
+                    l.Map = m.Str("map") ?? l.Map;
                     l.Players = m.TryGetProperty("players", out var ps) && ps.ValueKind == JsonValueKind.Array ? ps.EnumerateArray().Select(x => x.Clone()).ToList() : new List<JsonElement>();
                     if (m.TryGetProperty("roster", out var rs) && rs.ValueKind == JsonValueKind.Array) People(l, rs, replace: true);
                     l.DangerText = l.MeetingText = null;
@@ -349,9 +349,9 @@ namespace TournamentTracker.App.Broadcast
                     break;
                 case "gameEnd":
                 {
-                    string how = Str(m, "how") switch { "tasks" => " on tasks", "vote" => " by vote", "kills" => " by kills", "sabotage" => " by sabotage", "disconnect" => " (someone left)", _ => "" };
-                    string winner = Str(m, "winner") ?? "";
-                    Add(l, now, "gameEnd", "gameEnd", Bool(m, "abandoned") == true ? "Game abandoned" : winner.Length > 0 ? $"{winner} win{how}" : "Game over", m);
+                    string how = m.Str("how") switch { "tasks" => " on tasks", "vote" => " by vote", "kills" => " by kills", "sabotage" => " by sabotage", "disconnect" => " (someone left)", _ => "" };
+                    string winner = m.Str("winner") ?? "";
+                    Add(l, now, "gameEnd", "gameEnd", m.Bool("abandoned") == true ? "Game abandoned" : winner.Length > 0 ? $"{winner} win{how}" : "Game over", m);
                     break;
                 }
             }
@@ -452,13 +452,5 @@ namespace TournamentTracker.App.Broadcast
             Key = p.Key, Rule = p.Rule, Text = p.Text, At = p.At, Updated = p.Updated, Ended = p.Ended,
             IsState = p.IsState, Repeats = p.Repeats, Value = p.Value, Source = p.Source,
         };
-
-        // ---- JSON helpers -------------------------------------------------------------------
-
-        private static string? Str(JsonElement e, string p) => e.TryGetProperty(p, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
-        private static int? Int(JsonElement e, string p) => e.TryGetProperty(p, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : (int?)null;
-        private static long? Long(JsonElement e, string p) => e.TryGetProperty(p, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt64() : (long?)null;
-        private static double? Dbl(JsonElement e, string p) => e.TryGetProperty(p, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : (double?)null;
-        private static bool? Bool(JsonElement e, string p) => e.TryGetProperty(p, out var v) && (v.ValueKind == JsonValueKind.True || v.ValueKind == JsonValueKind.False) ? v.GetBoolean() : (bool?)null;
     }
 }

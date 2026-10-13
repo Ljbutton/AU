@@ -63,7 +63,7 @@ namespace TournamentTracker
             var game = Tracker.Current;
             bool playing = phase == VoicePhase.Tasks || phase == VoicePhase.Meeting;
             var standings = OverlayStandings();
-            var data = new Dictionary<string, object?>
+            return new Dictionary<string, object?>
             {
                 ["v"] = 1,
                 ["lobby"] = LobbyLabel(players),
@@ -92,7 +92,6 @@ namespace TournamentTracker
                 ["f"] = game == null ? new List<object>() : game.Timeline.TakeLast(8)
                     .Select(e => (object)new[] { TimeSpan.FromSeconds(e.AtSeconds).ToString(@"m\:ss"), e.Kind, e.Text.Length > 140 ? e.Text.Substring(0, 140) : e.Text }).ToList(),
             };
-            return data;
         }
 
         private void PublishLive(VoicePhase phase, IReadOnlyList<PlayerSnapshot> players, string lobbyCode, string map)
@@ -159,19 +158,13 @@ namespace TournamentTracker
                         }
 
                         string stamped = json.Insert(json.Length - 1, $",\"t\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}");
-                        var message = new WebhookMessage
+                        var message = ReportFormatter.Message(new Embed
                         {
-                            Embeds = new List<Embed>
-                            {
-                                new Embed
-                                {
-                                    Title = LiveTitlePrefix + LobbyLabel(),
-                                    Description = "```json\n" + stamped + "\n```",
-                                    Color = 0x2B2D31,
-                                    Footer = new EmbedFooter { Text = "Kept up to date for The Button's organiser view and caster overlay. Please don't delete it." },
-                                },
-                            },
-                        };
+                            Title = LiveTitlePrefix + LobbyLabel(),
+                            Description = "```json\n" + stamped + "\n```",
+                            Color = 0x2B2D31,
+                            Footer = new EmbedFooter { Text = "Kept up to date for The Button's organiser view and caster overlay. Please don't delete it." },
+                        });
                         if (repost && id != null)
                         {
                             await _rest.DeleteMessageAsync(token, channel, id).ConfigureAwait(false);

@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text.Json;
 
 namespace TournamentTracker.App.Broadcast
 {
@@ -44,7 +42,7 @@ namespace TournamentTracker.App.Broadcast
             _archive = archive;
             _tables = tables;
             _statePath = statePath;
-            try { if (statePath != null && File.Exists(statePath)) _state = JsonSerializer.Deserialize<State>(File.ReadAllText(statePath)) ?? new State(); } catch (Exception) { }
+            _state = Files.ReadJson<State>(statePath) ?? new State();
         }
 
         /// <summary>pin / unpin / dismiss / used / restore.</summary>
@@ -60,7 +58,7 @@ namespace TournamentTracker.App.Broadcast
                     case "used": _state.Used.Add(id); _state.Pinned.Remove(id); break;
                     case "restore": _state.Dismissed.Remove(id); _state.Used.Remove(id); break;
                 }
-                try { if (_statePath != null) File.WriteAllText(_statePath, JsonSerializer.Serialize(_state)); } catch (Exception) { }
+                try { if (_statePath != null) Files.WriteJson(_statePath, _state); } catch (Exception) { }
             }
         }
 

@@ -19,7 +19,6 @@
   button { background: #4b4b4b; color: var(--fg); border: 1px solid #5a5a5a; border-radius: 3px; padding: 4px 12px; font: inherit; cursor: pointer; }
   button:hover { background: #575757; }
   .hint { color: var(--muted); margin: 4px 0 4px 104px; }
-  .hidden { display: none !important; }
   h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; font-weight: 600; }
   details { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 4px; }
   summary { cursor: pointer; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 6px 0; }
@@ -191,19 +190,9 @@ function render() {
       input.addEventListener("change", () => update(name, input.value.trim()));
     } else {
       input = document.createElement("select");
-      for (const [value, text] of (typeof options === "function" ? options() : options)) {
-        const o = document.createElement("option");
-        o.value = value;
-        o.textContent = text;
-        input.appendChild(o);
-      }
+      for (const [value, text] of (typeof options === "function" ? options() : options)) input.appendChild(new Option(text, value));
       const current = name === "preset" ? "" : String(settings[name] ?? "");
-      if (![...input.options].some((o) => o.value === current)) {
-        const o = document.createElement("option");
-        o.value = current;
-        o.textContent = current;
-        input.appendChild(o);
-      }
+      if (![...input.options].some((o) => o.value === current)) input.appendChild(new Option(current, current));
       input.value = current;
       input.addEventListener("change", () => (name === "preset" ? (input.value && update("path", input.value)) : update(name, input.value)));
     }

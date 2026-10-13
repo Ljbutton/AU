@@ -130,17 +130,7 @@ namespace TournamentTracker.App.Broadcast
                 var items = await ItemsAsync(obs, scene).ConfigureAwait(false);
                 var batch = new List<(string Type, object? Data)>();
                 var camStarts = new List<string>();
-                object Place(Item item, Box b) => new
-                {
-                    sceneName = scene,
-                    sceneItemId = item.Id,
-                    sceneItemTransform = new
-                    {
-                        positionX = b.X, positionY = b.Y, alignment = 5, rotation = 0.0,
-                        boundsType = "OBS_BOUNDS_SCALE_INNER", boundsAlignment = 0, boundsWidth = b.W, boundsHeight = b.H,
-                        cropLeft = 0, cropRight = 0, cropTop = 0, cropBottom = 0,
-                    },
-                };
+                object Place(Item item, Box b) => Transform(scene, item.Id, b.X, b.Y, b.W, b.H);
                 // Already where it should be (within half a pixel, as just read from OBS): not moved again.
                 static bool There(Item item, Box b) => Math.Abs(item.X - b.X) < 0.5 && Math.Abs(item.Y - b.Y) < 0.5 && Math.Abs(item.W - b.W) < 0.5 && Math.Abs(item.H - b.H) < 0.5;
                 var camBoxes = CamBoxes(air);

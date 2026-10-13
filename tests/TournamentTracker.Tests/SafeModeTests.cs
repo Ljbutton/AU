@@ -1,5 +1,4 @@
 using System.Text.Json;
-using TournamentTracker.Control;
 using TournamentTracker.Discord;
 using Xunit;
 
@@ -14,14 +13,6 @@ public class SafeModeTests : IDisposable
     private readonly TempDir _dir = new();
     private readonly FakeClock _clock = new();
     public void Dispose() => _dir.Dispose();
-
-    private sealed class Lines : ILog
-    {
-        public List<string> All { get; } = new();
-        public void Info(string message) => All.Add(message);
-        public void Warn(string message) => All.Add(message);
-        public void Error(string message) => All.Add(message);
-    }
 
     private TournamentSession Session(int port = -1) =>
         new(new TrackerSettings { TournamentName = "Cup", LiveStatus = false, ControlPort = port }, _dir.Path, NullLog.Instance,
@@ -227,7 +218,7 @@ public class SafeModeTests : IDisposable
     public void A_broken_saved_choice_is_ignored()
     {
         File.WriteAllText(Path.Combine(_dir.Path, SafeMode.FileName), "{not json");
-        var log = new Lines();
+        var log = new ListLog();
         var safe = new SafeMode(_dir.Path, log, "2026.10.20", "2026.9.29");
         Assert.True(safe.On);
         Assert.Contains(log.All, l => l.Contains("couldn't read the saved choice"));
@@ -441,9 +432,7 @@ public class SafeModeTests : IDisposable
         s.SafeMode = new SafeMode(_dir.Path, NullLog.Instance, "2026.10.20", "2026.9.29");
         s.Disconnects = new DisconnectHistory(_dir.Path, NullLog.Instance, clock: () => _clock.Now);
         s.VoiceTick(Voice.VoicePhase.Lobby, Players.Lobby(), "ABCDEF", "Polus");
-        var control = JsonDocument.Parse(File.ReadAllText(Path.Combine(_dir.Path, ControlServer.FileName))).RootElement;
-        using var http = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{control.GetProperty("port").GetInt32()}/") };
-        http.DefaultRequestHeaders.Add("X-TT-Token", control.GetProperty("token").GetString());
+        using var http = AppHttp.Control(_dir.Path);
 
         var status = JsonDocument.Parse(await http.GetStringAsync("api/status")).RootElement;
         var safe = status.GetProperty("safeMode");

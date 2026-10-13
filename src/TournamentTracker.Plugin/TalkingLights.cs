@@ -302,7 +302,7 @@ namespace TournamentTracker.Plugin
                     float a = d <= edge / 2 ? 1f : Math.Max(0, 1 - (d - edge / 2) / glow) * 0.45f;
                     px[y * w + x] = new Color32(255, 255, 255, (byte)(a * 255));
                 }
-            _ring = Make(px, w, h, w);
+            _ring = Drawing.MakeSprite(px, w, h, w);
             return _ring;
         }
 
@@ -315,7 +315,7 @@ namespace TournamentTracker.Plugin
             for (int y = 0; y < s; y++)
                 for (int x = 0; x < s; x++)
                     px[y * s + x] = IsSpeaker(x + 0.5f, y + 0.5f - s / 2f) ? new Color32(255, 255, 255, 255) : new Color32(0, 0, 0, 0);
-            _speaker = Make(px, s, s, 110);
+            _speaker = Drawing.MakeSprite(px, s, s, 110);
             return _speaker;
         }
 
@@ -328,17 +328,6 @@ namespace TournamentTracker.Plugin
             bool front = fx > 26 && Math.Abs(fy) < (fx - 22) * 1.1f;
             bool wave = front && (Math.Abs(r - 10) < 1.8f || Math.Abs(r - 17) < 1.8f);
             return box || cone || wave;
-        }
-
-        private static Sprite Make(Color32[] px, int w, int h, float ppu)
-        {
-            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
-            tex.SetPixels32(px);
-            tex.Apply();
-            tex.hideFlags = HideFlags.HideAndDontSave;
-            var sprite = Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), ppu);
-            sprite.hideFlags = HideFlags.HideAndDontSave;
-            return sprite;
         }
     }
 }

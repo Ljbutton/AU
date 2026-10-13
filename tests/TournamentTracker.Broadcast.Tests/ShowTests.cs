@@ -10,7 +10,6 @@ public class ShowTests : IDisposable
     private readonly TempDir _dir = new();
     private readonly FakeClock _clock = new();
     private readonly CasterDesk _desk;
-    private static readonly JsonSerializerOptions Camel = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public ShowTests() => _desk = new CasterDesk(null, () => _clock.Now, new PriorityConfig(), null, _dir.Path);
 
@@ -32,7 +31,7 @@ public class ShowTests : IDisposable
     private void Kill(string lobby, string killer = "Jake", string victim = "Maria") =>
         E(lobby, "kill", new { killer = P(0, killer, 4, true), victim = P(1, victim, 1), room = "Electrical", winning = false });
 
-    private JsonElement Broadcast() => JsonSerializer.SerializeToElement(new BroadcastApp(_desk, () => null, null).State(), Camel);
+    private JsonElement Broadcast() => JsonSerializer.SerializeToElement(new BroadcastApp(_desk, () => null, null).State(), TestJson.Camel);
 
     // ---- Part 18 ---------------------------------------------------------------------------------
 
@@ -197,7 +196,7 @@ public class ShowTests : IDisposable
         Snap("LJ"); Snap("MAL"); Snap("KAI");
         _desk.Show("KAI");
         var app = new BroadcastApp(_desk, () => null, null);
-        JsonElement St() => JsonSerializer.SerializeToElement(app.State(), Camel);
+        JsonElement St() => JsonSerializer.SerializeToElement(app.State(), TestJson.Camel);
         // Two tables and a note at once: one at a time, the note (about nobody) first, MAL's waits for MAL.
         _desk.Graphics.Add("afterGame", "MAL", "MAL after the game", new { lobby = "MAL", round = 1, rows = new object[0] });
         _desk.Graphics.Add("afterGame", "KAI", "KAI after the game", new { lobby = "KAI", round = 1, rows = new object[0] });
@@ -241,7 +240,7 @@ public class ShowTests : IDisposable
         void Next() { _clock.Advance(6); _desk.Tick(); }
         games.Add(G(1, "Crewmates")); Next();
         games.Add(G(2, "Impostors")); Next();
-        var prompts = JsonSerializer.SerializeToElement(_desk.PromptState(), Camel).GetProperty("prompts");
+        var prompts = JsonSerializer.SerializeToElement(_desk.PromptState(), TestJson.Camel).GetProperty("prompts");
         Assert.Equal("LJ", prompts[0].GetProperty("lobby").GetString());
         Assert.Null(_desk.Graphics.Current());                    // nothing on stream until asked
         Assert.Contains("next intermission", _desk.AnswerPrompt(prompts[0].GetProperty("id").GetString()!, "save"));
@@ -252,9 +251,9 @@ public class ShowTests : IDisposable
         // Unanswered prompts go by themselves after a minute.
         _desk.Show("LJ");
         games.Add(G(3, "Crewmates")); Next();
-        Assert.Single(JsonSerializer.SerializeToElement(_desk.PromptState(), Camel).GetProperty("prompts").EnumerateArray());
+        Assert.Single(JsonSerializer.SerializeToElement(_desk.PromptState(), TestJson.Camel).GetProperty("prompts").EnumerateArray());
         _clock.Advance(61); _desk.Tick();
-        Assert.Empty(JsonSerializer.SerializeToElement(_desk.PromptState(), Camel).GetProperty("prompts").EnumerateArray());
+        Assert.Empty(JsonSerializer.SerializeToElement(_desk.PromptState(), TestJson.Camel).GetProperty("prompts").EnumerateArray());
         // The old way: straight into the queue.
         app.Settings.SetQueue(null, true);
         games.Add(G(4, "Impostors")); Next();

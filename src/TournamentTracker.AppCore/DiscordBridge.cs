@@ -5,7 +5,6 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -109,13 +108,10 @@ namespace TournamentTracker.App
             _rest = new DiscordRest(_discord, NullLog.Instance);
             _connect = connect ?? (c => new VoiceGateway(c.Token, c.GuildId, NullLog.Instance, listenToMessages: c.Listen));
             _orphans = LoadMuted();
-            var bytes = new byte[18];
-            using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(bytes);
-            Token = Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_');
-            _listener = new TcpListener(IPAddress.Loopback, 0);
-            _listener.Start();
+            Token = LocalServer.NewToken();
+            _listener = LocalServer.Listen();
             Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
-            Task.Run(AcceptLoop);
+            Task.Run(() => LocalServer.AcceptLoop(_listener, _cts.Token, Serve));
             Task.Run(KeepLoop);
         }
 
@@ -152,7 +148,11 @@ namespace TournamentTracker.App
         }
 
         /// <summary>The mod in Among Us is asking for news.</summary>
-        public bool ModConnected { get { lock (_lock) return DateTime.UtcNow - _modSeen < ModGone; } }
+        public bool ModConnected { get { lock (_lock) return ModAsking; } }
+        private bool ModAsking => DateTime.UtcNow - _modSeen < ModGone;          // with _lock held
+
+        // The voice channel to be in (with _lock held): out of voice once the mod stops asking (Among Us closed, or no longer hosting).
+        private string? VoiceWanted => ModAsking ? _voiceWanted : null;
 
         // ---- Keeping the bot connected -------------------------------------------------------
 
@@ -171,14 +171,12 @@ namespace TournamentTracker.App
         internal void Reconcile()
         {
             BotConfig? want;
-            lock (_lock) want = _modWants != null && DateTime.UtcNow - _modSeen < ModGone ? _modWants : null;
+            lock (_lock) want = ModAsking ? _modWants : null;
             want ??= _fromSetup();
             IBotGateway? old = null, started = null;
             lock (_lock)
             {
-                // Out of voice once the mod stops asking (Among Us closed, or no longer hosting).
-                string? voice = DateTime.UtcNow - _modSeen < ModGone ? _voiceWanted : null;
-                if (want == _config) { _gateway?.JoinVoice(voice); return; }
+                if (want == _config) { _gateway?.JoinVoice(VoiceWanted); return; }
                 old = _gateway;
                 _gateway = null;
                 _config = want;
@@ -197,7 +195,7 @@ namespace TournamentTracker.App
             old?.Dispose();
             started?.Start();
             string? wanted;
-            lock (_lock) wanted = DateTime.UtcNow - _modSeen < ModGone ? _voiceWanted : null;
+            lock (_lock) wanted = VoiceWanted;
             started?.JoinVoice(wanted);
         }
 
@@ -236,17 +234,6 @@ namespace TournamentTracker.App
         }
 
         // ---- Serving the mod -------------------------------------------------------------------
-
-        private async Task AcceptLoop()
-        {
-            while (!_cts.IsCancellationRequested)
-            {
-                TcpClient client;
-                try { client = await _listener.AcceptTcpClientAsync().ConfigureAwait(false); }
-                catch (Exception) { return; }
-                _ = Task.Run(() => Serve(client));
-            }
-        }
 
         private async Task Serve(TcpClient client)
         {
@@ -629,10 +616,7 @@ namespace TournamentTracker.App
         private string? MutedFile()
         {
             string? dir = _wroteTo;
-            if (dir == null)
-            {
-                try { dir = _modDir(); } catch (Exception) { dir = null; }
-            }
+            if (dir == null) try { dir = _modDir(); } catch (Exception) { }
             return dir == null ? null : Path.Combine(dir, MutedFileName);
         }
 

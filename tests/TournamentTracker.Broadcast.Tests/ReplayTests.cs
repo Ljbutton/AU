@@ -153,11 +153,7 @@ public class ReplayObsTests : IAsyncLifetime
         _desk.Apply(JsonSerializer.Serialize(msg));
     }
 
-    private static async Task Until(Func<bool> done, int ms = 6000)
-    {
-        for (int i = 0; i < ms / 20 && !done(); i++) await Task.Delay(20);
-        Assert.True(done());
-    }
+    private static Task Until(Func<bool> done, int ms = 6000) => Wait.For(done, ms);
 
     [Fact]
     public void Every_lobby_source_gets_a_replay_buffer_and_there_is_a_replay_scene()

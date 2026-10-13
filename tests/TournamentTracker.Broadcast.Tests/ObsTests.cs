@@ -402,11 +402,7 @@ public class ObsTests : IAsyncLifetime
 
     private Task<string> Connect(string password = "secret") => _director.ConnectAsync("127.0.0.1", _obs.Port, password);
 
-    private static async Task Until(Func<bool> done)
-    {
-        for (int i = 0; i < 200 && !done(); i++) await Task.Delay(20);
-        Assert.True(done());
-    }
+    private static Task Until(Func<bool> done) => Wait.For(done, 4000);
 
     [Fact]
     public void The_password_answer_matches_obs_websocket_5()

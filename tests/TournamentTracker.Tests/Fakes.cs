@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
+using TournamentTracker.Control;
 using TournamentTracker.Discord;
 using TournamentTracker.Stats;
 using TournamentTracker.Voice;
@@ -92,6 +93,15 @@ public sealed class FakeVoiceApi : IVoiceApi
     }
 }
 
+/// <summary>A log that keeps every line, for tests that check what was logged.</summary>
+public sealed class ListLog : ILog
+{
+    public List<string> All { get; } = new();
+    public void Info(string message) => All.Add(message);
+    public void Warn(string message) => All.Add(message);
+    public void Error(string message) => All.Add(message);
+}
+
 public sealed class TempDir : IDisposable
 {
     public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "tt-tests-" + Guid.NewGuid().ToString("N"));
@@ -122,6 +132,60 @@ public static class Wait
             if (DateTime.UtcNow > until) throw new TimeoutException("Condition not met in time");
             await Task.Delay(10);
         }
+    }
+
+    /// <summary>Looks every 20 ms, for up to <paramref name="ms"/>, until <paramref name="done"/>; then asserts it.</summary>
+    public static async Task For(Func<bool> done, int ms)
+    {
+        for (int i = 0; i < ms / 20 && !done(); i++) await Task.Delay(20);
+        Xunit.Assert.True(done());
+    }
+}
+
+/// <summary>Everything logged, in order.</summary>
+public static class TestJson
+{
+    /// <summary>JSON names as the apps' pages and feeds write them (camelCase).</summary>
+    public static readonly JsonSerializerOptions Camel = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+}
+
+/// <summary>Calls to an app's own server in a test: a client with the token every /app/ call needs, and the answers as JSON.</summary>
+public static class AppHttp
+{
+    public static HttpClient Client(string url, string token)
+    {
+        var http = new HttpClient { BaseAddress = new Uri(url) };
+        http.DefaultRequestHeaders.Add("X-App-Token", token);
+        return http;
+    }
+
+    /// <summary>A client for the mod's control API, with the port and token it wrote to control.json in <paramref name="dir"/>.</summary>
+    public static HttpClient Control(string dir)
+    {
+        var control = JsonDocument.Parse(File.ReadAllText(Path.Combine(dir, ControlServer.FileName))).RootElement;
+        var http = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{control.GetProperty("port").GetInt32()}/") };
+        http.DefaultRequestHeaders.Add("X-TT-Token", control.GetProperty("token").GetString());
+        return http;
+    }
+
+    public static async Task<JsonElement> Get(HttpClient http, string path) => JsonDocument.Parse(await http.GetStringAsync(path)).RootElement.Clone();
+
+    public static async Task<JsonElement> Post(HttpClient http, string path, object? body = null)
+    {
+        var r = await http.PostAsync(path, new StringContent(JsonSerializer.Serialize(body ?? new { }), Encoding.UTF8, "application/json"));
+        return JsonDocument.Parse(await r.Content.ReadAsStringAsync()).RootElement.Clone();
+    }
+}
+
+public static class TestSettings
+{
+    /// <summary>Automute on, with one bot ("tok") in server g1.</summary>
+    public static TrackerSettings WithBot(this TrackerSettings settings)
+    {
+        settings.AutoMute.Enabled = true;
+        settings.AutoMute.GuildId = "g1";
+        settings.AutoMute.BotTokens.Add("tok");
+        return settings;
     }
 }
 

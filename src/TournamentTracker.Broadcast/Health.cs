@@ -37,11 +37,7 @@ namespace TournamentTracker.App.Broadcast
             try
             {
                 if (path == null) return new HealthSettings();
-                if (!File.Exists(path))
-                {
-                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                    File.WriteAllText(path, JsonSerializer.Serialize(new HealthSettings(), Json));
-                }
+                if (!File.Exists(path)) Files.WriteJson(path, new HealthSettings(), Json);
                 return JsonSerializer.Deserialize<HealthSettings>(File.ReadAllText(path), Json) ?? new HealthSettings();
             }
             catch (Exception) { return new HealthSettings(); }
@@ -50,7 +46,7 @@ namespace TournamentTracker.App.Broadcast
         public void Save(string? path)
         {
             if (path == null) return;
-            try { Directory.CreateDirectory(Path.GetDirectoryName(path)!); File.WriteAllText(path, JsonSerializer.Serialize(this, Json)); }
+            try { Files.WriteJson(path, this, Json); }
             catch (Exception) { }
         }
     }

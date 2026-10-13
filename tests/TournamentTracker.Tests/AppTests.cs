@@ -7,6 +7,7 @@ using TournamentTracker.Discord;
 using TournamentTracker.Setup;
 using TournamentTracker.Stats;
 using Xunit;
+using static TournamentTracker.Tests.AppHttp;
 
 namespace TournamentTracker.Tests;
 
@@ -17,6 +18,19 @@ public sealed class LocalOrFake : DelegatingHandler
     public LocalOrFake() : base(new HttpClientHandler()) { }
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
         request.RequestUri!.Host == "127.0.0.1" ? base.SendAsync(request, ct) : Task.FromResult(Internet(request));
+}
+
+/// <summary>The Button in a test: its settings under <c>dir</c>, finding nothing on this PC but the Steam folder it's given.</summary>
+public static class ButtonApp
+{
+    public static AppEnvironment Env(string dir, string? steam = null) => new()
+    {
+        SettingsFile = Path.Combine(dir, "app", "app.json"), SteamRoot = steam ?? Path.Combine(dir, "none"),
+        EpicManifests = Path.Combine(dir, "none"), Fallbacks = Array.Empty<string>(), Downloads = Path.Combine(dir, "Downloads"),
+    };
+
+    /// <summary>A client for its /app/ calls, with its token.</summary>
+    public static HttpClient Client(AppServer app) => AppHttp.Client(app.Url, app.Token);
 }
 
 public class AppTests : IDisposable
@@ -155,11 +169,7 @@ public class AppTests : IDisposable
     [Fact]
     public async Task The_send_page_keeps_working_after_The_Button_restarts()
     {
-        var env = new AppEnvironment
-        {
-            SettingsFile = Path.Combine(_dir.Path, "app", "app.json"), SteamRoot = Path.Combine(_dir.Path, "none"),
-            EpicManifests = Path.Combine(_dir.Path, "none"), Fallbacks = Array.Empty<string>(), Downloads = Path.Combine(_dir.Path, "Downloads"),
-        };
+        var env = ButtonApp.Env(_dir.Path);
         string token; int port;
         using (var first = new AppServer(env, new HttpClient(new FakeHttp()))) { token = first.Token; port = first.Port; }
         // Restarted (an update): the same link, so the open "Send my game to the caster" tab still reaches it.
@@ -183,14 +193,9 @@ public class AppTests : IDisposable
     [Fact]
     public async Task One_Update_button_says_when_everything_is_up_to_date_and_the_camera_relay_answers_empty()
     {
-        var env = new AppEnvironment
-        {
-            SettingsFile = Path.Combine(_dir.Path, "app", "app.json"), SteamRoot = Path.Combine(_dir.Path, "none"),
-            EpicManifests = Path.Combine(_dir.Path, "none"), Fallbacks = Array.Empty<string>(), Downloads = Path.Combine(_dir.Path, "Downloads"),
-        };
+        var env = ButtonApp.Env(_dir.Path);
         using var app = new AppServer(env, new HttpClient(new FakeHttp()));
-        using var http = new HttpClient { BaseAddress = new Uri(app.Url) };
-        http.DefaultRequestHeaders.Add("X-App-Token", app.Token);
+        using var http = ButtonApp.Client(app);
         var r = await http.PostAsync("app/updateall", new StringContent("{}"));
         var said = JsonDocument.Parse(await r.Content.ReadAsStringAsync()).RootElement;
         Assert.False(said.GetProperty("ok").GetBoolean());
@@ -208,14 +213,9 @@ public class AppTests : IDisposable
         Directory.CreateDirectory(Path.Combine(game, "BepInEx", "plugins"));
         File.WriteAllBytes(Path.Combine(game, "BepInEx", "plugins", "TournamentTracker.dll"), new byte[] { 9 });
         File.WriteAllBytes(Path.Combine(game, "winhttp.dll"), Pe(0x14C));       // left from before Among Us went 64-bit
-        var env = new AppEnvironment
-        {
-            SettingsFile = Path.Combine(_dir.Path, "app", "app.json"), SteamRoot = Path.Combine(_dir.Path, "Steam"),
-            EpicManifests = Path.Combine(_dir.Path, "none"), Fallbacks = Array.Empty<string>(), Downloads = Path.Combine(_dir.Path, "Downloads"),
-        };
+        var env = ButtonApp.Env(_dir.Path, Path.Combine(_dir.Path, "Steam"));
         using var app = new AppServer(env, new HttpClient(ReleaseWithBothBundles(BothBundles)));
-        using var http = new HttpClient { BaseAddress = new Uri(app.Url) };
-        http.DefaultRequestHeaders.Add("X-App-Token", app.Token);
+        using var http = ButtonApp.Client(app);
 
         var first = await Get(http, "app/state");                               // the app notices, and repairs
         Assert.False(first.GetProperty("mod").GetProperty("loaderMatchesGame").GetBoolean());
@@ -277,20 +277,11 @@ public class AppTests : IDisposable
     private (AppServer App, HttpClient Http, string Game) App(string? steamGame = null)
     {
         string game = steamGame ?? Game(Path.Combine(_dir.Path, "Steam", "steamapps", "common", "Among Us"));
-        var env = new AppEnvironment
-        {
-            SettingsFile = Path.Combine(_dir.Path, "app", "app.json"), SteamRoot = Path.Combine(_dir.Path, "Steam"),
-            EpicManifests = Path.Combine(_dir.Path, "none"), Fallbacks = Array.Empty<string>(), Downloads = Path.Combine(_dir.Path, "Downloads"),
-        };
+        var env = ButtonApp.Env(_dir.Path, Path.Combine(_dir.Path, "Steam"));
         var app = new AppServer(env, new HttpClient(new LocalOrFake()));
-        var http = new HttpClient { BaseAddress = new Uri(app.Url) };
-        http.DefaultRequestHeaders.Add("X-App-Token", app.Token);
+        var http = ButtonApp.Client(app);
         return (app, http, game);
     }
-
-    private static async Task<JsonElement> Get(HttpClient http, string path) => JsonDocument.Parse(await http.GetStringAsync(path)).RootElement;
-    private static async Task<JsonElement> Post(HttpClient http, string path, object? body = null) =>
-        JsonDocument.Parse(await (await http.PostAsync(path, new StringContent(JsonSerializer.Serialize(body ?? new { }), Encoding.UTF8, "application/json"))).Content.ReadAsStringAsync()).RootElement;
 
     [Fact]
     public async Task The_app_page_is_served_with_its_token_and_everything_else_needs_it()
@@ -310,6 +301,15 @@ public class AppTests : IDisposable
         var head = await anon.GetByteArrayAsync("/crew/17.png");            // every colour has a head, up to coral
         Assert.Equal(new byte[] { 0x89, (byte)'P', (byte)'N', (byte)'G' }, head.Take(4).ToArray());
         Assert.Equal(HttpStatusCode.NotFound, (await anon.GetAsync("/crew/18.png")).StatusCode);
+        // The look and page script it shares with Red Alert.
+        Assert.Contains("<link rel=\"stylesheet\" href=\"/base.css\">", page);
+        Assert.Contains("<script src=\"/base.js\"></script>\n<script>\nconst TOKEN", page);
+        var css = await anon.GetAsync("/base.css");
+        Assert.Equal("text/css", css.Content.Headers.ContentType?.MediaType);
+        Assert.Contains(".winctl{", await css.Content.ReadAsStringAsync());
+        var js = await anon.GetAsync("/base.js");
+        Assert.Equal("text/javascript", js.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("host.postMessage('drag')", await js.Content.ReadAsStringAsync());
     }
 
     [Fact]
@@ -406,7 +406,75 @@ public class AppVersionTests
     [InlineData("v1.2.0", "v1.2.0", false)]
     [InlineData("v1.2.0", null, true)]
     public void Offers_an_update_only_for_a_newer_release(string latest, string? installed, bool newer) =>
-        Assert.Equal(newer, AppServer.Newer(latest, installed));
+        Assert.Equal(newer, AppUpdater.Newer(latest, installed));
+
+    [Fact]
+    public void Red_Alerts_tags_are_read_only_with_its_prefix()
+    {
+        Assert.True(AppUpdater.Newer("broadcast-v0.3.16", "0.3.15", "broadcast-v"));
+        Assert.False(AppUpdater.Newer("broadcast-v0.3.15", "0.3.15", "broadcast-v"));
+        // The Button never takes one of Red Alert's releases for its own (or the mod's).
+        Assert.False(AppUpdater.Newer("broadcast-v0.3.16", "v0.1.63"));
+    }
+}
+
+/// <summary>The apps' own logs: The Button's starts again past 1 MB, Red Alert's keeps the one before as *.log.1.</summary>
+public class FileLogTests : IDisposable
+{
+    private readonly TempDir _dir = new();
+    public void Dispose() => _dir.Dispose();
+
+    private static void Fill(string path) => File.WriteAllText(path, new string('x', (int)FileLog.MaxBytes + 1));
+
+    [Fact]
+    public void The_Buttons_log_starts_again_past_1_MB()
+    {
+        var log = new FileLog(_dir.Path, "the-button.log");
+        Fill(log.FilePath!);
+        log.Warn("after");
+        Assert.Matches(@"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d WARN after\r?\n$", File.ReadAllText(log.FilePath!));
+        Assert.False(File.Exists(log.FilePath + ".1"));
+    }
+
+    [Fact]
+    public void Red_Alerts_log_keeps_the_one_before_past_1_MB()
+    {
+        var log = new FileLog(_dir.Path, "red-alert.log", keepPrevious: true);
+        Fill(log.FilePath!);
+        log.Error("after");
+        Assert.EndsWith(" ERROR after" + Environment.NewLine, File.ReadAllText(log.FilePath!));
+        Assert.Equal(FileLog.MaxBytes + 1, new FileInfo(log.FilePath + ".1").Length);
+    }
+
+    [Fact]
+    public void No_folder_logs_nowhere()
+    {
+        var log = new FileLog(null, "the-button.log");
+        log.Info("nothing");
+        Assert.Null(log.FilePath);
+    }
+}
+
+/// <summary>What's built into an app, and the fonts and crewmate heads both apps serve from it.</summary>
+public class UiFilesTests
+{
+    [Fact]
+    public void Fonts_and_crewmate_heads_and_nothing_else()
+    {
+        var app = typeof(AppServer).Assembly;
+        var font = UiFiles.Asset(app, "/fonts/teko-700.woff2");
+        Assert.Equal("font/woff2", font?.Type);
+        Assert.True(font?.Body.Length > 1000);
+        Assert.Equal("image/png", UiFiles.Asset(app, "/crew/0.png")?.Type);
+        Assert.Null(UiFiles.Asset(app, "/crew/18.png"));
+        Assert.Null(UiFiles.Asset(app, "/fonts/OFL-Teko.txt"));
+        Assert.Null(UiFiles.Asset(app, "/index.html"));
+        Assert.Contains("function toast(", Encoding.UTF8.GetString(UiFiles.Base(app, "/base.js")!.Value.Body));
+        Assert.Null(UiFiles.Base(app, "/base.html"));
+        Assert.Contains("__APP_TOKEN__", UiFiles.Text(app, "ui/index.html"));
+        Assert.Equal("", UiFiles.Text(app, "ui/nothing.html"));
+        Assert.Empty(UiFiles.Bytes(app, "ui/nothing.png"));
+    }
 }
 public class AppUpdaterTests : IDisposable
 {

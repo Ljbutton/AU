@@ -117,14 +117,21 @@ namespace TournamentTracker
                 Reply("Change the round in the lobby, between games.", false);
                 return true;
             }
+            StartRound(round.Value, "started", sayRotation: true);
+            return true;
+        }
+
+        /// <param name="started">How it was started, for the host: "started", "was started from Discord".</param>
+        /// <param name="sayRotation">Also tell the lobby the impostor rotation is on (when it is).</param>
+        private void StartRound(int round, string started, bool sayRotation)
+        {
             int previous = Round;
-            SetRound(round.Value);
-            Reply($"Round {Round} started: points start from zero for this round (the running total keeps counting).", false);
+            SetRound(round);
+            Reply($"Round {Round} {started}: points start from zero for this round (the running total keeps counting).", false);
             if (Players.Count > 0) Reply($"Round {Round} starts now!", true);
             // Not in safe mode: the mod leaves the game's roles alone then, so there's no rotation.
-            if (RotationOn && !SafeModeThisGame && Players.Count > 0) Reply("Impostor rotation is on: last game's impostors are very unlikely to be impostor again straight away.", true);
+            if (sayRotation && RotationOn && !SafeModeThisGame && Players.Count > 0) Reply("Impostor rotation is on: last game's impostors are very unlikely to be impostor again straight away.", true);
             if (previous > 0 && Round > previous) OnRoundAdvanced();
-            return true;
         }
 
         /// <summary>A new round: post the server standings so far (tournament mode).</summary>
