@@ -46,6 +46,7 @@ namespace TournamentTracker.Discord
     public sealed class DiscordRest
     {
         public const string DefaultApiBase = "https://discord.com/api/v10";
+        public const string UserAgent = "DiscordBot (https://github.com/Ljbutton/AU, 1.0)";
         private const int MaxAttempts = 5;
 
         /// <summary>
@@ -81,7 +82,7 @@ namespace TournamentTracker.Discord
         public static HttpClient CreateHttpClient()
         {
             var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("DiscordBot (https://github.com/Ljbutton/AU, 1.0)");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
             return http;
         }
 

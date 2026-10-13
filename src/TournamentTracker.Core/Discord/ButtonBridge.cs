@@ -97,7 +97,7 @@ namespace TournamentTracker.Discord
         public static HttpClient CreateClient(string dataDir)
         {
             var http = new HttpClient(new RelayHandler(dataDir)) { Timeout = TimeSpan.FromSeconds(30) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("DiscordBot (https://github.com/Ljbutton/AU, 1.0)");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd(DiscordRest.UserAgent);
             return http;
         }
 
