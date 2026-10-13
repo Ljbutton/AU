@@ -1,5 +1,4 @@
 using System.Text.Json;
-using TournamentTracker.Control;
 using TournamentTracker.Discord;
 using Xunit;
 
@@ -433,9 +432,7 @@ public class SafeModeTests : IDisposable
         s.SafeMode = new SafeMode(_dir.Path, NullLog.Instance, "2026.10.20", "2026.9.29");
         s.Disconnects = new DisconnectHistory(_dir.Path, NullLog.Instance, clock: () => _clock.Now);
         s.VoiceTick(Voice.VoicePhase.Lobby, Players.Lobby(), "ABCDEF", "Polus");
-        var control = JsonDocument.Parse(File.ReadAllText(Path.Combine(_dir.Path, ControlServer.FileName))).RootElement;
-        using var http = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{control.GetProperty("port").GetInt32()}/") };
-        http.DefaultRequestHeaders.Add("X-TT-Token", control.GetProperty("token").GetString());
+        using var http = AppHttp.Control(_dir.Path);
 
         var status = JsonDocument.Parse(await http.GetStringAsync("api/status")).RootElement;
         var safe = status.GetProperty("safeMode");

@@ -1,9 +1,10 @@
 using System.IO.Compression;
-using System.Text;
 using System.Text.Json;
 using TournamentTracker.App;
 using TournamentTracker.Control;
 using Xunit;
+using static TournamentTracker.Tests.AppHttp;
+using static TournamentTracker.Tests.ButtonApp;
 
 namespace TournamentTracker.Tests;
 
@@ -157,17 +158,6 @@ public class ButtonHealthTests : IDisposable
             Duration = TimeSpan.FromSeconds(1.5), Warmup = TimeSpan.FromSeconds(0.3), Sample = TimeSpan.FromMilliseconds(100), RequestBytes = 256 * 1024, Pings = 2,
         },
     };
-
-    private static HttpClient Client(AppServer app)
-    {
-        var http = new HttpClient { BaseAddress = new Uri(app.Url) };
-        http.DefaultRequestHeaders.Add("X-App-Token", app.Token);
-        return http;
-    }
-
-    private static async Task<JsonElement> Get(HttpClient http, string path) => JsonDocument.Parse(await http.GetStringAsync(path)).RootElement;
-    private static async Task<JsonElement> Post(HttpClient http, string path, object? body = null) =>
-        JsonDocument.Parse(await (await http.PostAsync(path, new StringContent(JsonSerializer.Serialize(body ?? new { }), Encoding.UTF8, "application/json"))).Content.ReadAsStringAsync()).RootElement;
 
     private static object ModStatus(bool safe) => new
     {

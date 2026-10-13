@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using TournamentTracker.App.Broadcast;
@@ -22,8 +21,7 @@ public class LiveDeskPageTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         _server = new BroadcastServer(new BroadcastEnvironment { SettingsFile = Path.Combine(_dir.Path, "RedAlert", "settings.json"), Port = 0, CasterPort = 0, Version = "0.1.0" }, new HttpClient(new FakeHttp()));
-        _app = new HttpClient { BaseAddress = new Uri(_server.Url) };
-        _app.DefaultRequestHeaders.Add("X-App-Token", _server.Token);
+        _app = AppHttp.Client(_server.Url, _server.Token);
         var admin = new SetupCode { Mode = "admin", TournamentId = "c", TournamentName = "Cup", BotTokens = new() { "admin" }, ResultsChannelId = "results" };
         Assert.True((await Post("app/admin/code", new { code = admin.Encode() })).GetProperty("ok").GetBoolean());
     }
@@ -35,13 +33,8 @@ public class LiveDeskPageTests : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    private async Task<JsonElement> Get(string path) => JsonDocument.Parse(await _app.GetStringAsync(path)).RootElement.Clone();
-
-    private async Task<JsonElement> Post(string path, object body)
-    {
-        var r = await _app.PostAsync(path, new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"));
-        return JsonDocument.Parse(await r.Content.ReadAsStringAsync()).RootElement.Clone();
-    }
+    private Task<JsonElement> Get(string path) => AppHttp.Get(_app, path);
+    private Task<JsonElement> Post(string path, object body) => AppHttp.Post(_app, path, body);
 
     private static string Embedded(string name)
     {

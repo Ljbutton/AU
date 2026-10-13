@@ -11,7 +11,6 @@ public class BroadcastTests : IDisposable
     private readonly FakeClock _clock = new();
     private readonly CasterDesk _desk;
     private readonly BroadcastApp _app;
-    private static readonly JsonSerializerOptions Camel = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public BroadcastTests()
     {
@@ -25,7 +24,7 @@ public class BroadcastTests : IDisposable
     private void Snap(string lobby, string phase = "ingame", object? sabotage = null, params object[] players) =>
         _desk.Apply(JsonSerializer.Serialize(new { type = "snap", lobby, round = 1, phase, crewAlive = 7, impAlive = 2, taskPct = 30, t = 0, sabotage, players }));
 
-    private JsonElement State() => JsonSerializer.SerializeToElement(_app.State(), Camel);
+    private JsonElement State() => JsonSerializer.SerializeToElement(_app.State(), TestJson.Camel);
 
     [Fact]
     public void Slots_follow_the_layout_on_stream()
@@ -147,7 +146,7 @@ public class BroadcastTests : IDisposable
         File.WriteAllText(Path.Combine(_dir.Path, SponsorBook.FileName), "{\"sponsors\":[{\"name\":\"Among Us All Stars\",\"placements\":[\"multiview\",\"replay\"]}]}");
         using var desk = new CasterDesk(null, () => _clock.Now, new PriorityConfig(), null, _dir.Path);
         var app = new BroadcastApp(desk, () => null, Path.Combine(_dir.Path, BroadcastSettings.FileName));
-        JsonElement State() => JsonSerializer.SerializeToElement(app.State(), Camel);
+        JsonElement State() => JsonSerializer.SerializeToElement(app.State(), TestJson.Camel);
         foreach (var x in new[] { "A", "B", "C", "D" }) desk.Apply(JsonSerializer.Serialize(new { type = "snap", lobby = x, round = 1, phase = "ingame", t = 0 }));
         var _desk = desk;
         _desk.ShowPicked(new[] { "A", "B" });

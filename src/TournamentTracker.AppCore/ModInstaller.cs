@@ -59,7 +59,8 @@ namespace TournamentTracker.App
         {
             var state = new ModState { GameFound = GameLocator.IsGameFolder(gameDir) };
             if (!state.GameFound) return state;
-            state.Installed = File.Exists(Path.Combine(gameDir!, "BepInEx", "plugins", "TournamentTracker.dll"));
+            string dll = Path.Combine(gameDir!, "BepInEx", "plugins", "TournamentTracker.dll");
+            state.Installed = File.Exists(dll);
             state.GameArch = GameArch(gameDir!);
             string loader = Path.Combine(gameDir!, "winhttp.dll");
             if (File.Exists(loader)) state.LoaderArch = Machine(loader);
@@ -72,7 +73,7 @@ namespace TournamentTracker.App
             // The mod's own version wins: the marker can be missing or behind (a copy installed by hand).
             try
             {
-                if (state.Installed && System.Reflection.AssemblyName.GetAssemblyName(Path.Combine(gameDir!, "BepInEx", "plugins", "TournamentTracker.dll")).Version is Version v && v.Major + v.Minor + v.Build > 0)
+                if (state.Installed && System.Reflection.AssemblyName.GetAssemblyName(dll).Version is Version v && v.Major + v.Minor + v.Build > 0)
                     state.InstalledVersion = "v" + v.ToString(3);
             }
             catch (Exception) { }
@@ -173,12 +174,12 @@ namespace TournamentTracker.App
             string arch = TargetArch;
             string? bundleUrl = release.BundleFor(arch);
             if (bundleUrl == null)
-                return $"{release.Tag} has no mod download for {(arch == "x64" ? "64-bit" : "32-bit")} Among Us yet. Update The Button, or wait for the next release.";
+                return $"{release.Tag} has no mod download for {Bits(arch)} Among Us yet. Update The Button, or wait for the next release.";
             RemoveSetAside(gameDir);
             string temp = Path.Combine(Path.GetTempPath(), "tt-install-" + Guid.NewGuid().ToString("N"));
             try
             {
-                progress($"Downloading {release.Tag} ({(arch == "x64" ? "64-bit" : "32-bit")})…");
+                progress($"Downloading {release.Tag} ({Bits(arch)})…");
                 Directory.CreateDirectory(temp);
                 string zip = Path.Combine(temp, BundleName(arch));
                 var request = new HttpRequestMessage(HttpMethod.Get, bundleUrl);

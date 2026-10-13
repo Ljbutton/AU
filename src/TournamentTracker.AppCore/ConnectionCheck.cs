@@ -175,14 +175,14 @@ namespace TournamentTracker.App
             for (int i = 0; i < block.Length; i++) block[i] = (byte)'0';    // what Cloudflare's own test sends
             long reserved = 0, sent = 0, lastWriteTicks = 0;
             string? problem = null;
-            var counter = new Counter(
-                take: n =>
-                {
-                    if (stop.IsCancellationRequested) return false;
-                    if (Interlocked.Add(ref reserved, n) > o.Budget) { try { stop.Cancel(); } catch (ObjectDisposedException) { } return false; }
-                    return true;
-                },
-                sent: n => { Interlocked.Add(ref sent, n); Interlocked.Exchange(ref lastWriteTicks, sw.Elapsed.Ticks); });
+            // Hands the budget out as each request body is written, and counts what went.
+            bool Take(int n)
+            {
+                if (stop.IsCancellationRequested) return false;
+                if (Interlocked.Add(ref reserved, n) > o.Budget) { try { stop.Cancel(); } catch (ObjectDisposedException) { } return false; }
+                return true;
+            }
+            void Sent(int n) { Interlocked.Add(ref sent, n); Interlocked.Exchange(ref lastWriteTicks, sw.Elapsed.Ticks); }
 
             async Task Worker()
             {
@@ -194,7 +194,7 @@ namespace TournamentTracker.App
                     {
                         using var request = new HttpRequestMessage(HttpMethod.Post, o.UploadUrl + (o.UploadUrl.Contains('?') ? "&" : "?") + "bytes=" + size)
                         {
-                            Content = new UploadContent(size, block, counter),
+                            Content = new UploadContent(size, block, Take, Sent),
                         };
                         request.Headers.UserAgent.ParseAdd("TournamentTracker-App");
                         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, stop.Token).ConfigureAwait(false);
@@ -324,9 +324,10 @@ namespace TournamentTracker.App
                 }
                 double ms = p.Ms!.Value, jitter = p.JitterMs ?? 0;
                 score.Facts.Add($"{p.Name}: {ms:0} ms (jitter {jitter:0} ms){(p.Failed > 0 ? $", {p.Failed} of {p.Tries} didn't answer" : "")}");
+                bool shaky = ms >= SlowMs || jitter >= JitterWarnMs || p.Failed > 0;
                 if (ms >= VerySlowMs || jitter >= JitterBadMs) Worse(3);
-                else if (ms >= SlowMs || jitter >= JitterWarnMs || p.Failed > 0) Worse(2);
-                if (ms >= SlowMs || jitter >= JitterWarnMs || p.Failed > 0)
+                else if (shaky) Worse(2);
+                if (shaky)
                 {
                     Say(Wired);
                     Say("Close downloads, game updates and streams while you play; restart your router if it's been a while.");
@@ -365,29 +366,23 @@ namespace TournamentTracker.App
         public static string Needs =>
             $"Sending your game uses about {VideoLow:0}–{VideoHigh:0} Mbps for the picture (1080p), {CamLow:0}–{CamHigh:0} Mbps more for the player camera when the caster turns it on, and {Voice.ToString(CultureInfo.InvariantCulture)} Mbps for the lobby voice: {Recommended:0} Mbps upload is recommended.";
 
-        /// <summary>Hands the budget out as the request body is written, and counts what went.</summary>
-        private sealed class Counter
-        {
-            public readonly Func<int, bool> Take;
-            public readonly Action<int> Sent;
-            public Counter(Func<int, bool> take, Action<int> sent) { Take = take; Sent = sent; }
-        }
-
         /// <summary>
         /// A request body of <c>size</c> bytes written 64 KB at a time, each piece only once the budget allows
-        /// it (else the request is dropped), so a run never sends more than its budget.
+        /// it (<c>take</c>; else the request is dropped), so a run never sends more than its budget.
         /// </summary>
         private sealed class UploadContent : HttpContent
         {
             private readonly long _size;
             private readonly byte[] _block;
-            private readonly Counter _counter;
+            private readonly Func<int, bool> _take;
+            private readonly Action<int> _sent;
 
-            public UploadContent(long size, byte[] block, Counter counter)
+            public UploadContent(long size, byte[] block, Func<int, bool> take, Action<int> sent)
             {
                 _size = size;
                 _block = block;
-                _counter = counter;
+                _take = take;
+                _sent = sent;
                 Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/plain");
             }
 
@@ -397,9 +392,9 @@ namespace TournamentTracker.App
                 while (left > 0)
                 {
                     int n = (int)Math.Min(_block.Length, left);
-                    if (!_counter.Take(n)) throw new OperationCanceledException("The upload check stopped.");
+                    if (!_take(n)) throw new OperationCanceledException("The upload check stopped.");
                     await stream.WriteAsync(_block, 0, n).ConfigureAwait(false);
-                    _counter.Sent(n);
+                    _sent(n);
                     left -= n;
                 }
             }

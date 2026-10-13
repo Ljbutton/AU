@@ -302,21 +302,15 @@ namespace TournamentTracker.App
                 {
                     // From the caster, over VDO.Ninja (this host's send page): roster names for this lobby's players.
                     if (GamePath == null) return Ok(new { ok = false });
-                    string json = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("names", out var nm) && nm.ValueKind == JsonValueKind.Object ? nm.GetRawText() : "{}";
+                    string json = Has(input, "names", JsonValueKind.Object, out var nm) ? nm.GetRawText() : "{}";
                     bool sent = await _mod.NamesAsync(GamePath, json).ConfigureAwait(false) != null;
                     return Ok(new { ok = sent });
                 }
                 case ("GET", "/app/sendinfo"):
                 {
-                    string? push = null;
-                    bool cam = false;
                     var status = GamePath == null ? null : await StatusElementAsync(GamePath).ConfigureAwait(false);
-                    if (status is JsonElement s && s.ValueKind == JsonValueKind.Object && s.TryGetProperty("feed", out var feed) && feed.ValueKind == JsonValueKind.Object)
-                    {
-                        if (feed.TryGetProperty("pushUrl", out var pu) && pu.ValueKind == JsonValueKind.String) push = pu.GetString();
-                        cam = feed.TryGetProperty("cam", out var c) && c.ValueKind == JsonValueKind.True;
-                    }
-                    if (push != null && !push.StartsWith(TournamentSession.VdoNinja, StringComparison.Ordinal)) push = null;
+                    string? push = PushUrl(status);
+                    bool cam = Feed(status) is JsonElement feed && Has(feed, "cam", JsonValueKind.True, out _);
                     // The send page shares through shareUrl (what to share, the quality) and reads its stream name and password from pushUrl.
                     return Ok(new
                     {
@@ -342,14 +336,11 @@ namespace TournamentTracker.App
                     if (_settings.VoiceOff) return (200, "application/octet-stream", Array.Empty<byte>());
                     return (200, "application/octet-stream", VoiceNow().Read());
                 case ("GET", "/app/voice"):
-                {
-                    var v = VoiceNow();
-                    return Ok(new { on = !_settings.VoiceOff, mic = _settings.VoiceIncludeMic, state = v.State() });
-                }
+                    return Ok(new { on = !_settings.VoiceOff, mic = _settings.VoiceIncludeMic, state = VoiceNow().State() });
                 case ("POST", "/app/voice"):
                 {
                     var v = VoiceNow();
-                    double Level(string name, double was) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty(name, out var n) && n.ValueKind == JsonValueKind.Number ? Math.Max(0, Math.Min(1.5, n.GetDouble())) : was;
+                    double Level(string name, double was) => Has(input, name, JsonValueKind.Number, out var n) ? Math.Max(0, Math.Min(1.5, n.GetDouble())) : was;
                     _settings.VoiceLevel = v.VoiceLevel = Level("voiceLevel", _settings.VoiceLevel);
                     _settings.GameSoundLevel = v.GameLevel = Level("gameLevel", _settings.GameSoundLevel);
                     if (Arg("mic").Length > 0) _settings.VoiceIncludeMic = Arg("mic") == "true";
@@ -383,17 +374,14 @@ namespace TournamentTracker.App
                     _ = Task.Run(async () => { await Task.Delay(300).ConfigureAwait(false); _env.Restart(); });
                     return Ok(new { ok = true, message = "Restarting…" });
                 case ("POST", "/app/modauto"):
-                    _settings.AutoUpdateMod = Arg("on") == "true";
-                    TrySave();
-                    _nextAutoModUpdate = DateTime.MinValue;
-                    return Ok(new { ok = true, message = _settings.AutoUpdateMod ? "The mod updates itself while Among Us is closed." : "Automatic mod updates are off: Settings shows when a new version is out." });
+                    return Ok(Switch(Arg("on") == "true", on => { _settings.AutoUpdateMod = on; _nextAutoModUpdate = DateTime.MinValue; },
+                        "The mod updates itself while Among Us is closed.", "Automatic mod updates are off: Settings shows when a new version is out."));
                 case ("POST", "/app/modconsole"):
-                {
-                    _settings.ShowModConsole = Arg("on") == "true";
-                    TrySave();
-                    if (GamePath != null) try { ModInstaller.SetConsole(GamePath, _settings.ShowModConsole); } catch (Exception) { }
-                    return Ok(new { ok = true, message = _settings.ShowModConsole ? "The mod's console window shows from the next start of Among Us." : "No console window from the next start of Among Us (the log is still in Settings → Mod and updates → Open log)." });
-                }
+                    return Ok(Switch(Arg("on") == "true", on =>
+                    {
+                        _settings.ShowModConsole = on;
+                        if (GamePath != null) try { ModInstaller.SetConsole(GamePath, on); } catch (Exception) { }
+                    }, "The mod's console window shows from the next start of Among Us.", "No console window from the next start of Among Us (the log is still in Settings → Mod and updates → Open log)."));
                 case ("POST", "/app/hostdiscord"): return Ok(await SaveHostDiscordAsync(input).ConfigureAwait(false));
                 case ("POST", "/app/twitch"):
                 {
@@ -405,12 +393,35 @@ namespace TournamentTracker.App
                     return Ok(new { ok = true, message = handle == null ? "Twitch channel removed." : $"Your Twitch: {handle}. It shows on the tournament stream with your lobby." });
                 }
                 case ("POST", "/app/autoupdate"):
-                    _settings.AutoUpdateApp = Arg("on") == "true";
-                    TrySave();
-                    if (_settings.AutoUpdateApp && AppUpdateAvailable) _ = Task.Run(UpdateAppAsync);
-                    return Ok(new { ok = true, message = _settings.AutoUpdateApp ? "The Button updates itself." : "Automatic updates are off: Settings shows when a new version is out." });
+                    return Ok(Switch(Arg("on") == "true", on => { _settings.AutoUpdateApp = on; if (on && AppUpdateAvailable) _ = Task.Run(UpdateAppAsync); },
+                        "The Button updates itself.", "Automatic updates are off: Settings shows when a new version is out."));
                 default: return Text(404, "application/json", "{\"error\":\"not found\"}");
             }
+        }
+
+        /// <summary>One of Settings' on/off switches: set, saved, and said in words.</summary>
+        private object Switch(bool on, Action<bool> set, string yes, string no)
+        {
+            set(on);
+            TrySave();
+            return new { ok = true, message = on ? yes : no };
+        }
+
+        /// <summary>A property of a JSON object, when it's of the given kind.</summary>
+        private static bool Has(JsonElement e, string name, JsonValueKind kind, out JsonElement value)
+        {
+            value = default;
+            return e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out value) && value.ValueKind == kind;
+        }
+
+        /// <summary>The feed part of the mod's status (null: no status, or a mod without a feed).</summary>
+        private static JsonElement? Feed(JsonElement? status) => status is JsonElement s && Has(s, "feed", JsonValueKind.Object, out var feed) ? feed : null;
+
+        /// <summary>The mod's VDO.Ninja push link from its status (null: none, or not a VDO.Ninja link).</summary>
+        private static string? PushUrl(JsonElement? status)
+        {
+            string? url = Feed(status) is JsonElement feed && Has(feed, "pushUrl", JsonValueKind.String, out var push) ? push.GetString() : null;
+            return url != null && url.StartsWith(TournamentSession.VdoNinja, StringComparison.Ordinal) ? url : null;
         }
 
         // ---- State ------------------------------------------------------------------------
@@ -481,7 +492,7 @@ namespace TournamentTracker.App
             {
                 SendPage = new
                 {
-                    Open = _sendSeen != DateTime.MinValue && DateTime.UtcNow - _sendSeen < SendPageGone,
+                    Open = SendPageOpen,
                     Video = _sendVideo,
                     Note = _feedNote,
                 },
@@ -570,8 +581,7 @@ namespace TournamentTracker.App
             // The send page starts VDO.Ninja again and waits for the host to pick: the "stopped sending"
             // watch only counts again once the new share has sent a picture.
             _sendVideoOkAt = DateTime.MinValue;
-            bool open = _sendSeen != DateTime.MinValue && DateTime.UtcNow - _sendSeen < SendPageGone;
-            return new { ok = true, message = string.Join(" ", said) + (open
+            return new { ok = true, message = string.Join(" ", said) + (SendPageOpen
                 ? " The send page in your browser starts again: pick what to share there (the caster's picture is off until you do)."
                 : " Used the next time you send your game.") };
         }
@@ -674,7 +684,7 @@ namespace TournamentTracker.App
             var r = _checkResult;
             notes.Add(r == null ? "Connection check: not run since The Button started."
                 : $"Connection check ({r.At:yyyy-MM-dd HH:mm} UTC): {r.Score.Level}. {r.Score.Headline} {string.Join("; ", r.Score.Facts)}." + (r.Score.Advice.Count > 0 ? " Advice given: " + string.Join(" ", r.Score.Advice) : ""));
-            notes.Add($"Sharing: {(ShareMode == SendPage.ShareWindow ? "the Among Us window" : "the entire screen")}{(_settings.LowQuality ? ", lower quality" : "")}; lobby voice {(_settings.VoiceOff ? "off" : "on")}; send page {(_sendSeen != DateTime.MinValue && DateTime.UtcNow - _sendSeen < SendPageGone ? "open (video: " + (_sendVideo.Length > 0 ? _sendVideo : "unknown") + ")" : "not open")}.");
+            notes.Add($"Sharing: {(ShareMode == SendPage.ShareWindow ? "the Among Us window" : "the entire screen")}{(_settings.LowQuality ? ", lower quality" : "")}; lobby voice {(_settings.VoiceOff ? "off" : "on")}; send page {(SendPageOpen ? "open (video: " + (_sendVideo.Length > 0 ? _sendVideo : "unknown") + ")" : "not open")}.");
             if (_feedNote != null) notes.Add("Send page note: " + _feedNote);
             notes.Add("Discord bot (The Button's): " + JsonSerializer.Serialize(_bridge.Status(), Json));
             notes.Add("Setup code: " + (SetupCode.TryParse(_settings.SetupCode, out var code, out _) ? code.Describe() : "none") + (_settings.AdminCode != null ? "; administration code saved" : ""));
@@ -752,16 +762,16 @@ namespace TournamentTracker.App
 
         private async Task<object> SaveHostDiscordAsync(JsonElement input)
         {
-            string? Field(string name) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+            string? Field(string name) => Has(input, name, JsonValueKind.String, out var v) ? v.GetString() : null;
             var typed = new HostDiscord
             {
                 GuildId = Field("guild") ?? _settings.HostDiscord?.GuildId ?? "",
-                BotTokens = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("tokens", out var t) && t.ValueKind == JsonValueKind.Array
+                BotTokens = Has(input, "tokens", JsonValueKind.Array, out var t)
                     ? t.EnumerateArray().Select(x => x.ValueKind == JsonValueKind.String ? x.GetString() ?? "" : "").ToList() : new List<string>(),
                 PublicWebhook = Field("public")!,
                 StatusWebhook = Field("status")!,
             };
-            var remove = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("remove", out var rm) && rm.ValueKind == JsonValueKind.Array
+            var remove = Has(input, "remove", JsonValueKind.Array, out var rm)
                 ? rm.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Number).Select(x => x.GetInt32()).ToList() : new List<int>();
             string? codeGuild = SetupCode.TryParse(_settings.SetupCode, out var code, out _) ? code.GuildId : null;
             var result = await HostDiscordCheck.CheckAsync(_http, typed, _settings.HostDiscord, remove, codeGuild).ConfigureAwait(false);
@@ -907,7 +917,7 @@ namespace TournamentTracker.App
         private object StartInstall(bool repair = false, bool update = false)
         {
             if (_installing.Length > 0) return new { ok = false, message = "Already installing." };
-            if (GamePath == null) return new { ok = false, message = "Find Among Us first." };
+            if (GamePath == null) return new { ok = false, message = FindGameFirst };
             string game = GamePath;
             _installing = repair ? "Repairing the mod loader (Among Us needs the 64-bit one)…" : update ? "Updating the mod by itself…" : "Checking for the latest version…";
             _installResult = "";
@@ -933,7 +943,7 @@ namespace TournamentTracker.App
 
         private async Task<object> SaveSetupAsync(string text)
         {
-            if (GamePath == null) return new { ok = false, message = "Find Among Us first." };
+            if (GamePath == null) return new { ok = false, message = FindGameFirst };
             if (!SetupCode.TryParse(text, out var code, out var error)) return new { ok = false, message = error };
             // The organiser's own code unlocks the Organiser tab; nobody else sees that it exists.
             if (code.IsAdmin)
@@ -950,7 +960,7 @@ namespace TournamentTracker.App
 
         private async Task<object> ClearSetupAsync()
         {
-            if (GamePath == null) return new { ok = false, message = "Find Among Us first." };
+            if (GamePath == null) return new { ok = false, message = FindGameFirst };
             SetupCode.Clear(ModInstaller.DataDir(GamePath));
             _settings.SetupCode = null;
             TrySave();
@@ -958,15 +968,13 @@ namespace TournamentTracker.App
             return new { ok = true, message = "Setup code removed: the mod uses its settings file." };
         }
 
-        /// <summary>
-        /// "Send my game to the caster": switches it in the mod, then opens the private VDO.Ninja
-        /// page in the host's browser, where they pick the Among Us window.
-        /// </summary>
         // The VDO.Ninja send page: when it last asked for the feed, and whether its video is going out.
         private DateTime _sendSeen = DateTime.MinValue, _sendVideoOkAt = DateTime.MinValue;
         private string _sendVideo = "";
         private string? _feedNote;
         private static readonly TimeSpan SendPageGone = TimeSpan.FromSeconds(15), VideoGone = TimeSpan.FromSeconds(20);
+
+        private bool SendPageOpen => _sendSeen != DateTime.MinValue && DateTime.UtcNow - _sendSeen < SendPageGone;
 
         /// <summary>
         /// Sending video is on but the send page was closed (no asks for 15 s) or VDO.Ninja stopped
@@ -974,9 +982,7 @@ namespace TournamentTracker.App
         /// </summary>
         private async Task<bool> WatchSendPageAsync(JsonElement? status)
         {
-            if (status is not JsonElement s || s.ValueKind != JsonValueKind.Object || _sendSeen == DateTime.MinValue) return false;
-            bool on = s.TryGetProperty("feed", out var f) && f.ValueKind == JsonValueKind.Object && f.TryGetProperty("on", out var o) && o.ValueKind == JsonValueKind.True;
-            if (!on) return false;
+            if (_sendSeen == DateTime.MinValue || !(Feed(status) is JsonElement feed && Has(feed, "on", JsonValueKind.True, out _))) return false;
             string? why = SendPageStopped(DateTime.UtcNow, _sendSeen, _sendVideoOkAt, _sendVideo);
             if (why == null) return false;
             _sendSeen = DateTime.MinValue;
@@ -1027,6 +1033,10 @@ namespace TournamentTracker.App
             lock (_sendPageLock) _sendPageId = NewSendPageId();
         }
 
+        /// <summary>
+        /// "Send my game to the caster": switches it in the mod, then opens the private VDO.Ninja
+        /// page in the host's browser, where they pick the Among Us window.
+        /// </summary>
         private async Task<object> FeedAsync(bool on)
         {
             _sendSeen = DateTime.MinValue;
@@ -1034,37 +1044,33 @@ namespace TournamentTracker.App
             _sendVideo = "";
             if (on) _feedNote = null;
             else RetireSendPages();
-            if (GamePath == null) return new { ok = false, replies = new[] { "Find Among Us first." } };
+            if (GamePath == null) return Replies(false, FindGameFirst);
             string? answer = await _mod.CommandAsync(GamePath, on ? "feed on" : "feed off").ConfigureAwait(false);
-            if (answer == null) return new { ok = false, replies = new[] { "Among Us isn't running with the mod, so that can't be done right now." } };
-            if (on)
+            if (answer == null) return Replies(false, ModNotRunning);
+            // The Button's own page shares the screen through VDO.Ninja and sends the lobby's live data with it.
+            // A new tab every time (Open again is for when the old one picked the wrong screen or stalled): the old one is retired.
+            if (on && PushUrl(await StatusElementAsync(GamePath).ConfigureAwait(false)) != null)
             {
-                var status = await StatusElementAsync(GamePath).ConfigureAwait(false);
-                string? url = null;
-                if (status is JsonElement s && s.ValueKind == JsonValueKind.Object && s.TryGetProperty("feed", out var feed) && feed.ValueKind == JsonValueKind.Object
-                    && feed.TryGetProperty("pushUrl", out var push) && push.ValueKind == JsonValueKind.String)
-                    url = push.GetString();
-                // The Button's own page shares the screen through VDO.Ninja and sends the lobby's live data with it.
-                // A new tab every time (Open again is for when the old one picked the wrong screen or stalled): the old one is retired.
-                if (url != null && url.StartsWith(TournamentSession.VdoNinja, StringComparison.Ordinal))
-                {
-                    string id = NewSendPageId();
-                    lock (_sendPageLock) _sendPageId = id;
-                    try { _env.Open($"{Url}send?token={Token}&page={id}"); } catch (Exception) { }
-                    // What to pick is The Button's to say (the window or the whole screen, and where the sound comes from).
-                    return new { ok = true, replies = new[] { "Sending your game to the caster. " + SendPage.Instructions(ShareMode, !_settings.VoiceOff) } };
-                }
+                string id = NewSendPageId();
+                lock (_sendPageLock) _sendPageId = id;
+                try { _env.Open($"{Url}send?token={Token}&page={id}"); } catch (Exception) { }
+                // What to pick is The Button's to say (the window or the whole screen, and where the sound comes from).
+                return Replies(true, "Sending your game to the caster. " + SendPage.Instructions(ShareMode, !_settings.VoiceOff));
             }
             return JsonDocument.Parse(answer).RootElement;
         }
 
         private async Task<object> CommandAsync(string command)
         {
-            if (GamePath == null || command.Trim().Length == 0) return new { ok = false, replies = new[] { "Find Among Us first." } };
+            if (GamePath == null || command.Trim().Length == 0) return Replies(false, FindGameFirst);
             string? answer = await _mod.CommandAsync(GamePath, command).ConfigureAwait(false);
-            if (answer == null) return new { ok = false, replies = new[] { "Among Us isn't running with the mod, so that can't be done right now." } };
-            return JsonDocument.Parse(answer).RootElement;
+            return answer == null ? Replies(false, ModNotRunning) : JsonDocument.Parse(answer).RootElement;
         }
+
+        private const string FindGameFirst = "Find Among Us first.", ModNotRunning = "Among Us isn't running with the mod, so that can't be done right now.";
+
+        /// <summary>An answer in the shape of the mod's own (ok, and the lines to show).</summary>
+        private static object Replies(bool ok, string text) => new { ok, replies = new[] { text } };
 
         private object Open(string what)
         {

@@ -1,5 +1,4 @@
 using System.Text.Json;
-using TournamentTracker.Control;
 using TournamentTracker.Discord;
 using Xunit;
 
@@ -180,9 +179,7 @@ public class DisconnectTests : IDisposable
         var record = s.Disconnects.Record("Custom", 8, "The server closed the room", inGame: false, lobby: "ABCDEF", host: true, moddedFlag: false, safeMode: false);
         s.DisconnectSeen(record);
 
-        var control = JsonDocument.Parse(File.ReadAllText(Path.Combine(_dir.Path, ControlServer.FileName))).RootElement;
-        using var http = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{control.GetProperty("port").GetInt32()}/") };
-        http.DefaultRequestHeaders.Add("X-TT-Token", control.GetProperty("token").GetString());
+        using var http = AppHttp.Control(_dir.Path);
         var status = JsonDocument.Parse(await http.GetStringAsync("api/status")).RootElement;
         var last = status.GetProperty("lastDisconnect");
         Assert.Equal("2026-09-01T18:00:00.0000000Z", last.GetProperty("at").GetString());

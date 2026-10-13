@@ -5,6 +5,7 @@ using TournamentTracker.App.Broadcast;
 using TournamentTracker.App;
 using TournamentTracker.Setup;
 using Xunit;
+using static TournamentTracker.Tests.AppHttp;
 
 namespace TournamentTracker.Tests;
 
@@ -201,8 +202,7 @@ public class SupportBundleTests : IDisposable
         var opened = new List<string>();
         var env = new BroadcastEnvironment { SettingsFile = Path.Combine(App, "settings.json"), Port = 0, CasterPort = 0, Version = "0.3.15", SupportFolder = desktop, ObsFolder = Obs, Open = opened.Add };
         using var server = new BroadcastServer(env, new HttpClient(new FakeHttp()));
-        using var http = new HttpClient { BaseAddress = new Uri(server.Url) };
-        http.DefaultRequestHeaders.Add("X-App-Token", server.Token);
+        using var http = AppHttp.Client(server.Url, server.Token);
         Assert.NotNull(server.Desk);                                                       // unlocked with the planted code
         await Post(http, "app/admin/sim", new { on = "true" });
         await Wait.Until(() => server.Desk!.Board.Ranking().Count > 0, 10000);
@@ -241,12 +241,6 @@ public class SupportBundleTests : IDisposable
         var again = Read(Path.Combine(desktop, locked.GetProperty("file").GetString()!));
         Assert.Contains("LOCKED", again["summary.txt"]);
         Assert.True(again.ContainsKey("red-alert.log"));
-    }
-
-    private static async Task<JsonElement> Post(HttpClient http, string path, object body)
-    {
-        var r = await http.PostAsync(path, new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"));
-        return JsonDocument.Parse(await r.Content.ReadAsStringAsync()).RootElement.Clone();
     }
 
     private static Dictionary<string, string> Read(string zip)

@@ -40,8 +40,7 @@ public class BroadcastServerTests : IDisposable
         Assert.Contains("<script src=\"/base.js\"></script>\n<script>\nconst TOKEN", page);
         Assert.Contains("const esc = ", await anon.GetStringAsync("/base.js"));
 
-        using var http = new HttpClient { BaseAddress = new Uri(server.Url) };
-        http.DefaultRequestHeaders.Add("X-App-Token", server.Token);
+        using var http = AppHttp.Client(server.Url, server.Token);
         Assert.Equal(JsonValueKind.Null, (await Call(http, HttpMethod.Get, "app/state")).GetProperty("admin").ValueKind);
         Assert.Equal(HttpStatusCode.NotFound, (await http.GetAsync("app/admin/desk")).StatusCode);
         Assert.False((await Call(http, HttpMethod.Post, "app/admin/show", new { lobby = "A" })).GetProperty("ok").GetBoolean());
@@ -59,8 +58,7 @@ public class BroadcastServerTests : IDisposable
 
         // Remembered for next time.
         using var again = Server();
-        using var http2 = new HttpClient { BaseAddress = new Uri(again.Url) };
-        http2.DefaultRequestHeaders.Add("X-App-Token", again.Token);
+        using var http2 = AppHttp.Client(again.Url, again.Token);
         Assert.Equal("Cup", (await Call(http2, HttpMethod.Get, "app/state")).GetProperty("admin").GetProperty("tournament").GetString());
     }
 
@@ -81,8 +79,7 @@ public class BroadcastServerTests : IDisposable
     public async Task It_only_updates_when_asked_and_never_without_an_exe()
     {
         using var server = Server();
-        using var http = new HttpClient { BaseAddress = new Uri(server.Url) };
-        http.DefaultRequestHeaders.Add("X-App-Token", server.Token);
+        using var http = AppHttp.Client(server.Url, server.Token);
         var update = (await Call(http, HttpMethod.Get, "app/state")).GetProperty("update");
         Assert.False(update.GetProperty("supported").GetBoolean());     // tests have no RedAlert.exe
         Assert.False((await Call(http, HttpMethod.Post, "app/update")).GetProperty("ok").GetBoolean());
@@ -95,8 +92,7 @@ public class BroadcastServerTests : IDisposable
     public async Task Stream_Deck_links_need_their_key_and_switch_lobbies_and_the_player_camera()
     {
         using var server = Server();
-        using var http = new HttpClient { BaseAddress = new Uri(server.Url) };
-        http.DefaultRequestHeaders.Add("X-App-Token", server.Token);
+        using var http = AppHttp.Client(server.Url, server.Token);
         var admin = new SetupCode { Mode = "admin", TournamentId = "c", TournamentName = "Cup", BotTokens = new() { "admin" }, ResultsChannelId = "results" };
         Assert.True((await Call(http, HttpMethod.Post, "app/admin/code", new { code = admin.Encode() })).GetProperty("ok").GetBoolean());
         await Call(http, HttpMethod.Post, "app/admin/sim", new { on = "true" });
@@ -141,8 +137,7 @@ public class BroadcastServerTests : IDisposable
         // The key stays the same after a restart (the Stream Deck keeps working), until a new one is asked for.
         server.Dispose();
         using var again = Server();
-        using var http2 = new HttpClient { BaseAddress = new Uri(again.Url) };
-        http2.DefaultRequestHeaders.Add("X-App-Token", again.Token);
+        using var http2 = AppHttp.Client(again.Url, again.Token);
         string after = (await Call(http2, HttpMethod.Get, "app/admin/deck")).GetProperty("links")[0].GetProperty("url").GetString()!;
         Assert.EndsWith("key=" + key, after);
         await Call(http2, HttpMethod.Post, "app/admin/deck");

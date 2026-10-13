@@ -144,6 +144,14 @@ public class TournamentModeTests : IDisposable
         return s;
     }
 
+    /// <summary>A tournament host's session at round 1, and its lobby.</summary>
+    private (TournamentSession, List<PlayerSnapshot>) AtRoundOne(bool verify = false)
+    {
+        var s = Session(TournamentCode(), verify);
+        s.RunCommand("!r1");
+        return (s, Lobby());
+    }
+
     private static SetupCode TournamentCode() => new()
     {
         Mode = "tournament", TournamentId = "fall-cup", TournamentName = "Fall Cup", Webhook = Webhook,
@@ -189,9 +197,7 @@ public class TournamentModeTests : IDisposable
     [Fact]
     public async Task When_a_lobby_finishes_its_round_its_scores_go_to_the_staff_channel()
     {
-        var s = Session(TournamentCode());
-        var lobby = Lobby();
-        s.RunCommand("!r1");
+        var (s, lobby) = AtRoundOne();
         Play(s, lobby, "ImpostorByKill");
         Play(s, lobby);
         await s.PendingPosts;
@@ -233,9 +239,7 @@ public class TournamentModeTests : IDisposable
     [Fact]
     public async Task After_each_game_the_lobby_standings_show_the_round_the_cut_line_and_the_running_total()
     {
-        var s = Session(TournamentCode());
-        var lobby = Lobby();
-        s.RunCommand("!r1");
+        var (s, lobby) = AtRoundOne();
         Play(s, lobby, "ImpostorByKill");                          // Alice and Bob win round 1
         s.RunCommand("!r2");
         Play(s, lobby);                                            // crew wins round 2
@@ -253,9 +257,7 @@ public class TournamentModeTests : IDisposable
     [Fact]
     public async Task Referees_adjust_points_from_discord_and_see_a_tick()
     {
-        var s = Session(TournamentCode());
-        var lobby = Lobby();
-        s.RunCommand("!r1");
+        var (s, lobby) = AtRoundOne();
         s.GameStarted("ABCDEF", "Polus", lobby);
         _clock.Advance(120);
         _discord.Say("results", "!adjust LJ red -2 meta call in meeting", _clock.Now);      // typed during the game
@@ -277,9 +279,7 @@ public class TournamentModeTests : IDisposable
     [Fact]
     public async Task Host_voids_a_restarted_game_mid_game_and_it_counts_for_nothing()
     {
-        var s = Session(TournamentCode());
-        var lobby = Lobby();
-        s.RunCommand("!r1");
+        var (s, lobby) = AtRoundOne();
         s.GameStarted("ABCDEF", "Polus", lobby);
         Assert.True(s.RunCommand("!void lights bug"));
         Assert.Contains(s.Pump(), r => r.Public && r.Text.StartsWith("Game LJ-1 is void"));
@@ -298,9 +298,7 @@ public class TournamentModeTests : IDisposable
     [Fact]
     public async Task A_game_waits_for_the_host_to_verify_it_before_discord_sees_it()
     {
-        var s = Session(TournamentCode(), verify: true);
-        var lobby = Lobby();
-        s.RunCommand("!r1");
+        var (s, lobby) = AtRoundOne(verify: true);
         var game = Play(s, lobby);
         await s.PendingPosts;
         Assert.DoesNotContain(_discord.Messages, m => m.Content?.Contains("LJ-1") == true || m.File?.Contains(game.Id) == true);
@@ -336,9 +334,7 @@ public class TournamentModeTests : IDisposable
     [Fact]
     public async Task A_game_voided_before_it_was_verified_never_reaches_discord()
     {
-        var s = Session(TournamentCode(), verify: true);
-        var lobby = Lobby();
-        s.RunCommand("!r1");
+        var (s, lobby) = AtRoundOne(verify: true);
         Play(s, lobby);
         s.RunCommand("!void lobby restarted");
         Assert.Equal(0, s.Store.GamesRecorded);
@@ -353,9 +349,7 @@ public class TournamentModeTests : IDisposable
     [Fact]
     public async Task Waiting_games_survive_a_restart_and_reset_puts_every_game_away()
     {
-        var s = Session(TournamentCode(), verify: true);
-        var lobby = Lobby();
-        s.RunCommand("!r1");
+        var (s, lobby) = AtRoundOne(verify: true);
         Play(s, lobby);
         Play(s, lobby);
         await s.PendingPosts;
@@ -380,9 +374,7 @@ public class TournamentModeTests : IDisposable
     [Fact]
     public async Task Host_can_void_the_last_game_afterwards_and_unvoid_it()
     {
-        var s = Session(TournamentCode());
-        var lobby = Lobby();
-        s.RunCommand("!r1");
+        var (s, lobby) = AtRoundOne();
         Play(s, lobby);
         await s.PendingPosts;
         Assert.Equal(1, s.Store.GamesRecorded);
@@ -402,9 +394,7 @@ public class TournamentModeTests : IDisposable
     [Fact]
     public async Task Referee_void_sticks_even_if_the_message_is_deleted_and_only_unvoid_undoes_it()
     {
-        var s = Session(TournamentCode());
-        var lobby = Lobby();
-        s.RunCommand("!r1");
+        var (s, lobby) = AtRoundOne();
         Play(s, lobby);
         await s.PendingPosts;
 
@@ -436,9 +426,7 @@ public class TournamentModeTests : IDisposable
     [Fact]
     public async Task A_disconnect_prompts_the_host_and_notes_it_for_referees()
     {
-        var s = Session(TournamentCode());
-        var lobby = Lobby();
-        s.RunCommand("!r1");
+        var (s, lobby) = AtRoundOne();
         s.GameStarted("ABCDEF", "Polus", lobby);
         _clock.Advance(72);
         s.PlayerLeft(4);
@@ -531,9 +519,7 @@ public class TournamentModeTests : IDisposable
     [Fact]
     public async Task Games_are_recorded_for_the_replay_viewer_on_this_pc_only()
     {
-        var s = Session(TournamentCode());
-        var lobby = Lobby();
-        s.RunCommand("!r1");
+        var (s, lobby) = AtRoundOne();
         s.GameStarted("ABCDEF", "Polus", lobby);
         s.ReplayMapLoaded(new ReplayMap { Walls = { new[] { 0f, 0f, 5f, 0f } }, Rooms = { new ReplayRoom { Name = "Office", Area = new[] { 0f, 0f, 1f, 0f, 1f, 1f } } } });
         for (int i = 0; i < 30; i++)

@@ -12,7 +12,6 @@ public class TwitchTests : IDisposable
     private readonly FakeClock _clock = new();
     private readonly CasterDesk _desk;
     private TwitchDirector _tw = null!;
-    private static readonly JsonSerializerOptions Camel = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public TwitchTests()
     {
@@ -50,7 +49,7 @@ public class TwitchTests : IDisposable
 
     private static object Who(int i) => new { id = i, name = Names[i], color = i + 2, imp = i < 2 };
 
-    private JsonElement Overlay() => JsonSerializer.SerializeToElement(_tw.Overlay(), Camel);
+    private JsonElement Overlay() => JsonSerializer.SerializeToElement(_tw.Overlay(), TestJson.Camel);
 
     [Fact]
     public async Task A_game_prediction_opens_at_its_start_on_stream_and_resolves_at_its_end()
@@ -214,7 +213,7 @@ public class TwitchTests : IDisposable
         Assert.Equal(new[] { "MAL", "Soggy" }, poll.Options.Select(o => o.Title).OrderBy(x => x));       // not the one on already
         _tw.Handle("channel.poll.end", JsonSerializer.SerializeToElement(new { id = poll.Id, status = "completed", choices = poll.Options.Select(o => new { id = o.Id, votes = o.Title == "Soggy" ? 12 : 4 }) }));
         await Task.Delay(50);
-        var card = JsonSerializer.SerializeToElement(_desk.State(), Camel).GetProperty("cards").EnumerateArray().Single(c => c.GetProperty("rule").GetString() == "twitchLobby");
+        var card = JsonSerializer.SerializeToElement(_desk.State(), TestJson.Camel).GetProperty("cards").EnumerateArray().Single(c => c.GetProperty("rule").GetString() == "twitchLobby");
         Assert.Equal("show:Soggy", card.GetProperty("action").GetString());
         Assert.Equal("Chat picked Soggy next (75% of 16 votes).", card.GetProperty("text").GetString());
         Assert.Equal("LJ", _desk.OnAir.Slots[0]);                      // nothing switches until the caster says
@@ -227,7 +226,7 @@ public class TwitchTests : IDisposable
         _desk.Roster.Extra.Add(new RosterEntry { Name = "Jake Rivera", InGameNames = new() { "Jakey" } });
         string shout = api.Calls.Count(c => c.StartsWith("reward ")) == 2 ? "" : "missing";
         Assert.Equal("", shout);
-        var state = JsonSerializer.SerializeToElement(_tw.State(), Camel);
+        var state = JsonSerializer.SerializeToElement(_tw.State(), TestJson.Camel);
         // Find the rewards' ids from what test mode made.
         var rewardIds = typeof(TwitchDirector).GetField("_rewards", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(_tw) as Dictionary<string, string>;
         string replayId = rewardIds!.Single(x => x.Value == "replay").Key, shoutId = rewardIds!.Single(x => x.Value == "shoutout").Key;
@@ -240,7 +239,7 @@ public class TwitchTests : IDisposable
         Redeem("r4", replayId, "that kill");
         await _tw.TickAsync();
         Assert.Contains("refunded r1", api.Calls);                    // the filter turns it away, points back
-        var reds = JsonSerializer.SerializeToElement(_tw.State(), Camel).GetProperty("redemptions").EnumerateArray().ToDictionary(r => r.GetProperty("id").GetString()!);
+        var reds = JsonSerializer.SerializeToElement(_tw.State(), TestJson.Camel).GetProperty("redemptions").EnumerateArray().ToDictionary(r => r.GetProperty("id").GetString()!);
         Assert.Equal("denied", reds["r1"].GetProperty("status").GetString());
         Assert.Equal("Jake Rivera", reds["r2"].GetProperty("playerName").GetString());
         Assert.Equal("not on the tournament list", reds["r3"].GetProperty("flag").GetString());
@@ -356,8 +355,8 @@ public class TwitchTests : IDisposable
         Send("LJ", "event", "meeting", new { caller = Who(6) });
         for (int i = 0; i < 25; i++) { _clock.Advance(1); await _tw.TickAsync(); }
         Assert.True(_tw.Vote!.Voters.Count > 0);                                     // fake viewers typed !sus
-        Assert.Contains(JsonSerializer.SerializeToElement(_tw.State(), Camel).GetProperty("redemptions").EnumerateArray(), r => r.GetProperty("user").GetString()!.Length > 0);
-        Assert.Contains(JsonSerializer.SerializeToElement(_tw.State(), Camel).GetProperty("log").EnumerateArray(), l => l.GetProperty("text").GetString()!.StartsWith("Poll: Which lobby"));
+        Assert.Contains(JsonSerializer.SerializeToElement(_tw.State(), TestJson.Camel).GetProperty("redemptions").EnumerateArray(), r => r.GetProperty("user").GetString()!.Length > 0);
+        Assert.Contains(JsonSerializer.SerializeToElement(_tw.State(), TestJson.Camel).GetProperty("log").EnumerateArray(), l => l.GetProperty("text").GetString()!.StartsWith("Poll: Which lobby"));
     }
 
     [Fact]

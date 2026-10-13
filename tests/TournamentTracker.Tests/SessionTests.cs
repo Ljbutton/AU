@@ -25,12 +25,7 @@ public class SessionTests : IDisposable
     private TournamentSession Session(bool bot = true, Action<TrackerSettings>? configure = null)
     {
         var settings = new TrackerSettings { TournamentName = "Fall Cup", StatsWebhookUrl = Webhook, LiveStatus = false, PublicChat = true, ControlPort = -1, VerifyResults = false };
-        if (bot)
-        {
-            settings.AutoMute.Enabled = true;
-            settings.AutoMute.GuildId = "g1";
-            settings.AutoMute.BotTokens.Add("tok");
-        }
+        if (bot) settings.WithBot();
         configure?.Invoke(settings);
         var s = new TournamentSession(settings, _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now, _voice, Presence);
         _sessions.Add(s);

@@ -116,14 +116,13 @@ export class Deck {
 	async run(key, req, o = {}) {
 		if (!req || req.error) {
 			this.log(`Not sent: ${req?.error ?? "nothing to send"}`);
-			Promise.resolve(key.handle.showAlert?.()).catch(() => {});
+			show(key, "showAlert");
 			return false;
 		}
 		const res = await this.send(req.path, req.query ?? {});
 		this.log(`${req.path} -> ${res.status} ${res.message ?? ""}`.trim());
-		if (res.ok) {
-			if (o.ok !== false && !key.dial) Promise.resolve(key.handle.showOk?.()).catch(() => {});
-		} else Promise.resolve(key.handle.showAlert?.()).catch(() => {});
+		if (!res.ok) show(key, "showAlert");
+		else if (o.ok !== false && !key.dial) show(key, "showOk");
 		return res.ok;
 	}
 
@@ -148,7 +147,7 @@ export class Deck {
 				if (key.committing && !(await key.committing)) return;
 				if (key.pending !== null && key.staged && key.staged.value === key.pending && !key.staged.ok) {
 					this.log("Not sent: the dialled lobby wasn't staged, so Take would put the old Preview on.");
-					Promise.resolve(key.handle.showAlert?.()).catch(() => {});
+					show(key, "showAlert");
 					return;
 				}
 			}
@@ -257,6 +256,9 @@ export class Deck {
 		step().catch(() => (key.scrubbing = false));
 	}
 }
+
+/** The key's tick or alert triangle (if Stream Deck can't show it, nothing more is done). */
+const show = (key, what) => Promise.resolve(key.handle[what]?.()).catch(() => {});
 
 /**
  * What the Property Inspector shows to help fill in a key: the lobbies by number and their players by

@@ -11,7 +11,6 @@ public class LobbyVoiceTests : IDisposable
 {
     private readonly TempDir _dir = new();
     private readonly FakeClock _clock = new();
-    private static readonly JsonSerializerOptions Camel = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public void Dispose() => _dir.Dispose();
 
@@ -50,7 +49,7 @@ public class LobbyVoiceTests : IDisposable
         mix.AddVoice(Tone(5, 480), 480);
         Assert.Equal(960, Samples(mix.Read()).Length);
 
-        var state = JsonSerializer.SerializeToElement(mix.State(), Camel);
+        var state = JsonSerializer.SerializeToElement(mix.State(), TestJson.Camel);
         Assert.Equal("off", state.GetProperty("voice").GetProperty("state").GetString());
     }
 
@@ -60,11 +59,11 @@ public class LobbyVoiceTests : IDisposable
         using var mix = new VoiceCapture(() => _clock.Now);
         mix.Read();
         mix.AddVoice(Tone(16384, 100), 100);                    // half scale: −6 dB
-        var s = JsonSerializer.SerializeToElement(mix.State(), Camel);
+        var s = JsonSerializer.SerializeToElement(mix.State(), TestJson.Camel);
         Assert.Equal(-6.0, s.GetProperty("voice").GetProperty("level").GetDouble(), 0);
         Assert.Equal(-60, s.GetProperty("game").GetProperty("level").GetDouble());
         _clock.Advance(2);
-        Assert.Equal(-60, JsonSerializer.SerializeToElement(mix.State(), Camel).GetProperty("voice").GetProperty("level").GetDouble());
+        Assert.Equal(-60, JsonSerializer.SerializeToElement(mix.State(), TestJson.Camel).GetProperty("voice").GetProperty("level").GetDouble());
     }
 
     [Fact]
@@ -79,10 +78,7 @@ public class LobbyVoiceTests : IDisposable
     public async Task The_referee_can_post_a_voice_may_be_recorded_notice_in_the_lobby_voice_channel()
     {
         var http = new FakeHttp();
-        var settings = new TrackerSettings { TournamentName = "Cup", LiveStatus = false, ControlPort = -1, PostLeaderboardAfterEachGame = false };
-        settings.AutoMute.Enabled = true;
-        settings.AutoMute.GuildId = "g1";
-        settings.AutoMute.BotTokens.Add("tok");
+        var settings = new TrackerSettings { TournamentName = "Cup", LiveStatus = false, ControlPort = -1, PostLeaderboardAfterEachGame = false }.WithBot();
         settings.AutoMute.VoiceChannelId = "vc";
         using var s = new TournamentSession(settings, _dir.Path, NullLog.Instance, new HttpClient(http), () => _clock.Now, new FakeVoiceApi(), new VoicePresenceState("g1") { Connected = true });
         s.VoiceTick(Voice.VoicePhase.Lobby, Players.Lobby());

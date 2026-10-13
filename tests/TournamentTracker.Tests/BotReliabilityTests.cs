@@ -302,10 +302,7 @@ public class LiveRetryTests : IDisposable
         _http.Default = r => r.Method == HttpMethod.Post ? FakeHttp.Json(HttpStatusCode.OK, """{"id":"555"}""")
             : r.Method.Method == "PATCH" && fail ? FakeHttp.Json(HttpStatusCode.Forbidden, """{"code":50013}""")
             : FakeHttp.Json(HttpStatusCode.OK, "{}");
-        var settings = new TrackerSettings { TournamentName = "Cup", StatsWebhookUrl = Webhook, LiveStatus = true, ControlPort = -1, VerifyResults = false };
-        settings.AutoMute.Enabled = true;
-        settings.AutoMute.GuildId = "g1";
-        settings.AutoMute.BotTokens.Add("tok");
+        var settings = new TrackerSettings { TournamentName = "Cup", StatsWebhookUrl = Webhook, LiveStatus = true, ControlPort = -1, VerifyResults = false }.WithBot();
         settings.AutoMute.LinkMenu = false;
         settings.AutoMute.AutoLinkByName = false;
         var s = _session = new TournamentSession(settings, _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now, new FakeVoiceApi(), new VoicePresenceState("g1") { Connected = true });

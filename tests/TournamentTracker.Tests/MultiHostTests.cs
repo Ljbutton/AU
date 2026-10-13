@@ -33,10 +33,7 @@ public class MultiHostTests : IDisposable
 
     private TournamentSession Session(Action<TrackerSettings>? configure = null, string? dir = null)
     {
-        var settings = new TrackerSettings { TournamentName = "Fall Cup", StatsWebhookUrl = Webhook, LiveStatus = false, PublicChat = true, ControlPort = -1, VerifyResults = false };
-        settings.AutoMute.Enabled = true;
-        settings.AutoMute.GuildId = "g1";
-        settings.AutoMute.BotTokens.Add("tok");
+        var settings = new TrackerSettings { TournamentName = "Fall Cup", StatsWebhookUrl = Webhook, LiveStatus = false, PublicChat = true, ControlPort = -1, VerifyResults = false }.WithBot();
         settings.AutoMute.AutoLinkByName = false;
         configure?.Invoke(settings);
         var s = new TournamentSession(settings, dir ?? _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now, new FakeVoiceApi(), _presence);
@@ -89,10 +86,7 @@ public class MultiHostTests : IDisposable
     public async Task The_game_channel_is_the_one_the_host_is_in()
     {
         var voice = new FakeVoiceApi();
-        var settings = new TrackerSettings { TournamentName = "Cup", LiveStatus = false, PublicChat = true, ControlPort = -1 };
-        settings.AutoMute.Enabled = true;
-        settings.AutoMute.GuildId = "g1";
-        settings.AutoMute.BotTokens.Add("tok");
+        var settings = new TrackerSettings { TournamentName = "Cup", LiveStatus = false, PublicChat = true, ControlPort = -1 }.WithBot();
         settings.AutoMute.AutoLinkByName = false;
         settings.AutoMute.MuteSpectators = true;
         using var s = new TournamentSession(settings, _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now, voice, _presence);

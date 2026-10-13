@@ -2,7 +2,6 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using TournamentTracker.Broadcast;
-using TournamentTracker.Control;
 using TournamentTracker.Discord;
 using TournamentTracker.Voice;
 using Xunit;
@@ -87,21 +86,13 @@ public class SessionFixTests : IDisposable
         return (JsonDocument.Parse(await (await post).Content.ReadAsStringAsync()).RootElement.Clone(), chat);
     }
 
-    private static HttpClient App(string dir)
-    {
-        var control = JsonDocument.Parse(File.ReadAllText(Path.Combine(dir, ControlServer.FileName))).RootElement;
-        var http = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{control.GetProperty("port").GetInt32()}/") };
-        http.DefaultRequestHeaders.Add("X-TT-Token", control.GetProperty("token").GetString());
-        return http;
-    }
-
     [Fact]
     public async Task The_casters_switches_answer_the_app_but_stay_out_of_the_hosts_chat()
     {
         // The referee's screen is on stream, and its mini chat shows the host's chat.
         using var s = Session(port: 0);
         s.VoiceTick(VoicePhase.Lobby, Players.Lobby(), "ABCDEF", "Polus");
-        using var http = App(_dir.Path);
+        using var http = AppHttp.Control(_dir.Path);
 
         var (answer, chat) = await AppCommand(s, http, "spec cam 3");
         Assert.True(answer.GetProperty("ok").GetBoolean());
