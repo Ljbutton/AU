@@ -199,12 +199,8 @@ namespace TournamentTracker.Plugin
         private static Camera? HudCamera()
         {
             if (_on != null) return _on;
-            int bit = 1 << HudManager.Instance.gameObject.layer;
-            Camera? best = null;
-            foreach (var c in Camera.allCameras)
-                if (c != null && c.orthographic && (c.cullingMask & bit) != 0 && (best == null || c.depth > best.depth)) best = c;
             // Usually the main camera draws the HUD too; the list is sized to whichever does.
-            _on = best ?? Camera.main;
+            _on = Drawing.CameraFor(HudManager.Instance.gameObject.layer);
             return _on;
         }
 
@@ -212,21 +208,13 @@ namespace TournamentTracker.Plugin
         {
             try
             {
-                var go = new GameObject("TT Mini vitals");
-                go.layer = layer;
-                go.transform.SetParent(camera.transform, false);
-                _text = go.AddComponent<TextMeshPro>();
-                var font = Object.FindObjectOfType<TextMeshPro>();
-                if (font != null && font != _text) _text.font = font.font;
+                _text = Drawing.MakeText("TT Mini vitals", camera, layer);
                 _text.alignment = TextAlignmentOptions.MidlineLeft;
                 _text.enableWordWrapping = false;
                 _text.richText = true;
                 _text.fontSize = 1.5f;
                 _text.lineSpacing = -8f;
-                _text.color = Color.white;
                 _text.outlineWidth = 0.1f;
-                _text.outlineColor = new Color32(0, 0, 0, 255);
-                _text.sortingOrder = 500;
                 _text.rectTransform.pivot = new Vector2(0, 0.5f);
                 _last = "";
                 _placedSize = float.NaN;

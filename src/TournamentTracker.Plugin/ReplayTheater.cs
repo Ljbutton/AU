@@ -349,25 +349,17 @@ namespace TournamentTracker.Plugin
             // Drawn by the camera that draws the game's own screen overlays, on their layer, so it's
             // on top of the map (on the map's layer it sat behind the ship and nothing showed).
             int layer = HudManager.InstanceExists ? HudManager.Instance.gameObject.layer : 5;
-            var camera = HudCamera(layer);
+            var camera = Drawing.CameraFor(layer);
             if (camera == null) return;
             if (_hud != null && _hudOn != camera) { Object.Destroy(_hud.gameObject); _hud = null; }
             if (_hud == null)
             {
                 try
                 {
-                    var go = new GameObject("ReplayHud");
-                    go.layer = layer;
-                    go.transform.SetParent(camera.transform, false);
-                    _hud = go.AddComponent<TextMeshPro>();
-                    var font = Object.FindObjectOfType<TextMeshPro>();
-                    if (font != null && font != _hud) _hud.font = font.font;
+                    _hud = Drawing.MakeText("ReplayHud", camera, layer);
                     _hud.alignment = TextAlignmentOptions.TopLeft;
                     _hud.enableWordWrapping = false;
-                    _hud.color = Color.white;
                     _hud.outlineWidth = 0.2f;
-                    _hud.outlineColor = new Color32(0, 0, 0, 255);
-                    _hud.sortingOrder = 500;
                     _hudOn = camera;
                 }
                 catch (Exception e)
@@ -387,16 +379,6 @@ namespace TournamentTracker.Plugin
             _hud.text = text;
         }
         private static Camera? _hudOn;
-
-        /// <summary>The camera that draws the screen overlays' layer (the main one if it draws everything).</summary>
-        private static Camera? HudCamera(int layer)
-        {
-            int bit = 1 << layer;
-            Camera? best = null;
-            foreach (var c in Camera.allCameras)
-                if (c != null && c.orthographic && (c.cullingMask & bit) != 0 && (best == null || c.depth > best.depth)) best = c;
-            return best ?? Camera.main;
-        }
 
         private static string Clock(double seconds) => $"{(int)(seconds / 60)}:{(int)(seconds % 60):00}";
 
