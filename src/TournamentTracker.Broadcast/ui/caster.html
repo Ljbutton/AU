@@ -958,11 +958,9 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 </section>
 </main>
 <div id="toast" role="status" aria-live="polite"></div>
+<script src="/base.js"></script>
 <script>
 const TOKEN = '__APP_TOKEN__';
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const head = c => `/crew/${c >= 0 && c < 18 ? c : 15}.png`;
 let S = null;
 
 // Every button's call: anything that goes wrong is said (a toast), never silent. Reads (GET) poll quietly and throw.
@@ -987,7 +985,6 @@ async function api(method, path, body) {
   if (!quiet && j.ok === false && j.message) toast(j.message);
   return j;
 }
-function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 4200); }
 
 // ---- Lists kept in place --------------------------------------------------------------------------
 // Each list keeps one element per item (by its key): made once, rewritten only when what it shows
@@ -2929,26 +2926,6 @@ refresh();
 setInterval(refresh, 1500);
 // The organiser's view (the caster overlay's lobby, Discord problems): every 2 s on Settings, every 5 s otherwise.
 setInterval(() => { if (Date.now() - orgAt >= (PAGE === 'settings' ? 2000 : 5000) - 100) loadOrganiser(); }, 1000);
-
-// ---- Window: the header is the title bar (drag, double-click to maximise) --------------------
-(() => {
-  const host = window.chrome && window.chrome.webview;
-  if (!host) return;
-  $('winctl').hidden = false;
-  document.querySelector('header').addEventListener('mousedown', e => {
-    if (e.button !== 0 || e.target.closest('button,a,input,select,textarea')) return;
-    e.preventDefault();
-    host.postMessage('drag');
-  });
-  $('winctl').addEventListener('click', e => { const b = e.target.closest('[data-win]'); if (b) host.postMessage(b.dataset.win); });
-  host.addEventListener('message', e => {
-    if (typeof e.data === 'string' && e.data.startsWith('maximized:')) {
-      const on = e.data === 'maximized:true';
-      document.body.classList.toggle('maxed', on);
-      document.querySelector('[data-win="max"]').title = on ? 'Restore' : 'Maximise';
-    }
-  });
-})();
 </script>
 </body>
 </html>

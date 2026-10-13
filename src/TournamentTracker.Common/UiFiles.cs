@@ -6,8 +6,8 @@ using System.Text.RegularExpressions;
 namespace TournamentTracker.App
 {
     /// <summary>
-    /// The files built into an app (its pages, and the fonts and crewmate heads both apps take from The
-    /// Button's ui folder), and the two kinds both serve the same way: /fonts/….woff2 and /crew/N.png.
+    /// The files built into an app (its pages, and what both apps take from The Button's ui folder: the
+    /// fonts, crewmate heads and the pages' shared look and script), served the same way by both.
     /// </summary>
     public static class UiFiles
     {
@@ -43,5 +43,13 @@ namespace TournamentTracker.App
             if (bytes.Length == 0) return null;
             return (font.Success ? "font/woff2" : "image/png", bytes);
         }
+
+        /// <summary>/base.css and /base.js, the look and script both apps' own pages share; null for any other route.</summary>
+        public static (string Type, byte[] Body)? Base(Assembly assembly, string route) => route switch
+        {
+            "/base.css" => ("text/css; charset=utf-8", Bytes(assembly, "ui/base.css")),
+            "/base.js" => ("text/javascript; charset=utf-8", Bytes(assembly, "ui/base.js")),
+            _ => null,
+        };
     }
 }

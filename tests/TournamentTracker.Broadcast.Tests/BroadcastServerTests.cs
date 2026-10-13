@@ -35,8 +35,10 @@ public class BroadcastServerTests : IDisposable
         Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync("app/state")).StatusCode);
         var head = await anon.GetByteArrayAsync("/crew/7.png");                       // players' colours
         Assert.Equal((byte)0x89, head[0]);
-        Assert.Contains("<link rel=\"stylesheet\" href=\"/base.css\">", page);       // the look it shares with The Button
+        Assert.Contains("<link rel=\"stylesheet\" href=\"/base.css\">", page);       // the look and page script it shares with The Button
         Assert.Contains("#toast{", await anon.GetStringAsync("/base.css"));
+        Assert.Contains("<script src=\"/base.js\"></script>\n<script>\nconst TOKEN", page);
+        Assert.Contains("const esc = ", await anon.GetStringAsync("/base.js"));
 
         using var http = new HttpClient { BaseAddress = new Uri(server.Url) };
         http.DefaultRequestHeaders.Add("X-App-Token", server.Token);

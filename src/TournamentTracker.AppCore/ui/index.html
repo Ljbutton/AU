@@ -502,11 +502,9 @@ details.advanced[open] summary h2::before{content:'▾ '}
 </main>
 <div id="toast" role="status" aria-live="polite"></div>
 
+<script src="/base.js"></script>
 <script>
 const TOKEN = '__APP_TOKEN__';
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const head = c => `/crew/${c >= 0 && c < 18 ? c : 15}.png`;
 // For parts drawn on every refresh: only replaced when they changed. Replacing a button between the press and
 // the release of a click loses the click, and resets hover and keyboard focus.
 function setHTML(el, html) { if (el._html !== html) { el._html = html; el.innerHTML = html; } }
@@ -516,7 +514,6 @@ async function api(method, path, body) {
   const r = await fetch(path, { method, headers: { 'X-App-Token': TOKEN, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   return r.json();
 }
-function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 4200); }
 async function cmd(command) {
   const r = await api('POST', '/app/command', { command });
   toast(r.replies && r.replies.length ? r.replies.join(' ') : 'Sent.');
@@ -1320,26 +1317,6 @@ setInterval(() => {
   orgTick++;
   if ($('organiser').classList.contains('on') || (orgTick % 5 === 0 && S && S.admin && $('points').classList.contains('on') && $('home-ref').open)) loadOrganiser();
 }, 2000);
-
-// ---- Window: the header is the title bar (drag, double-click to maximise) --------------------
-(() => {
-  const host = window.chrome && window.chrome.webview;
-  if (!host) return;
-  $('winctl').hidden = false;
-  document.querySelector('header').addEventListener('mousedown', e => {
-    if (e.button !== 0 || e.target.closest('button,a,input,select,textarea,.alert')) return;
-    e.preventDefault();
-    host.postMessage('drag');
-  });
-  $('winctl').addEventListener('click', e => { const b = e.target.closest('[data-win]'); if (b) host.postMessage(b.dataset.win); });
-  host.addEventListener('message', e => {
-    if (typeof e.data === 'string' && e.data.startsWith('maximized:')) {
-      const on = e.data === 'maximized:true';
-      document.body.classList.toggle('maxed', on);
-      document.querySelector('[data-win="max"]').title = on ? 'Restore' : 'Maximise';
-    }
-  });
-})();
 </script>
 </body>
 </html>

@@ -310,11 +310,15 @@ public class AppTests : IDisposable
         var head = await anon.GetByteArrayAsync("/crew/17.png");            // every colour has a head, up to coral
         Assert.Equal(new byte[] { 0x89, (byte)'P', (byte)'N', (byte)'G' }, head.Take(4).ToArray());
         Assert.Equal(HttpStatusCode.NotFound, (await anon.GetAsync("/crew/18.png")).StatusCode);
-        // The look it shares with Red Alert.
+        // The look and page script it shares with Red Alert.
         Assert.Contains("<link rel=\"stylesheet\" href=\"/base.css\">", page);
+        Assert.Contains("<script src=\"/base.js\"></script>\n<script>\nconst TOKEN", page);
         var css = await anon.GetAsync("/base.css");
         Assert.Equal("text/css", css.Content.Headers.ContentType?.MediaType);
         Assert.Contains(".winctl{", await css.Content.ReadAsStringAsync());
+        var js = await anon.GetAsync("/base.js");
+        Assert.Equal("text/javascript", js.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("host.postMessage('drag')", await js.Content.ReadAsStringAsync());
     }
 
     [Fact]
@@ -474,6 +478,8 @@ public class UiFilesTests
         Assert.Null(UiFiles.Asset(app, "/crew/18.png"));
         Assert.Null(UiFiles.Asset(app, "/fonts/OFL-Teko.txt"));
         Assert.Null(UiFiles.Asset(app, "/index.html"));
+        Assert.Contains("function toast(", Encoding.UTF8.GetString(UiFiles.Base(app, "/base.js")!.Value.Body));
+        Assert.Null(UiFiles.Base(app, "/base.html"));
         Assert.Contains("__APP_TOKEN__", UiFiles.Text(app, "ui/index.html"));
         Assert.Equal("", UiFiles.Text(app, "ui/nothing.html"));
         Assert.Empty(UiFiles.Bytes(app, "ui/nothing.png"));
