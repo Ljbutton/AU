@@ -61,9 +61,8 @@ namespace TournamentTracker.App.Broadcast
         {
             try
             {
-                if (path != null && File.Exists(path))
+                if (Files.ReadJson<ObsSettings>(path, Json) is { } s)
                 {
-                    var s = JsonSerializer.Deserialize<ObsSettings>(File.ReadAllText(path), Json) ?? new ObsSettings();
                     s.Sources = new Dictionary<string, string>(s.Sources ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
                     s.CamSources = new Dictionary<string, string>(s.CamSources ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
                     s.Renamed ??= new Dictionary<string, string>();
@@ -84,9 +83,7 @@ namespace TournamentTracker.App.Broadcast
 
         public void Save(string? path)
         {
-            if (path == null) return;
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, JsonSerializer.Serialize(this, Json));
+            if (path != null) Files.WriteJson(path, this, Json);
         }
     }
 

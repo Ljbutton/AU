@@ -30,18 +30,9 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Player cameras off for every lobby (on unless turned off).</summary>
         public bool CamOff { get; set; }
 
-        public static BroadcastAppSettings Load(string file)
-        {
-            try { if (File.Exists(file)) return JsonSerializer.Deserialize<BroadcastAppSettings>(File.ReadAllText(file)) ?? new BroadcastAppSettings(); }
-            catch (Exception) { }
-            return new BroadcastAppSettings();
-        }
+        public static BroadcastAppSettings Load(string file) => Files.ReadJson<BroadcastAppSettings>(file) ?? new BroadcastAppSettings();
 
-        public void Save(string file)
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            File.WriteAllText(file, JsonSerializer.Serialize(this));
-        }
+        public void Save(string file) => Files.WriteJson(file, this);
     }
 
     /// <summary>What the Windows window gives the broadcast app: where things are, and how to open files and links.</summary>

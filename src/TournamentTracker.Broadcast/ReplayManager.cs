@@ -117,9 +117,7 @@ namespace TournamentTracker.App.Broadcast
                 TagChanged?.Invoke(JsonSerializer.Serialize(new { on = false }));
                 OnChanged?.Invoke(false);
             }
-            foreach (var c in gone)
-                foreach (var f in new[] { c.File, c.Thumbnail })
-                    try { if (f != null && File.Exists(f)) File.Delete(f); } catch (Exception) { }
+            foreach (var c in gone) { Files.Delete(c.File); Files.Delete(c.Thumbnail); }
             return gone.Select(c => c.Id).ToHashSet();
         }
 

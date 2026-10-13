@@ -88,12 +88,7 @@ namespace TournamentTracker.App.Broadcast
         public MontageManager(CasterDesk desk, ReplayManager replays, MontageBuilder builder, SponsorBook? sponsors, Func<ReplaySettings> settings, Func<DateTime>? clock = null, string? archivePath = null)
         {
             _archivePath = archivePath;
-            try
-            {
-                if (archivePath != null && File.Exists(archivePath))
-                    _archive = System.Text.Json.JsonSerializer.Deserialize<List<ArchivedMontage>>(File.ReadAllText(archivePath), ArchiveJson) ?? new List<ArchivedMontage>();
-            }
-            catch (Exception) { }
+            _archive = Files.ReadJson<List<ArchivedMontage>>(archivePath, ArchiveJson) ?? new List<ArchivedMontage>();
             _desk = desk;
             _replays = replays;
             _builder = builder;
@@ -353,7 +348,7 @@ namespace TournamentTracker.App.Broadcast
             {
                 List<ArchivedMontage> keep;
                 lock (_lock) keep = _archive.Where(x => !x.Simulated).ToList();
-                File.WriteAllText(_archivePath, System.Text.Json.JsonSerializer.Serialize(keep, ArchiveJson));
+                Files.WriteJson(_archivePath, keep, ArchiveJson);
             }
             catch (Exception) { }
         }
@@ -398,7 +393,7 @@ namespace TournamentTracker.App.Broadcast
                 if (_replays.Now?.Id == id) return "It's playing: go back to live first.";
                 _archive.Remove(a);
             }
-            try { if (a.File != null && File.Exists(a.File)) File.Delete(a.File); } catch (Exception) { }
+            Files.Delete(a.File);
             SaveArchive();
             return $"Deleted {NameTag.Plain(a.Title)} for good.";
         }
@@ -414,7 +409,7 @@ namespace TournamentTracker.App.Broadcast
                 _list.Remove(m);
             }
             if (_desk.QueuedMontage?.Id == id) _desk.QueuedMontage = null;
-            try { if (m.File != null && File.Exists(m.File)) File.Delete(m.File); } catch (Exception) { }
+            Files.Delete(m.File);
             return "Montage discarded.";
         }
 
@@ -429,7 +424,7 @@ namespace TournamentTracker.App.Broadcast
                 foreach (var a in _archive.Where(a => a.Simulated || which(a.Lobby ?? "") || a.Clips.Any(c => which(c.Lobby))).ToList())
                 {
                     _archive.Remove(a);
-                    try { if (a.File != null && File.Exists(a.File)) File.Delete(a.File); } catch (Exception) { }
+                    Files.Delete(a.File);
                     gone.Add(new Montage { Id = a.Id });
                 }
                 _roundsDone.ExceptWith(_simRounds);
@@ -439,7 +434,7 @@ namespace TournamentTracker.App.Broadcast
             foreach (var m in gone)
             {
                 if (_desk.QueuedMontage?.Id == m.Id) _desk.QueuedMontage = null;
-                try { if (m.File != null && File.Exists(m.File)) File.Delete(m.File); } catch (Exception) { }
+                Files.Delete(m.File);
             }
             SaveArchive();
             return gone.Select(m => m.Id).ToHashSet();

@@ -123,36 +123,24 @@ namespace TournamentTracker.App.Broadcast
     /// <summary>The config file: written with defaults if missing, re-read when it changes. A broken file keeps the last good one.</summary>
     public sealed class PriorityConfigFile
     {
-        private readonly string _path;
-        private DateTime _stamp;
-        private DateTime _nextCheck;
+        private readonly WatchedFile _file;
         public PriorityConfig Current { get; private set; } = new PriorityConfig();
         public string? Problem { get; private set; }
 
         public PriorityConfigFile(string path)
         {
-            _path = path;
+            _file = new WatchedFile(path, file => file.Write(new PriorityConfig().ToJson()));
             Refresh(force: true);
         }
 
-        public string Path => _path;
+        public string Path => _file.Path;
 
         public PriorityConfig Refresh(bool force = false)
         {
-            var now = DateTime.UtcNow;
-            if (!force && now < _nextCheck) return Current;
-            _nextCheck = now.AddSeconds(2);
             try
             {
-                if (!File.Exists(_path))
-                {
-                    Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_path)!);
-                    File.WriteAllText(_path, new PriorityConfig().ToJson());
-                }
-                var stamp = File.GetLastWriteTimeUtc(_path);
-                if (stamp == _stamp) return Current;
-                _stamp = stamp;
-                Current = PriorityConfig.Parse(File.ReadAllText(_path));
+                if (_file.Changed(force) is not { } text) return Current;
+                Current = PriorityConfig.Parse(text);
                 Problem = null;
             }
             catch (Exception e)

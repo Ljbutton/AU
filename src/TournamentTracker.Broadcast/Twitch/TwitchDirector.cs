@@ -134,12 +134,7 @@ namespace TournamentTracker.App.Broadcast
             _detectivesPath = folder == null ? null : Path.Combine(folder, "twitch-detectives.json");
             Settings = TwitchSettings.Load(_settingsPath);
             Auth = new TwitchAuth(http, () => Settings.ClientId, folder == null ? null : Path.Combine(folder, "twitch-token.json"), _clock);
-            try
-            {
-                if (_detectivesPath != null && File.Exists(_detectivesPath))
-                    foreach (var kv in JsonSerializer.Deserialize<Dictionary<string, Detective>>(File.ReadAllText(_detectivesPath)) ?? new Dictionary<string, Detective>()) _detectives[kv.Key] = kv.Value;
-            }
-            catch (Exception) { }
+            foreach (var kv in Files.ReadJson<Dictionary<string, Detective>>(_detectivesPath) ?? new Dictionary<string, Detective>()) _detectives[kv.Key] = kv.Value;
             desk.Fed += OnFed;
             desk.Interrupted += it => Later("interrupted " + it.Game, () => GameOverAsync(it.Lobby, it.Game, null, true, new HashSet<string>()));
         }

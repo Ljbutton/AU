@@ -83,16 +83,10 @@ namespace TournamentTracker.App.Broadcast
         public List<string> Scopes { get; set; } = new List<string>();
 
         private static readonly JsonSerializerOptions Json = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-        public static TwitchToken? Load(string? path)
-        {
-            try { return path != null && File.Exists(path) ? JsonSerializer.Deserialize<TwitchToken>(File.ReadAllText(path), Json) : null; }
-            catch (Exception) { return null; }
-        }
+        public static TwitchToken? Load(string? path) => Files.ReadJson<TwitchToken>(path, Json);
         public void Save(string? path)
         {
-            if (path == null) return;
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, JsonSerializer.Serialize(this, Json));
+            if (path != null) Files.WriteJson(path, this, Json);
         }
     }
 
@@ -209,7 +203,7 @@ namespace TournamentTracker.App.Broadcast
         public void SignOut()
         {
             Token = null;
-            try { if (_path != null && File.Exists(_path)) File.Delete(_path); } catch (Exception) { }
+            Files.Delete(_path);
         }
 
         /// <summary>Scopes this sign-in is missing (an older sign-in, before a feature was added).</summary>

@@ -390,8 +390,7 @@ namespace TournamentTracker.App.Broadcast
             {
                 Dictionary<string, Numbered> copy;
                 lock (_numbered) copy = _numbered.Where(kv => !IsSimLobby(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
-                Directory.CreateDirectory(Path.GetDirectoryName(_numbersPath)!);
-                File.WriteAllText(_numbersPath, JsonSerializer.Serialize(copy, NumbersJson));
+                Files.WriteJson(_numbersPath, copy, NumbersJson);
             }
             catch (Exception) { }
         }

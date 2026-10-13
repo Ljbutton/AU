@@ -49,10 +49,10 @@ namespace TournamentTracker.App.Broadcast
         public const string LogName = "sponsor-log.jsonl";
         private static readonly JsonSerializerOptions Json = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase, ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
 
-        private readonly string? _path, _logPath;
+        private readonly WatchedFile? _file;
+        private readonly string? _logPath;
         private readonly Func<DateTime> _clock;
         private readonly object _lock = new object();
-        private DateTime _stamp, _nextCheck;
         private List<Sponsor> _sponsors = new List<Sponsor>();
         private readonly Dictionary<string, int> _turn = new Dictionary<string, int>();
         private readonly Dictionary<string, (Sponsor Sponsor, string Placement, DateTime Start, string? Lobby, string? Moment)> _open = new Dictionary<string, (Sponsor, string, DateTime, string?, string?)>();
@@ -62,13 +62,14 @@ namespace TournamentTracker.App.Broadcast
         public Func<bool>? Hold { get; set; }
         private bool Held => Hold?.Invoke() == true;
 
-        public string? Path => _path;
+        public string? Path => _file?.Path;
         public string? Problem { get; private set; }
 
         public SponsorBook(string? folder, Func<DateTime>? clock = null)
         {
             _clock = clock ?? (() => DateTime.UtcNow);
-            _path = folder == null ? null : System.IO.Path.Combine(folder, FileName);
+            // An example with no placements, so nothing shows until it's filled in.
+            _file = folder == null ? null : new WatchedFile(System.IO.Path.Combine(folder, FileName), file => file.Write(JsonSerializer.Serialize(new { sponsors = new[] { new Sponsor { Name = "Example Sponsor", Tagline = "Fill this in, then list its placements: killcam, replay, montage, standings, grid, multiview, break", Logo = "C:\\\\Sponsors\\\\example-logo.png", ReadScript = "(Optional) What you say out loud for them; set readEveryMinutes, readEveryGames or readEveryRounds" } } }, Json)));
             _logPath = folder == null ? null : System.IO.Path.Combine(folder, LogName);
             Refresh(force: true);
         }
@@ -77,22 +78,11 @@ namespace TournamentTracker.App.Broadcast
 
         public void Refresh(bool force = false)
         {
-            if (_path == null) return;
-            var now = DateTime.UtcNow;
-            if (!force && now < _nextCheck) return;
-            _nextCheck = now.AddSeconds(2);
+            if (_file == null) return;
             try
             {
-                if (!File.Exists(_path))
-                {
-                    Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_path)!);
-                    // An example with no placements, so nothing shows until it's filled in.
-                    File.WriteAllText(_path, JsonSerializer.Serialize(new { sponsors = new[] { new Sponsor { Name = "Example Sponsor", Tagline = "Fill this in, then list its placements: killcam, replay, montage, standings, grid, multiview, break", Logo = "C:\\\\Sponsors\\\\example-logo.png", ReadScript = "(Optional) What you say out loud for them; set readEveryMinutes, readEveryGames or readEveryRounds" } } }, Json));
-                }
-                var stamp = File.GetLastWriteTimeUtc(_path);
-                if (stamp == _stamp) return;
-                _stamp = stamp;
-                using var doc = JsonDocument.Parse(File.ReadAllText(_path), new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+                if (_file.Changed(force) is not { } text) return;
+                using var doc = JsonDocument.Parse(text, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
                 var list = doc.RootElement.TryGetProperty("sponsors", out var s) ? JsonSerializer.Deserialize<List<Sponsor>>(s.GetRawText(), Json) ?? new List<Sponsor>() : new List<Sponsor>();
                 foreach (var x in list) x.Placements = x.Placements.Select(p => p.Trim().ToLowerInvariant()).ToList();
                 lock (_lock) _sponsors = list.Where(x => x.Name.Length > 0).ToList();
