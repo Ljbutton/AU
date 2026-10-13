@@ -100,27 +100,17 @@ namespace TournamentTracker.Discord
             SendAsync(() =>
             {
                 var (mute, deaf) = state();
-                string body = "{\"mute\":" + (mute ? "true" : "false") + ",\"deaf\":" + (deaf ? "true" : "false") + "}";
-                var req = new HttpRequestMessage(new HttpMethod("PATCH"), $"{_apiBase}/guilds/{guildId}/members/{userId}")
-                {
-                    Content = new StringContent(body, Encoding.UTF8, "application/json"),
-                };
-                Authorize(req, botToken);
+                var req = BotRequest(HttpMethod.Patch, $"/guilds/{guildId}/members/{userId}", botToken,
+                    Json("{\"mute\":" + (mute ? "true" : "false") + ",\"deaf\":" + (deaf ? "true" : "false") + "}"));
                 req.Headers.TryAddWithoutValidation("X-Audit-Log-Reason", reason);
                 return req;
-            }, "member:" + botToken.GetHashCode() + ":" + guildId, ct);
-
+            }, Bucket("member", botToken, guildId), ct);
 
         /// <summary>Members whose username or server nickname starts with <paramref name="query"/>.</summary>
         public async Task<IReadOnlyList<GuildMember>> SearchMembersAsync(string botToken, string guildId, string query, CancellationToken ct = default)
         {
-            var result = await SendAsync(() =>
-            {
-                var req = new HttpRequestMessage(HttpMethod.Get,
-                    $"{_apiBase}/guilds/{guildId}/members/search?limit=10&query={Uri.EscapeDataString(query)}");
-                Authorize(req, botToken);
-                return req;
-            }, "search:" + botToken.GetHashCode(), ct).ConfigureAwait(false);
+            var result = await SendAsync(() => BotRequest(HttpMethod.Get, $"/guilds/{guildId}/members/search?limit=10&query={Uri.EscapeDataString(query)}", botToken),
+                "search:" + botToken.GetHashCode(), ct).ConfigureAwait(false);
             if (!result.Ok) return Array.Empty<GuildMember>();
             using var doc = JsonDocument.Parse(result.Body);
             return doc.RootElement.EnumerateArray().Select(ParseMember).Where(m => m != null).Select(m => m!).ToList();
@@ -129,10 +119,7 @@ namespace TournamentTracker.Discord
         public Task<DiscordResult> ExecuteWebhookAsync(string webhookUrl, WebhookMessage message, CancellationToken ct = default)
         {
             string json = JsonSerializer.Serialize(message, WebhookMessage.JsonOptions);
-            return SendAsync(() => new HttpRequestMessage(HttpMethod.Post, webhookUrl + (webhookUrl.Contains("?") ? "&" : "?") + "wait=true")
-            {
-                Content = new StringContent(json, Encoding.UTF8, "application/json"),
-            }, "webhook:" + webhookUrl, ct, idempotent: false);
+            return SendAsync(() => new HttpRequestMessage(HttpMethod.Post, Waiting(webhookUrl)) { Content = Json(json) }, "webhook:" + webhookUrl, ct, idempotent: false);
         }
 
         /// <summary>
@@ -153,63 +140,33 @@ namespace TournamentTracker.Discord
                 nonce = NewNonce(),
                 enforce_nonce = true,
             });
-            return SendAsync(() =>
-            {
-                var form = new MultipartFormDataContent();
-                form.Add(new StringContent(payload, Encoding.UTF8, "application/json"), "payload_json");
-                var part = new ByteArrayContent(file);
-                part.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
-                form.Add(part, "files[0]", fileName);
-                var req = new HttpRequestMessage(HttpMethod.Post, $"{_apiBase}/channels/{channelId}/messages") { Content = form };
-                Authorize(req, botToken);
-                return req;
-            }, "channel-post:" + botToken.GetHashCode() + ":" + channelId, ct);
+            return PostToChannelAsync(botToken, channelId, () => FileForm(payload, fileName, file), ct);
         }
 
         public Task<DiscordResult> PostMessageAsync(string botToken, string channelId, string content, CancellationToken ct = default)
         {
             string payload = JsonSerializer.Serialize(new { content, allowed_mentions = new { parse = Array.Empty<string>() }, nonce = NewNonce(), enforce_nonce = true });
-            return SendAsync(() =>
-            {
-                var req = new HttpRequestMessage(HttpMethod.Post, $"{_apiBase}/channels/{channelId}/messages")
-                {
-                    Content = new StringContent(payload, Encoding.UTF8, "application/json"),
-                };
-                Authorize(req, botToken);
-                return req;
-            }, "channel-post:" + botToken.GetHashCode() + ":" + channelId, ct);
+            return PostToChannelAsync(botToken, channelId, () => Json(payload), ct);
         }
 
         /// <summary>Posts embeds as the bot (used by the scheduled preliminary job).</summary>
         public Task<DiscordResult> PostEmbedsAsync(string botToken, string channelId, WebhookMessage message, CancellationToken ct = default)
         {
             string json = JsonSerializer.Serialize(new { embeds = message.Embeds, components = message.Components, allowed_mentions = new { parse = Array.Empty<string>() }, nonce = NewNonce(), enforce_nonce = true }, WebhookMessage.JsonOptions);
-            return SendAsync(() =>
-            {
-                var req = new HttpRequestMessage(HttpMethod.Post, $"{_apiBase}/channels/{channelId}/messages") { Content = new StringContent(json, Encoding.UTF8, "application/json") };
-                Authorize(req, botToken);
-                return req;
-            }, "channel-post:" + botToken.GetHashCode() + ":" + channelId, ct);
+            return PostToChannelAsync(botToken, channelId, () => Json(json), ct);
         }
+
+        private Task<DiscordResult> PostToChannelAsync(string botToken, string channelId, Func<HttpContent> content, CancellationToken ct) =>
+            SendAsync(() => BotRequest(HttpMethod.Post, $"/channels/{channelId}/messages", botToken, content()), Bucket("channel-post", botToken, channelId), ct);
 
         public Task<DiscordResult> EditEmbedsAsync(string botToken, string channelId, string messageId, WebhookMessage message, CancellationToken ct = default)
         {
             string json = JsonSerializer.Serialize(new { embeds = message.Embeds, components = message.Components ?? new List<object>() }, WebhookMessage.JsonOptions);
-            return SendAsync(() =>
-            {
-                var req = new HttpRequestMessage(new HttpMethod("PATCH"), $"{_apiBase}/channels/{channelId}/messages/{messageId}") { Content = new StringContent(json, Encoding.UTF8, "application/json") };
-                Authorize(req, botToken);
-                return req;
-            }, "channel-edit:" + botToken.GetHashCode() + ":" + channelId, ct);
+            return SendAsync(() => BotRequest(HttpMethod.Patch, $"/channels/{channelId}/messages/{messageId}", botToken, Json(json)), Bucket("channel-edit", botToken, channelId), ct);
         }
 
         public Task<DiscordResult> DeleteMessageAsync(string botToken, string channelId, string messageId, CancellationToken ct = default) =>
-            SendAsync(() =>
-            {
-                var req = new HttpRequestMessage(HttpMethod.Delete, $"{_apiBase}/channels/{channelId}/messages/{messageId}");
-                Authorize(req, botToken);
-                return req;
-            }, "channel-delete:" + botToken.GetHashCode() + ":" + channelId, ct);
+            SendAsync(() => BotRequest(HttpMethod.Delete, $"/channels/{channelId}/messages/{messageId}", botToken), Bucket("channel-delete", botToken, channelId), ct);
 
         /// <summary>The channel a webhook posts into (the webhook URL is enough to ask). Null if Discord doesn't say.</summary>
         public async Task<string?> WebhookChannelAsync(string webhookUrl, CancellationToken ct = default)
@@ -221,7 +178,7 @@ namespace TournamentTracker.Discord
             try
             {
                 using var doc = JsonDocument.Parse(result.Body);
-                return doc.RootElement.TryGetProperty("channel_id", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() : null;
+                return doc.RootElement.Str("channel_id");
             }
             catch (JsonException) { return null; }
         }
@@ -229,12 +186,7 @@ namespace TournamentTracker.Discord
         /// <summary>The bot's own emojis (usable in any server), by name.</summary>
         public async Task<Dictionary<string, string>?> AppEmojisAsync(string botToken, string applicationId, CancellationToken ct = default)
         {
-            var result = await SendAsync(() =>
-            {
-                var req = new HttpRequestMessage(HttpMethod.Get, $"{_apiBase}/applications/{applicationId}/emojis");
-                Authorize(req, botToken);
-                return req;
-            }, "app-emojis:" + applicationId, ct).ConfigureAwait(false);
+            var result = await SendAsync(() => BotRequest(HttpMethod.Get, $"/applications/{applicationId}/emojis", botToken), "app-emojis:" + applicationId, ct).ConfigureAwait(false);
             if (!result.Ok) return null;
             var emojis = new Dictionary<string, string>();
             try
@@ -253,12 +205,7 @@ namespace TournamentTracker.Discord
         public async Task<string?> CreateAppEmojiAsync(string botToken, string applicationId, string name, byte[] png, CancellationToken ct = default)
         {
             string json = JsonSerializer.Serialize(new { name, image = "data:image/png;base64," + Convert.ToBase64String(png) });
-            var result = await SendAsync(() =>
-            {
-                var req = new HttpRequestMessage(HttpMethod.Post, $"{_apiBase}/applications/{applicationId}/emojis") { Content = new StringContent(json, Encoding.UTF8, "application/json") };
-                Authorize(req, botToken);
-                return req;
-            }, "app-emojis:" + applicationId, ct).ConfigureAwait(false);
+            var result = await SendAsync(() => BotRequest(HttpMethod.Post, $"/applications/{applicationId}/emojis", botToken, Json(json)), "app-emojis:" + applicationId, ct).ConfigureAwait(false);
             return result.Ok ? MessageIdOf(result) : null;
         }
 
@@ -269,13 +216,8 @@ namespace TournamentTracker.Discord
         /// <summary>The channel's newest messages, or null with Discord's answer saying why not.</summary>
         public async Task<(IReadOnlyList<ChannelMessage>? Messages, DiscordResult Result)> ReadMessagesAsync(string botToken, string channelId, string? before = null, CancellationToken ct = default)
         {
-            var result = await SendAsync(() =>
-            {
-                var req = new HttpRequestMessage(HttpMethod.Get,
-                    $"{_apiBase}/channels/{channelId}/messages?limit=100" + (before == null ? "" : "&before=" + before));
-                Authorize(req, botToken);
-                return req;
-            }, "channel-read:" + botToken.GetHashCode() + ":" + channelId, ct).ConfigureAwait(false);
+            var result = await SendAsync(() => BotRequest(HttpMethod.Get, $"/channels/{channelId}/messages?limit=100" + (before == null ? "" : "&before=" + before), botToken),
+                Bucket("channel-read", botToken, channelId), ct).ConfigureAwait(false);
             if (!result.Ok)
             {
                 _log.Warn($"Could not read Discord channel {channelId}: {result}");
@@ -288,12 +230,7 @@ namespace TournamentTracker.Discord
         /// <summary>One message by its ID, or null with Discord's answer saying why not (404: it was deleted).</summary>
         public async Task<(ChannelMessage? Message, DiscordResult Result)> GetMessageAsync(string botToken, string channelId, string messageId, CancellationToken ct = default)
         {
-            var result = await SendAsync(() =>
-            {
-                var req = new HttpRequestMessage(HttpMethod.Get, $"{_apiBase}/channels/{channelId}/messages/{messageId}");
-                Authorize(req, botToken);
-                return req;
-            }, "channel-read:" + botToken.GetHashCode() + ":" + channelId, ct).ConfigureAwait(false);
+            var result = await SendAsync(() => BotRequest(HttpMethod.Get, $"/channels/{channelId}/messages/{messageId}", botToken), Bucket("channel-read", botToken, channelId), ct).ConfigureAwait(false);
             if (!result.Ok) return (null, result);
             try
             {
@@ -311,17 +248,12 @@ namespace TournamentTracker.Discord
         /// <summary>The bot's own name (for messages), or null.</summary>
         public async Task<string?> BotNameAsync(string botToken, CancellationToken ct = default)
         {
-            var result = await SendAsync(() =>
-            {
-                var req = new HttpRequestMessage(HttpMethod.Get, $"{_apiBase}/users/@me");
-                Authorize(req, botToken);
-                return req;
-            }, "me:" + botToken.GetHashCode(), ct).ConfigureAwait(false);
+            var result = await SendAsync(() => BotRequest(HttpMethod.Get, "/users/@me", botToken), "me:" + botToken.GetHashCode(), ct).ConfigureAwait(false);
             if (!result.Ok) return null;
             try
             {
-                var e = JsonDocument.Parse(result.Body).RootElement;
-                return e.TryGetProperty("username", out var u) && u.ValueKind == JsonValueKind.String ? u.GetString() : null;
+                using var doc = JsonDocument.Parse(result.Body);
+                return doc.RootElement.Str("username");
             }
             catch (JsonException) { return null; }
         }
@@ -347,10 +279,7 @@ namespace TournamentTracker.Discord
         public Task<DiscordResult> EditWebhookMessageAsync(string webhookUrl, string messageId, WebhookMessage message, CancellationToken ct = default)
         {
             string json = JsonSerializer.Serialize(message, WebhookMessage.JsonOptions);
-            return SendAsync(() => new HttpRequestMessage(new HttpMethod("PATCH"), MessageUrl(webhookUrl, messageId))
-            {
-                Content = new StringContent(json, Encoding.UTF8, "application/json"),
-            }, "webhook-edit:" + webhookUrl, ct);
+            return SendAsync(() => new HttpRequestMessage(HttpMethod.Patch, MessageUrl(webhookUrl, messageId)) { Content = Json(json) }, "webhook-edit:" + webhookUrl, ct);
         }
 
         public Task<DiscordResult> DeleteWebhookMessageAsync(string webhookUrl, string messageId, CancellationToken ct = default) =>
@@ -389,39 +318,18 @@ namespace TournamentTracker.Discord
             var node = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(message, WebhookMessage.JsonOptions))!.AsObject();
             node["attachments"] = new System.Text.Json.Nodes.JsonArray(new System.Text.Json.Nodes.JsonObject { ["id"] = 0, ["filename"] = fileName });
             string payload = node.ToJsonString();
-            return SendAsync(() =>
-            {
-                var form = new MultipartFormDataContent();
-                form.Add(new StringContent(payload, Encoding.UTF8, "application/json"), "payload_json");
-                var part = new ByteArrayContent(file);
-                part.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
-                form.Add(part, "files[0]", fileName);
-                return new HttpRequestMessage(HttpMethod.Post, webhookUrl + (webhookUrl.Contains("?") ? "&" : "?") + "wait=true") { Content = form };
-            }, "webhook:" + webhookUrl, ct);
+            return SendAsync(() => new HttpRequestMessage(HttpMethod.Post, Waiting(webhookUrl)) { Content = FileForm(payload, fileName, file) }, "webhook:" + webhookUrl, ct);
         }
 
         public Task<DiscordResult> AddReactionAsync(string botToken, string channelId, string messageId, string emoji, CancellationToken ct = default) =>
-            SendAsync(() =>
-            {
-                var req = new HttpRequestMessage(HttpMethod.Put,
-                    $"{_apiBase}/channels/{channelId}/messages/{messageId}/reactions/{Uri.EscapeDataString(emoji)}/@me");
-                Authorize(req, botToken);
-                return req;
-            }, "reaction:" + botToken.GetHashCode() + ":" + channelId, ct);
+            SendAsync(() => BotRequest(HttpMethod.Put, $"/channels/{channelId}/messages/{messageId}/reactions/{Uri.EscapeDataString(emoji)}/@me", botToken),
+                Bucket("reaction", botToken, channelId), ct);
 
         /// <summary>Replaces the bot's slash commands in one server with <paramref name="commands"/>.</summary>
         public Task<DiscordResult> PutGuildCommandsAsync(string botToken, string applicationId, string guildId, object[] commands, CancellationToken ct = default)
         {
             string json = JsonSerializer.Serialize(commands);
-            return SendAsync(() =>
-            {
-                var req = new HttpRequestMessage(HttpMethod.Put, $"{_apiBase}/applications/{applicationId}/guilds/{guildId}/commands")
-                {
-                    Content = new StringContent(json, Encoding.UTF8, "application/json"),
-                };
-                Authorize(req, botToken);
-                return req;
-            }, "commands:" + applicationId + ":" + guildId, ct);
+            return SendAsync(() => BotRequest(HttpMethod.Put, $"/applications/{applicationId}/guilds/{guildId}/commands", botToken, Json(json)), "commands:" + applicationId + ":" + guildId, ct);
         }
 
         /// <summary>Answers a slash command; with <paramref name="onlyThem"/>, only the person who used it sees the answer.</summary>
@@ -432,14 +340,36 @@ namespace TournamentTracker.Discord
                 type = 4,
                 data = new { content, flags = onlyThem ? 64 : 0, allowed_mentions = new { parse = Array.Empty<string>() } },
             });
-            return SendAsync(() => new HttpRequestMessage(HttpMethod.Post, $"{_apiBase}/interactions/{interactionId}/{interactionToken}/callback")
-            {
-                Content = new StringContent(json, Encoding.UTF8, "application/json"),
-            }, "interaction:" + interactionId, ct);
+            return SendAsync(() => new HttpRequestMessage(HttpMethod.Post, $"{_apiBase}/interactions/{interactionId}/{interactionToken}/callback") { Content = Json(json) },
+                "interaction:" + interactionId, ct);
         }
 
-        private static void Authorize(HttpRequestMessage req, string botToken) =>
+        /// <summary>A request to Discord's API as the bot (<paramref name="path"/> goes after the API base).</summary>
+        private HttpRequestMessage BotRequest(HttpMethod method, string path, string botToken, HttpContent? content = null)
+        {
+            var req = new HttpRequestMessage(method, _apiBase + path) { Content = content };
             req.Headers.TryAddWithoutValidation("Authorization", "Bot " + botToken);
+            return req;
+        }
+
+        /// <summary>One bot's requests of one kind to one channel (or server) share a rate-limit bucket.</summary>
+        private static string Bucket(string kind, string botToken, string id) => kind + ":" + botToken.GetHashCode() + ":" + id;
+
+        private static StringContent Json(string json) => new StringContent(json, Encoding.UTF8, "application/json");
+
+        /// <summary>A webhook address that makes Discord answer with the message it posted.</summary>
+        private static string Waiting(string webhookUrl) => webhookUrl + (webhookUrl.Contains("?") ? "&" : "?") + "wait=true";
+
+        /// <summary>A post's JSON payload with one file attached.</summary>
+        private static MultipartFormDataContent FileForm(string payload, string fileName, byte[] file)
+        {
+            var form = new MultipartFormDataContent();
+            form.Add(Json(payload), "payload_json");
+            var part = new ByteArrayContent(file);
+            part.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+            form.Add(part, "files[0]", fileName);
+            return form;
+        }
 
         private CancellationTokenSource? Timeout(CancellationToken ct)
         {
@@ -633,8 +563,8 @@ namespace TournamentTracker.Discord
             {
                 Id = user.GetProperty("id").GetString() ?? "",
                 Username = user.TryGetProperty("username", out var u) ? u.GetString() ?? "" : "",
-                GlobalName = user.TryGetProperty("global_name", out var g) && g.ValueKind == JsonValueKind.String ? g.GetString() : null,
-                Nick = e.TryGetProperty("nick", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() : null,
+                GlobalName = user.Str("global_name"),
+                Nick = e.Str("nick"),
             };
         }
     }
@@ -657,8 +587,8 @@ namespace TournamentTracker.Discord
             var m = new ChannelMessage
             {
                 Id = e.GetProperty("id").GetString() ?? "",
-                ChannelId = e.TryGetProperty("channel_id", out var ch) && ch.ValueKind == JsonValueKind.String ? ch.GetString() ?? "" : "",
-                Content = e.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() ?? "" : "",
+                ChannelId = e.Str("channel_id") ?? "",
+                Content = e.Str("content") ?? "",
                 Embeds = e.TryGetProperty("embeds", out var em) && em.ValueKind == JsonValueKind.Array ? em.GetArrayLength() : 0,
             };
             if (m.Embeds > 0)
@@ -678,6 +608,14 @@ namespace TournamentTracker.Discord
                     m.Attachments.Add((f.GetProperty("filename").GetString() ?? "", f.GetProperty("url").GetString() ?? ""));
             return m;
         }
+    }
+
+    /// <summary>Reading Discord's JSON.</summary>
+    internal static class JsonRead
+    {
+        /// <summary>A string field, or null when it's missing or not a string.</summary>
+        public static string? Str(this JsonElement e, string name) =>
+            e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
     }
 
     public sealed class WebhookMessage

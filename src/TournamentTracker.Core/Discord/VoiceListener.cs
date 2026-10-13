@@ -115,22 +115,16 @@ namespace TournamentTracker.Discord
             UdpClient? udp = null;
             Task? heartbeat = null, receive = null, keepAlive = null;
 
-            async Task Send(object payload)
-            {
-                byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(payload);
-                await sendLock.WaitAsync(connection.Token).ConfigureAwait(false);
-                try { await socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, connection.Token).ConfigureAwait(false); }
-                finally { sendLock.Release(); }
-            }
+            Task Send(object payload) => GatewaySocket.SendAsync(socket, sendLock, payload, connection.Token);
 
             try
             {
                 while (!connection.IsCancellationRequested)
                 {
-                    var (text, binary) = await ReceiveAsync(socket, connection.Token).ConfigureAwait(false);
-                    if (text == null && !binary) break;           // closed
-                    if (text == null) continue;                    // end-to-end encryption's own messages: not needed to see who talks
-                    using var doc = JsonDocument.Parse(text);
+                    var (message, binary) = await GatewaySocket.ReceiveAsync(socket, connection.Token).ConfigureAwait(false);
+                    if (message == null) break;                    // closed
+                    if (binary) continue;                          // end-to-end encryption's own messages: not needed to see who talks
+                    using var doc = JsonDocument.Parse(message);
                     var root = doc.RootElement;
                     int op = root.GetProperty("op").GetInt32();
                     if (root.TryGetProperty("seq", out var sq) && sq.TryGetInt32(out var seqNo)) _seq = seqNo;
@@ -309,26 +303,40 @@ namespace TournamentTracker.Discord
 
         private void AllQuiet() => Report(new HashSet<string>());
 
-        private static async Task<(string? Text, bool Binary)> ReceiveAsync(ClientWebSocket socket, CancellationToken ct)
+        public void Dispose()
+        {
+            _cts.Cancel();
+            try { _run?.Wait(TimeSpan.FromSeconds(2)); } catch (AggregateException) { }
+            AllQuiet();
+        }
+    }
+
+    /// <summary>Whole JSON messages over a Discord gateway socket (the bot's and the voice one).</summary>
+    internal static class GatewaySocket
+    {
+        /// <summary>Sends one message; the lock keeps the heartbeat and the replies from sending at once.</summary>
+        public static async Task SendAsync(ClientWebSocket socket, SemaphoreSlim sendLock, object payload, CancellationToken ct)
+        {
+            byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(payload);
+            await sendLock.WaitAsync(ct).ConfigureAwait(false);
+            try { await socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, ct).ConfigureAwait(false); }
+            finally { sendLock.Release(); }
+        }
+
+        /// <summary>The next whole message, read from its start, and whether it was binary (null: the socket closed).</summary>
+        public static async Task<(MemoryStream? Message, bool Binary)> ReceiveAsync(ClientWebSocket socket, CancellationToken ct)
         {
             var buffer = new byte[16 * 1024];
-            using var message = new MemoryStream();
+            var message = new MemoryStream();
             while (true)
             {
                 var result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), ct).ConfigureAwait(false);
                 if (result.MessageType == WebSocketMessageType.Close) return (null, false);
                 message.Write(buffer, 0, result.Count);
                 if (!result.EndOfMessage) continue;
-                if (result.MessageType == WebSocketMessageType.Binary) return (null, true);
-                return (Encoding.UTF8.GetString(message.ToArray()), false);
+                message.Position = 0;
+                return (message, result.MessageType == WebSocketMessageType.Binary);
             }
-        }
-
-        public void Dispose()
-        {
-            _cts.Cancel();
-            try { _run?.Wait(TimeSpan.FromSeconds(2)); } catch (AggregateException) { }
-            AllQuiet();
         }
     }
 }
