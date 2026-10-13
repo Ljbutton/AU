@@ -69,10 +69,12 @@ export function request(conn, method, path, query = {}, o = {}) {
 			clearTimeout(timer);
 			resolve(result);
 		};
+		/** No answer to go by (status 0). */
+		const fail = (message, more) => done({ status: 0, ok: false, body: null, message, ...more });
 		let req;
 		const timer = setTimeout(() => {
 			req?.destroy(new Error("timeout"));
-			done({ status: 0, ok: false, body: null, message: `Red Alert didn't answer within ${Math.round(timeoutMs / 1000)} s.`, timedOut: true });
+			fail(`Red Alert didn't answer within ${Math.round(timeoutMs / 1000)} s.`, { timedOut: true });
 		}, timeoutMs);
 		try {
 			req = http.request(
@@ -93,7 +95,7 @@ export function request(conn, method, path, query = {}, o = {}) {
 						if (size > MAX_BODY) res.destroy(new Error("too big"));
 						else chunks.push(chunk);
 					});
-					res.on("error", () => done({ status: 0, ok: false, body: null, message: "The answer from Red Alert was cut off." }));
+					res.on("error", () => fail("The answer from Red Alert was cut off."));
 					res.on("end", () => {
 						let body = null;
 						try {
@@ -109,11 +111,11 @@ export function request(conn, method, path, query = {}, o = {}) {
 			);
 			req.on("error", (e) => {
 				const aborted = e?.name === "AbortError" || o.signal?.aborted;
-				done({ status: 0, ok: false, body: null, aborted, message: aborted ? "Stopped." : `Nothing answered on ${conn.host}:${conn.port}. Is Red Alert open?` });
+				fail(aborted ? "Stopped." : `Nothing answered on ${conn.host}:${conn.port}. Is Red Alert open?`, { aborted });
 			});
 			req.end();
 		} catch (e) {
-			done({ status: 0, ok: false, body: null, message: `Couldn't reach ${conn.host}:${conn.port}: ${e?.message ?? e}` });
+			fail(`Couldn't reach ${conn.host}:${conn.port}: ${e?.message ?? e}`);
 		}
 	});
 }

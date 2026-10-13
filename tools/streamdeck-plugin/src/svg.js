@@ -37,6 +37,9 @@ const PHASES = {
 	menu: { label: "MENU", fill: C.muted },
 };
 
+/** A lobby's phase as a key words and colours it (an unknown one in its own words). */
+const phaseOf = (phase) => PHASES[phase] ?? { label: String(phase ?? "").toUpperCase(), fill: C.muted };
+
 const HEALTH = { green: C.good, yellow: C.amber, red: C.danger };
 
 /** Text made safe to put inside SVG (names come from players and organisers). */
@@ -93,11 +96,14 @@ export function crewmate(x, y, scale, hex, dead = false) {
 	return `<g transform="translate(${x} ${y}) scale(${scale})"${dead ? ' opacity="0.3"' : ""}>${shape}</g>`;
 }
 
-function frame(body, o = {}) {
-	const bg = `<rect x="0" y="0" width="${KEY}" height="${KEY}" fill="${o.bg ?? C.bg}"/>`;
-	const border = o.border ? `<rect x="4" y="4" width="${KEY - 8}" height="${KEY - 8}" rx="12" fill="none" stroke="${o.border}" stroke-width="${o.borderWidth ?? 8}"/>` : "";
-	return svg(KEY, KEY, bg + faded(body + border, o.status) + statusStrip(o.status, KEY));
+/** A key or a dial strip: the background, the body, a border `inset` in from the edge and the status strip. */
+function canvas(width, height, inset, rx, body, o, strokeWidth) {
+	const bg = `<rect x="0" y="0" width="${width}" height="${height}" fill="${o.bg ?? C.bg}"/>`;
+	const border = o.border ? `<rect x="${inset}" y="${inset}" width="${width - 2 * inset}" height="${height - 2 * inset}" rx="${rx}" fill="none" stroke="${o.border}" stroke-width="${strokeWidth}"${o.dashed ? ' stroke-dasharray="10 6"' : ""}/>` : "";
+	return svg(width, height, bg + faded(body + border, o.status) + statusStrip(o.status, width));
 }
+
+const frame = (body, o = {}) => canvas(KEY, KEY, 4, 12, body, o, o.borderWidth ?? 8);
 
 /** Without a live connection the last state is stale, so the key shows it faded under the strip. */
 function faded(body, status) {
@@ -138,7 +144,7 @@ export function lobbyKey(v) {
 		return frame(parts.join(""), { status: v.status, border: C.line, borderWidth: 2 });
 	}
 	const dim = v.online === false;
-	const phase = dim ? { label: "OFFLINE", fill: C.muted } : (PHASES[v.phase] ?? { label: String(v.phase ?? "").toUpperCase(), fill: C.muted });
+	const phase = dim ? { label: "OFFLINE", fill: C.muted } : phaseOf(v.phase);
 	parts.push(text(16, 56, v.no ?? "?", { size: 52, fill: dim ? C.muted : C.fg }));
 	const tally = tallyColour(v.tally);
 	if (tally) {
@@ -172,14 +178,17 @@ export function lobbyStepKey(v) {
 
 // ---- Player camera keys ---------------------------------------------------------------------
 
+// Both camera keys: the lobby's number top left, and NO CAM when its camera is off or not sending.
+const lobbyTag = (v) => text(10, 22, v.lobbyNo ? `L${v.lobbyNo}` : "L?", { size: 16, fill: C.muted });
+const noCamTag = (v) => (v.noCam ? text(72, 42, "NO CAM", { size: 14, fill: C.danger, anchor: "middle" }) : "");
+
 /**
  * A player camera key: the crewmate in the player's colour and their name, dimmed when dead, a ring
  * when the camera follows them (red while that camera is on stream) and ARMED while the pick waits for
  * play to resume.
  */
 export function camKey(v) {
-	const parts = [];
-	parts.push(text(10, 22, v.lobbyNo ? `L${v.lobbyNo}` : "L?", { size: 16, fill: C.muted }));
+	const parts = [lobbyTag(v)];
 	if (v.slotLabel) parts.push(text(134, 22, v.slotLabel, { size: 16, fill: C.muted, anchor: "end" }));
 	if (!v.player) {
 		parts.push(crewmate(42, 30, 0.6, C.line));
@@ -194,14 +203,13 @@ export function camKey(v) {
 		parts.push(`<rect x="24" y="80" width="96" height="26" rx="5" fill="${C.amber}"/>`);
 		parts.push(text(72, 99, "ARMED", { size: 18, fill: C.ink, anchor: "middle" }));
 	}
-	if (v.noCam) parts.push(text(72, 42, "NO CAM", { size: 14, fill: C.danger, anchor: "middle" }));
+	parts.push(noCamTag(v));
 	return frame(parts.join(""), { status: v.status, border: v.ring === "pgm" ? C.red : C.line, borderWidth: v.ring === "pgm" ? 6 : 2 });
 }
 
 /** A Player cam key set to next, prev or auto: the word, and who the camera follows now. */
 export function camStepKey(v) {
-	const parts = [];
-	parts.push(text(10, 22, v.lobbyNo ? `L${v.lobbyNo}` : "L?", { size: 16, fill: C.muted }));
+	const parts = [lobbyTag(v)];
 	parts.push(text(134, 22, v.label, { size: 18, anchor: "end" }));
 	if (v.current) {
 		parts.push(crewmate(48, 32, 0.5, v.current.hex, v.current.dead));
@@ -212,7 +220,7 @@ export function camStepKey(v) {
 	}
 	if (v.label === "NEXT") parts.push(`<path d="M112 58 L132 72 L112 86 Z" fill="${C.fg}"/>`);
 	if (v.label === "PREV") parts.push(`<path d="M32 58 L12 72 L32 86 Z" fill="${C.fg}"/>`);
-	if (v.noCam) parts.push(text(72, 42, "NO CAM", { size: 14, fill: C.danger, anchor: "middle" }));
+	parts.push(noCamTag(v));
 	return frame(parts.join(""), { status: v.status, border: v.mode === "arm" ? C.amber : C.line, borderWidth: v.mode === "arm" ? 4 : 2 });
 }
 
@@ -285,11 +293,7 @@ export function labelKey(v) {
 
 // ---- Stream Deck + dials (the 200 x 100 touch strip under each dial) ---------------------------
 
-function strip(body, o = {}) {
-	const bg = `<rect x="0" y="0" width="${DIAL_W}" height="${DIAL_H}" fill="${C.bg}"/>`;
-	const border = o.border ? `<rect x="3" y="3" width="${DIAL_W - 6}" height="${DIAL_H - 6}" rx="8" fill="none" stroke="${o.border}" stroke-width="5"${o.dashed ? ' stroke-dasharray="10 6"' : ""}/>` : "";
-	return svg(DIAL_W, DIAL_H, bg + faded(body + border, o.status) + statusStrip(o.status, DIAL_W));
-}
+const strip = (body, o = {}) => canvas(DIAL_W, DIAL_H, 3, 8, body, o, 5);
 
 /** The Preview dial: the lobby in (or about to go into) Preview. */
 export function previewDial(v) {
@@ -297,7 +301,7 @@ export function previewDial(v) {
 	if (v.lobby) {
 		parts.push(text(12, 74, v.lobby.no ?? "?", { size: 46 }));
 		parts.push(text(78, 52, fit(v.lobby.name, 11), { size: 18 }));
-		const phase = PHASES[v.lobby.phase] ?? { label: String(v.lobby.phase ?? "").toUpperCase(), fill: C.muted };
+		const phase = phaseOf(v.lobby.phase);
 		parts.push(text(78, 74, v.lobby.online === false ? "OFFLINE" : phase.label, { size: 14, fill: v.lobby.online === false ? C.muted : phase.fill }));
 	} else {
 		parts.push(text(12, 66, "empty", { size: 22, weight: "normal", fill: C.muted }));
@@ -338,26 +342,9 @@ export function replayDial(v) {
 	return strip(parts.join(""), { status: v.status, border: v.onAir ? C.red : C.line });
 }
 
-/** Any view, drawn. */
+const DRAW = { lobby: lobbyKey, lobbyStep: lobbyStepKey, cam: camKey, camStep: camStepKey, toggle: toggleKey, previewDial, playerDial, replayDial };
+
+/** Any view, drawn (anything else as a labelled key). */
 export function render(view) {
-	switch (view?.type) {
-		case "lobby":
-			return lobbyKey(view);
-		case "lobbyStep":
-			return lobbyStepKey(view);
-		case "cam":
-			return camKey(view);
-		case "camStep":
-			return camStepKey(view);
-		case "toggle":
-			return toggleKey(view);
-		case "previewDial":
-			return previewDial(view);
-		case "playerDial":
-			return playerDial(view);
-		case "replayDial":
-			return replayDial(view);
-		default:
-			return labelKey(view ?? {});
-	}
+	return (Object.hasOwn(DRAW, view?.type) ? DRAW[view.type] : labelKey)(view ?? {});
 }

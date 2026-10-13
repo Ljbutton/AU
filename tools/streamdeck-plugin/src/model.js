@@ -56,8 +56,12 @@ export function targetLobby(state, target) {
  */
 export function stepLobby(state, fromNo, step) {
 	const list = onlineLobbies(state);
+	return stepFrom(list, list.findIndex((l) => l.no === Number(fromNo)), step);
+}
+
+/** The item `step` places on from index `at` (wrapping round); from the first or the last when `at` is -1. */
+function stepFrom(list, at, step) {
 	if (list.length === 0) return null;
-	const at = list.findIndex((l) => l.no === Number(fromNo));
 	if (at < 0) return step >= 0 ? list[0] : list[list.length - 1];
 	const n = list.length;
 	return list[(((at + step) % n) + n) % n];
@@ -92,11 +96,7 @@ export function playerById(lobby, id) {
  */
 export function stepPlayer(lobby, fromId, step) {
 	const list = livingPlayers(lobby);
-	if (list.length === 0) return null;
-	const at = list.findIndex((p) => p.id === fromId);
-	if (at < 0) return step >= 0 ? list[0] : list[list.length - 1];
-	const n = list.length;
-	return list[(((at + step) % n) + n) % n];
+	return stepFrom(list, list.findIndex((p) => p.id === fromId), step);
 }
 
 /** Who a lobby's camera is set to: the armed or picked player first, else who it follows now. */
@@ -142,29 +142,21 @@ export function sabotageLeft(lobby, receivedAt, now) {
  * rather than a guess).
  */
 export function toggleOn(state, which) {
-	if (!state) return null;
-	const bool = (v) => (typeof v === "boolean" ? v : null);
-	switch (which) {
-		case "mute":
-			return bool(state.voice?.muteAll);
-		case "hold":
-			return bool(state.hold);
-		case "autogrid":
-			return bool(state.auto?.grid);
-		case "autointermission":
-			return bool(state.auto?.intermission);
-		case "autoswitch":
-			return bool(state.auto?.switch);
-		case "standings":
-			return bool(state.graphics?.standings);
-		case "alerts": {
-			const paused = bool(state.graphics?.alertsPaused);
-			return paused === null ? null : !paused;
-		}
-		default:
-			return null;
-	}
+	if (!state || !Object.hasOwn(TOGGLE_STATE, which)) return null;
+	const on = TOGGLE_STATE[which](state);
+	return typeof on === "boolean" ? on : null;
 }
+
+/** Where each toggle's state is in /deck/state (alerts are on while they aren't paused). */
+const TOGGLE_STATE = {
+	mute: (s) => s.voice?.muteAll,
+	hold: (s) => s.hold,
+	autogrid: (s) => s.auto?.grid,
+	autointermission: (s) => s.auto?.intermission,
+	autoswitch: (s) => s.auto?.switch,
+	standings: (s) => s.graphics?.standings,
+	alerts: (s) => (typeof s.graphics?.alertsPaused === "boolean" ? !s.graphics.alertsPaused : null),
+};
 
 /** A name cut to fit a key: whole characters (emoji included), with an ellipsis when cut. */
 export function fit(text, max) {

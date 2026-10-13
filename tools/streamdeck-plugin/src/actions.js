@@ -95,6 +95,13 @@ function targetOf(settings, state) {
 /** The status the strip at the top of a key shows ("ok" shows nothing). */
 const base = (ctx) => ({ status: ctx?.status ?? "ok" });
 
+/** The lobby's player camera is off or not sending. */
+const noCamIn = (lobby) => Boolean(lobby && (lobby.cam?.on === false || lobby.cam?.sending === false));
+/** A player as a key draws them. */
+const drawn = (p) => (p ? { name: p.name, hex: playerHex(p), dead: Boolean(p.dead) } : null);
+/** The lobby's camera is armed to follow this player when play resumes. */
+const armedOn = (lobby, player) => Boolean(player && lobby?.cam?.armed && lobby.cam.pick === player.id);
+
 /**
  * Cutting to a lobby's camera keeps who it follows: "cam/cut" for the lobby on Program, and for any
  * other lobby the camera's own pick again (or "auto" when it picks by itself), without arming.
@@ -203,9 +210,8 @@ const camAction = {
 	},
 	view(s, state, ctx) {
 		const lobby = targetOf(s, state);
-		const noCam = Boolean(lobby && (lobby.cam?.on === false || lobby.cam?.sending === false));
+		const noCam = noCamIn(lobby);
 		if (s.who === "next" || s.who === "prev" || s.who === "auto") {
-			const current = camChoice(lobby);
 			return {
 				...base(ctx),
 				type: "camStep",
@@ -213,7 +219,7 @@ const camAction = {
 				lobbyNo: lobby?.no ?? null,
 				mode: s.mode === "arm" ? "arm" : "cut",
 				noCam,
-				current: current ? { name: current.name, hex: playerHex(current), dead: Boolean(current.dead) } : null,
+				current: drawn(camChoice(lobby)),
 			};
 		}
 		const player = findPlayer(lobby, s.who === "colour" ? s.colour : `slot${posInt(s.slot) ?? 0}`);
@@ -223,9 +229,9 @@ const camAction = {
 			type: "cam",
 			lobbyNo: lobby?.no ?? null,
 			slotLabel: s.who === "colour" ? "" : `#${posInt(s.slot) ?? "?"}`,
-			player: player ? { name: player.name, hex: playerHex(player), dead: Boolean(player.dead) } : null,
+			player: drawn(player),
 			ring: following ? (camOnProgram(state, lobby) ? "pgm" : "on") : null,
-			armed: Boolean(player && lobby?.cam?.armed && lobby.cam.pick === player.id),
+			armed: armedOn(lobby, player),
 			noCam,
 		};
 	},
@@ -269,7 +275,7 @@ const camCutAction = {
 	request: (s, state) => camCutRequest(s, state),
 	view(s, state, ctx) {
 		const lobby = targetOf(s, state);
-		const noCam = Boolean(lobby && (lobby.cam?.on === false || lobby.cam?.sending === false));
+		const noCam = noCamIn(lobby);
 		const who = camChoice(lobby);
 		const sub = lobby ? `L${lobby.no}${who ? ` ${who.name}` : ""}` : "no lobby";
 		return { ...base(ctx), type: "label", icon: "cam", title: noCam ? "NO CAM" : "CUT TO CAM", sub, accent: "red", lit: camOnProgram(state, lobby), dim: !lobby || noCam };
@@ -394,12 +400,12 @@ const previewDial = {
 	request: (s) => takeAction.request(s),
 	touch: () => go("pvw/clear"),
 	view(s, state, ctx, pending) {
-		const lobby = pending !== null && pending !== undefined ? lobbyByNo(state, pending) : previewLobby(state);
+		const lobby = pending != null ? lobbyByNo(state, pending) : previewLobby(state);
 		const layout = pick(s.as, LAYOUTS, null) ?? normLayout(state?.preview?.layout);
 		return {
 			...base(ctx),
 			type: "previewDial",
-			pending: pending !== null && pending !== undefined,
+			pending: pending != null,
 			layout: layout === "none" ? "" : LAYOUT_TITLES[layout] ?? layout,
 			lobby: lobby ? { no: lobby.no, name: lobby.name, phase: lobby.phase, online: lobby.online !== false } : null,
 		};
@@ -421,26 +427,26 @@ const playerDial = {
 	},
 	commit(s, state, pending) {
 		const seg = targetSegment(s);
-		const player = (targetOf(s, state)?.players ?? []).find((p) => p.id === pending);
+		const player = playerById(targetOf(s, state), pending);
 		return seg !== null && player ? go(`cam/${seg}/slot${player.slot}`, { arm: "1" }) : refuse("That player has gone.");
 	},
 	request(s, state, pending) {
 		const seg = targetSegment(s);
-		const player = pending === null || pending === undefined ? null : (targetOf(s, state)?.players ?? []).find((p) => p.id === pending);
+		const player = playerById(targetOf(s, state), pending);
 		return seg !== null && player ? go(`cam/${seg}/slot${player.slot}`) : camCutRequest(s, state);
 	},
 	touch: () => go("wide"),
 	view(s, state, ctx, pending) {
 		const lobby = targetOf(s, state);
-		const player = pending !== null && pending !== undefined ? (lobby?.players ?? []).find((p) => p.id === pending) ?? null : camChoice(lobby);
+		const player = pending != null ? playerById(lobby, pending) : camChoice(lobby);
 		return {
 			...base(ctx),
 			type: "playerDial",
-			pending: pending !== null && pending !== undefined,
+			pending: pending != null,
 			lobbyNo: lobby?.no ?? null,
-			noCam: Boolean(lobby && (lobby.cam?.on === false || lobby.cam?.sending === false)),
-			player: player ? { name: player.name, hex: playerHex(player), dead: Boolean(player.dead) } : null,
-			armed: Boolean(player && lobby?.cam?.armed && lobby.cam.pick === player.id),
+			noCam: noCamIn(lobby),
+			player: drawn(player),
+			armed: armedOn(lobby, player),
 			following: Boolean(player && lobby?.cam?.following === player.id),
 			onAir: Boolean(player && lobby?.cam?.following === player.id && camOnProgram(state, lobby)),
 		};
