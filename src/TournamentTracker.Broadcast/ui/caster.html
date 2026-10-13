@@ -1977,10 +1977,6 @@ function sysCard(c) {
   </div>`;
 }
 function decide(id, decision) { return post('/app/admin/interrupted', { id, decision }); }
-document.addEventListener('click', e => {
-  const b = e.target.closest('[data-decide]'); if (!b) return;
-  e.stopPropagation(); decide(b.dataset.iid, b.dataset.decide);
-}, true);
 // The health panel: one row per lobby, its colour and what's wrong in plain words; test buttons in simulation.
 // Fault buttons only while simulating; Reconnect on every row, always. The lag figure ticks in place.
 const SIMFAIL = [['video', 'Video'], ['audio', 'Audio'], ['data', 'Data'], ['all', 'All'], ['lag', 'Lag'], ['crash', 'Crash']];
@@ -2012,9 +2008,13 @@ $('hl-auto').addEventListener('click', async () => { await post('/app/admin/heal
 $('hl-slate').addEventListener('click', async () => { await post('/app/admin/health', { what: 'slate', on: String(!(DESK && DESK.health.settings.slate)) }); hlKey = ''; });
 $('hl-open').addEventListener('click', async () => { const r = await api('POST', '/app/admin/health', { what: 'open' }); toast(r.message); });
 function playerCard(key, lobby) { api('POST', '/app/admin/card', { key, lobby: lobby || '' }).then(r => toast(r.message)); }
+// Decide, player-card and into-Preview buttons work wherever they're drawn, before their row's own click.
 document.addEventListener('click', e => {
-  const b = e.target.closest('[data-pcard]'); if (!b) return;
-  e.stopPropagation(); playerCard(b.dataset.pcard, b.dataset.plobby);
+  const b = e.target.closest('[data-decide],[data-pcard],[data-cardshow]'); if (!b) return;
+  e.stopPropagation();
+  if (b.matches('[data-decide]')) decide(b.dataset.iid, b.dataset.decide);
+  else if (b.matches('[data-pcard]')) playerCard(b.dataset.pcard, b.dataset.plobby);
+  else show(b.dataset.cardshow, 'full');
 }, true);
 // Key C: the top notification's key player.
 function cardForTop() {
@@ -2215,10 +2215,6 @@ $('tw-card').addEventListener('change', e => {
   if (set) twDo({ action: set, value: e.target.value });
   else if (id === 'tw-reveal') twDo({ action: 'revealAtEject', on: String(e.target.checked) });
 });
-document.addEventListener('click', e => {
-  const b = e.target.closest('[data-cardshow]'); if (!b) return;
-  e.stopPropagation(); show(b.dataset.cardshow, 'full');
-}, true);
 // OBS's own level for a lobby's voice source: what the stream would get (grey when it's muted).
 const obsDb = (o, lobby) => o && o.levels ? o.levels[Object.keys(o.levels).find(k => k.toLowerCase() === lobby.toLowerCase())] : null;
 const isHeard = (o, lobby) => !!(o && o.heard && o.heard.toLowerCase() === lobby.toLowerCase());
