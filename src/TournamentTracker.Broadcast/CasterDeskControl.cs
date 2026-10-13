@@ -136,8 +136,11 @@ namespace TournamentTracker.App.Broadcast
         /// </summary>
         public bool Held
         {
-            get { lock (_lock) return _hold || _holdUntil is { } u && _clock() < u; }
+            get { lock (_lock) return HoldOn; }
         }
+
+        /// <summary>Held now: until released, or until a time still to come. Under the desk's lock.</summary>
+        private bool HoldOn => _hold || _holdUntil is { } u && _clock() < u;
 
         /// <summary>Holds automatic switching (for a while, or until released), or lets it go again.</summary>
         public void SetHold(bool on, TimeSpan? forHowLong = null, string? why = null)
@@ -155,7 +158,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Why switching is held ("Panic", "Held from the Stream Deck"…); null while it isn't.</summary>
         public string? HoldWhy
         {
-            get { lock (_lock) return _hold || _holdUntil is { } u && _clock() < u ? _holdWhy : null; }
+            get { lock (_lock) return HoldOn ? _holdWhy : null; }
         }
 
         /// <summary>The hold as it is now (until released, until a time, or off) and why, to put back exactly with <see cref="RestoreHold"/>.</summary>
@@ -175,7 +178,7 @@ namespace TournamentTracker.App.Broadcast
             {
                 _hold = hold.Forever;
                 _holdUntil = hold.Forever ? null : hold.Until;
-                bool on = _hold || _holdUntil is { } u && _clock() < u;
+                bool on = HoldOn;
                 _holdWhy = on ? hold.Why : null;
                 if (!on) HeldBack = null;
             }
@@ -195,7 +198,7 @@ namespace TournamentTracker.App.Broadcast
         {
             lock (_lock)
             {
-                bool on = _hold || _holdUntil is { } u && _clock() < u;
+                bool on = HoldOn;
                 return new
                 {
                     On = on,
