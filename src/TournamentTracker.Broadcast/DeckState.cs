@@ -168,9 +168,7 @@ namespace TournamentTracker.App.Broadcast
                 lobbies = ranking.OrderBy(r => desk.NumberOf(r.Lobby)).Select(r =>
                 {
                     var live = desk.Board.Lobby(r.Lobby);
-                    var spec = live?.Spec;
-                    bool camOn = spec is { } sp && sp.TryGetProperty("cam", out var c) && c.ValueKind == JsonValueKind.True;
-                    int? following = spec is { } sp2 && sp2.TryGetProperty("camOn", out var f) && f.ValueKind == JsonValueKind.Number ? f.GetInt32() : null;
+                    var (camOn, following) = CasterDesk.CamOf(live?.Spec);
                     var armed = desk.Armed(r.Lobby);
                     int slot = 0;
                     return new
@@ -278,7 +276,7 @@ namespace TournamentTracker.App.Broadcast
                     LobbyPlayer? p = which.StartsWith("slot", StringComparison.Ordinal) && int.TryParse(which.Substring(4), out var k) && k >= 1 && k <= players.Count ? players[k - 1]
                         : players.FirstOrDefault(x => x.Color >= 0 && x.Color < Colours.Length && Colours[x.Color] == which);
                     if (live == null || p == null) return Svg($"<text x=\"72\" y=\"64\" font-family=\"Arial\" font-size=\"22\" font-weight=\"700\" fill=\"{Dim}\" text-anchor=\"middle\">L{no}</text><text x=\"72\" y=\"96\" font-family=\"Arial\" font-size=\"16\" fill=\"{Dim}\" text-anchor=\"middle\">{Esc(which.ToUpperInvariant())}</text>");
-                    int? following = live.Spec is JsonElement sp && sp.TryGetProperty("camOn", out var f) && f.ValueKind == JsonValueKind.Number ? f.GetInt32() : null;
+                    int? following = CasterDesk.CamOf(live.Spec).Following;
                     var armed = desk.Armed(name!);
                     bool onAir = desk.OnAir.IsCam && desk.OnAir.Has(name!);
                     bool dead = p.Dead == true;

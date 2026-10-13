@@ -644,8 +644,7 @@ namespace TournamentTracker.App.Broadcast
             layout = OnAir.SlotsFor(layout) > 0 && layout != "break" ? layout : "full";
             int n = OnAir.SlotsFor(layout);
             var ranked = Board.Ranking().Where(r => r.Online && !IsDown(r.Lobby)).Select(r => r.Lobby).ToList();
-            OnAir next;
-            lock (_lock)
+            return PutOn(() =>
             {
                 var filled = new List<string?>(new string?[n]);
                 if (slots != null)
@@ -665,8 +664,20 @@ namespace TournamentTracker.App.Broadcast
                     if (free < 0) break;
                     if (!filled.Any(f => string.Equals(f, top, StringComparison.OrdinalIgnoreCase))) filled[free] = top;
                 }
-                next = new OnAir { Layout = layout, Slots = filled, By = by, Since = _clock(), Transition = transition };
-                _onAir = next;
+                return new OnAir { Layout = layout, Slots = filled, By = by, Since = _clock(), Transition = transition };
+            });
+        }
+
+        /// <summary>
+        /// A switch: the new on-air state (made under the desk's lock) is on, cards in it count as shown,
+        /// what was on before closes its sponsor appearances, and OBS and the Stream Deck hear of it.
+        /// </summary>
+        private OnAir PutOn(Func<OnAir> make)
+        {
+            OnAir next;
+            lock (_lock)
+            {
+                next = _onAir = make();
                 MarkShown(next);
             }
             Left(next);
@@ -693,22 +704,13 @@ namespace TournamentTracker.App.Broadcast
         private OnAir? _beforeIntermission;
         private readonly HashSet<string> _offerDismissed = new HashSet<string>();
 
-        public OnAir ShowIntermission(string by = "button", string? transition = null)
+        public OnAir ShowIntermission(string by = "button", string? transition = null) => PutOn(() =>
         {
-            OnAir next;
-            lock (_lock)
-            {
-                if (_onAir.Layout is not ("intermission" or "replay" or "none" or "slate")) _beforeIntermission = _onAir;
-                next = new OnAir { Layout = "intermission", Slots = new List<string?>(), By = by, Since = _clock(), Transition = transition };
-                _onAir = next;
-                IntermissionOffer = false;
-                LiveDuringIntermission = null;
-            }
-            Left(next);
-            Raise(next);
-            Touch();
-            return next;
-        }
+            if (_onAir.Layout is not ("intermission" or "replay" or "none" or "slate")) _beforeIntermission = _onAir;
+            IntermissionOffer = false;
+            LiveDuringIntermission = null;
+            return new OnAir { Layout = "intermission", Slots = new List<string?>(), By = by, Since = _clock(), Transition = transition };
+        });
 
         /// <summary>
         /// Out of intermission: the lobby that went live, else what was on before (a player camera or
@@ -1048,17 +1050,7 @@ namespace TournamentTracker.App.Broadcast
             var (cols, rows) = ObsDirector.GridShape(lobbies.Count);
             var slots = lobbies.Cast<string?>().ToList();
             while (slots.Count < cols * rows) slots.Add(null);
-            OnAir next;
-            lock (_lock)
-            {
-                next = new OnAir { Layout = "grid", Slots = slots, By = by, Since = _clock(), Transition = transition };
-                _onAir = next;
-                MarkShown(next);
-            }
-            Left(next);
-            Raise(next);
-            Touch();
-            return next;
+            return PutOn(() => new OnAir { Layout = "grid", Slots = slots, By = by, Since = _clock(), Transition = transition });
         }
 
         // ---- What the caster puts on stream from the tab ---------------------------------------

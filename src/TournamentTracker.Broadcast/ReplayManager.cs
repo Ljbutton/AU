@@ -282,11 +282,7 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>Who the lobby's player camera is following now, as its host last said.</summary>
-        private int? CamFollowing(string lobby)
-        {
-            var spec = _desk.Board.Lobby(lobby)?.Spec;
-            return spec is { } s && s.TryGetProperty("camOn", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt32() : (int?)null;
-        }
+        private int? CamFollowing(string lobby) => CasterDesk.CamOf(_desk.Board.Lobby(lobby)?.Spec).Following;
 
         /// <summary>Simulation without OBS: a stand-in video (the lobby and the play over moving colours) made with ffmpeg.</summary>
         private async Task StandInAsync(Clip clip)

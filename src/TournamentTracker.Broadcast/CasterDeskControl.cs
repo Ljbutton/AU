@@ -295,11 +295,14 @@ namespace TournamentTracker.App.Broadcast
             lock (_lock) return _armed.TryGetValue(lobby, out var a) ? (a.Pick, true) : (null, false);
         }
 
-        /// <summary>A lobby's camera as the Live desk and the Stream Deck show it.</summary>
+        /// <summary>A lobby's player camera as its host last reported it: is it sending one, and who it follows.</summary>
+        public static (bool On, int? Following) CamOf(JsonElement? spec) => spec is not { } s ? (false, null)
+            : (s.TryGetProperty("cam", out var c) && c.ValueKind == JsonValueKind.True, s.TryGetProperty("camOn", out var f) && f.ValueKind == JsonValueKind.Number ? f.GetInt32() : null);
+
+        /// <summary>A lobby's camera as the Live desk shows it.</summary>
         public object CamView(string lobby, JsonElement? spec)
         {
-            bool on = spec is { } s && s.TryGetProperty("cam", out var c) && c.ValueKind == JsonValueKind.True;
-            int? following = spec is { } s2 && s2.TryGetProperty("camOn", out var f) && f.ValueKind == JsonValueKind.Number ? f.GetInt32() : null;
+            var (on, following) = CamOf(spec);
             var armed = Armed(lobby);
             return new { On = on, Following = following, Pick = armed.Armed ? armed.Pick : CamPick(lobby), Armed = armed.Armed };
         }
@@ -323,8 +326,7 @@ namespace TournamentTracker.App.Broadcast
                 if (game == null && GameOf(live) is { } started) lock (_lock) if (_camWant.TryGetValue(lobby, out var w) && w.Game == null) _camWant[lobby] = (w.Pick, started);
                 if (!CamsOn() || live.Spec is not JsonElement spec || !spec.TryGetProperty("camPick", out var hp)) continue;     // an older host doesn't say
                 int? has = hp.ValueKind == JsonValueKind.Number ? hp.GetInt32() : null;
-                bool camOn = spec.TryGetProperty("cam", out var c) && c.ValueKind == JsonValueKind.True;
-                if (has == pick && camOn) continue;
+                if (has == pick && CamOf(spec).On) continue;
                 string want = CamCommand(pick);
                 lock (_lock)
                 {

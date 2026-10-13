@@ -35,6 +35,14 @@ namespace TournamentTracker.App.Broadcast
         public string? HealthPath { get; }
         public LobbyHealth Health { get; }
 
+        /// <summary>Auto switch on or off (saved in health.json), and what the desk and the Stream Deck say.</summary>
+        public string SetAutoSwitch(bool on)
+        {
+            HealthConfig.AutoSwitch = on;
+            HealthConfig.Save(HealthPath);
+            return on ? "Auto switch away from a lobby that drops: on." : "Auto switch away from a lobby that drops: off.";
+        }
+
         // Per lobby and run of its mod: every message up to Base arrived; Above: later ones that came first.
         private sealed class Received
         {
@@ -465,20 +473,11 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>"Technical difficulties: be right back", with the standings and storylines taking turns.</summary>
-        public OnAir ShowSlate(string by = "button", string? transition = null)
+        public OnAir ShowSlate(string by = "button", string? transition = null) => PutOn(() =>
         {
-            OnAir next;
-            lock (_lock)
-            {
-                if (_onAir.Layout is not ("intermission" or "replay" or "none" or "slate")) _beforeSlate = _onAir;
-                next = new OnAir { Layout = "slate", Slots = new List<string?>(), By = by, Since = _clock(), Transition = transition };
-                _onAir = next;
-            }
-            Left(next);
-            Raise(next);
-            Touch();
-            return next;
-        }
+            if (_onAir.Layout is not ("intermission" or "replay" or "none" or "slate")) _beforeSlate = _onAir;
+            return new OnAir { Layout = "slate", Slots = new List<string?>(), By = by, Since = _clock(), Transition = transition };
+        });
 
         private OnAir? _beforeSlate;
 
