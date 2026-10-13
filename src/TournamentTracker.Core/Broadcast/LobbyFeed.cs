@@ -43,6 +43,8 @@ namespace TournamentTracker
         private GameRecord? FeedGame => Tracker.Current ?? _endedGame;
 
         private FeedFrame? _lastFrame;
+        /// <summary>The lobby's kill cooldown as the host's game last said (25 s until it has).</summary>
+        private float KillCooldown => _lastFrame?.KillCooldown ?? 25;
         private DateTime _nextSnapshot;
         private int _lastTaskPct = -1;
         private readonly Dictionary<byte, bool> _inVent = new Dictionary<byte, bool>();
@@ -244,8 +246,7 @@ namespace TournamentTracker
             _danger.Clear();
             _inVent.Clear();
             _lastTaskPct = -1;
-            float cooldown = _lastFrame?.KillCooldown ?? 25;
-            var ready = _clock().AddSeconds(Math.Min(cooldown, Tuning.FirstKillCooldown));
+            var ready = _clock().AddSeconds(Math.Min(KillCooldown, Tuning.FirstKillCooldown));
             foreach (var p in game.Players.Where(p => p.IsImpostor)) _killReadyAt[p.PlayerId] = ready;
             var (crew, imps) = AliveCounts();
             Event("gameStart", new Dictionary<string, object?>
@@ -262,8 +263,7 @@ namespace TournamentTracker
         {
             var victim = Tracker.Current?.ById(victimId);
             if (victim == null || victim.DeathCause != "Killed") return;
-            float cooldown = _lastFrame?.KillCooldown ?? 25;
-            _killReadyAt[killerId] = _clock().AddSeconds(cooldown);
+            _killReadyAt[killerId] = _clock().AddSeconds(KillCooldown);
             _killReadySaid.Remove(killerId);
             _danger.Keys.Where(k => k.Crew == victimId).ToList().ForEach(k => _danger.Remove(k));
 
@@ -327,8 +327,7 @@ namespace TournamentTracker
         private void FeedMeetingClosed()
         {
             // The game resets every impostor's cooldown when the meeting ends.
-            float cooldown = _lastFrame?.KillCooldown ?? 25;
-            var ready = _clock().AddSeconds(cooldown);
+            var ready = _clock().AddSeconds(KillCooldown);
             foreach (var id in _killReadyAt.Keys.ToList()) _killReadyAt[id] = ready;
             _killReadySaid.Clear();
             _danger.Clear();
