@@ -297,7 +297,7 @@ namespace TournamentTracker.App.Broadcast
 
         /// <summary>A lobby's player camera as its host last reported it: is it sending one, and who it follows.</summary>
         public static (bool On, int? Following) CamOf(JsonElement? spec) => spec is not { } s ? (false, null)
-            : (s.TryGetProperty("cam", out var c) && c.ValueKind == JsonValueKind.True, s.TryGetProperty("camOn", out var f) && f.ValueKind == JsonValueKind.Number ? f.GetInt32() : null);
+            : (s.Flag("cam"), s.Int("camOn"));
 
         /// <summary>A lobby's camera as the Live desk shows it.</summary>
         public object CamView(string lobby, JsonElement? spec)

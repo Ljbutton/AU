@@ -108,7 +108,7 @@ namespace TournamentTracker.App.Broadcast
             return list;
         }
 
-        private static string Param(JsonElement e) => e.TryGetProperty("parameterValue", out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+        private static string Param(JsonElement e) => e.Str("parameterValue") ?? "";
 
         private async Task ReadDesktopAudioAsync(ObsClient obs)
         {
@@ -127,7 +127,7 @@ namespace TournamentTracker.App.Broadcast
             string name = data.TryGetProperty("inputName", out var n) ? n.GetString() ?? "" : "";
             bool known; lock (_desktopInputs) known = _desktopInputs.Contains(name);
             if (!known) return;
-            bool muted = data.TryGetProperty("inputMuted", out var m) && m.ValueKind == JsonValueKind.True;
+            bool muted = data.Flag("inputMuted");
             var on = DesktopAudioOn.Where(x => x != name).ToList();
             if (!muted) on.Add(name);
             DesktopAudioOn = on;

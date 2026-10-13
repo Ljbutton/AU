@@ -34,7 +34,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>The stream or the recording started or stopped (OBS's Outputs events): noted at once.</summary>
         private void OnOutputEvent(string type, JsonElement data)
         {
-            bool active = data.TryGetProperty("outputActive", out var a) && a.ValueKind == JsonValueKind.True;
+            bool active = data.Flag("outputActive");
             string state = data.TryGetProperty("outputState", out var s) ? s.GetString() ?? "" : "";
             lock (_outLock)
             {

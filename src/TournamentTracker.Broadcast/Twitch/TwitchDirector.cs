@@ -311,15 +311,13 @@ namespace TournamentTracker.App.Broadcast
             return _desk.Board.Ranking().FirstOrDefault(r => r.Online)?.Lobby;
         }
 
-        private static string? Str(JsonElement e, string p) => e.TryGetProperty(p, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
-
         private string? KeyOf(string lobby, JsonElement player)
         {
             if (player.ValueKind != JsonValueKind.Object) return null;
-            int id = player.TryGetProperty("id", out var i) && i.ValueKind == JsonValueKind.Number ? i.GetInt32() : -1;
+            int id = player.Int("id") ?? -1;
             var l = _desk.Board.Lobby(lobby);
             if (l != null && l.People.TryGetValue(id, out var p) && p.Key.Length > 0) return p.Key;
-            return Str(player, "key") ?? (id >= 0 ? "id:" + id : null);
+            return player.Str("key") ?? (id >= 0 ? "id:" + id : null);
         }
 
         /// <summary>Simulated games never start anything on a real channel by themselves (Twitch's own test mode is fine).</summary>
@@ -328,9 +326,9 @@ namespace TournamentTracker.App.Broadcast
         private void OnFed(string lobby, JsonElement m)
         {
             if (Settings.Off || SimHold && CasterDesk.IsSimLobby(lobby)) return;
-            string kind = Str(m, "kind") ?? "";
-            string game = Str(m, "game") ?? "";
-            int round = m.TryGetProperty("round", out var r) && r.ValueKind == JsonValueKind.Number ? r.GetInt32() : 0;
+            string kind = m.Str("kind") ?? "";
+            string game = m.Str("game") ?? "";
+            int round = m.Int("round") ?? 0;
             switch (kind)
             {
                 case "gameStart":
@@ -355,12 +353,12 @@ namespace TournamentTracker.App.Broadcast
                 }
                 case "gameEnd":
                 {
-                    bool abandoned = m.TryGetProperty("abandoned", out var ab) && ab.ValueKind == JsonValueKind.True;
+                    bool abandoned = m.Flag("abandoned");
                     var imps = m.TryGetProperty("impostors", out var ip) && ip.ValueKind == JsonValueKind.Array
                         ? ip.EnumerateArray().Select(x => KeyOf(lobby, x)).Where(x => x != null).Select(x => x!).ToHashSet()
                         : new HashSet<string>();
                     if (imps.Count == 0 && _desk.Board.Lobby(lobby) is { } l) imps = l.People.Values.Where(p => p.Imp == true).Select(p => p.Key).ToHashSet();
-                    string? winner = Str(m, "winner");
+                    string? winner = m.Str("winner");
                     Later("game end " + game, () => GameOverAsync(lobby, game, winner, abandoned, imps));
                     break;
                 }
@@ -786,11 +784,11 @@ namespace TournamentTracker.App.Broadcast
 
         private async Task RedeemedAsync(JsonElement ev)
         {
-            string rewardId = ev.TryGetProperty("reward", out var rw) ? Str(rw, "id") ?? "" : "";
+            string rewardId = ev.TryGetProperty("reward", out var rw) ? rw.Str("id") ?? "" : "";
             string? kind;
             lock (_lock) kind = _rewards.TryGetValue(rewardId, out var k) ? k : null;
             if (kind == null) return;                                           // someone else's reward
-            var r = new Redemption { Id = Str(ev, "id") ?? "", RewardId = rewardId, Kind = kind, User = Str(ev, "user_name") ?? Str(ev, "user_login") ?? "?", Input = (Str(ev, "user_input") ?? "").Trim(), At = _clock() };
+            var r = new Redemption { Id = ev.Str("id") ?? "", RewardId = rewardId, Kind = kind, User = ev.Str("user_name") ?? ev.Str("user_login") ?? "?", Input = (ev.Str("user_input") ?? "").Trim(), At = _clock() };
             if (kind == "shoutout")
             {
                 if (!Settings.Feature("shoutoutReward")) return;
@@ -861,29 +859,29 @@ namespace TournamentTracker.App.Broadcast
                 switch (type)
                 {
                     case "channel.chat.message":
-                        Chat(Str(ev, "chatter_user_id") ?? "", Str(ev, "chatter_user_login") ?? "", ev.TryGetProperty("message", out var msg) ? Str(msg, "text") ?? "" : "");
+                        Chat(ev.Str("chatter_user_id") ?? "", ev.Str("chatter_user_login") ?? "", ev.TryGetProperty("message", out var msg) ? msg.Str("text") ?? "" : "");
                         break;
                     case "channel.poll.progress" or "channel.poll.end":
                     {
                         var p = Poll;
-                        if (p == null || Str(ev, "id") != p.Id) break;
+                        if (p == null || ev.Str("id") != p.Id) break;
                         foreach (var c in ev.GetProperty("choices").EnumerateArray())
-                            if (p.Options.FirstOrDefault(o => o.Id == Str(c, "id")) is { } o) o.Votes = c.TryGetProperty("votes", out var v) ? v.GetInt64() : 0;
+                            if (p.Options.FirstOrDefault(o => o.Id == c.Str("id")) is { } o) o.Votes = c.TryGetProperty("votes", out var v) ? v.GetInt64() : 0;
                         if (type == "channel.poll.end") _ = PollEndedAsync(p);
                         break;
                     }
                     case "channel.prediction.progress" or "channel.prediction.lock" or "channel.prediction.end":
                     {
                         var p = Prediction;
-                        if (p == null || Str(ev, "id") != p.Id) break;
+                        if (p == null || ev.Str("id") != p.Id) break;
                         foreach (var c in ev.GetProperty("outcomes").EnumerateArray())
-                            if (p.Options.FirstOrDefault(o => o.Id == Str(c, "id")) is { } o)
+                            if (p.Options.FirstOrDefault(o => o.Id == c.Str("id")) is { } o)
                             {
-                                o.Votes = c.TryGetProperty("users", out var u) && u.ValueKind == JsonValueKind.Number ? u.GetInt64() : o.Votes;
-                                o.Points = c.TryGetProperty("channel_points", out var cp) && cp.ValueKind == JsonValueKind.Number ? cp.GetInt64() : o.Points;
+                                o.Votes = c.Long("users") ?? o.Votes;
+                                o.Points = c.Long("channel_points") ?? o.Points;
                             }
                         if (type == "channel.prediction.lock" && p.Status == "open") p.Status = "locked";
-                        if (type == "channel.prediction.end" && p.Status is "open" or "locked") p.Status = Str(ev, "status") == "canceled" ? "canceled" : "ended";
+                        if (type == "channel.prediction.end" && p.Status is "open" or "locked") p.Status = ev.Str("status") == "canceled" ? "canceled" : "ended";
                         break;
                     }
                     case "channel.channel_points_custom_reward_redemption.add":

@@ -180,7 +180,7 @@ namespace TournamentTracker.App.Broadcast
             why = null;
             var data = answer.TryGetProperty("responseData", out var r) ? r : answer;
             if (data.ValueKind != JsonValueKind.Object || !data.TryGetProperty("success", out var ok) || ok.ValueKind != JsonValueKind.False) return true;
-            why = data.TryGetProperty("error", out var e) && e.ValueKind == JsonValueKind.String ? e.GetString() : "its buffer isn't running";
+            why = data.Str("error") ?? "its buffer isn't running";
             return false;
         }
 

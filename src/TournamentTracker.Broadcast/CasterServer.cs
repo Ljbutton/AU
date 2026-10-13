@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using TournamentTracker.App.Broadcast;
 using TournamentTracker.Overlay;
 
 namespace TournamentTracker.App
@@ -159,8 +160,8 @@ namespace TournamentTracker.App
         /// <summary>A lobby's live data in the stream overlay's format. Public for tests.</summary>
         public static object OverlayState(JsonElement d, bool full)
         {
-            string S(string name) => d.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
-            int I(string name) => d.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : 0;
+            string S(string name) => d.Str(name) ?? "";
+            int I(string name) => d.Int(name) ?? 0;
             string phase = S("phase");
             bool playing = phase == "Tasks" || phase == "Meeting";
             return new

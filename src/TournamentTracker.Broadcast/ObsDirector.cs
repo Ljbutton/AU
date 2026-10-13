@@ -150,8 +150,7 @@ namespace TournamentTracker.App.Broadcast
             try
             {
                 var v = await obs.RequestAsync("GetVersion", null, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
-                string? S(string name) => v.TryGetProperty(name, out var x) && x.ValueKind == JsonValueKind.String ? x.GetString() : null;
-                return (S("obsVersion") ?? obs.ObsVersion, S("obsWebSocketVersion") ?? obs.WebSocketVersion, S("platformDescription"));
+                return (v.Str("obsVersion") ?? obs.ObsVersion, v.Str("obsWebSocketVersion") ?? obs.WebSocketVersion, v.Str("platformDescription"));
             }
             catch (Exception) { return (obs.ObsVersion, obs.WebSocketVersion, null); }
         }

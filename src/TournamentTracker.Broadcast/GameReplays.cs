@@ -70,7 +70,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>One "replay" message from a lobby.</summary>
         public void Add(string lobby, JsonElement msg, bool sim = false)
         {
-            string id = Str(msg, "id") ?? "";
+            string id = msg.Str("id") ?? "";
             if (id.Length == 0 || id.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) return;
             var now = _clock();
             Game g;
@@ -85,9 +85,9 @@ namespace TournamentTracker.App.Broadcast
                 }
                 g.Last = now;
                 if (g.OnDisk) return;         // the final copy is saved: a message sent again adds nothing
-                g.Name = Str(msg, "name") ?? g.Name;
-                g.Tournament = Str(msg, "tournament") ?? g.Tournament;
-                g.Map = Str(msg, "map") ?? g.Map;
+                g.Name = msg.Str("name") ?? g.Name;
+                g.Tournament = msg.Str("tournament") ?? g.Tournament;
+                g.Map = msg.Str("map") ?? g.Map;
                 if (msg.TryGetProperty("mapId", out var m) && m.TryGetInt32(out var mi)) g.MapId = mi;
                 if (msg.TryGetProperty("round", out var r) && r.TryGetInt32(out var ri)) g.Round = ri;
                 if (msg.TryGetProperty("players", out var pl) && pl.ValueKind == JsonValueKind.Array) g.Players = JsonNode.Parse(pl.GetRawText());
@@ -299,8 +299,5 @@ namespace TournamentTracker.App.Broadcast
             }
             return output.ToArray();
         }
-
-        private static string? Str(JsonElement e, string name) =>
-            e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
     }
 }

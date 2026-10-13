@@ -162,7 +162,7 @@ namespace TournamentTracker.App.Broadcast
         {
             AccessToken = j.GetProperty("access_token").GetString()!,
             RefreshToken = j.TryGetProperty("refresh_token", out var rt) ? rt.GetString() ?? "" : was?.RefreshToken ?? "",
-            ExpiresAt = _clock().AddSeconds(j.TryGetProperty("expires_in", out var ex) && ex.ValueKind == JsonValueKind.Number ? ex.GetInt32() : 3600),
+            ExpiresAt = _clock().AddSeconds(j.Int("expires_in") ?? 3600),
             Scopes = j.TryGetProperty("scope", out var sc) && sc.ValueKind == JsonValueKind.Array ? sc.EnumerateArray().Select(x => x.GetString() ?? "").ToList() : was?.Scopes ?? new List<string>(),
             UserId = was?.UserId ?? "", Login = was?.Login ?? "",
         };

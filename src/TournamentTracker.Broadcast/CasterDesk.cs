@@ -181,14 +181,11 @@ namespace TournamentTracker.App.Broadcast
                 {
                     if (!_voice.TryGetValue(l, out var v)) return (object)new { Lobby = l, Online = false, Reported = false };
                     var d = v.Data;
-                    string? S(string p) => d.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.String ? x.GetString() : null;
-                    double N(string p) => d.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.Number ? x.GetDouble() : -60;
-                    bool B(string p) => d.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.True;
                     return new
                     {
                         Lobby = l, Online = (now - v.At).TotalSeconds < 5, Reported = true,
-                        On = B("on"), Sending = B("sending"), Problem = S("problem"),
-                        Discord = S("discord"), Game = S("game"), VoiceDb = N("voiceDb"), GameDb = N("gameDb"), OutDb = d.TryGetProperty("outDb", out var o) && o.ValueKind == JsonValueKind.Number ? o.GetDouble() : (double?)null, Mic = B("mic"),
+                        On = d.Flag("on"), Sending = d.Flag("sending"), Problem = d.Str("problem"),
+                        Discord = d.Str("discord"), Game = d.Str("game"), VoiceDb = d.Num("voiceDb") ?? -60, GameDb = d.Num("gameDb") ?? -60, OutDb = d.Num("outDb"), Mic = d.Flag("mic"),
                         Ago = Math.Max(0, (int)(now - v.At).TotalSeconds),
                     };
                 }).ToList();
@@ -204,9 +201,8 @@ namespace TournamentTracker.App.Broadcast
             {
                 if (!_voice.TryGetValue(lobby, out var v) || (_clock() - v.At).TotalSeconds > 5) return null;
                 var d = v.Data;
-                if (!d.TryGetProperty("sending", out var s) || s.ValueKind != JsonValueKind.True) return null;
-                double N(string p) => d.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.Number ? x.GetDouble() : -100;
-                return d.TryGetProperty("outDb", out var o) && o.ValueKind == JsonValueKind.Number ? o.GetDouble() : Math.Max(N("voiceDb"), N("gameDb"));
+                if (!d.Flag("sending")) return null;
+                return d.Num("outDb") ?? Math.Max(d.Num("voiceDb") ?? -100, d.Num("gameDb") ?? -100);
             }
         }
 
@@ -287,9 +283,9 @@ namespace TournamentTracker.App.Broadcast
         {
             try
             {
-                string lobby = item.TryGetProperty("lobby", out var l) && l.ValueKind == JsonValueKind.String ? l.GetString() ?? "" : "";
-                string type = item.TryGetProperty("type", out var ty) && ty.ValueKind == JsonValueKind.String ? ty.GetString() ?? "" : "";
-                long? t = item.TryGetProperty("t", out var tt) && tt.ValueKind == JsonValueKind.Number && tt.GetInt64() > 0 ? tt.GetInt64() : null;
+                string lobby = item.Str("lobby") ?? "";
+                string type = item.Str("type") ?? "";
+                long? t = item.Long("t") is { } tl && tl > 0 ? tl : null;
                 var now = _clock();
                 // Sent again after a drop: each message once, in order (Part 22).
                 if (lobby.Length > 0 && !FirstTime(lobby, item)) return;
@@ -299,14 +295,14 @@ namespace TournamentTracker.App.Broadcast
                 if (lobby.Length > 0 && type is "snap" or "event") NumberOf(lobby);
                 if (type == TournamentTracker.Broadcast.FeedProtocol.Types.Host)
                 {
-                    string? tw = item.TryGetProperty("twitch", out var th) && th.ValueKind == JsonValueKind.String ? th.GetString() : null;
+                    string? tw = item.Str("twitch");
                     if (lobby.Length > 0) lock (_lock) { if (TwitchHandle(tw) is { } h) _twitch[lobby] = h; else _twitch.Remove(lobby); }
                     return;
                 }
                 if (type == "health")
                 {
-                    string? dataLink = item.TryGetProperty("data", out var dl) && dl.ValueKind == JsonValueKind.String ? dl.GetString() : null;
-                    if (lobby.Length > 0 && item.TryGetProperty("video", out var vs) && vs.ValueKind == JsonValueKind.String) Health.Video(lobby, vs.GetString() ?? "unknown", dataLink);
+                    string? dataLink = item.Str("data");
+                    if (lobby.Length > 0 && item.Str("video") is { } video) Health.Video(lobby, video, dataLink);
                     return;
                 }
                 bool resent = item.TryGetProperty("re", out var re) && re.ValueKind is JsonValueKind.True or JsonValueKind.Number;
@@ -324,10 +320,8 @@ namespace TournamentTracker.App.Broadcast
                     if (lobby.Length > 0 && !stale)
                     {
                         lock (_lock) _voice[lobby] = (item.Clone(), now);
-                        bool B(string p) => item.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.True;
-                        double N(string p) => item.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.Number ? x.GetDouble() : -60;
-                        string? problem = item.TryGetProperty("problem", out var pr) && pr.ValueKind == JsonValueKind.String ? pr.GetString() : null;
-                        Health.Audio(lobby, B("on") && B("sending"), N("voiceDb"), N("gameDb"), B("on") ? problem : null);
+                        bool on = item.Flag("on");
+                        Health.Audio(lobby, on && item.Flag("sending"), item.Num("voiceDb") ?? -60, item.Num("gameDb") ?? -60, on ? item.Str("problem") : null);
                     }
                     return;
                 }
@@ -532,10 +526,10 @@ namespace TournamentTracker.App.Broadcast
         private (string Key, string Name, int Color)? WhoIs(string lobby, JsonElement p)
         {
             var l = Board.Lobby(lobby);
-            int id = p.TryGetProperty("id", out var i) && i.ValueKind == JsonValueKind.Number ? i.GetInt32() : -1;
-            string fallback = p.TryGetProperty("display", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString()! : p.TryGetProperty("name", out var n) ? n.GetString() ?? "?" : "?";
-            int color = p.TryGetProperty("color", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt32() : 0;
-            string key = l != null && l.People.TryGetValue(id, out var lp) && lp.Key.Length > 0 ? lp.Key : p.TryGetProperty("key", out var k) && k.ValueKind == JsonValueKind.String ? k.GetString()! : "name:" + fallback.ToLowerInvariant();
+            int id = p.Int("id") ?? -1;
+            string fallback = p.Str("display") ?? (p.TryGetProperty("name", out var n) ? n.GetString() ?? "?" : "?");
+            int color = p.Int("color") ?? 0;
+            string key = l != null && l.People.TryGetValue(id, out var lp) && lp.Key.Length > 0 ? lp.Key : p.Str("key") ?? "name:" + fallback.ToLowerInvariant();
             return (key, l == null ? fallback : Board.DisplayName(l, id, fallback), color);
         }
 
@@ -1293,9 +1287,9 @@ namespace TournamentTracker.App.Broadcast
                             Id = p.TryGetProperty("id", out var i) ? i.GetInt32() : 0,
                             Name = p.TryGetProperty("name", out var n) ? n.GetString() : "",
                             Colour = p.TryGetProperty("colorName", out var co2) ? co2.GetString() : "",
-                            Imp = p.TryGetProperty("imp", out var im) && im.ValueKind == JsonValueKind.True,
-                            Color = p.TryGetProperty("color", out var co) && co.ValueKind == JsonValueKind.Number ? co.GetInt32() : (int?)null,
-                            Dead = p.TryGetProperty("dead", out var de) && de.ValueKind == JsonValueKind.True,
+                            Imp = p.Flag("imp"),
+                            Color = p.Int("color"),
+                            Dead = p.Flag("dead"),
                         }).ToList(),
                         OnAir = air.Label(r.Lobby),
                         Tally = Tally(r.Lobby, air, preview),

@@ -131,9 +131,9 @@ namespace TournamentTracker.App.Broadcast
             clip.Game = live?.Game;
             if (card.Source is { } src)
             {
-                if (src.TryGetProperty("room", out var room) && room.ValueKind == JsonValueKind.String) clip.Room = room.GetString();
-                if (src.TryGetProperty("round", out var rd) && rd.ValueKind == JsonValueKind.Number) clip.Round = rd.GetInt32();
-                if (src.TryGetProperty("game", out var gm) && gm.ValueKind == JsonValueKind.String) clip.Game = gm.GetString();
+                if (src.Str("room") is { } room) clip.Room = room;
+                if (src.Int("round") is { } round) clip.Round = round;
+                if (src.Str("game") is { } game) clip.Game = game;
                 // The key player: who the play is about (their player card comes up with the replay).
                 string? keyProp = card.Rule switch { "kill" or "winningKill" => "killer", "witnessedKill" => "impostor", "meeting" => "caller", "eject" => "ejected", "witnessedVent" or "vent" => "player", _ => null };
                 if (card.Rule == "witnessedVent") keyProp = "impostor";
@@ -141,9 +141,9 @@ namespace TournamentTracker.App.Broadcast
                 {
                     clip.KeyPlayerId = kid.GetInt32();
                     clip.KeyPlayer = live != null && live.People.TryGetValue(kid.GetInt32(), out var lp) && lp.Key.Length > 0 ? lp.Key
-                        : kp.TryGetProperty("key", out var kk) && kk.ValueKind == JsonValueKind.String ? kk.GetString() : null;
+                        : kp.Str("key");
                 }
-                if (src.TryGetProperty("t", out var t) && t.ValueKind == JsonValueKind.Number) clip.EventAt = _desk.Tracks.ToCaster(card.Lobby, t.GetInt64());
+                if (src.Long("t") is { } t) clip.EventAt = _desk.Tracks.ToCaster(card.Lobby, t);
                 foreach (var who in new[] { "killer", "victim", "impostor", "crewmate", "player", "witness", "caller", "body", "ejected" })
                     if (src.TryGetProperty(who, out var p) && p.ValueKind == JsonValueKind.Object && p.TryGetProperty("id", out var id) && !clip.Focus.Contains(id.GetInt32()))
                         clip.Focus.Add(id.GetInt32());
