@@ -225,8 +225,7 @@ public class SilentFailureTests : IAsyncDisposable
     {
         using var server = new BroadcastServer(new BroadcastEnvironment { SettingsFile = Path.Combine(_dir.Path, "RedAlert", "settings.json"), Port = 0, CasterPort = 0, Version = "0.1.0" },
             new HttpClient(new FakeHttp()));
-        using var http = new HttpClient { BaseAddress = new Uri(server.Url) };
-        http.DefaultRequestHeaders.Add("X-App-Token", server.Token);
+        using var http = AppHttp.Client(server.Url, server.Token);
         var admin = new SetupCode { Mode = "admin", TournamentId = "c", TournamentName = "Cup", BotTokens = new() { "admin" }, ResultsChannelId = "results" };
         Assert.True((await Call(http, "app/admin/code", new { code = admin.Encode() })).GetProperty("ok").GetBoolean());
         var connect = await Call(http, "app/admin/obs", new { host = "127.0.0.1", port = _obs.Port.ToString(), password = "secret" });

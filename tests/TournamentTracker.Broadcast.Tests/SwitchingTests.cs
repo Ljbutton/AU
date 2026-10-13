@@ -40,11 +40,7 @@ public class SwitchingTests : IAsyncLifetime
         _dir.Dispose();
     }
 
-    private static async Task Until(Func<bool> done, int ms = 6000)
-    {
-        for (int i = 0; i < ms / 20 && !done(); i++) await Task.Delay(20);
-        Assert.True(done());
-    }
+    private static Task Until(Func<bool> done, int ms = 6000) => Wait.For(done, ms);
 
     private string? ShownIn(string scene) { lock (_obs) return _obs.Scenes[scene].Where(i => i.Enabled && i.Source.StartsWith("TT Lobby ")).Select(i => i.Source.Substring("TT Lobby ".Length)).SingleOrDefault(); }
     private List<string> RequestsSince(int count) { lock (_obs) return _obs.Requests.Skip(count).ToList(); }

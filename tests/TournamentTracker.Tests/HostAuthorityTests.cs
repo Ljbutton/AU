@@ -1,5 +1,4 @@
 using System.Text.Json;
-using TournamentTracker.Control;
 using TournamentTracker.Discord;
 using TournamentTracker.Voice;
 using Xunit;
@@ -70,9 +69,7 @@ public class HostAuthorityTests : IDisposable
     {
         using var s = Session(port: 0);
         s.VoiceTick(VoicePhase.Lobby, Players.Lobby(), "ABCDEF", "Polus");
-        var control = JsonDocument.Parse(File.ReadAllText(Path.Combine(_dir.Path, ControlServer.FileName))).RootElement;
-        using var http = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{control.GetProperty("port").GetInt32()}/") };
-        http.DefaultRequestHeaders.Add("X-TT-Token", control.GetProperty("token").GetString());
+        using var http = AppHttp.Control(_dir.Path);
 
         var auth = JsonDocument.Parse(await http.GetStringAsync("api/status")).RootElement.GetProperty("hostAuthority");
         Assert.True(auth.GetProperty("on").GetBoolean());

@@ -12,7 +12,6 @@ public class LobbyHealthTests : IDisposable
     private readonly CasterDesk _desk;
     private readonly List<OnAir> _switched = new();
     private readonly Dictionary<string, long> _seq = new();
-    private static readonly JsonSerializerOptions Camel = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public LobbyHealthTests()
     {
@@ -55,7 +54,7 @@ public class LobbyHealthTests : IDisposable
         }
     }
 
-    private JsonElement State() => JsonSerializer.SerializeToElement(_desk.State(), Camel);
+    private JsonElement State() => JsonSerializer.SerializeToElement(_desk.State(), TestJson.Camel);
     private List<JsonElement> Cards() => State().GetProperty("cards").EnumerateArray().ToList();
 
     [Fact]
@@ -266,7 +265,7 @@ public class LobbyHealthTests : IDisposable
         Assert.Contains("no data for", note.Text);
         Assert.Contains("→", note.Text);
         Assert.Equal("LJ", note.Previous.Slots[0]);
-        var desk = JsonSerializer.SerializeToElement(_desk.State(), Camel).GetProperty("autoSwitched");
+        var desk = JsonSerializer.SerializeToElement(_desk.State(), TestJson.Camel).GetProperty("autoSwitched");
         Assert.Equal(note.Text, desk.GetProperty("text").GetString());
 
         // The caster puts it back by hand: it stays, the same outage never moves it again.
@@ -432,11 +431,11 @@ public class LobbyHealthTests : IDisposable
         Snap("A"); Snap("B");
         _desk.Show("", "2up", null, new[] { "A", "B" });
         Pass(4, "B");
-        var s = JsonSerializer.SerializeToElement(app.State(), Camel);
+        var s = JsonSerializer.SerializeToElement(app.State(), TestJson.Camel);
         Assert.True(s.GetProperty("lobbies").GetProperty("A").GetProperty("reconnecting").GetBoolean());   // 4 s without data: marked already
         Assert.False(s.GetProperty("lobbies").GetProperty("B").GetProperty("reconnecting").GetBoolean());
         _desk.ShowSlate();
-        s = JsonSerializer.SerializeToElement(app.State(), Camel);
+        s = JsonSerializer.SerializeToElement(app.State(), TestJson.Camel);
         Assert.Equal("slate", s.GetProperty("layout").GetString());
         Assert.True(s.GetProperty("intermission").GetProperty("slate").GetBoolean());
         Assert.Empty(s.GetProperty("slots").EnumerateArray());

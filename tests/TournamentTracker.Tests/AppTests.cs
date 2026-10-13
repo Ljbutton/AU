@@ -7,6 +7,7 @@ using TournamentTracker.Discord;
 using TournamentTracker.Setup;
 using TournamentTracker.Stats;
 using Xunit;
+using static TournamentTracker.Tests.AppHttp;
 
 namespace TournamentTracker.Tests;
 
@@ -17,6 +18,19 @@ public sealed class LocalOrFake : DelegatingHandler
     public LocalOrFake() : base(new HttpClientHandler()) { }
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
         request.RequestUri!.Host == "127.0.0.1" ? base.SendAsync(request, ct) : Task.FromResult(Internet(request));
+}
+
+/// <summary>The Button in a test: its settings under <c>dir</c>, finding nothing on this PC but the Steam folder it's given.</summary>
+public static class ButtonApp
+{
+    public static AppEnvironment Env(string dir, string? steam = null) => new()
+    {
+        SettingsFile = Path.Combine(dir, "app", "app.json"), SteamRoot = steam ?? Path.Combine(dir, "none"),
+        EpicManifests = Path.Combine(dir, "none"), Fallbacks = Array.Empty<string>(), Downloads = Path.Combine(dir, "Downloads"),
+    };
+
+    /// <summary>A client for its /app/ calls, with its token.</summary>
+    public static HttpClient Client(AppServer app) => AppHttp.Client(app.Url, app.Token);
 }
 
 public class AppTests : IDisposable
@@ -155,11 +169,7 @@ public class AppTests : IDisposable
     [Fact]
     public async Task The_send_page_keeps_working_after_The_Button_restarts()
     {
-        var env = new AppEnvironment
-        {
-            SettingsFile = Path.Combine(_dir.Path, "app", "app.json"), SteamRoot = Path.Combine(_dir.Path, "none"),
-            EpicManifests = Path.Combine(_dir.Path, "none"), Fallbacks = Array.Empty<string>(), Downloads = Path.Combine(_dir.Path, "Downloads"),
-        };
+        var env = ButtonApp.Env(_dir.Path);
         string token; int port;
         using (var first = new AppServer(env, new HttpClient(new FakeHttp()))) { token = first.Token; port = first.Port; }
         // Restarted (an update): the same link, so the open "Send my game to the caster" tab still reaches it.
@@ -183,14 +193,9 @@ public class AppTests : IDisposable
     [Fact]
     public async Task One_Update_button_says_when_everything_is_up_to_date_and_the_camera_relay_answers_empty()
     {
-        var env = new AppEnvironment
-        {
-            SettingsFile = Path.Combine(_dir.Path, "app", "app.json"), SteamRoot = Path.Combine(_dir.Path, "none"),
-            EpicManifests = Path.Combine(_dir.Path, "none"), Fallbacks = Array.Empty<string>(), Downloads = Path.Combine(_dir.Path, "Downloads"),
-        };
+        var env = ButtonApp.Env(_dir.Path);
         using var app = new AppServer(env, new HttpClient(new FakeHttp()));
-        using var http = new HttpClient { BaseAddress = new Uri(app.Url) };
-        http.DefaultRequestHeaders.Add("X-App-Token", app.Token);
+        using var http = ButtonApp.Client(app);
         var r = await http.PostAsync("app/updateall", new StringContent("{}"));
         var said = JsonDocument.Parse(await r.Content.ReadAsStringAsync()).RootElement;
         Assert.False(said.GetProperty("ok").GetBoolean());
@@ -208,14 +213,9 @@ public class AppTests : IDisposable
         Directory.CreateDirectory(Path.Combine(game, "BepInEx", "plugins"));
         File.WriteAllBytes(Path.Combine(game, "BepInEx", "plugins", "TournamentTracker.dll"), new byte[] { 9 });
         File.WriteAllBytes(Path.Combine(game, "winhttp.dll"), Pe(0x14C));       // left from before Among Us went 64-bit
-        var env = new AppEnvironment
-        {
-            SettingsFile = Path.Combine(_dir.Path, "app", "app.json"), SteamRoot = Path.Combine(_dir.Path, "Steam"),
-            EpicManifests = Path.Combine(_dir.Path, "none"), Fallbacks = Array.Empty<string>(), Downloads = Path.Combine(_dir.Path, "Downloads"),
-        };
+        var env = ButtonApp.Env(_dir.Path, Path.Combine(_dir.Path, "Steam"));
         using var app = new AppServer(env, new HttpClient(ReleaseWithBothBundles(BothBundles)));
-        using var http = new HttpClient { BaseAddress = new Uri(app.Url) };
-        http.DefaultRequestHeaders.Add("X-App-Token", app.Token);
+        using var http = ButtonApp.Client(app);
 
         var first = await Get(http, "app/state");                               // the app notices, and repairs
         Assert.False(first.GetProperty("mod").GetProperty("loaderMatchesGame").GetBoolean());
@@ -277,20 +277,11 @@ public class AppTests : IDisposable
     private (AppServer App, HttpClient Http, string Game) App(string? steamGame = null)
     {
         string game = steamGame ?? Game(Path.Combine(_dir.Path, "Steam", "steamapps", "common", "Among Us"));
-        var env = new AppEnvironment
-        {
-            SettingsFile = Path.Combine(_dir.Path, "app", "app.json"), SteamRoot = Path.Combine(_dir.Path, "Steam"),
-            EpicManifests = Path.Combine(_dir.Path, "none"), Fallbacks = Array.Empty<string>(), Downloads = Path.Combine(_dir.Path, "Downloads"),
-        };
+        var env = ButtonApp.Env(_dir.Path, Path.Combine(_dir.Path, "Steam"));
         var app = new AppServer(env, new HttpClient(new LocalOrFake()));
-        var http = new HttpClient { BaseAddress = new Uri(app.Url) };
-        http.DefaultRequestHeaders.Add("X-App-Token", app.Token);
+        var http = ButtonApp.Client(app);
         return (app, http, game);
     }
-
-    private static async Task<JsonElement> Get(HttpClient http, string path) => JsonDocument.Parse(await http.GetStringAsync(path)).RootElement;
-    private static async Task<JsonElement> Post(HttpClient http, string path, object? body = null) =>
-        JsonDocument.Parse(await (await http.PostAsync(path, new StringContent(JsonSerializer.Serialize(body ?? new { }), Encoding.UTF8, "application/json"))).Content.ReadAsStringAsync()).RootElement;
 
     [Fact]
     public async Task The_app_page_is_served_with_its_token_and_everything_else_needs_it()

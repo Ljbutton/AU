@@ -5,6 +5,7 @@ using TournamentTracker.App;
 using TournamentTracker.App.Voice;
 using TournamentTracker.Control;
 using Xunit;
+using static TournamentTracker.Tests.ButtonApp;
 
 namespace TournamentTracker.Tests;
 
@@ -18,18 +19,7 @@ public class ButtonSendPageTests : IDisposable
     private readonly FakeClock _clock = new();
     public void Dispose() => _dir.Dispose();
 
-    private AppEnvironment Env(string? steam = null) => new()
-    {
-        SettingsFile = Path.Combine(_dir.Path, "app", "app.json"), SteamRoot = steam ?? Path.Combine(_dir.Path, "none"),
-        EpicManifests = Path.Combine(_dir.Path, "none"), Fallbacks = Array.Empty<string>(), Downloads = Path.Combine(_dir.Path, "Downloads"),
-    };
-
-    private static HttpClient Client(AppServer app)
-    {
-        var http = new HttpClient { BaseAddress = new Uri(app.Url) };
-        http.DefaultRequestHeaders.Add("X-App-Token", app.Token);
-        return http;
-    }
+    private AppEnvironment Env(string? steam = null) => ButtonApp.Env(_dir.Path, steam);
 
     [Fact]
     public async Task Only_the_newest_send_page_is_served_and_switching_off_retires_it()
