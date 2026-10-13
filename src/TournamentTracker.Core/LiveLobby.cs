@@ -262,9 +262,6 @@ namespace TournamentTracker
         internal static string NormalizeName(string name) =>
             new string(name.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
 
-        /// <summary>A player unlinked themselves: don't auto-link them again this session.</summary>
-        private void BlockAutoLink(string playerKey) => _noAutoLink.Add(playerKey);
-
         // ---- Live status message ------------------------------------------------------------
 
         private string StatusWebhook =>

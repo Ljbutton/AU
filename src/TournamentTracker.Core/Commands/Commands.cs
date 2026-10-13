@@ -11,7 +11,7 @@ namespace TournamentTracker
 {
     public sealed partial class TournamentSession
     {
-        private bool HandleCommand(PlayerSnapshot sender, bool fromHost, string text)
+        private bool HandleCommand(PlayerSnapshot sender, string text)
         {
             string prefix = _settings.CommandPrefix;
             text = text.Trim();
@@ -22,38 +22,38 @@ namespace TournamentTracker
             string command = parts[0].ToLowerInvariant();
             var args = parts.Skip(1).ToArray();
 
-            if (fromHost && TryRoundCommand(command, args)) return true;
+            if (TryRoundCommand(command, args)) return true;
 
             switch (command)
             {
-                case "refslot" when fromHost:
+                case "refslot":
                     RefSlotCommand(sender, args);
                     return true;
-                case "setup" when fromHost:
+                case "setup":
                     SetupCommand(args);
                     return true;
-                case "automute" when fromHost:
+                case "automute":
                     AutoMuteCommand(args);
                     return true;
-                case "unmuteall" when fromHost:
+                case "unmuteall":
                     UnmuteEveryone();
                     Reply(AutoMute == null ? "Automute isn't set up." : "Everyone unmuted; automute is OFF. Use !automute on to resume.", false);
                     return true;
-                case "leaderboard" when fromHost:
-                case "lb" when fromHost:
+                case "leaderboard":
+                case "lb":
                     LeaderboardCommand();
                     return true;
-                case "refresh" when fromHost:
+                case "refresh":
                     RepostStatus();
                     Reply(_settings.LiveStatus ? "Posted a fresh status message in Discord." : "The live status message is off (LiveStatus in the config).", false);
                     return true;
-                case "ref" when fromHost:
+                case "ref":
                     RefereeCommand(sender, args);
                     return true;
-                case "spectators" when fromHost:
+                case "spectators":
                     SpectatorsCommand(args);
                     return true;
-                case "servers" when fromHost:
+                case "servers":
                     if (Shared == null || _settings.PrelimChannelIds.Count == 0)
                         Reply("Server standings need a tournament setup code with preliminary channels.", false);
                     else
@@ -62,55 +62,55 @@ namespace TournamentTracker
                         Reply("Posting the server standings.", false);
                     }
                     return true;
-                case "overlay" when fromHost:
+                case "overlay":
                     OverlayCommand(args);
                     return true;
-                case "feed" when fromHost:
+                case "feed":
                     FeedCommand(args);
                     return true;
-                case "voicenotice" when fromHost:
+                case "voicenotice":
                     VoiceNoticeCommand();
                     return true;
-                case "lead" when fromHost:
+                case "lead":
                     LeadCommand();
                     return true;
-                case "lock" when fromHost:
+                case "lock":
                     LockCommand(args);
                     return true;
-                case "void" when fromHost:
-                case "unvoid" when fromHost:
+                case "void":
+                case "unvoid":
                     VoidCommand(command == "void", args);
                     return true;
-                case "spec" when fromHost:
+                case "spec":
                     SpectatorCommand(args);
                     return true;
-                case "hostauth" when fromHost:
+                case "hostauth":
                     HostAuthorityCommand(args);
                     return true;
-                case "safemode" when fromHost:
+                case "safemode":
                     SafeModeCommand(args);
                     return true;
-                case "link" when fromHost:
+                case "link":
                     LinkCommand(args);
                     return true;
-                case "unlink" when fromHost:
+                case "unlink":
                     UnlinkCommand(args);
                     return true;
-                case "verify" when fromHost:
-                case "submit" when fromHost:
+                case "verify":
+                case "submit":
                     VerifyCommand(args);
                     return true;
-                case "voidgame" when fromHost:
-                case "unvoidgame" when fromHost:
+                case "voidgame":
+                case "unvoidgame":
                     VoidGameCommand(command == "voidgame", args);
                     return true;
-                case "adjust" when fromHost:
+                case "adjust":
                     AdjustCommand(args);
                     return true;
-                case "resetpoints" when fromHost:
+                case "resetpoints":
                     ResetPointsCommand();
                     return true;
-                case "resetleaderboard" when fromHost:
+                case "resetleaderboard":
                     ResetLeaderboardCommand();
                     return true;
                 default:

@@ -24,14 +24,8 @@ namespace TournamentTracker
             public string Webhook { get; set; } = "";
         }
 
-        /// <summary>This lobby's report (and standings) in the host's public channel.</summary>
         /// <summary>The public channel gets the game's results and timeline, and nothing else (no standings, no data).</summary>
-        private void PostPublic(WebhookMessage message)
-        {
-            string url = _settings.PublicWebhookUrl;
-            if (string.IsNullOrWhiteSpace(url)) return;
-            Post(url, message);
-        }
+        private void PostPublic(WebhookMessage message) => Post(_settings.PublicWebhookUrl, message);
 
         /// <summary>Replaces this lobby's count in the private channel with a fresh one at the bottom.</summary>
         private void UpdatePrelimCount()
@@ -53,9 +47,7 @@ namespace TournamentTracker
 
                 var result = await _rest.ExecuteWebhookAsync(url, message).ConfigureAwait(false);
                 if (!result.Ok) { _log.Error("Couldn't post the lobby's count: " + result); return; }
-                string id = "";
-                try { if (JsonDocument.Parse(result.Body).RootElement.TryGetProperty("id", out var v)) id = v.GetString() ?? ""; }
-                catch (Exception) { }
+                string id = DiscordRest.MessageIdOf(result) ?? "";
                 TrySave(() =>
                 {
                     Directory.CreateDirectory(_gamesDir);

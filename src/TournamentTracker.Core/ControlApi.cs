@@ -111,7 +111,7 @@ namespace TournamentTracker
             if (text.Length == 0) return false;
             if (!text.StartsWith(_settings.CommandPrefix, StringComparison.Ordinal)) text = _settings.CommandPrefix + text;
             var host = Players.FirstOrDefault(p => p.IsHost) ?? new PlayerSnapshot { Name = "Host", IsHost = true, Key = "host" };
-            bool handled = HandleCommand(host, fromHost: true, text);
+            bool handled = HandleCommand(host, text);
             if (!handled) Log($"Unknown command: {command}");
             return handled;
         }

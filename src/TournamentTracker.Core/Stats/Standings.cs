@@ -145,7 +145,7 @@ namespace TournamentTracker.Stats
             var results = new List<AdjustmentResult>();
             foreach (var a in adjustments.OrderBy(a => a.TimeUtc))
             {
-                var result = new AdjustmentResult { Adjustment = a, Game = FindGame(games, a) };
+                var result = new AdjustmentResult { Adjustment = a, Game = FindGame(games, a.Game, a.TimeUtc) };
                 result.Player = result.Game == null ? null : FindPlayer(result.Game, a.Player);
                 if (result.Player != null)
                 {
@@ -179,8 +179,6 @@ namespace TournamentTracker.Stats
             }
             return results;
         }
-
-        private static GameRecord? FindGame(IReadOnlyList<GameRecord> games, RefereeAdjustment a) => FindGame(games, a.Game, a.TimeUtc);
 
         private static GameRecord? FindGame(IReadOnlyList<GameRecord> games, string text, DateTime timeUtc)
         {
@@ -228,14 +226,14 @@ namespace TournamentTracker.Stats
         /// </summary>
         public static List<StandingRow> Lobby(IReadOnlyList<GameRecord> games, string host, int round, int advance, int gamesPerRound = 0)
         {
-            var bumps = Bumps(games, advance, gamesPerRound);
+            var bumps = Tiebreaks(games, advance, gamesPerRound);
             var roundGames = games.Where(g => g.Round == round && string.Equals(g.Host, host, StringComparison.OrdinalIgnoreCase)).ToList();
             return Ranked(roundGames, games, advance, bumps, b => b.Round == round && string.Equals(b.Host, host, StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>Every lobby together for a round (no cut line: players advance per lobby).</summary>
         public static List<StandingRow> Round(IReadOnlyList<GameRecord> games, int round, int advance = 0, int gamesPerRound = 0) =>
-            Ranked(games.Where(g => g.Round == round).ToList(), games, 0, Bumps(games, advance, gamesPerRound), b => b.Round == round);
+            Ranked(games.Where(g => g.Round == round).ToList(), games, 0, Tiebreaks(games, advance, gamesPerRound), b => b.Round == round);
 
         private static List<StandingRow> Ranked(List<GameRecord> scope, IReadOnlyList<GameRecord> all, int advance,
             List<CutTiebreak> bumps, Func<CutTiebreak, bool> inScope)
@@ -259,10 +257,7 @@ namespace TournamentTracker.Stats
         }
 
         /// <summary>Every cut-line tie in lobby rounds that have finished (all their games played).</summary>
-        public static List<CutTiebreak> Tiebreaks(IReadOnlyList<GameRecord> games, int advance, int gamesPerRound) =>
-            Bumps(games, advance, gamesPerRound);
-
-        private static List<CutTiebreak> Bumps(IReadOnlyList<GameRecord> games, int advance, int gamesPerRound)
+        public static List<CutTiebreak> Tiebreaks(IReadOnlyList<GameRecord> games, int advance, int gamesPerRound)
         {
             var result = new List<CutTiebreak>();
             if (advance <= 0 || gamesPerRound <= 0) return result;

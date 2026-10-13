@@ -291,12 +291,9 @@ namespace TournamentTracker.Discord
             try
             {
                 using var doc = JsonDocument.Parse(result.Body);
-                return doc.RootElement.TryGetProperty("id", out var id) ? id.GetString() : null;
+                return doc.RootElement.Str("id");
             }
-            catch (JsonException)
-            {
-                return null;
-            }
+            catch (JsonException) { return null; }
         }
 
         private static string MessageUrl(string webhookUrl, string messageId)
