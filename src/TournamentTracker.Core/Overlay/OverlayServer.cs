@@ -49,8 +49,15 @@ namespace TournamentTracker.Overlay
                 {
                     client.ReceiveTimeout = 2000;
                     var stream = client.GetStream();
-                    var (method, path, _, _) = await HttpRequest.ReadAsync(stream).ConfigureAwait(false);
-                    if (method.Length == 0) return;          // closed without asking anything
+                    // Only the request line matters here, so headers of any size or line ending are skipped (OBS
+                    // browser sources can send large cookies for localhost).
+                    using var reader = new StreamReader(stream, Encoding.ASCII, false, 1024, leaveOpen: true);
+                    string? requestLine = await reader.ReadLineAsync().ConfigureAwait(false);
+                    if (requestLine == null) return;
+                    string? line;
+                    while (!string.IsNullOrEmpty(line = await reader.ReadLineAsync().ConfigureAwait(false))) { }
+                    var parts = requestLine.Split(' ');
+                    string path = parts.Length > 1 ? parts[1] : "/";
                     byte[] bytes;
                     string type, cache = "no-store";
                     int status = 200;

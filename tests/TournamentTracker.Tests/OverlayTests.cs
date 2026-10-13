@@ -73,6 +73,18 @@ public class OverlayTests : IDisposable
         Assert.Equal("Cup", state.GetProperty("tournament").GetString());
         Assert.Equal(6, state.GetProperty("players").GetArrayLength());
 
+        // Only the request line is read: big headers (cookies for localhost) and bare \n line endings still work.
+        var url = new Uri(s.Overlay.Url);
+        using (var tcp = new System.Net.Sockets.TcpClient("127.0.0.1", url.Port))
+        {
+            var stream = tcp.GetStream();
+            var ask = System.Text.Encoding.ASCII.GetBytes("GET /state HTTP/1.1\nHost: localhost\nCookie: " + new string('c', 20000) + "\n\n");
+            await stream.WriteAsync(ask);
+            var answer = await new StreamReader(stream).ReadToEndAsync();
+            Assert.StartsWith("HTTP/1.1 200", answer);
+            Assert.Contains("\"tournament\":\"Cup\"", answer);
+        }
+
         s.RunCommand("!overlay off");
         Assert.Null(s.Overlay);
     }

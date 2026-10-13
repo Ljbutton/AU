@@ -45,11 +45,17 @@ namespace TournamentTracker.App
         }
 
         /// <summary>/base.css and /base.js, the look and script both apps' own pages share; null for any other route.</summary>
-        public static (string Type, byte[] Body)? Base(Assembly assembly, string route) => route switch
+        public static (string Type, byte[] Body)? Base(Assembly assembly, string route)
         {
-            "/base.css" => ("text/css; charset=utf-8", Bytes(assembly, "ui/base.css")),
-            "/base.js" => ("text/javascript; charset=utf-8", Bytes(assembly, "ui/base.js")),
-            _ => null,
-        };
+            var (type, name) = route switch
+            {
+                "/base.css" => ("text/css; charset=utf-8", "ui/base.css"),
+                "/base.js" => ("text/javascript; charset=utf-8", "ui/base.js"),
+                _ => (null, null),
+            };
+            if (name == null) return null;
+            var bytes = Bytes(assembly, name);
+            return bytes.Length == 0 ? null : (type!, bytes);
+        }
     }
 }

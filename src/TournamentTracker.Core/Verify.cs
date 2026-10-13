@@ -80,7 +80,11 @@ namespace TournamentTracker
             if (waiting != null) return waiting.Game;
             if (LastGame != null && Is(LastGame)) return LastGame;
             foreach (var f in LocalGameFiles())
-                if (ReadGameFile(f.FullName) is GameRecord g && Is(g)) return g;
+            {
+                // A hand-edited or broken file (e.g. no host) is skipped, not the end of the search.
+                try { if (ReadGameFile(f.FullName) is GameRecord g && Is(g)) return g; }
+                catch (Exception) { }
+            }
             return null;
         }
 
