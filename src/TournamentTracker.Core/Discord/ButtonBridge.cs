@@ -97,7 +97,7 @@ namespace TournamentTracker.Discord
         public static HttpClient CreateClient(string dataDir)
         {
             var http = new HttpClient(new RelayHandler(dataDir)) { Timeout = TimeSpan.FromSeconds(30) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("DiscordBot (https://github.com/Ljbutton/AU, 1.0)");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd(DiscordRest.UserAgent);
             return http;
         }
 
@@ -291,8 +291,8 @@ namespace TournamentTracker.Discord
                     catch (Exception x) { _log.Warn($"Discord event {type} failed: {x.Message}"); }
                 }
             State.Connected = answer.TryGetProperty("connected", out var c) && c.ValueKind == JsonValueKind.True;
-            State.Problem = Str(answer, "problem");
-            State.Warning = Str(answer, "warning");
+            State.Problem = answer.Str("problem");
+            State.Warning = answer.Str("warning");
         }
 
         private void SetOpen(bool open)
@@ -303,9 +303,6 @@ namespace TournamentTracker.Discord
             _log.Info(open ? "The Button is open: Discord goes through it." : "The Button isn't open: Discord is off.");
             ButtonChanged?.Invoke(open);
         }
-
-        private static string? Str(JsonElement e, string name) =>
-            e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
         public void Dispose()
         {

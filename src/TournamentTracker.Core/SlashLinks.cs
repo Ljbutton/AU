@@ -57,27 +57,14 @@ namespace TournamentTracker
 
         private void OnInteraction(Interaction i)
         {
-            if (i.Command == "menu")
-            {
-                // Only this lobby's own live status message.
-                if (i.CustomId != _linkMenuId) return;
-                _mainThread.Enqueue(() =>
-                {
-                    try
-                    {
-                        string answer = HandleLinkMenu(i);
-                        Task.Run(() => _rest.RespondToInteractionAsync(i.Id, i.Token, answer));
-                    }
-                    catch (Exception e) { _log.Error("Colour menu failed: " + e.Message); }
-                });
-                return;
-            }
-            if (i.Command != "link" && i.Command != "unlink" && i.Command != "new") return;
+            bool menu = i.Command == "menu";
+            // A colour menu: only this lobby's own live status message.
+            if (menu ? i.CustomId != _linkMenuId : i.Command != "link" && i.Command != "unlink" && i.Command != "new") return;
             _mainThread.Enqueue(() =>
             {
                 try
                 {
-                    string? answer = i.Command == "new" ? HandleNewCommand(i) : HandleSlashCommand(i);
+                    string? answer = menu ? HandleLinkMenu(i) : i.Command == "new" ? HandleNewCommand(i) : HandleSlashCommand(i);
                     // Discord wants an answer within 3 seconds, so this doesn't wait behind other posts.
                     if (answer != null)
                     {
@@ -94,7 +81,7 @@ namespace TournamentTracker
                         await _rest.RespondToInteractionAsync(i.Id, i.Token, fallback).ConfigureAwait(false);
                     });
                 }
-                catch (Exception e) { _log.Error("/" + i.Command + " failed: " + e.Message); }
+                catch (Exception e) { _log.Error((menu ? "Colour menu" : "/" + i.Command) + " failed: " + e.Message); }
             });
         }
 
@@ -108,12 +95,8 @@ namespace TournamentTracker
             if (!int.TryParse(value, out int color)) return "That didn't work. Pick your colour again.";
             var player = WithoutReferee(Players).FirstOrDefault(p => p.ColorId == color && !p.Disconnected);
             if (player == null) return $"Nobody is {Colors.Name(color)} in the lobby now. Check your colour in Among Us and pick again.";
-            var taken = Links.Find(player.Key);
-            if (taken != null && taken.DiscordUserId == i.UserId) return $"You're already linked to {player}.";
-            // The newest pick wins: whoever had this colour before is unlinked.
-            string was = taken != null ? $" (replacing @{taken.DiscordName})" : "";
-            Links.Link(player.Key, player.Name, i.UserId, i.UserName);
-            RefreshStatus(force: true);
+            if (Links.Find(player.Key)?.DiscordUserId == i.UserId) return $"You're already linked to {player}.";
+            string was = Link(player, i.UserId, i.UserName);
             Note($"Linked {player} to @{i.UserName}{was}.");
             return $"Linked you to {player}{was}. Automute will follow you from now on.";
         }
@@ -201,9 +184,7 @@ namespace TournamentTracker
                 if (!here && !inMyVoice) return null;
                 if (other != null && !i.IsStaff && !hostAsking) return "Only referees can unlink someone else.";
                 if (link == null) return other != null ? $"@{userName} isn't linked." : "You aren't linked.";
-                Links.Unlink(link.PlayerKey);
-                BlockAutoLink(link.PlayerKey);
-                RefreshStatus(force: true);
+                Unlink(link.PlayerKey);
                 return other != null ? $"Unlinked @{userName} from {link.PlayerName}." : $"Unlinked you from {link.PlayerName}.";
             }
 
@@ -218,11 +199,7 @@ namespace TournamentTracker
                 string who = string.Join(", ", Players.Select(p => p.ToString()));
                 return $"No one in {lobbyName} matches \"{text}\". Use your in-game name or colour: {who}.";
             }
-            // The newest link wins: whoever had this player before is unlinked.
-            var taken = Links.Find(player.Key);
-            string was = taken != null && taken.DiscordUserId != userId ? $" (replacing @{taken.DiscordName})" : "";
-            Links.Link(player.Key, player.Name, userId, userName);
-            RefreshStatus(force: true);
+            string was = Link(player, userId, userName);
             Note($"Linked {player} to @{userName}{was}.");
             return $"Linked {(other != null ? "@" + userName : "you")} to {player} in {lobbyName}{was}. Automute will follow {(other != null ? "them" : "you")} from now on.";
         }
@@ -288,10 +265,7 @@ namespace TournamentTracker
                     : $"More than one person matches @{query}: {string.Join(", ", found.Take(5).Select(m => "@" + m.Username))}. Type more of the name.", false);
                 return;
             }
-            var taken = Links.Find(player.Key);
-            string was = taken != null && taken.DiscordUserId != pick.Id ? $" (replacing @{taken.DiscordName})" : "";
-            Links.Link(player.Key, player.Name, pick.Id, pick.Username);
-            RefreshStatus(force: true);
+            string was = Link(player, pick.Id, pick.Username);
             Reply($"Linked {player} to @{pick.Username}{was}.", false);   // the host's own button: answered to The Button
         }
 
@@ -305,10 +279,29 @@ namespace TournamentTracker
                 Reply("That player isn't linked.", false);
                 return;
             }
-            Links.Unlink(player.Key);
-            BlockAutoLink(player.Key);
-            RefreshStatus(force: true);
+            Unlink(player.Key);
             Reply($"Unlinked {player} from @{link.DiscordName}.", false);
+        }
+
+        /// <summary>
+        /// Links the player to this Discord user. The newest link wins: whoever had the player before
+        /// is unlinked, and the answer says so (" (replacing @name)", or "").
+        /// </summary>
+        private string Link(PlayerSnapshot player, string userId, string userName)
+        {
+            var taken = Links.Find(player.Key);
+            string was = taken != null && taken.DiscordUserId != userId ? $" (replacing @{taken.DiscordName})" : "";
+            Links.Link(player.Key, player.Name, userId, userName);
+            RefreshStatus(force: true);
+            return was;
+        }
+
+        /// <summary>Unlinks a player, and doesn't auto-link them again this session.</summary>
+        private void Unlink(string playerKey)
+        {
+            Links.Unlink(playerKey);
+            _noAutoLink.Add(playerKey);
+            RefreshStatus(force: true);
         }
     }
 }

@@ -54,9 +54,7 @@ namespace TournamentTracker
                             {
                                 if (!_localGameCache.TryGetValue(f.FullName, out var known) || known.Written != f.LastWriteTimeUtc)
                                 {
-                                    GameRecord? g = null;
-                                    try { g = JsonSerializer.Deserialize<GameRecord>(File.ReadAllText(f.FullName)); } catch (Exception) { }
-                                    _localGameCache[f.FullName] = known = (f.LastWriteTimeUtc, g);
+                                    _localGameCache[f.FullName] = known = (f.LastWriteTimeUtc, ReadGameFile(f.FullName));
                                 }
                                 list.Add((f, known.Game));
                             }
@@ -78,11 +76,15 @@ namespace TournamentTracker
         }
 
         /// <summary>This PC's saved games for the tournament (every game file in the games folder).</summary>
-        private List<GameRecord> LocalGames(List<FileInfo>? files = null) => (files ?? LocalGameFiles()).Select(f =>
+        private List<GameRecord> LocalGames(List<FileInfo>? files = null) =>
+            (files ?? LocalGameFiles()).Select(f => ReadGameFile(f.FullName)).Where(g => g != null).Select(g => g!).ToList();
+
+        /// <summary>A saved game, or null when its file can't be read.</summary>
+        private static GameRecord? ReadGameFile(string path)
         {
-            try { return JsonSerializer.Deserialize<GameRecord>(File.ReadAllText(f.FullName)); }
+            try { return JsonSerializer.Deserialize<GameRecord>(File.ReadAllText(path)); }
             catch (Exception) { return null; }
-        }).Where(g => g != null).Select(g => g!).ToList();
+        }
 
         private object BuildPoints()
         {

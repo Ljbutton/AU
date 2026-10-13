@@ -45,37 +45,34 @@ namespace TournamentTracker.Discord
             if (!d.TryGetProperty("member", out var member) || !member.TryGetProperty("user", out var user)) return null;
             var i = new Interaction
             {
-                Id = Str(d, "id") ?? "",
-                Token = Str(d, "token") ?? "",
-                GuildId = Str(d, "guild_id") ?? "",
-                ChannelId = Str(d, "channel_id") ?? "",
-                Command = type == 3 ? "menu" : (Str(data, "name") ?? "").ToLowerInvariant(),
-                CustomId = type == 3 ? Str(data, "custom_id") ?? "" : "",
-                UserId = Str(user, "id") ?? "",
-                UserName = Str(member, "nick") ?? Str(user, "global_name") ?? Str(user, "username") ?? "",
+                Id = d.Str("id") ?? "",
+                Token = d.Str("token") ?? "",
+                GuildId = d.Str("guild_id") ?? "",
+                ChannelId = d.Str("channel_id") ?? "",
+                Command = type == 3 ? "menu" : (data.Str("name") ?? "").ToLowerInvariant(),
+                CustomId = type == 3 ? data.Str("custom_id") ?? "" : "",
+                UserId = user.Str("id") ?? "",
+                UserName = member.Str("nick") ?? user.Str("global_name") ?? user.Str("username") ?? "",
             };
-            if (ulong.TryParse(Str(member, "permissions"), out var perms)) i.Permissions = perms;
+            if (ulong.TryParse(member.Str("permissions"), out var perms)) i.Permissions = perms;
             if (data.TryGetProperty("values", out var values) && values.ValueKind == JsonValueKind.Array)
                 foreach (var v in values.EnumerateArray())
                     if (v.ValueKind == JsonValueKind.String) i.Values.Add(v.GetString() ?? "");
             if (data.TryGetProperty("options", out var options) && options.ValueKind == JsonValueKind.Array)
                 foreach (var o in options.EnumerateArray())
-                    if (Str(o, "name") is string name && o.TryGetProperty("value", out var v))
+                    if (o.Str("name") is string name && o.TryGetProperty("value", out var v))
                         i.Options[name] = v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : v.ToString();
             if (data.TryGetProperty("resolved", out var resolved))
             {
                 if (resolved.TryGetProperty("users", out var users))
                     foreach (var u in users.EnumerateObject())
-                        i.ResolvedNames[u.Name] = Str(u.Value, "global_name") ?? Str(u.Value, "username") ?? u.Name;
+                        i.ResolvedNames[u.Name] = u.Value.Str("global_name") ?? u.Value.Str("username") ?? u.Name;
                 if (resolved.TryGetProperty("members", out var members))
                     foreach (var m in members.EnumerateObject())
-                        if (Str(m.Value, "nick") is string nick) i.ResolvedNames[m.Name] = nick;
+                        if (m.Value.Str("nick") is string nick) i.ResolvedNames[m.Name] = nick;
             }
             return i.Id.Length > 0 && i.Token.Length > 0 ? i : null;
         }
-
-        private static string? Str(JsonElement e, string name) =>
-            e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
         private static int Int(JsonElement e, string name) =>
             e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : -1;

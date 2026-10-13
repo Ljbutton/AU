@@ -32,16 +32,12 @@ namespace TournamentTracker.Discord
             {
                 Title = Clip(title, Embed.TitleLimit),
                 Color = game.Voided ? NeutralColor : game.Winner == Outcome.Impostors ? ImpostorColor : game.Winner == Outcome.Crewmates ? CrewColor : NeutralColor,
-                Description = Clip(settings + (game.Voided ? $"**Void{(game.VoidReason.Length > 0 ? ": " + game.VoidReason : "")}.** Kept for the record; no points or stats count.\n" : "") + PlayerTable(game), Embed.DescriptionLimit),
-                Fields = new List<EmbedField>
-                {
-                    Field("Result", Outcome.Describe(game.EndReason), true),
-                    Field("Map", game.Map, true),
-                    Field("Length", Clock(game.DurationSeconds), true),
-                    Field("Impostors", string.Join("\n", game.Players.Where(p => p.IsImpostor).Select(p => $"{p.Label} — {p.Kills} kill{(p.Kills == 1 ? "" : "s")}")), true),
-                    Field("Meetings", MeetingSummary(game), true),
-                    Field("MVP", Mvp(game), true),
-                },
+                Description = Clip(settings + (game.Voided ? VoidLabel(game) + " Kept for the record; no points or stats count.\n" : "") + PlayerTable(game), Embed.DescriptionLimit),
+                Fields = GameFields(game)
+                    .Append(Field("Impostors", string.Join("\n", game.Players.Where(p => p.IsImpostor).Select(p => $"{p.Label} — {p.Kills} kill{(p.Kills == 1 ? "" : "s")}")), true))
+                    .Append(Field("Meetings", MeetingSummary(game), true))
+                    .Append(Field("MVP", Mvp(game), true))
+                    .ToList(),
                 Footer = new EmbedFooter { Text = $"{game.Tournament}{(game.Server.Length > 0 ? " · " + game.Server : "")} · {(game.Id.Length > 0 ? game.Id : "game " + game.GameNumber)} · Lobby {game.LobbyCode}" },
                 Timestamp = (game.EndedUtc ?? game.StartedUtc).ToString("o", CultureInfo.InvariantCulture),
             };
@@ -76,13 +72,8 @@ namespace TournamentTracker.Discord
             {
                 Title = full.Embeds![0].Title,
                 Color = full.Embeds[0].Color,
-                Description = Clip((game.Voided ? $"**Void{(game.VoidReason.Length > 0 ? ": " + game.VoidReason : "")}.** Not counted.\n" : "") + PublicTable(game), Embed.DescriptionLimit),
-                Fields = new List<EmbedField>
-                {
-                    Field("Result", Outcome.Describe(game.EndReason), true),
-                    Field("Map", game.Map, true),
-                    Field("Length", Clock(game.DurationSeconds), true),
-                },
+                Description = Clip((game.Voided ? VoidLabel(game) + " Not counted.\n" : "") + PublicTable(game), Embed.DescriptionLimit),
+                Fields = GameFields(game).ToList(),
                 Timestamp = full.Embeds[0].Timestamp,
             };
             var timeline = new Embed { Title = "Timeline", Color = NeutralColor, Description = TimelineBlock(game.Timeline, 3500) };
@@ -93,14 +84,12 @@ namespace TournamentTracker.Discord
         {
             var sb = new StringBuilder("```\n");
             sb.AppendLine("Player           Role          Pts Result");
-            foreach (var p in game.Players.OrderByDescending(p => p.IsImpostor).ThenByDescending(p => p.Points).ThenBy(p => p.ColorId))
+            foreach (var p in TableOrder(game))
             {
-                string result = (game.Winner == null ? "" : p.Won ? "Won" : "Lost")
-                    + (p.DeathCause == null ? "" : (game.Winner == null ? "" : ", ") + p.DeathCause.ToLowerInvariant());
                 sb.Append(Pad(Colors.Name(p.ColorId) + " " + p.Name, 16)).Append(' ')
                   .Append(Pad(p.Role, 11)).Append(' ')
                   .Append((game.Counted ? Signed(p.Points) : "-").PadLeft(5)).Append(' ')
-                  .Append(result).AppendLine();
+                  .Append(ResultOf(game, p)).AppendLine();
             }
             sb.Append("```");
             return sb.ToString();
@@ -169,25 +158,22 @@ namespace TournamentTracker.Discord
             }
             int hidden = store.Players.Count - eligible.Count;
 
-            return new WebhookMessage
+            return Message(new Embed
             {
-                Username = BotName,
-                Embeds = new List<Embed>
+                Title = Clip($"{store.Tournament} — Leaderboard", Embed.TitleLimit),
+                Color = LeaderboardColor,
+                Description = Clip(sb.ToString(), Embed.DescriptionLimit),
+                Footer = new EmbedFooter
                 {
-                    new Embed
-                    {
-                        Title = Clip($"{store.Tournament} — Leaderboard", Embed.TitleLimit),
-                        Color = LeaderboardColor,
-                        Description = Clip(sb.ToString(), Embed.DescriptionLimit),
-                        Footer = new EmbedFooter
-                        {
-                            Text = $"{store.GamesRecorded} game{(store.GamesRecorded == 1 ? "" : "s")} · Crew {store.CrewWins} – {store.ImpostorWins} Impostors"
-                                + (hidden > 0 ? $" · {hidden} player{(hidden == 1 ? "" : "s")} under {minGames} games not shown" : ""),
-                        },
-                    },
+                    Text = $"{store.GamesRecorded} game{(store.GamesRecorded == 1 ? "" : "s")} · Crew {store.CrewWins} – {store.ImpostorWins} Impostors"
+                        + (hidden > 0 ? $" · {hidden} player{(hidden == 1 ? "" : "s")} under {minGames} games not shown" : ""),
                 },
-            };
+            });
         }
+
+        /// <summary>A message from the bot with one embed.</summary>
+        internal static WebhookMessage Message(Embed embed) =>
+            new WebhookMessage { Username = BotName, Embeds = new List<Embed> { embed } };
 
         private static string NoPlayersYet(int minGames) =>
             minGames > 1 ? $"No one has played {minGames} games yet." : "No games recorded yet.";
@@ -196,12 +182,9 @@ namespace TournamentTracker.Discord
         {
             var sb = new StringBuilder("```\n");
             sb.AppendLine("Player           Role        K Tasks  ✓  ✗   Pts Result");
-            var ordered = game.Players.OrderByDescending(p => p.IsImpostor).ThenByDescending(p => p.Points).ThenBy(p => p.ColorId);
-            foreach (var p in ordered)
+            foreach (var p in TableOrder(game))
             {
                 string tasks = p.IsImpostor || p.TasksTotal == 0 ? "-" : $"{p.TasksCompleted}/{p.TasksTotal}";
-                string result = (game.Winner == null ? "" : p.Won ? "Won" : "Lost")
-                    + (p.DeathCause == null ? "" : (game.Winner == null ? "" : ", ") + p.DeathCause.ToLowerInvariant());
                 sb.Append(Pad(Colors.Name(p.ColorId) + " " + p.Name, 16)).Append(' ')
                   .Append(Pad(p.Role, 11)).Append(' ')
                   .Append(p.Kills.ToString()).Append(' ')
@@ -209,12 +192,29 @@ namespace TournamentTracker.Discord
                   .Append(p.EjectVotesOnImpostor.ToString().PadLeft(2)).Append(' ')
                   .Append(p.EjectVotesOnCrewmate.ToString().PadLeft(2)).Append(' ')
                   .Append(Signed(p.Points).PadLeft(5)).Append(' ')
-                  .Append(result)
+                  .Append(ResultOf(game, p))
                   .AppendLine();
             }
             sb.Append("```");
             return sb.ToString();
         }
+
+        private static IEnumerable<GamePlayer> TableOrder(GameRecord game) =>
+            game.Players.OrderByDescending(p => p.IsImpostor).ThenByDescending(p => p.Points).ThenBy(p => p.ColorId);
+
+        private static string ResultOf(GameRecord game, GamePlayer p) =>
+            (game.Winner == null ? "" : p.Won ? "Won" : "Lost")
+            + (p.DeathCause == null ? "" : (game.Winner == null ? "" : ", ") + p.DeathCause.ToLowerInvariant());
+
+        private static string VoidLabel(GameRecord game) => $"**Void{(game.VoidReason.Length > 0 ? ": " + game.VoidReason : "")}.**";
+
+        /// <summary>The result, map and length, at the start of both reports' fields.</summary>
+        private static IEnumerable<EmbedField> GameFields(GameRecord game) => new[]
+        {
+            Field("Result", Outcome.Describe(game.EndReason), true),
+            Field("Map", game.Map, true),
+            Field("Length", Clock(game.DurationSeconds), true),
+        };
 
         public static string TimelineBlock(IReadOnlyList<TimelineEvent> events, int limit)
         {
@@ -265,7 +265,7 @@ namespace TournamentTracker.Discord
 
         private static string Percent(double value, int sample) => sample == 0 ? "-" : Math.Round(value * 100) + "%";
 
-        private static string Pad(string s, int width)
+        internal static string Pad(string s, int width)
         {
             s = s.Replace("`", "'");
             return s.Length > width ? s.Substring(0, width - 1) + "…" : s.PadRight(width);
@@ -273,6 +273,6 @@ namespace TournamentTracker.Discord
 
         public static string Clip(string s, int limit) => s.Length <= limit ? s : s.Substring(0, limit - 1) + "…";
 
-        private static string Escape(string s) => s.Replace("`", "'").Replace("*", "\\*").Replace("_", "\\_").Replace("~", "\\~");
+        internal static string Escape(string s) => s.Replace("`", "'").Replace("*", "\\*").Replace("_", "\\_").Replace("~", "\\~");
     }
 }

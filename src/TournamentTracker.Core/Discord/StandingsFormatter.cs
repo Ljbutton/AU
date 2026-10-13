@@ -14,7 +14,7 @@ namespace TournamentTracker.Discord
         /// <summary>One lobby's round standings with the cut line under the players who move on.</summary>
         public static WebhookMessage Lobby(string tournament, string lobby, int round, IReadOnlyList<StandingRow> rows, int advance,
             int played = 0, int gamesPerRound = 0) =>
-            Message(new Embed
+            ReportFormatter.Message(new Embed
             {
                 Title = ReportFormatter.Clip($"{lobby} — Round {round} standings{Progress(played, gamesPerRound)}", Embed.TitleLimit),
                 Color = RoundColor,
@@ -34,7 +34,7 @@ namespace TournamentTracker.Discord
         {
             string lobbies = string.Join(" · ", progress.Select(p =>
                 $"{p.Lobby} {p.Played}{(gamesPerRound > 0 ? "/" + gamesPerRound : "")}{(gamesPerRound > 0 && p.Played >= gamesPerRound ? " ✓" : "")}"));
-            return Message(new Embed
+            return ReportFormatter.Message(new Embed
             {
                 Title = ReportFormatter.Clip($"{tournament} — Round {round}, all lobbies", Embed.TitleLimit),
                 Color = RoundColor,
@@ -65,7 +65,7 @@ namespace TournamentTracker.Discord
                 // Anything the games don't explain (a referee's !adjust, a tiebreak) shows as its own item.
                 double rest = r.Stats.Points - lines.Sum(l => l.Points);
                 if (Math.Abs(rest) > 0.001) lines.Add(("Referee adjustment", rest));
-                sb.AppendLine(lines.Count == 0 ? "↳ no points" : "↳ " + string.Join(" · ", lines.Select(l => $"{l.Source} {Signed(l.Points)}")));
+                sb.AppendLine(lines.Count == 0 ? "↳ no points" : "↳ " + string.Join(" · ", lines.Select(l => $"{l.Source} {ReportFormatter.Signed(l.Points)}")));
             }
             var highlights = new List<string>();
             var all = rows.Select(r => r.Stats).ToList();
@@ -78,7 +78,7 @@ namespace TournamentTracker.Discord
             }
             if (highlights.Count > 0) sb.AppendLine().Append(string.Join(" · ", highlights));
             int games = roundGames.Count(g => g.Counted);
-            return Message(new Embed
+            return ReportFormatter.Message(new Embed
             {
                 Title = ReportFormatter.Clip($"{lobby} — round {round} scores", Embed.TitleLimit),
                 Color = RoundColor,
@@ -116,8 +116,6 @@ namespace TournamentTracker.Discord
             return s;
         }
 
-        private static string Signed(double v) => (v > 0 ? "+" : "") + ReportFormatter.Pts(v);
-
         public static string Table(IReadOnlyList<StandingRow> rows, int advance)
         {
             var sb = new StringBuilder("```\n");
@@ -126,7 +124,7 @@ namespace TournamentTracker.Discord
             {
                 var r = rows[i];
                 sb.Append((i + 1).ToString().PadLeft(2)).Append("  ")
-                  .Append(Pad(r.Stats.Name, 16)).Append(' ')
+                  .Append(ReportFormatter.Pad(r.Stats.Name, 16)).Append(' ')
                   .Append(ReportFormatter.Pts(r.Stats.Points).PadLeft(5)).Append(' ')
                   .Append(ReportFormatter.Pts(r.Total).PadLeft(6)).Append(' ')
                   .Append($"{r.Stats.Wins}-{r.Stats.Losses}".PadLeft(5))
@@ -148,11 +146,11 @@ namespace TournamentTracker.Discord
             {
                 var s = servers[i];
                 string furthest = s.StillIn ? "still in the running" : s.FurthestRound > 0 ? $"reached round {s.FurthestRound}" : "";
-                sb.Append($"`{(i + 1).ToString().PadLeft(2)}.` **{Escape(s.Server)}** — {ReportFormatter.Pts(s.Points)} pts · {s.Players} player{(s.Players == 1 ? "" : "s")}");
-                if (s.Furthest.Length > 0) sb.Append($"\n      furthest: {Escape(s.Furthest)}{(furthest.Length > 0 ? " (" + furthest + ")" : "")}");
+                sb.Append($"`{(i + 1).ToString().PadLeft(2)}.` **{ReportFormatter.Escape(s.Server)}** — {ReportFormatter.Pts(s.Points)} pts · {s.Players} player{(s.Players == 1 ? "" : "s")}");
+                if (s.Furthest.Length > 0) sb.Append($"\n      furthest: {ReportFormatter.Escape(s.Furthest)}{(furthest.Length > 0 ? " (" + furthest + ")" : "")}");
                 sb.AppendLine();
             }
-            return Message(new Embed
+            return ReportFormatter.Message(new Embed
             {
                 Title = ReportFormatter.Clip($"{tournament} — Server standings", Embed.TitleLimit),
                 Color = ServerColor,
@@ -178,16 +176,5 @@ namespace TournamentTracker.Discord
             lines.Add("The full report is in the Discord channel.");
             return lines;
         }
-
-        private static WebhookMessage Message(Embed embed) =>
-            new WebhookMessage { Username = ReportFormatter.BotName, Embeds = new List<Embed> { embed } };
-
-        private static string Pad(string s, int width)
-        {
-            s = s.Replace("`", "'");
-            return s.Length > width ? s.Substring(0, width - 1) + "…" : s.PadRight(width);
-        }
-
-        private static string Escape(string s) => s.Replace("*", "\\*").Replace("_", "\\_").Replace("~", "\\~").Replace("`", "'");
     }
 }

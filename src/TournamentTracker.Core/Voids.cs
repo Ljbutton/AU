@@ -44,12 +44,18 @@ namespace TournamentTracker
                 Reply($"No game to {(makeVoid ? "void" : "unvoid")} since the mod started. A referee can type !{(makeVoid ? "void" : "unvoid")} <game> in the results channel.", false);
                 return;
             }
+            VoidFinished(game, makeVoid, reason, true);
+        }
+
+        /// <summary>Voids (or brings back) a finished game, waiting for Submit or already sent, and says so.</summary>
+        /// <param name="isPublic">The line for the game's chat goes to everyone.</param>
+        private void VoidFinished(GameRecord game, bool makeVoid, string reason, bool isPublic)
+        {
             if (game.Voided == makeVoid)
             {
                 Reply($"Game {game.Name} is already {(makeVoid ? "void" : "counted")}.", false);
                 return;
             }
-
             SetVoid(game, makeVoid, reason);
             if (IsWaiting(game))
             {
@@ -57,11 +63,8 @@ namespace TournamentTracker
                 Reply(makeVoid ? $"Game {game.Name} is void: it won't count, and won't go to Discord." : $"Game {game.Name} counts again (still waiting for Submit).", false);
                 return;
             }
-
-            string text = makeVoid
-                ? $"Game {game.Name} is void{(reason.Length > 0 ? ": " + reason : "")}. It no longer counts."
-                : $"Game {game.Name} counts again.";
-            Reply(text, true);
+            string text = SharedResults.VoidNotice(game);
+            Reply(text, isPublic);
             AnnounceVoid(game, text);
         }
 
@@ -74,30 +77,13 @@ namespace TournamentTracker
             if (_settings.Mode == TrackerMode.Preliminary)
             {
                 // The new copy of the data file is what the organiser's job goes by.
-                if (!string.IsNullOrWhiteSpace(url))
-                    Chain(async () =>
-                    {
-                        var result = await _rest.ExecuteWebhookWithFileAsync(url, message, SharedResults.FileNameFor(game), SharedResults.FileFor(game)).ConfigureAwait(false);
-                        if (!result.Ok) _log.Error("Discord webhook post failed: " + result);
-                    });
-                Post(url, LeaderboardMessage());
-                UpdatePrelimCount();
-                PostPublic(ReportFormatter.PublicReport(game));
+                PostPrelim(game, message, leaderboard: true);
                 if (Shared != null) Chain(async () => { await Shared.PublishAsync(game).ConfigureAwait(false); await RefreshCombinedAsync().ConfigureAwait(false); });   // Red Alert's copy, then the Referee page's board
                 return;
             }
 
             Post(url, message);
-            if (Shared != null)
-            {
-                Chain(async () =>
-                {
-                    await Shared.PublishAsync(game).ConfigureAwait(false);
-                    if (_settings.Mode == TrackerMode.Tournament) await PostLobbyStandingsAsync().ConfigureAwait(false);
-                    else if (_settings.PostLeaderboardAfterEachGame) await PostCombinedAsync().ConfigureAwait(false);
-                    else await RefreshCombinedAsync().ConfigureAwait(false);
-                });
-            }
+            if (Shared != null) Chain(() => PublishAndPostStandingsAsync(game));
             else if (_settings.PostLeaderboardAfterEachGame)
             {
                 Post(url, LeaderboardMessage());
@@ -140,13 +126,25 @@ namespace TournamentTracker
                 TrySave(() => SaveGameFile(game), "game record");
                 return;
             }
+            ApplyVoid(game, voided, reason);
+            SaveStatsAndGame(game);
+            Reply(voided ? $"A referee voided game {game.Name}." : $"A referee brought back game {game.Name}.", false);
+        }
+
+        /// <summary>Takes a counted game out of the totals, rounds and impostor counts as it's voided (or back in), and marks it.</summary>
+        private void ApplyVoid(GameRecord game, bool voided, string reason)
+        {
             if (voided && game.Counted) { Store.Remove(game); CountRoundGame(game, -1); CountImpostorGames(game, -1); }
             game.Voided = voided;
             game.VoidReason = voided ? reason : "";
             if (!voided && game.Counted) { Store.Apply(game); CountRoundGame(game, 1); CountImpostorGames(game, 1); }
+        }
+
+        /// <summary>Saves the totals and the game's file after the game changed.</summary>
+        private void SaveStatsAndGame(GameRecord game)
+        {
             TrySave(() => Store.Save(_statsPath), "stats");
             TrySave(() => SaveGameFile(game), "game record");
-            Reply(voided ? $"A referee voided game {game.Name}." : $"A referee brought back game {game.Name}.", false);
         }
 
         private static readonly string[] GameFileSuffixes = { "", "-abandoned", "-void" };

@@ -16,8 +16,7 @@ namespace TournamentTracker
         private bool _lockNoticed;
 
         /// <summary>The settings to hold the lobby to right now, or null to leave the lobby alone.</summary>
-        public LobbySettings? LockedSettings =>
-            _lockOn && _settings.Mode != TrackerMode.Standard ? _settings.LobbySettings : null;
+        public LobbySettings? LockedSettings => _lockOn ? TournamentLobbySettings : null;
 
         /// <summary>The tournament's settings, locked or not (games are checked against them either way).</summary>
         public LobbySettings? TournamentLobbySettings => _settings.Mode != TrackerMode.Standard ? _settings.LobbySettings : null;

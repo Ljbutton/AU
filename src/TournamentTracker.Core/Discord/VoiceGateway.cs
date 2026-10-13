@@ -91,8 +91,8 @@ namespace TournamentTracker.Discord
             switch (type)
             {
                 case "READY":
-                    if (data.TryGetProperty("user", out var me)) BotUserId = Str(me, "id");
-                    if (data.TryGetProperty("application", out var app)) ApplicationId = Str(app, "id");
+                    if (data.TryGetProperty("user", out var me)) BotUserId = me.Str("id");
+                    if (data.TryGetProperty("application", out var app)) ApplicationId = app.Str("id");
                     Ready?.Invoke();
                     break;
 
@@ -102,13 +102,13 @@ namespace TournamentTracker.Discord
                     break;
 
                 case "GUILD_CREATE":
-                    if (Str(data, "id") != _guildId) return;
+                    if (data.Str("id") != _guildId) return;
                     // Without the privileged members intent, "members" holds exactly the people
                     // in voice (plus the bot), which is what the voice states need for names.
                     var profiles = new Dictionary<string, JsonElement>();
                     if (data.TryGetProperty("members", out var members))
                         foreach (var m in members.EnumerateArray())
-                            if (m.TryGetProperty("user", out var u) && Str(u, "id") is string id) profiles[id] = m;
+                            if (m.TryGetProperty("user", out var u) && u.Str("id") is string id) profiles[id] = m;
                     lock (_lock)
                     {
                         _members.Clear();
@@ -117,8 +117,8 @@ namespace TournamentTracker.Discord
                         {
                             foreach (var vs in states.EnumerateArray())
                             {
-                                string? userId = Str(vs, "user_id");
-                                string? channel = Str(vs, "channel_id");
+                                string? userId = vs.Str("user_id");
+                                string? channel = vs.Str("channel_id");
                                 if (userId == null || channel == null) continue;
                                 profiles.TryGetValue(userId, out var profile);
                                 _members[userId] = Build(userId, channel, profile.ValueKind == JsonValueKind.Object ? profile : (JsonElement?)null);
@@ -132,7 +132,7 @@ namespace TournamentTracker.Discord
                     break;
 
                 case TalkingEvent:
-                    if (Str(data, "user_id") is string talker)
+                    if (data.Str("user_id") is string talker)
                         lock (_lock)
                         {
                             if (data.TryGetProperty("talking", out var t) && t.ValueKind == JsonValueKind.True) _talking.Add(talker);
@@ -141,10 +141,10 @@ namespace TournamentTracker.Discord
                     break;
 
                 case "VOICE_STATE_UPDATE":
-                    if (Str(data, "guild_id") != _guildId) return;
-                    string? who = Str(data, "user_id");
+                    if (data.Str("guild_id") != _guildId) return;
+                    string? who = data.Str("user_id");
                     if (who == null) return;
-                    string? now = Str(data, "channel_id");
+                    string? now = data.Str("channel_id");
                     lock (_lock)
                     {
                         if (now == null) { _members.Remove(who); _talking.Remove(who); }
@@ -167,19 +167,16 @@ namespace TournamentTracker.Discord
             };
             if (member is JsonElement m && m.ValueKind == JsonValueKind.Object)
             {
-                v.Nick = Str(m, "nick");
+                v.Nick = m.Str("nick");
                 if (m.TryGetProperty("user", out var u))
                 {
-                    v.Username = Str(u, "username") ?? v.Username;
-                    v.GlobalName = Str(u, "global_name");
+                    v.Username = u.Str("username") ?? v.Username;
+                    v.GlobalName = u.Str("global_name");
                     v.IsBot = u.TryGetProperty("bot", out var b) && b.ValueKind == JsonValueKind.True;
                 }
             }
             return v;
         }
-
-        private static string? Str(JsonElement e, string name) =>
-            e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
     }
 
     /// <summary>The bot's live connection to Discord, as The Button holds it (a pretend one in tests).</summary>
@@ -303,7 +300,7 @@ namespace TournamentTracker.Discord
                     if (d.TryGetProperty("user_id", out var u) && u.GetString() != State.BotUserId) return;
                     if (d.TryGetProperty("guild_id", out var g) && g.GetString() != _guildId) return;
                     _voiceSession = d.TryGetProperty("session_id", out var s) ? s.GetString() : null;
-                    string? channel = d.TryGetProperty("channel_id", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() : null;
+                    string? channel = d.Str("channel_id");
                     if (channel != _voiceIn) StopListening();
                     _voiceIn = channel;
                     if (channel == null)
@@ -318,7 +315,7 @@ namespace TournamentTracker.Discord
                 {
                     if (d.TryGetProperty("guild_id", out var g) && g.GetString() != _guildId) return;
                     _voiceToken = d.TryGetProperty("token", out var t) ? t.GetString() : null;
-                    _voiceEndpoint = d.TryGetProperty("endpoint", out var e) && e.ValueKind == JsonValueKind.String ? e.GetString() : null;
+                    _voiceEndpoint = d.Str("endpoint");
                     StopListening();          // a new server: connect again
                 }
                 if (_listener != null || _voiceIn == null || _voiceSession == null || _voiceToken == null || _voiceEndpoint == null || State.BotUserId == null) return;
@@ -552,20 +549,15 @@ namespace TournamentTracker.Discord
             Task? heartbeat = null;
             int acked = 1;
 
-            async Task Send(object payload)
-            {
-                byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(payload);
-                await sendLock.WaitAsync(connection.Token).ConfigureAwait(false);
-                try { await socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, connection.Token).ConfigureAwait(false); }
-                finally { sendLock.Release(); }
-            }
+            Task Send(object payload) => GatewaySocket.SendAsync(socket, sendLock, payload, connection.Token);
 
             try
             {
                 while (!connection.IsCancellationRequested)
                 {
-                    using var doc = await ReceiveAsync(socket, connection.Token).ConfigureAwait(false);
-                    if (doc == null) return;
+                    var (message, _) = await GatewaySocket.ReceiveAsync(socket, connection.Token).ConfigureAwait(false);
+                    if (message == null) return;
+                    using var doc = JsonDocument.Parse(message);
                     var root = doc.RootElement;
                     int op = root.GetProperty("op").GetInt32();
                     if (root.TryGetProperty("s", out var s) && s.ValueKind == JsonValueKind.Number) Interlocked.Exchange(ref _sequence, s.GetInt64());
@@ -632,8 +624,8 @@ namespace TournamentTracker.Discord
                             if (type == "VOICE_STATE_UPDATE" || type == "VOICE_SERVER_UPDATE") VoiceEvent(type, data);
                             if (type == "READY")
                             {
-                                _sessionId = data.TryGetProperty("session_id", out var sid) && sid.ValueKind == JsonValueKind.String ? sid.GetString() : null;
-                                _resumeUrl = ResumeUri(data.TryGetProperty("resume_gateway_url", out var ru) && ru.ValueKind == JsonValueKind.String ? ru.GetString() : null);
+                                _sessionId = data.Str("session_id");
+                                _resumeUrl = ResumeUri(data.Str("resume_gateway_url"));
                                 ending.Working = true;
                                 State.Connected = true;
                                 string? wanted;
@@ -691,21 +683,6 @@ namespace TournamentTracker.Discord
 
         /// <summary>Close codes that retrying can't fix: bad token, disallowed intents, and so on.</summary>
         private static bool IsFatal(int code) => code == 4004 || code == 4010 || code == 4011 || code == 4012 || code == 4013 || code == 4014;
-
-        private static async Task<JsonDocument?> ReceiveAsync(ClientWebSocket socket, CancellationToken ct)
-        {
-            var buffer = new byte[16 * 1024];
-            using var message = new MemoryStream();
-            while (true)
-            {
-                var result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), ct).ConfigureAwait(false);
-                if (result.MessageType == WebSocketMessageType.Close) return null;
-                message.Write(buffer, 0, result.Count);
-                if (result.EndOfMessage) break;
-            }
-            message.Position = 0;
-            return JsonDocument.Parse(message);
-        }
 
         public void Dispose()
         {

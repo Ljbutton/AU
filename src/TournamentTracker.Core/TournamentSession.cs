@@ -181,7 +181,7 @@ namespace TournamentTracker
             game.Mode = _settings.Mode.ToString();
             game.Server = _settings.ServerName;
             game.Round = Round;
-            game.Id = $"{(label.Length > 0 ? FileSafe(label) + "-" : "")}{game.GameNumber}-{game.StartedUtc:yyyyMMdd-HHmmss}";
+            game.Id = $"{(label.Length > 0 ? TrackerSettings.Dashed(label, "host") + "-" : "")}{game.GameNumber}-{game.StartedUtc:yyyyMMdd-HHmmss}";
             _log.Info($"Tracking game {game.Name} on {map} with {players.Count} players");
             StartReplay(game);
             FeedGameStarted(game);
@@ -289,8 +289,7 @@ namespace TournamentTracker
 
             Store.Apply(game);
             Store.NoteFinished(game);
-            TrySave(() => Store.Save(_statsPath), "stats");
-            TrySave(() => SaveGameFile(game), "game record");
+            SaveStatsAndGame(game);
             FinishReplay(game);
 
             _log.Info($"Game {game.Name} over: {game.Winner ?? "no result"} ({reason})");
@@ -309,25 +308,8 @@ namespace TournamentTracker
         private void PostResults(GameRecord game, bool roundDone)
         {
             var report = ReportFormatter.GameReport(game);
-            if (_settings.Mode == TrackerMode.Preliminary)
-            {
-                // The data file rides along with the report so the organiser's job can build standings.
-                string url = _settings.StatsWebhookUrl;
-                if (!string.IsNullOrWhiteSpace(url))
-                    Chain(async () =>
-                    {
-                        var result = await _rest.ExecuteWebhookWithFileAsync(url, report, SharedResults.FileNameFor(game), SharedResults.FileFor(game)).ConfigureAwait(false);
-                        if (!result.Ok) _log.Error("Discord webhook post failed: " + result);
-                    });
-                // The standings stay private too; the lobby's count goes last so it sits at the bottom.
-                if (game.Counted) Post(url, LeaderboardMessage());
-                UpdatePrelimCount();
-                PostPublic(ReportFormatter.PublicReport(game));
-            }
-            else
-            {
-                Post(_settings.StatsWebhookUrl, report);
-            }
+            if (_settings.Mode == TrackerMode.Preliminary) PostPrelim(game, report, leaderboard: game.Counted);
+            else Post(_settings.StatsWebhookUrl, report);
 
             if (Shared != null)
             {
@@ -337,10 +319,7 @@ namespace TournamentTracker
                     int round = game.Round;
                     Chain(async () =>
                     {
-                        await Shared.PublishAsync(game).ConfigureAwait(false);
-                        if (_settings.Mode == TrackerMode.Tournament) await PostLobbyStandingsAsync().ConfigureAwait(false);
-                        else if (_settings.PostLeaderboardAfterEachGame) await PostCombinedAsync().ConfigureAwait(false);
-                        else await RefreshCombinedAsync().ConfigureAwait(false);   // the Referee page's board
+                        await PublishAndPostStandingsAsync(game).ConfigureAwait(false);
                         if (roundDone) await PostRoundSummaryAsync(round).ConfigureAwait(false);
                     });
                 }
@@ -351,6 +330,34 @@ namespace TournamentTracker
             }
             // Move the live status below the report so it stays at the bottom of the channel.
             RepostStatus();
+        }
+
+        /// <summary>
+        /// A preliminary game's message to Discord with its data file riding along, so the organiser's
+        /// job can build standings; then the standings (private too), the lobby's count last so it
+        /// sits at the bottom, and the public report.
+        /// </summary>
+        private void PostPrelim(GameRecord game, WebhookMessage message, bool leaderboard)
+        {
+            string url = _settings.StatsWebhookUrl;
+            if (!string.IsNullOrWhiteSpace(url))
+                Chain(async () =>
+                {
+                    var result = await _rest.ExecuteWebhookWithFileAsync(url, message, SharedResults.FileNameFor(game), SharedResults.FileFor(game)).ConfigureAwait(false);
+                    if (!result.Ok) _log.Error("Discord webhook post failed: " + result);
+                });
+            if (leaderboard) Post(url, LeaderboardMessage());
+            UpdatePrelimCount();
+            PostPublic(ReportFormatter.PublicReport(game));
+        }
+
+        /// <summary>The game to the results channel, then the standings it changed (else the Referee page's board).</summary>
+        private async Task PublishAndPostStandingsAsync(GameRecord game)
+        {
+            await Shared!.PublishAsync(game).ConfigureAwait(false);
+            if (_settings.Mode == TrackerMode.Tournament) await PostLobbyStandingsAsync().ConfigureAwait(false);
+            else if (_settings.PostLeaderboardAfterEachGame) await PostCombinedAsync().ConfigureAwait(false);
+            else await RefreshCombinedAsync().ConfigureAwait(false);
         }
 
         private WebhookMessage LeaderboardMessage(StatsStore? store = null, string? note = null)
@@ -391,8 +398,7 @@ namespace TournamentTracker
             await RefreshCombinedAsync().ConfigureAwait(false);
             if (Combined == null || string.IsNullOrWhiteSpace(_settings.StatsWebhookUrl)) return;
             string note = $"All lobbies ({Combined.Hosts} host{(Combined.Hosts == 1 ? "" : "s")})" + (Combined.SinceReset ? " since the last reset" : "");
-            var result = await _rest.ExecuteWebhookAsync(_settings.StatsWebhookUrl, LeaderboardMessage(Combined.Store, note)).ConfigureAwait(false);
-            if (!result.Ok) _log.Error("Discord webhook post failed: " + result);
+            await PostNowAsync(_settings.StatsWebhookUrl, LeaderboardMessage(Combined.Store, note)).ConfigureAwait(false);
         }
 
         // ---- Voice ---------------------------------------------------------------------
@@ -482,12 +488,14 @@ namespace TournamentTracker
         /// <summary>Queues a webhook post. Posts go out one at a time, in order, off the game thread.</summary>
         private void Post(string webhookUrl, WebhookMessage message)
         {
+            if (!string.IsNullOrWhiteSpace(webhookUrl)) Chain(() => PostNowAsync(webhookUrl, message));
+        }
+
+        private async Task PostNowAsync(string webhookUrl, WebhookMessage message)
+        {
             if (string.IsNullOrWhiteSpace(webhookUrl)) return;
-            Chain(async () =>
-            {
-                var result = await _rest.ExecuteWebhookAsync(webhookUrl, message).ConfigureAwait(false);
-                if (!result.Ok) _log.Error("Discord webhook post failed: " + result);
-            });
+            var result = await _rest.ExecuteWebhookAsync(webhookUrl, message).ConfigureAwait(false);
+            if (!result.Ok) _log.Error("Discord webhook post failed: " + result);
         }
 
         /// <summary>Runs Discord work in order with the posts, off the game thread.</summary>
@@ -524,15 +532,6 @@ namespace TournamentTracker
                 s = s.Trim().Replace("`", "'");
                 return s.Length > 20 ? s.Substring(0, 20) : s;
             }
-        }
-
-        /// <summary>A label safe for file names and IDs: letters, digits and dashes.</summary>
-        internal static string FileSafe(string s)
-        {
-            var chars = s.Trim().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray();
-            string safe = new string(chars).Trim('-');
-            while (safe.Contains("--")) safe = safe.Replace("--", "-");
-            return safe.Length == 0 ? "host" : safe;
         }
 
         /// <summary>JSON work kept off the game's main thread (inline until <see cref="BackgroundWork.Start"/>).</summary>

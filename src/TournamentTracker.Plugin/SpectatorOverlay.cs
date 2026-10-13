@@ -167,12 +167,6 @@ namespace TournamentTracker.Plugin
             }
         }
 
-        private static bool IsAlive(byte id)
-        {
-            foreach (var p in Alive) if (p.Id == id) return true;
-            return false;
-        }
-
         // ---- Lit map --------------------------------------------------------------------------
 
         private static void Lit(bool on)
@@ -205,7 +199,7 @@ namespace TournamentTracker.Plugin
                         if (other.Impostor && !other.InVent && Sees(pc, other)) { sees = true; break; }
                 SetEye(pc, sees);
             }
-            foreach (var (id, eye) in Eyes) if (!IsAlive(id)) eye.Sees = false;
+            foreach (var (id, eye) in Eyes) if (!IsIn(Alive, id)) eye.Sees = false;
 
             // Someone saw an impostor go into a vent.
             foreach (var pc in Alive)
@@ -643,7 +637,6 @@ namespace TournamentTracker.Plugin
         {
             if (_eyeSprite != null) return _eyeSprite;
             const int w = 64, h = 40;
-            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
             var px = new Color32[w * h];
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
@@ -660,12 +653,7 @@ namespace TournamentTracker.Plugin
                     if (pupil < 0.2f && inside < 0) c = new Color32(255, 255, 255, 255);
                     px[y * w + x] = c;
                 }
-            tex.SetPixels32(px);
-            tex.Apply();
-            _eyeSprite = Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), 150f);
-            _eyeSprite.hideFlags = HideFlags.HideAndDontSave;
-            tex.hideFlags = HideFlags.HideAndDontSave;
-            return _eyeSprite;
+            return _eyeSprite = Drawing.MakeSprite(px, w, h, 150f);
         }
 
         /// <summary>Everything off and gone (the map's shadows back), e.g. in meetings, the lobby or when not the referee.</summary>

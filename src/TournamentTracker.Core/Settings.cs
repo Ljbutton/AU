@@ -68,12 +68,15 @@ namespace TournamentTracker
         public List<string> PrelimChannelIds { get; set; } = new List<string>();
 
         /// <summary>Lower-case letters, digits and dashes.</summary>
-        public static string Slugify(string name)
+        public static string Slugify(string name) => Dashed(name.ToLowerInvariant(), "tournament");
+
+        /// <summary>Letters and digits, anything else as single dashes between them; <paramref name="empty"/> when nothing is left.</summary>
+        internal static string Dashed(string s, string empty)
         {
-            var chars = name.Trim().ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray();
-            string slug = new string(chars).Trim('-');
-            while (slug.Contains("--")) slug = slug.Replace("--", "-");
-            return slug.Length == 0 ? "tournament" : slug;
+            var chars = s.Trim().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray();
+            string dashed = new string(chars).Trim('-');
+            while (dashed.Contains("--")) dashed = dashed.Replace("--", "-");
+            return dashed.Length == 0 ? empty : dashed;
         }
 
         /// <summary>Stats are kept per tournament name, so a new name starts a fresh leaderboard.</summary>

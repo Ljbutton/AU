@@ -53,31 +53,25 @@ namespace TournamentTracker.Stats
                 foreach (var prelim in games.GroupBy(g => g.TournamentId.Length > 0 ? g.TournamentId : g.Tournament))
                 {
                     string name = prelim.OrderByDescending(g => g.StartedUtc).First().Tournament;
-                    var message = Board(name, prelim.ToList(), size);
-                    var embed = message.Embeds![0];
-                    var mine = existing.FirstOrDefault(m => m.AuthorIsBot && m.EmbedTitle == embed.Title);
-                    if (mine == null || mine.EmbedDescription != embed.Description || mine.EmbedFooter != embed.Footer?.Text)
-                    {
-                        var result = mine == null
-                            ? await _rest.PostEmbedsAsync(_token, target, message).ConfigureAwait(false)
-                            : await _rest.EditEmbedsAsync(_token, target, mine.Id, message).ConfigureAwait(false);
-                        if (result.Ok) changed++;
-                        else _log.Error($"Could not update the {name} leaderboard: {result}");
-                    }
-
+                    if (await PostOrEditAsync(target, existing, Board(name, prelim.ToList(), size), name + " leaderboard").ConfigureAwait(false)) changed++;
                     // The balance check: impostor against crew points, every lobby together and each on its own line.
-                    var count = PrelimCount.AllMessage(name, prelim.ToList());
-                    var countEmbed = count.Embeds![0];
-                    var countMine = existing.FirstOrDefault(m => m.AuthorIsBot && m.EmbedTitle == countEmbed.Title);
-                    if (countMine != null && countMine.EmbedDescription == countEmbed.Description && countMine.EmbedFooter == countEmbed.Footer?.Text) continue;
-                    var countResult = countMine == null
-                        ? await _rest.PostEmbedsAsync(_token, target, count).ConfigureAwait(false)
-                        : await _rest.EditEmbedsAsync(_token, target, countMine.Id, count).ConfigureAwait(false);
-                    if (countResult.Ok) changed++;
-                    else _log.Error($"Could not update the {name} count: {countResult}");
+                    if (await PostOrEditAsync(target, existing, PrelimCount.AllMessage(name, prelim.ToList()), name + " count").ConfigureAwait(false)) changed++;
                 }
             }
             return changed;
+        }
+
+        /// <summary>Posts the message, or edits the bot's own one with the same title when it shows something else. True when it was sent.</summary>
+        private async Task<bool> PostOrEditAsync(string channel, IReadOnlyList<ChannelMessage> existing, WebhookMessage message, string what)
+        {
+            var embed = message.Embeds![0];
+            var mine = existing.FirstOrDefault(m => m.AuthorIsBot && m.EmbedTitle == embed.Title);
+            if (mine != null && mine.EmbedDescription == embed.Description && mine.EmbedFooter == embed.Footer?.Text) return false;
+            var result = mine == null
+                ? await _rest.PostEmbedsAsync(_token, channel, message).ConfigureAwait(false)
+                : await _rest.EditEmbedsAsync(_token, channel, mine.Id, message).ConfigureAwait(false);
+            if (!result.Ok) _log.Error($"Could not update the {what}: {result}");
+            return result.Ok;
         }
 
         public static WebhookMessage Board(string name, IReadOnlyList<GameRecord> games, int size)

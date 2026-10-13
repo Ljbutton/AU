@@ -121,11 +121,7 @@ namespace TournamentTracker.Plugin
         private static Camera? MeetingCamera(MeetingHud meeting)
         {
             if (_on != null && _onFor == meeting) return _on;
-            int bit = 1 << meeting.gameObject.layer;
-            Camera? best = null;
-            foreach (var c in Camera.allCameras)
-                if (c != null && c.orthographic && (c.cullingMask & bit) != 0 && (best == null || c.depth > best.depth)) best = c;
-            _on = best ?? Camera.main;
+            _on = Drawing.CameraFor(meeting.gameObject.layer);
             _onFor = meeting;
             return _on;
         }
@@ -136,20 +132,12 @@ namespace TournamentTracker.Plugin
         {
             try
             {
-                var go = new GameObject("TT Mini chat");
-                go.layer = layer;
-                go.transform.SetParent(camera.transform, false);
-                _text = go.AddComponent<TextMeshPro>();
-                var font = Object.FindObjectOfType<TextMeshPro>();
-                if (font != null && font != _text) _text.font = font.font;
+                _text = Drawing.MakeText("TT Mini chat", camera, layer);
                 _text.alignment = TextAlignmentOptions.Bottom;
                 _text.enableWordWrapping = true;
                 _text.richText = true;
                 _text.fontSize = 1.15f;
-                _text.color = Color.white;
                 _text.outlineWidth = 0.12f;   // thin, so the names keep their colour
-                _text.outlineColor = new Color32(0, 0, 0, 255);
-                _text.sortingOrder = 500;
                 _text.rectTransform.pivot = new Vector2(0.5f, 0);
                 _dirty = true;
                 return true;
