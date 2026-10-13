@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text.Json;
+using TournamentTracker.Discord;
 
 namespace TournamentTracker.Stats
 {
@@ -66,12 +67,12 @@ namespace TournamentTracker.Stats
 
         private ReplayPlayback(JsonElement root)
         {
-            Name = Str(root, "name");
-            Tournament = Str(root, "tournament");
+            Name = root.Str("name") ?? "";
+            Tournament = root.Str("tournament") ?? "";
             Round = root.TryGetProperty("round", out var r) && r.ValueKind == JsonValueKind.Number ? r.GetInt32() : 0;
-            Map = Str(root, "map");
+            Map = root.Str("map") ?? "";
             MapId = root.TryGetProperty("mapId", out var m) && m.ValueKind == JsonValueKind.Number ? m.GetInt32() : MapIdFromName(Map);
-            Winner = root.TryGetProperty("winner", out var w) && w.ValueKind == JsonValueKind.String ? w.GetString() : null;
+            Winner = root.Str("winner");
 
             var players = new List<PlaybackPlayer>();
             foreach (var p in root.GetProperty("players").EnumerateArray())
@@ -81,14 +82,14 @@ namespace TournamentTracker.Stats
                     outfit = o.Deserialize<ReplayOutfit>() ?? outfit;
                 players.Add(new PlaybackPlayer
                 {
-                    Id = (byte)p.GetProperty("id").GetInt32(), Name = Str(p, "name"), Color = p.GetProperty("color").GetInt32(),
+                    Id = (byte)p.GetProperty("id").GetInt32(), Name = p.Str("name") ?? "", Color = p.GetProperty("color").GetInt32(),
                     Impostor = p.TryGetProperty("impostor", out var i) && i.ValueKind == JsonValueKind.True, Outfit = outfit,
                 });
             }
             Players = players;
 
             Events = root.TryGetProperty("events", out var ev)
-                ? ev.EnumerateArray().Select(e => new PlaybackEvent { T = e.GetProperty("t").GetDouble(), Kind = Str(e, "kind"), Text = Str(e, "text") }).ToList()
+                ? ev.EnumerateArray().Select(e => new PlaybackEvent { T = e.GetProperty("t").GetDouble(), Kind = e.Str("kind") ?? "", Text = e.Str("text") ?? "" }).ToList()
                 : new List<PlaybackEvent>();
 
             _frames = root.GetProperty("frames").EnumerateArray()
@@ -203,9 +204,6 @@ namespace TournamentTracker.Stats
         {
             "The Skeld" => 0, "MIRA HQ" => 1, "Polus" => 2, "dlekS ehT" => 3, "Airship" => 4, "The Fungle" => 5, _ => -1,
         };
-
-        private static string Str(JsonElement e, string name) =>
-            e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
     }
 
     /// <summary>Replay files on this computer: the host's own games and any downloaded from Discord.</summary>

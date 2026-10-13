@@ -607,7 +607,7 @@ namespace TournamentTracker.Discord
         }
     }
 
-    /// <summary>Reading Discord's JSON.</summary>
+    /// <summary>Reading JSON from Discord and from the mod's own files.</summary>
     internal static class JsonRead
     {
         /// <summary>A string field, or null when it's missing or not a string.</summary>
