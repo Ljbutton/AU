@@ -95,11 +95,10 @@ function targetOf(settings, state) {
 /** The status the strip at the top of a key shows ("ok" shows nothing). */
 const base = (ctx) => ({ status: ctx?.status ?? "ok" });
 
-/** The lobby's player camera is off or not sending. */
+// For the camera keys and the Player dial: the lobby's camera is off or not sending, a player as a key
+// draws them, and the camera armed to follow that player when play resumes.
 const noCamIn = (lobby) => Boolean(lobby && (lobby.cam?.on === false || lobby.cam?.sending === false));
-/** A player as a key draws them. */
 const drawn = (p) => (p ? { name: p.name, hex: playerHex(p), dead: Boolean(p.dead) } : null);
-/** The lobby's camera is armed to follow this player when play resumes. */
 const armedOn = (lobby, player) => Boolean(player && lobby?.cam?.armed && lobby.cam.pick === player.id);
 
 /**

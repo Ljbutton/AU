@@ -258,9 +258,7 @@ export class Deck {
 }
 
 /** The key's tick or alert triangle (if Stream Deck can't show it, nothing more is done). */
-function show(key, what) {
-	Promise.resolve(key.handle[what]?.()).catch(() => {});
-}
+const show = (key, what) => Promise.resolve(key.handle[what]?.()).catch(() => {});
 
 /**
  * What the Property Inspector shows to help fill in a key: the lobbies by number and their players by

@@ -69,7 +69,6 @@ export function request(conn, method, path, query = {}, o = {}) {
 			clearTimeout(timer);
 			resolve(result);
 		};
-		/** No answer to go by (status 0). */
 		const fail = (message, more) => done({ status: 0, ok: false, body: null, message, ...more });
 		let req;
 		const timer = setTimeout(() => {
