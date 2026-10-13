@@ -5,7 +5,6 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -109,13 +108,10 @@ namespace TournamentTracker.App
             _rest = new DiscordRest(_discord, NullLog.Instance);
             _connect = connect ?? (c => new VoiceGateway(c.Token, c.GuildId, NullLog.Instance, listenToMessages: c.Listen));
             _orphans = LoadMuted();
-            var bytes = new byte[18];
-            using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(bytes);
-            Token = Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_');
-            _listener = new TcpListener(IPAddress.Loopback, 0);
-            _listener.Start();
+            Token = LocalServer.NewToken();
+            _listener = LocalServer.Listen();
             Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
-            Task.Run(AcceptLoop);
+            Task.Run(() => LocalServer.AcceptLoop(_listener, _cts.Token, Serve));
             Task.Run(KeepLoop);
         }
 
@@ -236,17 +232,6 @@ namespace TournamentTracker.App
         }
 
         // ---- Serving the mod -------------------------------------------------------------------
-
-        private async Task AcceptLoop()
-        {
-            while (!_cts.IsCancellationRequested)
-            {
-                TcpClient client;
-                try { client = await _listener.AcceptTcpClientAsync().ConfigureAwait(false); }
-                catch (Exception) { return; }
-                _ = Task.Run(() => Serve(client));
-            }
-        }
 
         private async Task Serve(TcpClient client)
         {

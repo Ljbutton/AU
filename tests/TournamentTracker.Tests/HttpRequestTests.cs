@@ -126,3 +126,31 @@ public class HttpRequestTests
         Assert.Equal(15 * 1024, headers["x-big"].Length);
     }
 }
+
+/// <summary>What every local server shares: listening on this computer only, and its token.</summary>
+public class LocalServerTests
+{
+    private static int PortOf(System.Net.Sockets.TcpListener l) => ((System.Net.IPEndPoint)l.LocalEndpoint).Port;
+
+    [Fact]
+    public void A_taken_port_is_passed_over_for_any_free_one_on_this_computer_only()
+    {
+        var first = LocalServer.Listen();
+        var next = LocalServer.Listen(PortOf(first), 0, 70000);
+        try
+        {
+            Assert.NotEqual(PortOf(first), PortOf(next));
+            Assert.Equal(System.Net.IPAddress.Loopback, ((System.Net.IPEndPoint)next.LocalEndpoint).Address);
+        }
+        finally { first.Stop(); next.Stop(); }
+    }
+
+    [Fact]
+    public void Tokens_are_random_and_safe_in_a_link()
+    {
+        string token = LocalServer.NewToken();
+        Assert.NotEqual(token, LocalServer.NewToken());
+        Assert.Matches("^[A-Za-z0-9_-]{24}$", token);
+        Assert.Matches("^[A-Za-z0-9_-]{20}$", LocalServer.NewToken(15));
+    }
+}

@@ -21,16 +21,7 @@ namespace TournamentTracker.App.Broadcast
         private volatile bool _checking, _updating;
         private volatile string? _updateReady, _updateError;
 
-        private bool UpdateAvailable => _env.ExePath != null && _latestRelease is { } l && _updateReady == null && Newer(l.Tag, _env.Version);
-
-        /// <summary>"broadcast-v0.2.0" is newer than "0.1.0" (or than nothing recorded).</summary>
-        public static bool Newer(string tag, string? installed)
-        {
-            static Version? V(string? t) => Version.TryParse((t ?? "").Replace(TagPrefix, "").TrimStart('v', 'V'), out var v) ? v : null;
-            var l = V(tag);
-            var i = V(installed);
-            return l != null && (i == null || l > i);
-        }
+        private bool UpdateAvailable => _env.ExePath != null && _latestRelease is { } l && _updateReady == null && AppUpdater.Newer(l.Tag, _env.Version, TagPrefix);
 
         /// <summary>The newest broadcast release with a RedAlert.exe, from the repository's release list.</summary>
         public static (string Tag, string Url)? PickRelease(JsonElement releases)

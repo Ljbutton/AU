@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -44,109 +43,57 @@ namespace TournamentTracker.Control
             _status = status;
             _command = command;
             _log = log;
-            _listener = Listen(port);
+            // The configured port, or any free one if it's taken (control.json says which).
+            _listener = LocalServer.Listen(port);
             Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
-            var bytes = new byte[18];
-            using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(bytes);
-            Token = Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_');
+            Token = LocalServer.NewToken();
             try
             {
                 Directory.CreateDirectory(dataDir);
                 File.WriteAllText(Path.Combine(dataDir, FileName), JsonSerializer.Serialize(new { port = Port, token = Token, pid = Environment.ProcessId }));
             }
             catch (Exception e) { log.Warn("Could not write control.json: " + e.Message); }
-            Task.Run(AcceptLoop);
+            Task.Run(() => LocalServer.Serve(_listener, _cts.Token, Route, e => _log.Warn("Control request failed: " + e.Message)));
         }
 
-        /// <summary>The configured port, or any free one if it's taken (control.json says which).</summary>
-        private static TcpListener Listen(int port)
+        private async Task<(int, string, byte[])> Route(string method, string path, Dictionary<string, string> headers, string body)
         {
-            try
+            string query = path.Contains('?') ? path.Substring(path.IndexOf('?') + 1) : "";
+            string route = path.Split('?')[0];
+            headers.TryGetValue("x-tt-token", out var token);
+            if (token != Token && HttpRequest.Query(query, "token") != Token) return Json(401, "{\"error\":\"bad token\"}");
+            if (method == "GET" && route == "/api/status") return Json(200, _status());
+            if (method == "GET" && route == "/api/feed" && _feed != null)
+                return Json(200, _feed(long.TryParse(HttpRequest.Query(query, "since"), out var from) ? from : 0));
+            if (method == "GET" && route == "/api/pov" && Cam != null)
             {
-                var l = new TcpListener(IPAddress.Loopback, Math.Max(0, port));
-                l.Start();
-                return l;
+                Cam.Asked();
+                var (seq, jpeg) = await Cam.NextAsync(long.TryParse(HttpRequest.Query(query, "after"), out var after) ? after : 0, TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
+                return jpeg == null ? (204, "application/octet-stream", Array.Empty<byte>()) : (200, "application/octet-stream", PlayerCam.PlayerCamFeed.Frame(seq, jpeg));
             }
-            catch (SocketException)
+            if (method == "POST" && route == "/api/names" && Names != null)
             {
-                var l = new TcpListener(IPAddress.Loopback, 0);
-                l.Start();
-                return l;
-            }
-        }
-
-        private async Task AcceptLoop()
-        {
-            while (!_cts.IsCancellationRequested)
-            {
-                TcpClient client;
-                try { client = await _listener.AcceptTcpClientAsync().ConfigureAwait(false); }
-                catch (Exception) { return; }
-                _ = Task.Run(() => Serve(client));
-            }
-        }
-
-        private async Task Serve(TcpClient client)
-        {
-            using (client)
-            {
+                var names = new Dictionary<string, string>();
                 try
                 {
-                    var stream = client.GetStream();
-                    var (method, path, headers, body) = await HttpRequest.ReadAsync(stream).ConfigureAwait(false);
-                    int status = 200;
-                    string reply;
-                    string query = path.Contains('?') ? path.Substring(path.IndexOf('?') + 1) : "";
-                    string route = path.Split('?')[0];
-                    headers.TryGetValue("x-tt-token", out var token);
-                    if (token != Token && HttpRequest.Query(query, "token") != Token)
-                    {
-                        status = 401;
-                        reply = "{\"error\":\"bad token\"}";
-                    }
-                    else if (method == "GET" && route == "/api/status") reply = _status();
-                    else if (method == "GET" && route == "/api/feed" && _feed != null)
-                        reply = _feed(long.TryParse(HttpRequest.Query(query, "since"), out var from) ? from : 0);
-                    else if (method == "GET" && route == "/api/pov" && Cam != null)
-                    {
-                        Cam.Asked();
-                        var (seq, jpeg) = await Cam.NextAsync(long.TryParse(HttpRequest.Query(query, "after"), out var after) ? after : 0, TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
-                        if (jpeg == null) await HttpRequest.WriteAsync(stream, 204, "application/octet-stream", Array.Empty<byte>()).ConfigureAwait(false);
-                        else await HttpRequest.WriteAsync(stream, 200, "application/octet-stream", PlayerCam.PlayerCamFeed.Frame(seq, jpeg)).ConfigureAwait(false);
-                        return;
-                    }
-                    else if (method == "POST" && route == "/api/names" && Names != null)
-                    {
-                        var names = new Dictionary<string, string>();
-                        try
-                        {
-                            foreach (var kv in JsonDocument.Parse(body).RootElement.GetProperty("names").EnumerateObject())
-                                if (kv.Value.ValueKind == JsonValueKind.String) names[kv.Name] = kv.Value.GetString() ?? "";
-                        }
-                        catch (Exception) { }
-                        Names(names);
-                        reply = "{\"ok\":true}";
-                    }
-                    else if (method == "POST" && route == "/api/command")
-                    {
-                        string command = "";
-                        try { command = JsonDocument.Parse(body).RootElement.GetProperty("command").GetString() ?? ""; }
-                        catch (Exception) { }
-                        reply = await _command(command).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        status = 404;
-                        reply = "{\"error\":\"not found\"}";
-                    }
-                    await HttpRequest.WriteAsync(stream, status, "application/json", Encoding.UTF8.GetBytes(reply)).ConfigureAwait(false);
+                    foreach (var kv in JsonDocument.Parse(body).RootElement.GetProperty("names").EnumerateObject())
+                        if (kv.Value.ValueKind == JsonValueKind.String) names[kv.Name] = kv.Value.GetString() ?? "";
                 }
-                catch (Exception e)
-                {
-                    _log.Warn("Control request failed: " + e.Message);
-                }
+                catch (Exception) { }
+                Names(names);
+                return Json(200, "{\"ok\":true}");
             }
+            if (method == "POST" && route == "/api/command")
+            {
+                string command = "";
+                try { command = JsonDocument.Parse(body).RootElement.GetProperty("command").GetString() ?? ""; }
+                catch (Exception) { }
+                return Json(200, await _command(command).ConfigureAwait(false));
+            }
+            return Json(404, "{\"error\":\"not found\"}");
         }
+
+        private static (int, string, byte[]) Json(int status, string json) => (status, "application/json", Encoding.UTF8.GetBytes(json));
 
         public void Dispose()
         {

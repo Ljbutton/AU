@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using TournamentTracker.App;
 using TournamentTracker.App.Broadcast;
 using TournamentTracker.Setup;
 using Xunit;
@@ -68,8 +69,8 @@ public class BroadcastServerTests : IDisposable
               { "tag_name": "broadcast-v0.1.2", "draft": false, "assets": [ { "name": "RedAlert.exe", "browser_download_url": "https://x/012" } ] } ]
             """).RootElement;
         Assert.Equal(("broadcast-v0.1.2", "https://x/012"), BroadcastServer.PickRelease(releases));
-        Assert.True(BroadcastServer.Newer("broadcast-v0.1.2", "0.1.0"));
-        Assert.False(BroadcastServer.Newer("broadcast-v0.1.0", "0.1.0"));
+        Assert.True(AppUpdater.Newer("broadcast-v0.1.2", "0.1.0", BroadcastServer.TagPrefix));
+        Assert.False(AppUpdater.Newer("broadcast-v0.1.0", "0.1.0", BroadcastServer.TagPrefix));
     }
 
     [Fact]

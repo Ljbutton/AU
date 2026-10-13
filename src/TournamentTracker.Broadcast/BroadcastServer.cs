@@ -5,8 +5,6 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
-using System.Reflection;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -121,12 +119,10 @@ namespace TournamentTracker.App.Broadcast
             _env = env;
             _http = http;
             _settings = BroadcastAppSettings.Load(env.SettingsFile);
-            var bytes = new byte[18];
-            using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(bytes);
-            Token = Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_');
+            Token = LocalServer.NewToken();
             _listener = Listen(env.Port);
             Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
-            Task.Run(AcceptLoop);
+            Task.Run(() => LocalServer.Serve(_listener, _cts.Token, Route));
             StartDesk();
         }
 
@@ -136,28 +132,17 @@ namespace TournamentTracker.App.Broadcast
         /// Settings and the Stream Deck's state say when it isn't the usual one: links copied before point
         /// at 8768.
         /// </summary>
-        private static TcpListener Listen(int port)
-        {
-            var tries = port == DefaultPort ? Enumerable.Range(DefaultPort, 4).ToList() : new List<int> { port };
-            foreach (int p in tries)
-            {
-                var l = new TcpListener(IPAddress.Loopback, p);
-                try { l.Start(); return l; }
-                catch (SocketException) { }
-            }
-            var any = new TcpListener(IPAddress.Loopback, 0);
-            any.Start();
-            return any;
-        }
+        private static TcpListener Listen(int port) =>
+            LocalServer.Listen(port == DefaultPort ? Enumerable.Range(DefaultPort, 4).ToArray() : new[] { port });
 
         private void TrySave()
         {
             try { _settings.Save(_env.SettingsFile); } catch (Exception) { }
         }
 
-        private RotatingLog? _logFile;
+        private FileLog? _logFile;
         /// <summary>Red Alert's own log (red-alert.log next to its settings; the one before is kept as red-alert.log.1).</summary>
-        public RotatingLog Log => _logFile ??= new RotatingLog(SideFolder(), "red-alert.log");
+        public FileLog Log => _logFile ??= new FileLog(SideFolder(), "red-alert.log", keepPrevious: true);
 
         private string? SideFolder() => string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.GetDirectoryName(_env.SettingsFile);
 
@@ -267,12 +252,8 @@ namespace TournamentTracker.App.Broadcast
             if (route == "/broadcast") return ("text/html; charset=utf-8", Encoding.UTF8.GetBytes(Resource("ui/broadcast.html")));
             if (route == "/broadcast/state") return ("application/json", JsonSerializer.SerializeToUtf8Bytes(app.State(), Json));
             if (route == "/broadcast/logo") return app.Logo();
-            // Players' crewmate heads, for every name on stream.
-            var head = Regex.Match(route, @"^/crew/(\d{1,2})\.png$");
-            if (head.Success) { var png = ResourceBytes($"ui/crew/{head.Groups[1].Value}.png"); return png.Length > 0 ? ("image/png", png) : null; }
-            var font = Regex.Match(route, @"^/fonts/([a-z0-9-]+\.woff2)$");
-            if (font.Success) { var b = ResourceBytes("ui/fonts/" + font.Groups[1].Value); return b.Length > 0 ? ("font/woff2", b) : null; }
-            return null;
+            // Players' crewmate heads, for every name on stream, and the fonts.
+            return UiFiles.Asset(typeof(BroadcastServer).Assembly, route);
         }
 
         /// <summary>A sponsor's logo or video (files on this PC) for the graphics app and the replay tag.</summary>
@@ -401,32 +382,6 @@ namespace TournamentTracker.App.Broadcast
 
         // ---- Serving --------------------------------------------------------------------------------
 
-        private async Task AcceptLoop()
-        {
-            while (!_cts.IsCancellationRequested)
-            {
-                TcpClient client;
-                try { client = await _listener.AcceptTcpClientAsync().ConfigureAwait(false); }
-                catch (Exception) { return; }
-                _ = Task.Run(() => Serve(client));
-            }
-        }
-
-        private async Task Serve(TcpClient client)
-        {
-            using (client)
-            {
-                try
-                {
-                    var stream = client.GetStream();
-                    var (method, path, headers, body) = await HttpRequest.ReadAsync(stream).ConfigureAwait(false);
-                    var (status, type, bytes) = await Route(method, path, headers, body).ConfigureAwait(false);
-                    await HttpRequest.WriteAsync(stream, status, type, bytes).ConfigureAwait(false);
-                }
-                catch (Exception) { /* the window closed mid-request */ }
-            }
-        }
-
         private static (int, string, byte[]) Text(int status, string type, string text) => (status, type, Encoding.UTF8.GetBytes(text));
         private static (int, string, byte[]) Ok(object value) => Text(200, "application/json", JsonSerializer.Serialize(value, Json));
 
@@ -477,18 +432,7 @@ namespace TournamentTracker.App.Broadcast
                 return Text(200, "text/html; charset=utf-8",
                     "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Replay</title></head><body style=\"margin:0\">"
                     + Resource("ui/viewer-body.html") + "</body></html>");
-            var font = Regex.Match(route, @"^/fonts/([a-z0-9-]+\.woff2)$");
-            if (method == "GET" && font.Success)
-            {
-                var bytes = ResourceBytes("ui/fonts/" + font.Groups[1].Value);
-                return bytes.Length > 0 ? (200, "font/woff2", bytes) : Text(404, "text/plain", "Not found");
-            }
-            var crew = Regex.Match(route, @"^/crew/(\d{1,2})\.png$");
-            if (method == "GET" && crew.Success)
-            {
-                var png = ResourceBytes($"ui/crew/{crew.Groups[1].Value}.png");
-                return png.Length > 0 ? (200, "image/png", png) : Text(404, "text/plain", "Not found");
-            }
+            if (method == "GET" && UiFiles.Asset(typeof(BroadcastServer).Assembly, route) is { } asset) return (200, asset.Type, asset.Body);
             // Stream Deck links: their own key (they can't send the app's header, and must survive restarts).
             if (route.StartsWith("/deck/", StringComparison.Ordinal) && (method == "GET" || method == "POST")) return await Deck(route, query).ConfigureAwait(false);
             if (!route.StartsWith("/app/", StringComparison.Ordinal)) return Text(404, "text/plain", "Not found");
@@ -1145,22 +1089,8 @@ namespace TournamentTracker.App.Broadcast
             }
         }
 
-        private static string Resource(string name)
-        {
-            using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name);
-            if (stream == null) return "";
-            using var reader = new StreamReader(stream);
-            return reader.ReadToEnd();
-        }
-
-        private static byte[] ResourceBytes(string name)
-        {
-            using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name);
-            if (stream == null) return Array.Empty<byte>();
-            using var copy = new MemoryStream();
-            stream.CopyTo(copy);
-            return copy.ToArray();
-        }
+        private static string Resource(string name) => UiFiles.Text(typeof(BroadcastServer).Assembly, name);
+        private static byte[] ResourceBytes(string name) => UiFiles.Bytes(typeof(BroadcastServer).Assembly, name);
 
         public void Dispose()
         {
