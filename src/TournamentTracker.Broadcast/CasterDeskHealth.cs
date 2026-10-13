@@ -35,6 +35,14 @@ namespace TournamentTracker.App.Broadcast
         public string? HealthPath { get; }
         public LobbyHealth Health { get; }
 
+        /// <summary>Auto switch on or off (saved in health.json), and what the desk and the Stream Deck say.</summary>
+        public string SetAutoSwitch(bool on)
+        {
+            HealthConfig.AutoSwitch = on;
+            HealthConfig.Save(HealthPath);
+            return on ? "Auto switch away from a lobby that drops: on." : "Auto switch away from a lobby that drops: off.";
+        }
+
         // Per lobby and run of its mod: every message up to Base arrived; Above: later ones that came first.
         private sealed class Received
         {
@@ -220,9 +228,9 @@ namespace TournamentTracker.App.Broadcast
         private void TrackGame(string lobby, JsonElement m, DateTime at)
         {
             string type = m.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "";
-            string? kind = m.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? k.GetString() : null;
-            string game = m.TryGetProperty("game", out var g) && g.ValueKind == JsonValueKind.String ? g.GetString() ?? "" : "";
-            int round = m.TryGetProperty("round", out var r) && r.ValueKind == JsonValueKind.Number ? r.GetInt32() : 0;
+            string? kind = m.Str("kind");
+            string game = m.Str("game") ?? "";
+            int round = m.Int("round") ?? 0;
             // The same game carrying on (data back after a drop): it wasn't interrupted after all.
             bool live = type == "event" ? kind != "gameEnd" : type == "snap" && m.TryGetProperty("phase", out var lp) && lp.GetString() is "ingame" or "meeting";
             if (live && game.Length > 0) Resumed(lobby, game, round);
@@ -236,7 +244,7 @@ namespace TournamentTracker.App.Broadcast
             else if (type == "event" && kind == "gameEnd")
             {
                 lock (_lock) _playing.Remove(lobby);
-                if (m.TryGetProperty("abandoned", out var ab) && ab.ValueKind == JsonValueKind.True && game.Length > 0)
+                if (m.Flag("abandoned") && game.Length > 0)
                     Interrupt(lobby, game, round, "the referee's game was abandoned", at);
             }
             else if (type == "snap" && was is { } w2 && m.TryGetProperty("phase", out var ph) && ph.GetString() is "lobby" or "menu")
@@ -465,20 +473,11 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>"Technical difficulties: be right back", with the standings and storylines taking turns.</summary>
-        public OnAir ShowSlate(string by = "button", string? transition = null)
+        public OnAir ShowSlate(string by = "button", string? transition = null) => PutOn(() =>
         {
-            OnAir next;
-            lock (_lock)
-            {
-                if (_onAir.Layout is not ("intermission" or "replay" or "none" or "slate")) _beforeSlate = _onAir;
-                next = new OnAir { Layout = "slate", Slots = new List<string?>(), By = by, Since = _clock(), Transition = transition };
-                _onAir = next;
-            }
-            Left(next);
-            Raise(next);
-            Touch();
-            return next;
-        }
+            if (_onAir.Layout is not ("intermission" or "replay" or "none" or "slate")) _beforeSlate = _onAir;
+            return new OnAir { Layout = "slate", Slots = new List<string?>(), By = by, Since = _clock(), Transition = transition };
+        });
 
         private OnAir? _beforeSlate;
 

@@ -72,7 +72,6 @@ img.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 .05em;vert
 .ppl img.sw{height:1.5em;vertical-align:-.4em}
 .ppl button::after{content:" · card";color:var(--muted)}
 .vo-list{display:grid;gap:6px;margin-top:8px}
-.hdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:#ffc15a;vertical-align:1px}.hdot.red{background:var(--danger)}
 .tw-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px;margin-top:8px}
 @media (max-width:900px){.tw-grid{grid-template-columns:1fr}}
 .tw-grid h3{margin:10px 0 6px;font:600 13px/1 var(--round);color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
@@ -276,10 +275,9 @@ label.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
 .oa-what{font:700 38px/1 var(--hand);letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .oa-sub{color:var(--muted);font-size:13px;margin-top:3px;min-height:1em}
 .oa-sub.bad,#oa-sub.bad{color:#ff5a50;font-weight:600}
-.oa-auto{display:inline-block;margin-left:10px;padding:1px 7px;border:1px solid var(--good);color:var(--good);font:700 10.5px/1.4 var(--round);letter-spacing:.12em;text-transform:uppercase;vertical-align:1px}
 button.b.sw-onoff:not(.on){background:transparent;color:var(--muted);border-color:var(--line)}
 .oa-time b{font:700 30px/1 var(--mono);font-variant-numeric:tabular-nums}
-@media (max-width:700px){.onair{grid-template-columns:auto minmax(0,1fr)}.oa-audio,.oa-time{justify-items:start}}
+@media (max-width:700px){.onair{grid-template-columns:auto minmax(0,1fr)}.oa-time{justify-items:start}}
 .talk-card{display:grid;gap:8px;align-content:start}
 .talk-list{display:grid;gap:6px}
 .talk{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 10px;background:var(--sunk);border-left:3px solid var(--red);font-size:15px;line-height:1.35}
@@ -345,7 +343,6 @@ button.b.sw-onoff:not(.on){background:transparent;color:var(--muted);border-colo
 /* Fixed order: the lobby's number; excitement is a badge and a glow, never a new place in the list. */
 .cast-state{font-size:13px;color:var(--muted)}
 .cast-state b.pin{font:700 13px/1 "Segoe UI",sans-serif;letter-spacing:.1em;color:#16120a;background:var(--warn);padding:3px 7px;margin-right:6px}
-.spec .sh{font:600 10.5px/1 "Segoe UI",sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);cursor:help;margin-right:2px}
 .gq-card{display:grid;gap:6px}
 .gq{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px}
 .gq .it{padding:4px 9px;background:var(--sunk);border:1px solid var(--line)}
@@ -1075,6 +1072,8 @@ const loadFull = poller('/app/admin/desk', (r, seq) => {
 });
 // After an action: what this page shows, fresh.
 const loadDesk = () => PAGE === 'live' ? loadLive() : loadFull();
+// A button's action: what it did is said, then this page shows it fresh.
+async function post(path, body) { const r = await api('POST', path, body); toast(r.message); loadDesk(); return r; }
 const plainObj = v => v && typeof v === 'object' && !Array.isArray(v);
 // The newer answer's values over the older's, so the quick answer never hides what only the full one has
 // (OBS's setup checks, the replay keys, every lobby's voice levels).
@@ -1257,10 +1256,7 @@ const pvwLayout = lay => deckDo(`layout/${lay}`, null, false);
 // What used to stage a lobby ("show"): a break goes on at once; a lobby goes into Preview.
 async function show(lobby, layout) {
   layout = layout || 'full';
-  if (['intermission', 'slate', 'break'].includes(layout)) {
-    const r = await api('POST', '/app/admin/show', { lobby, layout, slot: '' });
-    toast(r.message); loadDesk(); return;
-  }
+  if (['intermission', 'slate', 'break'].includes(layout)) return post('/app/admin/show', { lobby, layout, slot: '' });
   if (layout === 'grid' && !lobby) return pvwLayout('grid');
   const l = lobbyNamed(lobby); if (l) previewOnly(l);
 }
@@ -1462,8 +1458,10 @@ function renderWarnings() {
   setText($('ld-alert-n'), w.length > 1 ? `+${w.length - 1}` : '');
   setTitle(rail, top ? w.map(x => `${x.title}: ${x.text}`).join('\n') : 'Nothing needs a look');
 }
-$('ld-alerts').addEventListener('click', e => { e.stopPropagation(); const p = $('ld-alert-pop'); const open = p.hidden; closePops(); p.hidden = !open; $('ld-alerts').setAttribute('aria-expanded', String(open)); });
-$('ld-keys').addEventListener('click', e => { e.stopPropagation(); const p = $('keys-pop'); const open = p.hidden; closePops(); p.hidden = !open; });
+// A popover's button: opens it (any other one closes), or closes it. True when it opened.
+function togglePop(e, id) { e.stopPropagation(); const p = $(id), open = p.hidden; closePops(); p.hidden = !open; return open; }
+$('ld-alerts').addEventListener('click', e => $('ld-alerts').setAttribute('aria-expanded', String(togglePop(e, 'ld-alert-pop'))));
+$('ld-keys').addEventListener('click', e => togglePop(e, 'keys-pop'));
 // Popovers (warnings, keys, a lobby's menu, the slot picker) close on Esc or a click elsewhere.
 function closePops() {
   let any = false;
@@ -1483,9 +1481,8 @@ document.addEventListener('click', async e => {
   const g = e.target.closest('[data-gopage]'); if (g) { closePops(); go(g.dataset.gopage); return; }
   const f = e.target.closest('[data-fix]'); if (!f) return;
   f.disabled = true;
-  const r = f.dataset.fix === 'rebuild' ? await api('POST', '/app/admin/obs', { action: 'build' }) : await api('POST', '/app/admin/obs', { action: 'fix', id: f.dataset.fix });
+  await post('/app/admin/obs', f.dataset.fix === 'rebuild' ? { action: 'build' } : { action: 'fix', id: f.dataset.fix });
   f.disabled = false;
-  toast(r.message); loadDesk();
 });
 
 // ---- Preview and Program boxes ----------------------------------------------------------------------
@@ -1556,7 +1553,7 @@ function renderSwitcher() {
   }
 }
 $('air-slots').addEventListener('click', e => { const t = e.target.closest('[data-tile]'); if (t) show(t.dataset.tile, 'full'); });
-$('air-re').addEventListener('click', e => { e.stopPropagation(); const p = $('air-pick'); const open = p.hidden; closePops(); p.hidden = !open; });
+$('air-re').addEventListener('click', e => togglePop(e, 'air-pick'));
 $('air-pick').addEventListener('change', async () => {
   if (!DESK) return;
   const picked = [...$('air-pick').querySelectorAll('[data-slot]')].map(x => x.value).filter(Boolean);
@@ -1667,7 +1664,7 @@ $('mv-grid').addEventListener('click', e => {
   const t = e.target.closest('.mv'); if (!t) return;
   const l = tileLobby(t); if (!l) return;
   const rb = e.target.closest('.rb');
-  if (rb) { const c = (RP && RP.ready || []).find(x => x.lobby === l.lobby); if (c) api('POST', '/app/admin/replay', { action: 'play', id: c.id }).then(r => { toast(r.message); loadDesk(); }); return; }
+  if (rb) { const c = (RP && RP.ready || []).find(x => x.lobby === l.lobby); if (c) post('/app/admin/replay', { action: 'play', id: c.id }); return; }
   const b = e.target.closest('[data-tact]');
   const act = b ? b.dataset.tact : e.ctrlKey || e.shiftKey || e.metaKey ? 'add' : 'pvw';
   if (act === 'pvw') previewOnly(l);
@@ -1740,7 +1737,7 @@ function renderAction() {
 }
 $('rp-ready').addEventListener('click', e => {
   const c = e.target.closest('[data-rclip]');
-  if (c) { api('POST', '/app/admin/replay', { action: 'play', id: c.dataset.rclip }).then(r => { toast(r.message); loadDesk(); }); return; }
+  if (c) { post('/app/admin/replay', { action: 'play', id: c.dataset.rclip }); return; }
   const d = e.target.closest('[data-rdo]'); if (d) deckDo('replay/' + d.dataset.rdo);
 });
 function renderBreaks() {
@@ -1761,7 +1758,7 @@ function renderBreaks() {
 }
 $('desk-panic').addEventListener('click', panicPress);
 $('desk-hold').addEventListener('click', holdToggle);
-$('desk-sponsor').addEventListener('click', async () => { const r = await api('POST', '/app/admin/sponsor', { action: DESK && DESK.break ? 'end' : 'break' }); toast(r.message); loadDesk(); });
+$('desk-sponsor').addEventListener('click', () => post('/app/admin/sponsor', { action: DESK && DESK.break ? 'end' : 'break' }));
 $('desk-autogrid').addEventListener('click', () => deckDo('auto/grid/toggle'));
 $('desk-autointer').addEventListener('click', () => deckDo('auto/intermission/toggle'));
 $('desk-autosw').addEventListener('click', () => deckDo('auto/switch/toggle'));
@@ -1895,7 +1892,7 @@ function renderQueue() {
     : `<div class="prompt" style="border-left-color:var(--warn)"><span>Saved for intermission: <b style="font-size:16px">${x.saved.map(esc).join(', ')}</b></span></div>`, '');
   for (const p of ag.prompts) setText($('ag-prompts').querySelector(`[data-k="p${CSS.escape(String(p.id))}"] .t`), p.left + 's');
 }
-const gqDo = async body => { const r = await api('POST', '/app/admin/graphics', body); toast(r.message); loadDesk(); };
+const gqDo = body => post('/app/admin/graphics', body);
 $('gq-skip').addEventListener('click', () => gqDo({ action: 'skip' }));
 $('gq-clear').addEventListener('click', () => gqDo({ action: 'clear' }));
 $('gq-hold').addEventListener('change', e => { gqDo({ action: 'hold', value: e.target.value }); e.target.blur(); });
@@ -1908,7 +1905,7 @@ function renderSetup() {
   setText($('setup-line'), !list.length ? 'checking…' : list.every(c => c.ok) ? 'all good' : `${list.filter(c => !c.ok).length} to look at`);
   setHtml($('setup-list'), list.map(c => `<div class="ck${c.ok ? '' : ' no'}"><span class="ic">${c.ok ? '✓' : '⚠'}</span><div><b>${esc(c.title)}</b>${c.detail ? `<div class="dt">${esc(c.detail)}</div>` : ''}</div>${c.fix ? `<button class="b" data-fix="${esc(c.id)}">${esc(c.fix)}</button>` : '<span></span>'}</div>`).join(''));
 }
-$('setup-again').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'check' }); toast(r.message); loadDesk(); });
+$('setup-again').addEventListener('click', () => post('/app/admin/obs', { action: 'check' }));
 function shotTick() {
   const air = DESK && DESK.onAir;
   const s = air && air.since ? Math.max(0, Math.floor((Date.now() - new Date(air.since).getTime()) / 1000)) : 0;
@@ -1961,11 +1958,7 @@ function sysCard(c) {
     ${it ? `<div class="acts"><button class="b" data-decide="count" data-iid="${it}" title="Put it in the standings">Count</button><button class="b" data-decide="void" data-iid="${it}" title="Posts !void for it">Void</button><button class="b primary" data-decide="replay" data-iid="${it}" title="Void it; the lobby plays it again">Replay</button></div>` : ''}
   </div>`;
 }
-async function decide(id, decision) { const r = await api('POST', '/app/admin/interrupted', { id, decision }); toast(r.message); loadDesk(); }
-document.addEventListener('click', e => {
-  const b = e.target.closest('[data-decide]'); if (!b) return;
-  e.stopPropagation(); decide(b.dataset.iid, b.dataset.decide);
-}, true);
+function decide(id, decision) { return post('/app/admin/interrupted', { id, decision }); }
 // The health panel: one row per lobby, its colour and what's wrong in plain words; test buttons in simulation.
 // Fault buttons only while simulating; Reconnect on every row, always. The lag figure ticks in place.
 const SIMFAIL = [['video', 'Video'], ['audio', 'Audio'], ['data', 'Data'], ['all', 'All'], ['lag', 'Lag'], ['crash', 'Crash']];
@@ -1991,15 +1984,19 @@ $('hl-list').addEventListener('click', async e => {
   const b = e.target.closest('[data-hlsim]'); if (!b) return;
   // A real lobby's Reconnect: its hidden data link is loaded again now.
   if (b.dataset.hlsim === 'reconnect' && RECV[b.dataset.hllobby]) { const f = RECV[b.dataset.hllobby]; f.src = f.dataset.src; if (RECV_AT[b.dataset.hllobby]) Object.assign(RECV_AT[b.dataset.hllobby], { last: Date.now(), wait: 5000 }); }
-  const r = await api('POST', '/app/admin/health', { lobby: b.dataset.hllobby, what: b.dataset.hlsim }); toast(r.message); hlKey = ''; loadDesk();
+  await post('/app/admin/health', { lobby: b.dataset.hllobby, what: b.dataset.hlsim }); hlKey = '';
 });
-$('hl-auto').addEventListener('click', async () => { const r = await api('POST', '/app/admin/health', { what: 'autoSwitch', on: String(!(DESK && DESK.health.settings.autoSwitch)) }); toast(r.message); hlKey = ''; loadDesk(); });
-$('hl-slate').addEventListener('click', async () => { const r = await api('POST', '/app/admin/health', { what: 'slate', on: String(!(DESK && DESK.health.settings.slate)) }); toast(r.message); hlKey = ''; loadDesk(); });
+$('hl-auto').addEventListener('click', async () => { await post('/app/admin/health', { what: 'autoSwitch', on: String(!(DESK && DESK.health.settings.autoSwitch)) }); hlKey = ''; });
+$('hl-slate').addEventListener('click', async () => { await post('/app/admin/health', { what: 'slate', on: String(!(DESK && DESK.health.settings.slate)) }); hlKey = ''; });
 $('hl-open').addEventListener('click', async () => { const r = await api('POST', '/app/admin/health', { what: 'open' }); toast(r.message); });
 function playerCard(key, lobby) { api('POST', '/app/admin/card', { key, lobby: lobby || '' }).then(r => toast(r.message)); }
+// Decide, player-card and into-Preview buttons work wherever they're drawn, before their row's own click.
 document.addEventListener('click', e => {
-  const b = e.target.closest('[data-pcard]'); if (!b) return;
-  e.stopPropagation(); playerCard(b.dataset.pcard, b.dataset.plobby);
+  const b = e.target.closest('[data-decide],[data-pcard],[data-cardshow]'); if (!b) return;
+  e.stopPropagation();
+  if (b.matches('[data-decide]')) decide(b.dataset.iid, b.dataset.decide);
+  else if (b.matches('[data-pcard]')) playerCard(b.dataset.pcard, b.dataset.plobby);
+  else show(b.dataset.cardshow, 'full');
 }, true);
 // Key C: the top notification's key player.
 function cardForTop() {
@@ -2009,26 +2006,30 @@ function cardForTop() {
 }
 $('desk-cards').addEventListener('click', e => {
   const rp = e.target.closest('[data-rplay]');
-  if (rp) { api('POST', '/app/admin/replay', { action: 'play', id: rp.dataset.rplay }).then(r => { toast(r.message); loadDesk(); }); return; }
+  if (rp) { post('/app/admin/replay', { action: 'play', id: rp.dataset.rplay }); return; }
   const rs = e.target.closest('[data-rsave]');
-  if (rs) { api('POST', '/app/admin/replay', { action: 'save', id: rs.dataset.rsave }).then(r => { toast(r.message); loadDesk(); }); return; }
+  if (rs) { post('/app/admin/replay', { action: 'save', id: rs.dataset.rsave }); return; }
   const x = e.target.closest('[data-dismiss]');
   if (x) { api('POST', '/app/admin/dismiss', { id: x.dataset.dismiss }).then(loadDesk); return; }
   if (e.target.closest('button')) return;
   const c = e.target.closest('[data-card]'); if (c) show(c.dataset.lobby, 'full');
 });
-// The spectator view on a lobby's host screen: sent to that host over its VDO.Ninja link (the only way back to them).
-function specSend(lobby, command) {
+// A command for a lobby's host, over its VDO.Ninja link (the only way back to them); false when there's no link.
+function toHost(lobby, command) {
   const f = RECV[lobby];
-  if (f && f.contentWindow) f.contentWindow.postMessage({ sendData: { ttc: command }, type: 'rpcs' }, '*');
+  if (!f || !f.contentWindow) return false;
+  f.contentWindow.postMessage({ sendData: { ttc: command }, type: 'rpcs' }, '*');
+  return true;
+}
+// The spectator view on a lobby's host screen.
+function specSend(lobby, command) {
+  toHost(lobby, command);
   api('POST', '/app/admin/spec', { lobby, command }).then(() => setTimeout(loadDesk, 1200));
   toast(`${lobby}: ${command.replace(/^spec /, '')}`);
 }
 // Commands Red Alert itself wants sent to a host (the Stream Deck, the player camera): only this page can.
 function specQuiet(lobby, command) {
-  const f = RECV[lobby];
-  if (f && f.contentWindow) f.contentWindow.postMessage({ sendData: { ttc: command }, type: 'rpcs' }, '*');
-  else if (/^SIM-/.test(lobby)) fetch('/app/admin/spec', { method: 'POST', headers: { 'X-App-Token': TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ lobby, command }) }).catch(() => { });
+  if (!toHost(lobby, command) && /^SIM-/.test(lobby)) fetch('/app/admin/spec', { method: 'POST', headers: { 'X-App-Token': TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ lobby, command }) }).catch(() => { });
 }
 let camKeepAt = 0, specBusy = false;
 setInterval(async () => {
@@ -2055,10 +2056,7 @@ function specRow(l) {
   </div>`;
 }
 const keyName = k => ((RP && RP.hotkeys && RP.hotkeys[k]) || '').replace(/^Key|^Digit/, '');
-$('desk-history').addEventListener('click', e => {
-  const w = e.target.closest('[data-watch]'); if (!w) return;
-  api('POST', '/app/admin/watch', { id: w.dataset.watch }).then(r => { toast(r.message); loadDesk(); });
-});
+$('desk-history').addEventListener('click', e => { const w = e.target.closest('[data-watch]'); if (w) post('/app/admin/watch', { id: w.dataset.watch }); });
 let OBS = null;
 function renderObs() {
   const o = OBS; if (!o) return;
@@ -2076,12 +2074,12 @@ $('obs-form').addEventListener('submit', async e => {
   toast('Connecting to OBS…');
   const body = { action: 'connect', host: $('obs-host').value.trim(), port: $('obs-port').value.trim() };
   if ($('obs-pass').value) body.password = $('obs-pass').value;
-  const r = await api('POST', '/app/admin/obs', body);
-  toast(r.message); $('obs-pass').value = ''; loadDesk();
+  await post('/app/admin/obs', body);
+  $('obs-pass').value = '';
 });
-$('obs-off').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'disconnect' }); toast(r.message); loadDesk(); });
-$('obs-swoosh').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'swoosh', on: String(!(OBS && OBS.swoosh && OBS.swoosh.on)) }); toast(r.message); loadDesk(); });
-$('obs-build').addEventListener('click', async () => { const r = await api('POST', '/app/admin/obs', { action: 'build' }); toast(r.message); loadDesk(); });
+$('obs-off').addEventListener('click', () => post('/app/admin/obs', { action: 'disconnect' }));
+$('obs-swoosh').addEventListener('click', () => post('/app/admin/obs', { action: 'swoosh', on: String(!(OBS && OBS.swoosh && OBS.swoosh.on)) }));
+$('obs-build').addEventListener('click', () => post('/app/admin/obs', { action: 'build' }));
 // ---- Standings & storylines ---------------------------------------------------------------------
 let r_story = null, storyKey = '', notesAll = false;
 function renderStory(st) {
@@ -2105,8 +2103,8 @@ $('notes').addEventListener('click', async e => {
   const r = await api('POST', '/app/admin/note', { id: b.dataset.note, action: b.dataset.act });
   toast(plain(r.message)); storyKey = ''; loadDesk();
 });
-document.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/standings', { scope: b.dataset.scope }); toast(r.message); storyKey = ''; loadDesk(); }));
-$('st-show').addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/standings', { show: String(!$('st-show').classList.contains('on')) }); toast(r.message); gfxKey = ''; loadDesk(); });
+document.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', async e => { e.preventDefault(); await post('/app/admin/standings', { scope: b.dataset.scope }); storyKey = ''; }));
+$('st-show').addEventListener('click', async e => { e.preventDefault(); await post('/app/admin/standings', { show: String(!$('st-show').classList.contains('on')) }); gfxKey = ''; });
 
 // ---- Lobby voice (Part 11) -----------------------------------------------------------------------
 let LVOICE = null, voKey = '';
@@ -2114,7 +2112,7 @@ const VO_STATE = { capturing: 'found', 'not running': 'not open', unsupported: '
 const meterPct = db => Math.max(0, Math.min(100, ((db ?? -60) + 60) / 60 * 100));
 // ---- Twitch (Part 23) ------------------------------------------------------------------------------
 let TW = null, twKey = '';
-const twDo = async body => { const r = await api('POST', '/app/admin/twitch', body); toast(r.message); twKey = ''; loadDesk(); return r; };
+const twDo = async body => { const r = await post('/app/admin/twitch', body); twKey = ''; return r; };
 // What's running: built without the seconds left (they tick in place), so its buttons aren't replaced every second.
 function twItem(x, kind) {
   if (!x) return '';
@@ -2195,18 +2193,10 @@ $('tw-card').addEventListener('change', e => {
   if (e.target.dataset.twf) return twDo({ action: 'feature', name: e.target.dataset.twf, on: String(e.target.checked) });
   if (e.target.dataset.twa) return twDo({ action: 'auto', name: e.target.dataset.twa, on: String(e.target.checked) });
   if (e.target.dataset.twclip) { e.target.blur(); return; }
-  if (id === 'tw-client') twDo({ action: 'clientId', value: e.target.value });
-  else if (id === 'tw-delay') twDo({ action: 'delay', value: e.target.value });
-  else if (id === 'tw-psec') twDo({ action: 'predictionSeconds', value: e.target.value });
-  else if (id === 'tw-msec') twDo({ action: 'meetingSeconds', value: e.target.value });
-  else if (id === 'tw-mode') twDo({ action: 'meetingMode', value: e.target.value });
-  else if (id === 'tw-featured') twDo({ action: 'featured', value: e.target.value });
+  const set = { 'tw-client': 'clientId', 'tw-delay': 'delay', 'tw-psec': 'predictionSeconds', 'tw-msec': 'meetingSeconds', 'tw-mode': 'meetingMode', 'tw-featured': 'featured' }[id];
+  if (set) twDo({ action: set, value: e.target.value });
   else if (id === 'tw-reveal') twDo({ action: 'revealAtEject', on: String(e.target.checked) });
 });
-document.addEventListener('click', e => {
-  const b = e.target.closest('[data-cardshow]'); if (!b) return;
-  e.stopPropagation(); show(b.dataset.cardshow, 'full');
-}, true);
 // OBS's own level for a lobby's voice source: what the stream would get (grey when it's muted).
 const obsDb = (o, lobby) => o && o.levels ? o.levels[Object.keys(o.levels).find(k => k.toLowerCase() === lobby.toLowerCase())] : null;
 const isHeard = (o, lobby) => !!(o && o.heard && o.heard.toLowerCase() === lobby.toLowerCase());
@@ -2273,7 +2263,7 @@ function renderVoice(force) {
         <button class="b${o.pin && o.pin.toLowerCase() === x.lobby.toLowerCase() ? ' on' : ''}" data-vopin="${esc(x.lobby)}" title="Keep this lobby's voice up whatever is on screen">Listen</button></div></div>`;
   }).join('') : '<p class="empty" style="font-size:13px">No lobbies yet.</p>';
 }
-async function voiceDo(body) { const r = await api('POST', '/app/admin/voice', body); toast(r.message); voKey = ''; document.activeElement.blur && document.activeElement.blur(); loadDesk(); }
+async function voiceDo(body) { await post('/app/admin/voice', body); voKey = ''; document.activeElement.blur && document.activeElement.blur(); }
 $('vo-mute').addEventListener('click', e => { e.preventDefault(); voiceDo({ action: 'mute' }); });
 $('vo-on').addEventListener('click', e => { e.preventDefault(); voiceDo({ action: 'on', on: String(!(LVOICE && LVOICE.obs && LVOICE.obs.on !== false)) }); });
 $('vo-duck').addEventListener('change', e => voiceDo({ action: 'duck', name: e.target.value }));
@@ -2310,14 +2300,14 @@ function renderInter(d) {
     card.hidden = false;
   } else card.hidden = true;
 }
-function intermissionToggle() { api('POST', '/app/admin/intermission', { action: 'toggle' }).then(r => { toast(r.message); loadDesk(); }); }
+function intermissionToggle() { post('/app/admin/intermission', { action: 'toggle' }); }
 $('inter-card').addEventListener('click', async e => {
   const w = e.target.closest('[data-wins]');
-  if (w) { const r = await api('POST', '/app/admin/wins', { scope: w.dataset.wins }); toast(r.message); interKey = ''; loadDesk(); return; }
+  if (w) { await post('/app/admin/wins', { scope: w.dataset.wins }); interKey = ''; return; }
   const b = e.target.closest('[data-inter]'); if (!b) return;
   const body = { action: b.dataset.inter };
   if (b.dataset.inter === 'next') body.value = $('inter-next').value;
-  const r = await api('POST', '/app/admin/intermission', body); toast(r.message); document.activeElement.blur(); interKey = ''; loadDesk();
+  await post('/app/admin/intermission', body); document.activeElement.blur(); interKey = '';
 });
 $('desk-inter').addEventListener('click', intermissionToggle);
 
@@ -2372,7 +2362,7 @@ $('mt-list').addEventListener('click', async e => {
   if (b.dataset.mt === 'preview') { preview('montage', b.dataset.id, x && x.title); return; }
   const r = await api('POST', '/app/admin/montage', { action: b.dataset.mt, id: b.dataset.id }); toast(plain(r.message)); loadDesk();
 });
-document.querySelectorAll('[data-mtbuild]').forEach(b => b.addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/montage', { action: b.dataset.mtbuild }); toast(r.message); loadDesk(); }));
+document.querySelectorAll('[data-mtbuild]').forEach(b => b.addEventListener('click', e => { e.preventDefault(); post('/app/admin/montage', { action: b.dataset.mtbuild }); }));
 $('mt-ffmpeg').addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/montage', { action: 'ffmpeg' }); toast(r.message); });
 const RULE_NAME = { kill: 'Kill', winningKill: 'Winning kill', eject: 'Ejection', gameEnd: 'Game end', witnessedKill: 'Witnessed kill', meeting: 'Meeting', ejectSkipped: 'Vote', witnessedVent: 'Seen venting', vent: 'Vent', danger: 'Danger' };
 function renderMoments() {
@@ -2409,20 +2399,13 @@ $('mom-sel').addEventListener('dragover', e => {
 });
 $('mom-sel').addEventListener('dragend', () => { dragId = null; momKey = ''; renderMoments(); });
 $('mom-clear').addEventListener('click', e => { e.preventDefault(); momPick = []; renderMoments(); });
-$('mom-build').addEventListener('click', async e => {
-  e.preventDefault();
-  const r = await api('POST', '/app/admin/montage', { action: 'custom', clips: momPick, title: $('mom-title').value });
-  toast(r.message); loadDesk();
-});
+$('mom-build').addEventListener('click', e => { e.preventDefault(); post('/app/admin/montage', { action: 'custom', clips: momPick, title: $('mom-title').value }); });
 // Sponsor reads due: said out loud by the caster (never on stream). Done logs it; Snooze asks again in 5 minutes.
 function renderReads() {
   syncList($('reads'), READS || [], r => r.sponsor, r => `<div class="read"><span class="tg">SPONSOR READ</span><div class="sc"><b>${esc(r.sponsor)}:</b> ${esc(r.script)}<small>Due (${esc(r.why)}). Only you see this.</small></div>
     <span class="acts"><button class="b primary" data-read="readDone" data-name="${esc(r.sponsor)}">Done</button><button class="b" data-read="readSnooze" data-name="${esc(r.sponsor)}">Snooze 5 min</button></span></div>`, '');
 }
-$('reads').addEventListener('click', async e => {
-  const b = e.target.closest('[data-read]'); if (!b) return;
-  const r = await api('POST', '/app/admin/sponsor', { action: b.dataset.read, name: b.dataset.name }); toast(r.message); loadDesk();
-});
+$('reads').addEventListener('click', e => { const b = e.target.closest('[data-read]'); if (b) post('/app/admin/sponsor', { action: b.dataset.read, name: b.dataset.name }); });
 function renderSponsors() {
   const s = SPON; if (!s) return;
   const br = DESK && DESK.break;
@@ -2435,7 +2418,7 @@ function renderSponsors() {
       <span class="pl">${x.placements.length ? x.placements.map(p => `<span>${esc(p)}</span>`).join('') : '<span>no placements yet</span>'}</span>
       <span class="muted" style="font-size:12px">${x.shown} shown · ${Math.round(x.seconds / 60 * 10) / 10} min${x.read ? ` · ${esc(x.read)} (${x.reads} done)` : ''}</span></div>`).join('') : '<p class="empty" style="font-size:13px">No sponsors: Edit sponsors.</p>';
 }
-$('sp-break').addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/sponsor', { action: DESK && DESK.break ? 'end' : 'break' }); toast(r.message); loadDesk(); });
+$('sp-break').addEventListener('click', e => { e.preventDefault(); post('/app/admin/sponsor', { action: DESK && DESK.break ? 'end' : 'break' }); });
 $('sp-open').addEventListener('click', e => { e.preventDefault(); api('POST', '/app/admin/sponsor', { action: 'open' }).then(r => toast(r.message)); });
 $('sp-export').addEventListener('click', async e => { e.preventDefault(); const r = await api('POST', '/app/admin/sponsor', { action: 'export' }); toast(r.message); });
 
@@ -2475,15 +2458,14 @@ const GFX_GROUPS = [
 const swHtml = (attrs, on, label, title) => `<label class="sw"${title ? ` title="${esc(title)}"` : ''}><span>${esc(label)}</span><input type="checkbox" ${attrs}${on ? ' checked' : ''}><i></i></label>`;
 $('gfx-els').addEventListener('change', async e => {
   const b = e.target.closest('[data-gfx]'); if (!b) return;
-  const r = await api('POST', '/app/admin/broadcast', { element: b.dataset.gfx, on: String(b.checked) });
-  toast(r.message); gfxKey = ''; loadDesk();
+  await post('/app/admin/broadcast', { element: b.dataset.gfx, on: String(b.checked) }); gfxKey = '';
 });
-$('gfx-wins').addEventListener('click', async e => { const b = e.target.closest('[data-wins]'); if (!b) return; const r = await api('POST', '/app/admin/wins', { scope: b.dataset.wins }); toast(r.message); loadDesk(); });
+$('gfx-wins').addEventListener('click', e => { const b = e.target.closest('[data-wins]'); if (b) post('/app/admin/wins', { scope: b.dataset.wins }); });
 $('gfx-alerts').addEventListener('change', async e => {
   const b = e.target.closest('[data-alert]'); if (!b) return;
   const k = b.dataset.alert;
-  const r = await api('POST', '/app/admin/broadcast', k ? { action: 'alerts', kind: k, on: String(b.checked) } : { action: 'alerts' });
-  toast(r.message); $('gfx-alerts').dataset.key = ''; b.blur(); loadDesk();
+  await post('/app/admin/broadcast', k ? { action: 'alerts', kind: k, on: String(b.checked) } : { action: 'alerts' });
+  $('gfx-alerts').dataset.key = ''; b.blur();
 });
 $('gfx-theme').addEventListener('click', e => { e.preventDefault(); api('POST', '/app/admin/broadcast', { action: 'theme' }).then(r => toast(r.message)); });
 
@@ -2521,8 +2503,8 @@ function renderRoster() {
 }
 $('roster-list').addEventListener('change', async e => {
   const sel = e.target.closest('[data-rkey]'); if (!sel) return;
-  const r = await api('POST', '/app/admin/roster', { key: sel.dataset.rkey, name: sel.value });
-  toast(r.message); rosterKey = ''; sel.blur(); loadDesk();
+  await post('/app/admin/roster', { key: sel.dataset.rkey, name: sel.value });
+  rosterKey = ''; sel.blur();
 });
 $('roster-open').addEventListener('click', e => { e.preventDefault(); api('POST', '/app/admin/roster', { action: 'open' }).then(r => toast(r.message)); });
 
@@ -2599,7 +2581,7 @@ document.addEventListener('keydown', e => {
   if (!name) return;
   if (e.repeat && !KEY_REPEATS.has(name)) { if (RP.now || !KEY_ACTION[name]) e.preventDefault(); return; }
   if (name === 'grid') { e.preventDefault(); show('', 'grid'); return; }
-  if (name === 'alertsPause') { e.preventDefault(); api('POST', '/app/admin/broadcast', { action: 'alerts' }).then(r => { toast(r.message); loadDesk(); }); return; }
+  if (name === 'alertsPause') { e.preventDefault(); post('/app/admin/broadcast', { action: 'alerts' }); return; }
   if (name === 'intermission') { e.preventDefault(); intermissionToggle(); return; }
   if (name === 'playerCard') { e.preventDefault(); cardForTop(); return; }
   if (name === 'voiceMute') { e.preventDefault(); voiceDo({ action: 'mute' }); return; }
@@ -2621,7 +2603,7 @@ function renderKeys() {
   const hk = RP && RP.hotkeys || {};
   setHtml($('rp-keymap'), `<div class="row" style="justify-content:space-between"><b class="pop-h">Replay and desk keys</b><button class="x" data-popx title="Close">×</button></div><div class="rp-keys">` + Object.keys(RP_NAMES).map(k => `<label>${RP_NAMES[k]}<button data-key="${k}" class="${keyWait === k ? 'wait' : ''}">${keyWait === k ? 'Press a key' : esc((hk[k] || '').replace(/^Key|^Digit/, ''))}</button></label>`).join('') + '</div>');
 }
-$('rp-keys').addEventListener('click', e => { e.stopPropagation(); const p = $('rp-keymap'); const open = p.hidden; closePops(); p.hidden = !open; renderKeys(); });
+$('rp-keys').addEventListener('click', e => { togglePop(e, 'rp-keymap'); renderKeys(); });
 $('rp-keymap').addEventListener('click', e => { e.stopPropagation(); if (e.target.closest('[data-popx]')) { closePops(); return; } const b = e.target.closest('[data-key]'); if (!b) return; keyWait = b.dataset.key; renderKeys(); });
 async function simSet(on) { const r = await api('POST', '/app/admin/sim', { on: String(on) }); toast(r.message); hlKey = ''; await Promise.all([loadLive(), loadFull()]); }
 $('desk-sim').addEventListener('change', e => simSet(e.target.checked));

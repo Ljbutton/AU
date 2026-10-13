@@ -73,7 +73,7 @@ namespace TournamentTracker.App.Broadcast
                 if (hello.GetProperty("op").GetInt32() != 0) throw new InvalidOperationException("OBS didn't say hello.");
                 var d = hello.GetProperty("d");
                 c.ObsVersion = d.TryGetProperty("obsStudioVersion", out var v) ? v.GetString() : d.TryGetProperty("obsWebSocketVersion", out var w) ? "websocket " + w.GetString() : null;
-                c.WebSocketVersion = d.TryGetProperty("obsWebSocketVersion", out var ws) && ws.ValueKind == JsonValueKind.String ? ws.GetString() : null;
+                c.WebSocketVersion = d.Str("obsWebSocketVersion");
                 var identify = new System.Collections.Generic.Dictionary<string, object> { ["rpcVersion"] = 1, ["eventSubscriptions"] = Subscriptions };
                 if (d.TryGetProperty("authentication", out var auth))
                 {
@@ -141,9 +141,9 @@ namespace TournamentTracker.App.Broadcast
         {
             var status = d.GetProperty("requestStatus");
             bool ok = status.GetProperty("result").GetBoolean();
-            return new ObsResult(d.TryGetProperty("requestType", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() ?? type : type, ok,
-                status.TryGetProperty("code", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt32() : 0,
-                status.TryGetProperty("comment", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString() : null,
+            return new ObsResult(d.Str("requestType") ?? type, ok,
+                status.Int("code") ?? 0,
+                status.Str("comment"),
                 d.TryGetProperty("responseData", out var r) && r.ValueKind == JsonValueKind.Object ? r : Empty);
         }
 

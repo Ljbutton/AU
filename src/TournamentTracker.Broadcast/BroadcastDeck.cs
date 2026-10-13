@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using TournamentTracker.Control;
 
 namespace TournamentTracker.App.Broadcast
 {
@@ -86,9 +86,7 @@ namespace TournamentTracker.App.Broadcast
         {
             if (string.IsNullOrEmpty(_settings.DeckKey) || _settings.DeckKey!.Length < 16)
             {
-                var bytes = new byte[15];
-                using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(bytes);
-                _settings.DeckKey = Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_');
+                _settings.DeckKey = LocalServer.NewToken(15);
                 TrySave();
             }
             return _settings.DeckKey!;
@@ -152,7 +150,7 @@ namespace TournamentTracker.App.Broadcast
             if (live == null) return (404, $"No lobby {lobby}.");
             var players = SlotPlayers(live);
             int? current = desk.Armed(lobby) is { Armed: true } a ? a.Pick : desk.CamPick(lobby);
-            int? following = live.Spec is JsonElement sp && sp.TryGetProperty("camOn", out var co) && co.ValueKind == JsonValueKind.Number ? co.GetInt32() : null;
+            var (sending, following) = CasterDesk.CamOf(live.Spec);
             int? pick;
             who = (who ?? "").Trim().ToLowerInvariant();
             if (who is "" or "auto") pick = null;
@@ -205,7 +203,6 @@ namespace TournamentTracker.App.Broadcast
                 string why = live.Phase switch { "meeting" => "is in a meeting", "lobby" => "is between games", "ended" => "has finished its game", _ => "isn't in a game" };
                 return (202, $"{lobby} {why}: its camera goes on stream following {whom} when play resumes.{paused}");
             }
-            bool sending = live.Spec is JsonElement spec && spec.TryGetProperty("cam", out var c) && c.ValueKind == JsonValueKind.True;
             if (!sending)
             {
                 desk.WantCam(lobby, pick);      // asks the host to turn it on, for the next press
@@ -224,7 +221,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>The player camera on or off for every lobby (on: hosts send it, ready to switch to).</summary>
         private string CamAll(bool on)
         {
-            if (_desk == null) return "Administration is locked.";
+            if (_desk == null) return Locked;
             _settings.CamOff = !on;
             TrySave();
             foreach (var r in _desk.Board.Ranking()) SpecOut(r.Lobby, on ? "spec cam on" : "spec cam off");
@@ -570,23 +567,19 @@ namespace TournamentTracker.App.Broadcast
                 case "hold":
                 {
                     if (what is not ("on" or "off" or "toggle" or "")) return (404, "Hold: on, off or toggle.");
-                    bool on = what switch { "on" => true, "off" => false, _ => !desk.Held };
+                    bool on = OnOff(what, desk.Held);
                     desk.SetHold(on, null, on ? "Held from the Stream Deck" : null);
                     return (200, on ? "Switching held: nothing switches by itself until you release it." : "Hold released: automatic switching is back.");
                 }
                 case "auto":
                 {
                     string which = what, how = P(2);
-                    bool Flip(bool now) => how switch { "on" => true, "off" => false, _ => !now };
                     if (how is not ("on" or "off" or "toggle" or "")) return (404, "Auto: on, off or toggle.");
                     switch (which)
                     {
-                        case "grid": desk.AutoGrid = Flip(desk.AutoGrid); return (200, desk.AutoGrid ? "Auto grid on." : "Auto grid off.");
-                        case "intermission": desk.AutoIntermission = Flip(desk.AutoIntermission); return (200, desk.AutoIntermission ? "Auto intermission on." : "Auto intermission off.");
-                        case "switch":
-                            desk.HealthConfig.AutoSwitch = Flip(desk.HealthConfig.AutoSwitch);
-                            desk.HealthConfig.Save(desk.HealthPath);
-                            return (200, desk.HealthConfig.AutoSwitch ? "Auto switch away from a lobby that drops: on." : "Auto switch away from a lobby that drops: off.");
+                        case "grid": desk.AutoGrid = OnOff(how, desk.AutoGrid); return (200, desk.AutoGrid ? "Auto grid on." : "Auto grid off.");
+                        case "intermission": desk.AutoIntermission = OnOff(how, desk.AutoIntermission); return (200, desk.AutoIntermission ? "Auto intermission on." : "Auto intermission off.");
+                        case "switch": return (200, desk.SetAutoSwitch(OnOff(how, desk.HealthConfig.AutoSwitch)));
                         default: return (404, "Auto: grid, intermission or switch.");
                     }
                 }
@@ -614,23 +607,18 @@ namespace TournamentTracker.App.Broadcast
                     {
                         case "standings":
                         {
-                            bool now = _broadcast.Settings.Current.Elements.GetValueOrDefault("standings");
-                            bool on = how switch { "on" => true, "off" => false, _ => !now };
+                            bool on = OnOff(how, _broadcast.Settings.Current.Elements.GetValueOrDefault("standings"));
                             _broadcast.Settings.Set("standings", on);
                             return (200, on ? "Standings on stream." : "Standings off stream.");
                         }
                         case "alerts":
                         {
-                            bool running = !desk.Alerts.Settings.Paused;
-                            bool on = how switch { "on" => true, "off" => false, _ => !running };
+                            bool on = OnOff(how, !desk.Alerts.Settings.Paused);
                             desk.Alerts.SetPaused(!on);
                             return (200, on ? "Off-screen alerts back on." : "Off-screen alerts paused.");
                         }
                         case "skip": desk.Graphics.Skip(); return (200, "Skipped: the next graphic comes up.");
-                        case "clear":
-                            desk.Graphics.Clear();
-                            if (_broadcast.Settings.Current.Elements.GetValueOrDefault("standings")) _broadcast.Settings.Set("standings", false);
-                            return (200, "Graphics queue cleared.");
+                        case "clear": return (200, ClearGraphics(desk, _broadcast));
                         case "card":
                         {
                             if (desk.TopCardPlayer() is not { } top) return (409, "No notification with a player.");
@@ -654,7 +642,7 @@ namespace TournamentTracker.App.Broadcast
                     string how = P(2);
                     if (what == "mute")
                     {
-                        v.MuteAll = how switch { "on" => true, "off" => false, _ => !v.MuteAll };
+                        v.MuteAll = OnOff(how, v.MuteAll);
                         await _obs.VoiceChangedAsync().ConfigureAwait(false);
                         return (200, v.MuteAll ? "Every lobby voice muted." : "Lobby voice back on: it follows the picture.");
                     }
@@ -731,6 +719,17 @@ namespace TournamentTracker.App.Broadcast
             if (control == "slow") return (200, replays.Speed == 100 ? "Normal speed." : $"Slow motion: {replays.Speed}%.");
             if (control == "angle") return r != null && r.EndsWith(" angle.", StringComparison.Ordinal) ? (200, r) : (409, r ?? "");
             return r == null ? (200, "Done.") : (409, r);
+        }
+
+        /// <summary>"on", "off", or anything else (toggle): the setting from now on.</summary>
+        private static bool OnOff(string how, bool now) => how switch { "on" => true, "off" => false, _ => !now };
+
+        /// <summary>The graphics queue emptied, and the standings taken off with it.</summary>
+        private static string ClearGraphics(CasterDesk desk, BroadcastApp broadcast)
+        {
+            desk.Graphics.Clear();
+            if (broadcast.Settings.Current.Elements.GetValueOrDefault("standings")) broadcast.Settings.Set("standings", false);
+            return "Graphics queue cleared.";
         }
 
         private static string LayoutName(string layout) => layout switch

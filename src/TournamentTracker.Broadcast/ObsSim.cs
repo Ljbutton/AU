@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace TournamentTracker.App.Broadcast
@@ -42,7 +41,7 @@ namespace TournamentTracker.App.Broadcast
                         try
                         {
                             var set = await obs.RequestAsync("GetInputSettings", new { inputName = name }).ConfigureAwait(false);
-                            url = set.TryGetProperty("inputSettings", out var s) && s.TryGetProperty("url", out var u) && u.ValueKind == JsonValueKind.String ? u.GetString() ?? "" : "";
+                            url = set.TryGetProperty("inputSettings", out var s) ? s.Str("url") ?? "" : "";
                         }
                         catch (ObsException) { continue; }      // listed but gone (OBS keeps removed sources around): nothing to remove
                         fake = IsStandIn(url);

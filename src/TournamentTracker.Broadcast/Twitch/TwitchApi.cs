@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -83,16 +82,10 @@ namespace TournamentTracker.App.Broadcast
         public List<string> Scopes { get; set; } = new List<string>();
 
         private static readonly JsonSerializerOptions Json = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-        public static TwitchToken? Load(string? path)
-        {
-            try { return path != null && File.Exists(path) ? JsonSerializer.Deserialize<TwitchToken>(File.ReadAllText(path), Json) : null; }
-            catch (Exception) { return null; }
-        }
+        public static TwitchToken? Load(string? path) => Files.ReadJson<TwitchToken>(path, Json);
         public void Save(string? path)
         {
-            if (path == null) return;
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, JsonSerializer.Serialize(this, Json));
+            if (path != null) Files.WriteJson(path, this, Json);
         }
     }
 
@@ -168,7 +161,7 @@ namespace TournamentTracker.App.Broadcast
         {
             AccessToken = j.GetProperty("access_token").GetString()!,
             RefreshToken = j.TryGetProperty("refresh_token", out var rt) ? rt.GetString() ?? "" : was?.RefreshToken ?? "",
-            ExpiresAt = _clock().AddSeconds(j.TryGetProperty("expires_in", out var ex) && ex.ValueKind == JsonValueKind.Number ? ex.GetInt32() : 3600),
+            ExpiresAt = _clock().AddSeconds(j.Int("expires_in") ?? 3600),
             Scopes = j.TryGetProperty("scope", out var sc) && sc.ValueKind == JsonValueKind.Array ? sc.EnumerateArray().Select(x => x.GetString() ?? "").ToList() : was?.Scopes ?? new List<string>(),
             UserId = was?.UserId ?? "", Login = was?.Login ?? "",
         };
@@ -209,7 +202,7 @@ namespace TournamentTracker.App.Broadcast
         public void SignOut()
         {
             Token = null;
-            try { if (_path != null && File.Exists(_path)) File.Delete(_path); } catch (Exception) { }
+            Files.Delete(_path);
         }
 
         /// <summary>Scopes this sign-in is missing (an older sign-in, before a feature was added).</summary>

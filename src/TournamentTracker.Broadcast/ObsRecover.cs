@@ -70,6 +70,28 @@ namespace TournamentTracker.App.Broadcast
             (await obs.RequestAsync("GetInputList").ConfigureAwait(false)).GetProperty("inputs").EnumerateArray()
                 .Select(i => i.GetProperty("inputName").GetString() ?? "").ToHashSet();
 
+        private static async Task<HashSet<string?>> SceneNamesAsync(ObsClient obs) =>
+            (await obs.RequestAsync("GetSceneList").ConfigureAwait(false)).GetProperty("scenes").EnumerateArray().Select(s => s.GetProperty("sceneName").GetString()).ToHashSet();
+
+        /// <summary>
+        /// One of Red Alert's own layers (the graphics app, the swoosh) in every TT scene and the replay
+        /// scene OBS has, on top of everything there.
+        /// </summary>
+        private async Task EnsureOnTopAsync(ObsClient obs, string root, string kind, object settings, Func<string, Task>? existing = null)
+        {
+            var inputs = await InputNamesAsync(obs).ConfigureAwait(false);
+            var have = await SceneNamesAsync(obs).ConfigureAwait(false);
+            var scenes = Settings.Scenes.Values.Concat(new[] { Settings.Replay.Scene }).Where(have.Contains).ToList();
+            var (name, ids, _) = await EnsureInputAsync(obs, root, Live(root), scenes, inputs, kind, settings, enabled: true, existing).ConfigureAwait(false);
+            if (name != Live(root)) Renamed(root, name);
+            foreach (var scene in scenes)
+            {
+                int count = (await ItemsAsync(obs, scene).ConfigureAwait(false)).Count;
+                // OBS lists the bottom layer first: the top is the last index.
+                await obs.RequestAsync("SetSceneItemIndex", new { sceneName = scene, sceneItemId = ids[scene], sceneItemIndex = count - 1 }).ConfigureAwait(false);
+            }
+        }
+
         /// <summary>Makes an input in a scene; answers with its item there.</summary>
         private static async Task<int> CreateInAsync(ObsClient obs, string scene, string name, string kind, object settings, bool enabled)
         {

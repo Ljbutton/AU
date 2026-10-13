@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace TournamentTracker.App.Broadcast
 {
@@ -116,31 +115,23 @@ namespace TournamentTracker.App.Broadcast
     /// <summary>broadcast.json: written with defaults if missing, re-read when it changes; switches are saved back.</summary>
     public sealed class BroadcastSettingsFile
     {
-        private readonly string? _path;
-        private DateTime _stamp, _nextCheck;
+        private readonly WatchedFile? _file;
         public BroadcastSettings Current { get; private set; } = new BroadcastSettings();
         public string? Problem { get; private set; }
-        public string? Path => _path;
+        public string? Path => _file?.Path;
 
         public BroadcastSettingsFile(string? path)
         {
-            _path = path;
+            _file = path == null ? null : new WatchedFile(path, _ => Save());
             Refresh(force: true);
         }
 
         public BroadcastSettings Refresh(bool force = false)
         {
-            if (_path == null) return Current;
-            var now = DateTime.UtcNow;
-            if (!force && now < _nextCheck) return Current;
-            _nextCheck = now.AddSeconds(2);
             try
             {
-                if (!File.Exists(_path)) Save();
-                var stamp = File.GetLastWriteTimeUtc(_path);
-                if (stamp == _stamp) return Current;
-                _stamp = stamp;
-                Current = BroadcastSettings.Parse(File.ReadAllText(_path));
+                if (_file?.Changed(force) is not { } text) return Current;
+                Current = BroadcastSettings.Parse(text);
                 Problem = null;
             }
             catch (Exception e) { Problem = $"{BroadcastSettings.FileName} couldn't be read ({e.Message}); using the last good settings."; }
@@ -161,13 +152,7 @@ namespace TournamentTracker.App.Broadcast
             Save();
         }
 
-        private void Save()
-        {
-            if (_path == null) return;
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_path)!);
-            File.WriteAllText(_path, Current.ToJson());
-            _stamp = File.GetLastWriteTimeUtc(_path);
-        }
+        private void Save() => _file?.Write(Current.ToJson(), inUse: true);
     }
 
     /// <summary>

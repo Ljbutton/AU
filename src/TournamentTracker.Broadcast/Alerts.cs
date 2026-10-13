@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text.Json;
 
@@ -53,7 +52,7 @@ namespace TournamentTracker.App.Broadcast
             _path = path;
             try
             {
-                if (path != null && File.Exists(path)) Settings = JsonSerializer.Deserialize<AlertSettings>(File.ReadAllText(path), Json) ?? new AlertSettings();
+                Settings = Files.ReadJson<AlertSettings>(path, Json) ?? new AlertSettings();
                 foreach (var k in Kinds) if (!Settings.Types.ContainsKey(k)) Settings.Types[k] = true;
             }
             catch (Exception) { Settings = new AlertSettings(); }
@@ -61,7 +60,7 @@ namespace TournamentTracker.App.Broadcast
 
         public void Save()
         {
-            try { if (_path != null) File.WriteAllText(_path, JsonSerializer.Serialize(Settings, Json)); } catch (Exception) { }
+            try { if (_path != null) Files.WriteJson(_path, Settings, Json); } catch (Exception) { }
         }
 
         public void SetPaused(bool paused)

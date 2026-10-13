@@ -136,8 +136,11 @@ namespace TournamentTracker.App.Broadcast
         /// </summary>
         public bool Held
         {
-            get { lock (_lock) return _hold || _holdUntil is { } u && _clock() < u; }
+            get { lock (_lock) return HoldOn; }
         }
+
+        /// <summary>Held now: until released, or until a time still to come. Under the desk's lock.</summary>
+        private bool HoldOn => _hold || _holdUntil is { } u && _clock() < u;
 
         /// <summary>Holds automatic switching (for a while, or until released), or lets it go again.</summary>
         public void SetHold(bool on, TimeSpan? forHowLong = null, string? why = null)
@@ -155,7 +158,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Why switching is held ("Panic", "Held from the Stream Deck"…); null while it isn't.</summary>
         public string? HoldWhy
         {
-            get { lock (_lock) return _hold || _holdUntil is { } u && _clock() < u ? _holdWhy : null; }
+            get { lock (_lock) return HoldOn ? _holdWhy : null; }
         }
 
         /// <summary>The hold as it is now (until released, until a time, or off) and why, to put back exactly with <see cref="RestoreHold"/>.</summary>
@@ -175,7 +178,7 @@ namespace TournamentTracker.App.Broadcast
             {
                 _hold = hold.Forever;
                 _holdUntil = hold.Forever ? null : hold.Until;
-                bool on = _hold || _holdUntil is { } u && _clock() < u;
+                bool on = HoldOn;
                 _holdWhy = on ? hold.Why : null;
                 if (!on) HeldBack = null;
             }
@@ -195,7 +198,7 @@ namespace TournamentTracker.App.Broadcast
         {
             lock (_lock)
             {
-                bool on = _hold || _holdUntil is { } u && _clock() < u;
+                bool on = HoldOn;
                 return new
                 {
                     On = on,
@@ -295,11 +298,14 @@ namespace TournamentTracker.App.Broadcast
             lock (_lock) return _armed.TryGetValue(lobby, out var a) ? (a.Pick, true) : (null, false);
         }
 
-        /// <summary>A lobby's camera as the Live desk and the Stream Deck show it.</summary>
+        /// <summary>A lobby's player camera as its host last reported it: is it sending one, and who it follows.</summary>
+        public static (bool On, int? Following) CamOf(JsonElement? spec) => spec is not { } s ? (false, null)
+            : (s.Flag("cam"), s.Int("camOn"));
+
+        /// <summary>A lobby's camera as the Live desk shows it.</summary>
         public object CamView(string lobby, JsonElement? spec)
         {
-            bool on = spec is { } s && s.TryGetProperty("cam", out var c) && c.ValueKind == JsonValueKind.True;
-            int? following = spec is { } s2 && s2.TryGetProperty("camOn", out var f) && f.ValueKind == JsonValueKind.Number ? f.GetInt32() : null;
+            var (on, following) = CamOf(spec);
             var armed = Armed(lobby);
             return new { On = on, Following = following, Pick = armed.Armed ? armed.Pick : CamPick(lobby), Armed = armed.Armed };
         }
@@ -323,8 +329,7 @@ namespace TournamentTracker.App.Broadcast
                 if (game == null && GameOf(live) is { } started) lock (_lock) if (_camWant.TryGetValue(lobby, out var w) && w.Game == null) _camWant[lobby] = (w.Pick, started);
                 if (!CamsOn() || live.Spec is not JsonElement spec || !spec.TryGetProperty("camPick", out var hp)) continue;     // an older host doesn't say
                 int? has = hp.ValueKind == JsonValueKind.Number ? hp.GetInt32() : null;
-                bool camOn = spec.TryGetProperty("cam", out var c) && c.ValueKind == JsonValueKind.True;
-                if (has == pick && camOn) continue;
+                if (has == pick && CamOf(spec).On) continue;
                 string want = CamCommand(pick);
                 lock (_lock)
                 {
@@ -388,8 +393,7 @@ namespace TournamentTracker.App.Broadcast
             {
                 Dictionary<string, Numbered> copy;
                 lock (_numbered) copy = _numbered.Where(kv => !IsSimLobby(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
-                Directory.CreateDirectory(Path.GetDirectoryName(_numbersPath)!);
-                File.WriteAllText(_numbersPath, JsonSerializer.Serialize(copy, NumbersJson));
+                Files.WriteJson(_numbersPath, copy, NumbersJson);
             }
             catch (Exception) { }
         }

@@ -135,7 +135,7 @@ namespace TournamentTracker.App.Broadcast
         {
             if (!m.TryGetProperty("kind", out var k) || m.GetProperty("type").GetString() != "event") return;
             string kind = k.GetString() ?? "";
-            double at = m.TryGetProperty("clock", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetDouble() : 0;
+            double at = m.Num("clock") ?? 0;
             string? Key(string prop) => m.TryGetProperty(prop, out var p) && p.ValueKind == JsonValueKind.Object ? who(p)?.Key : null;
             ArchivedGame? done = null;
             lock (_lock)
@@ -147,7 +147,7 @@ namespace TournamentTracker.App.Broadcast
                         g = _live[lobby] = new ArchivedGame
                         {
                             Lobby = lobby, Referee = lobby,
-                            Round = m.TryGetProperty("round", out var r) && r.ValueKind == JsonValueKind.Number ? r.GetInt32() : 0,
+                            Round = m.Int("round") ?? 0,
                             Game = m.TryGetProperty("game", out var gn) ? gn.GetString() ?? "" : "",
                             Map = m.TryGetProperty("map", out var map) ? map.GetString() : null,
                             StartedAt = when ?? _clock(),
@@ -156,11 +156,11 @@ namespace TournamentTracker.App.Broadcast
                         if (m.TryGetProperty("players", out var ps))
                             foreach (var p in ps.EnumerateArray())
                                 if (who(p) is { } w)
-                                    g.Players.Add(new ArchivedPlayer { Id = p.TryGetProperty("id", out var pid) && pid.ValueKind == JsonValueKind.Number ? pid.GetInt32() : -1, Key = w.Key, Name = w.Name, Color = w.Color, Imp = p.TryGetProperty("imp", out var i) && i.ValueKind == JsonValueKind.True });
+                                    g.Players.Add(new ArchivedPlayer { Id = p.Int("id") ?? -1, Key = w.Key, Name = w.Name, Color = w.Color, Imp = p.Flag("imp") });
                         break;
                     case "kill" when g != null:
                     {
-                        var kill = new ArchivedKill { At = at, Killer = Key("killer") ?? "", Victim = Key("victim") ?? "", Room = Str(m, "room"), Winning = m.TryGetProperty("winning", out var w) && w.ValueKind == JsonValueKind.True };
+                        var kill = new ArchivedKill { At = at, Killer = Key("killer") ?? "", Victim = Key("victim") ?? "", Room = m.Str("room"), Winning = m.Flag("winning") };
                         g.Kills.Add(kill);
                         if (g.P(kill.Killer) is { } killer) killer.Kills++;
                         if (g.P(kill.Victim) is { } victim) { victim.Death = "killed"; victim.KilledBy = kill.Killer; }
@@ -177,9 +177,9 @@ namespace TournamentTracker.App.Broadcast
                         var mt = g.Meetings.LastOrDefault() ?? new ArchivedMeeting { At = at };
                         if (!g.Meetings.Contains(mt)) g.Meetings.Add(mt);
                         mt.Ejected = Key("ejected");
-                        mt.WasImpostor = m.TryGetProperty("wasImpostor", out var wi) && wi.ValueKind == JsonValueKind.True ? true : mt.Ejected == null ? null : false;
-                        mt.Skipped = m.TryGetProperty("skipped", out var sk) && sk.ValueKind == JsonValueKind.True;
-                        mt.Tie = m.TryGetProperty("tie", out var tie) && tie.ValueKind == JsonValueKind.True;
+                        mt.WasImpostor = m.Flag("wasImpostor") ? true : mt.Ejected == null ? null : false;
+                        mt.Skipped = m.Flag("skipped");
+                        mt.Tie = m.Flag("tie");
                         if (m.TryGetProperty("votes", out var votes) && votes.ValueKind == JsonValueKind.Array)
                             foreach (var v in votes.EnumerateArray())
                             {
@@ -191,28 +191,28 @@ namespace TournamentTracker.App.Broadcast
                     }
                     case "sabotage" when g != null:
                     {
-                        string sys = Str(m, "system") ?? "";
-                        if (Str(m, "state") == "start") g.Sabotages.Add(new ArchivedSabotage { At = at, System = sys });
+                        string sys = m.Str("system") ?? "";
+                        if (m.Str("state") == "start") g.Sabotages.Add(new ArchivedSabotage { At = at, System = sys });
                         else if (g.Sabotages.LastOrDefault(x => x.System == sys && x.FixedAt == null) is { } open)
                         {
                             open.FixedAt = at;
-                            open.LeftWhenFixed = m.TryGetProperty("timeLeft", out var tl) && tl.ValueKind == JsonValueKind.Number ? tl.GetDouble() : null;
+                            open.LeftWhenFixed = m.Num("timeLeft");
                         }
                         break;
                     }
                     case "tasks" when g != null:
-                        if (m.TryGetProperty("pct", out var pct) && pct.ValueKind == JsonValueKind.Number) g.TaskPct = pct.GetInt32();
+                        if (m.Int("pct") is { } pct) g.TaskPct = pct;
                         break;
                     case "gameEnd" when g != null:
                         g.EndedAt = when ?? _clock();
                         g.Length = at > 0 ? at : (g.EndedAt.Value - g.StartedAt).TotalSeconds;
-                        g.Winner = Str(m, "winner");
-                        g.How = Str(m, "how");
-                        g.Reason = Str(m, "reason");
+                        g.Winner = m.Str("winner");
+                        g.How = m.Str("how");
+                        g.Reason = m.Str("reason");
                         foreach (var p in g.Players)
                             p.Won = g.Winner == null ? null : p.Imp == (g.Winner == Outcome.Impostors) && p.Death != "left";
                         _live.Remove(lobby);
-                        if (m.TryGetProperty("abandoned", out var ab) && ab.ValueKind == JsonValueKind.True) break;
+                        if (m.Flag("abandoned")) break;
                         _games.Add(g);
                         _version++;
                         done = g;
@@ -280,7 +280,6 @@ namespace TournamentTracker.App.Broadcast
             catch (Exception) { }
         }
 
-        private static string? Str(JsonElement m, string p) => m.TryGetProperty(p, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
         private static string Safe(string s) => new string(s.Select(c => char.IsLetterOrDigit(c) || c == '-' ? c : '-').ToArray());
     }
 }

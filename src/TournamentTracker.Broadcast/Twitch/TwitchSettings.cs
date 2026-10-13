@@ -68,12 +68,7 @@ namespace TournamentTracker.App.Broadcast
 
         public static TwitchSettings Load(string? path)
         {
-            TwitchSettings s;
-            try
-            {
-                s = path != null && File.Exists(path) ? JsonSerializer.Deserialize<TwitchSettings>(File.ReadAllText(path), Json) ?? new TwitchSettings() : new TwitchSettings();
-            }
-            catch (Exception) { s = new TwitchSettings(); }
+            var s = Files.ReadJson<TwitchSettings>(path, Json) ?? new TwitchSettings();
             s.Features ??= DefaultFeatures();
             s.Auto ??= DefaultAuto();
             foreach (var kv in DefaultFeatures()) if (!s.Features.ContainsKey(kv.Key)) s.Features[kv.Key] = kv.Value;
@@ -86,7 +81,7 @@ namespace TournamentTracker.App.Broadcast
         public void Save(string? path)
         {
             if (path == null) return;
-            try { Directory.CreateDirectory(Path.GetDirectoryName(path)!); File.WriteAllText(path, JsonSerializer.Serialize(this, Json)); }
+            try { Files.WriteJson(path, this, Json); }
             catch (Exception) { }
         }
     }
