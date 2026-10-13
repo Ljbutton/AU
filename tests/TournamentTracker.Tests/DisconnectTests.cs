@@ -15,14 +15,6 @@ public class DisconnectTests : IDisposable
     private readonly FakeClock _clock = new();
     public void Dispose() => _dir.Dispose();
 
-    private sealed class Lines : ILog
-    {
-        public List<string> All { get; } = new();
-        public void Info(string message) => All.Add(message);
-        public void Warn(string message) => All.Add(message);
-        public void Error(string message) => All.Add(message);
-    }
-
     private DisconnectHistory History(ILog? log = null) => new(_dir.Path, log ?? NullLog.Instance, clock: () => _clock.Now);
 
     /// <summary>Every name in the game's DisconnectReasons (2026 builds).</summary>
@@ -100,7 +92,7 @@ public class DisconnectTests : IDisposable
     [Fact]
     public void A_kick_is_logged_in_one_clear_line_with_what_the_mod_sent_before()
     {
-        var log = new Lines();
+        var log = new ListLog();
         var history = History(log);
         history.Sends.Add("role for player 4: Crewmate");
         _clock.Advance(2);
@@ -117,7 +109,7 @@ public class DisconnectTests : IDisposable
     [Fact]
     public void A_connection_that_never_got_in_says_so()
     {
-        var log = new Lines();
+        var log = new ListLog();
         var r = History(log).Record("Custom", 8, "Couldn't connect", inGame: false, lobby: null, host: false, moddedFlag: false, safeMode: true);
         Assert.Equal("Couldn't connect", r.Detail);
         Assert.Contains("It said: \"Couldn't connect\".", log.All[0]);
@@ -156,7 +148,7 @@ public class DisconnectTests : IDisposable
     public void A_broken_file_starts_a_new_list()
     {
         File.WriteAllText(Path.Combine(_dir.Path, DisconnectHistory.FileName), "[{oops");
-        var log = new Lines();
+        var log = new ListLog();
         var history = History(log);
         Assert.Empty(history.All);
         Assert.Null(history.Status());
