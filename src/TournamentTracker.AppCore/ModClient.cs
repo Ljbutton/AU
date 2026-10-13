@@ -59,7 +59,9 @@ namespace TournamentTracker.App
         /// <summary>A call that didn't get through: read control.json again next time (Among Us may have restarted on a new port).</summary>
         private void Forget() => _known = null;
 
-        private async Task<string?> SendAsync(string gameDir, HttpMethod method, string path, string? body = null, TimeSpan? timeout = null)
+        /// <summary>One call to the mod, its answer read by <paramref name="read"/> (null: no answer).</summary>
+        private async Task<T?> SendAsync<T>(string gameDir, HttpMethod method, string path, Func<HttpResponseMessage, CancellationToken, Task<T?>> read, string? body = null, TimeSpan? timeout = null)
+            where T : class
         {
             var c = Connection(gameDir);
             if (c == null) return null;
@@ -70,28 +72,18 @@ namespace TournamentTracker.App
                 request.Headers.Add("X-TT-Token", c.Value.Token);
                 if (body != null) request.Content = new StringContent(body, Encoding.UTF8, "application/json");
                 using var response = await _http.SendAsync(request, cts.Token).ConfigureAwait(false);
-                if (!response.IsSuccessStatusCode) return null;
-                return await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                return await read(response, cts.Token).ConfigureAwait(false);
             }
             catch (Exception) { Forget(); return null; }   // Among Us isn't running (or the mod isn't loaded), or it didn't answer in time
         }
 
+        private Task<string?> SendAsync(string gameDir, HttpMethod method, string path, string? body = null, TimeSpan? timeout = null) =>
+            SendAsync(gameDir, method, path, async (r, ct) => r.IsSuccessStatusCode ? await r.Content.ReadAsStringAsync(ct).ConfigureAwait(false) : null, body, timeout);
+
         /// <summary>The player camera's newest picture after number <paramref name="after"/> (its number in the first 8 bytes), or null for none.</summary>
-        public async Task<byte[]?> PlayerCamAsync(string gameDir, long after)
-        {
-            var c = Connection(gameDir);
-            if (c == null) return null;
-            try
-            {
-                using var cts = new CancellationTokenSource(QuickTimeout);
-                using var request = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{c.Value.Port}/api/pov?after={after}");
-                request.Headers.Add("X-TT-Token", c.Value.Token);
-                using var response = await _http.SendAsync(request, cts.Token).ConfigureAwait(false);
-                if (response.StatusCode != System.Net.HttpStatusCode.OK) return null;
-                return await response.Content.ReadAsByteArrayAsync(cts.Token).ConfigureAwait(false);
-            }
-            catch (Exception) { Forget(); return null; }
-        }
+        public Task<byte[]?> PlayerCamAsync(string gameDir, long after) =>
+            SendAsync(gameDir, HttpMethod.Get, $"api/pov?after={after}",
+                async (r, ct) => r.StatusCode == System.Net.HttpStatusCode.OK ? await r.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false) : null);
 
         public Task<string?> StatusAsync(string gameDir) => SendAsync(gameDir, HttpMethod.Get, "api/status");
         public Task<string?> NamesAsync(string gameDir, string namesJson) => SendAsync(gameDir, HttpMethod.Post, "api/names", "{\"names\":" + namesJson + "}");
