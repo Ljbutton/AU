@@ -3,12 +3,10 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
-using Microsoft.Win32;
 
 namespace TournamentTracker.App
 {
@@ -65,7 +63,7 @@ namespace TournamentTracker.App
                     {
                         if (e.Uri.StartsWith(_url, StringComparison.OrdinalIgnoreCase)) return;
                         e.Handled = true;
-                        Process.Start(new ProcessStartInfo(e.Uri) { UseShellExecute = true });
+                        AppStart.Open(e.Uri);
                     };
                     _view.CoreWebView2.WebMessageReceived += OnPageMessage;
                     _view.CoreWebView2.NavigationCompleted += (s, e) => { _pageReady = true; TellPage(); };
@@ -85,7 +83,7 @@ namespace TournamentTracker.App
                         Text = NativeMethods.Title + " is running in your web browser.\nKeep this window open while you use it; closing it quits the app.",
                         Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 11f),
                     });
-                    Process.Start(new ProcessStartInfo(_url) { UseShellExecute = true });
+                    AppStart.Open(_url);
                 }
             };
         }
@@ -283,6 +281,41 @@ namespace TournamentTracker.App
                 ShowWindow(p.MainWindowHandle, 9);   // restore if minimised
                 SetForegroundWindow(p.MainWindowHandle);
             }
+        }
+    }
+
+    /// <summary>What both apps' Main does the same way (this file is shared).</summary>
+    internal static class AppStart
+    {
+        /// <summary>
+        /// One copy at a time: the single-copy lock <paramref name="name"/>, or null when another copy has it
+        /// (that one is brought to the front instead). After an update the old copy is still closing: the new
+        /// one (started with --after-update) gives it a few seconds.
+        /// </summary>
+        public static Mutex? SingleCopy(string name)
+        {
+            var single = new Mutex(true, name, out bool first);
+            if (!first && Environment.GetCommandLineArgs().Contains("--after-update"))
+            {
+                try { first = single.WaitOne(TimeSpan.FromSeconds(10)); }
+                catch (AbandonedMutexException) { first = true; }     // the old copy closed without letting go: it's ours now
+            }
+            if (first) return single;
+            NativeMethods.ShowExisting();
+            single.Dispose();
+            return null;
+        }
+
+        /// <summary>Opens a folder, file or web link with Windows.</summary>
+        public static void Open(string target) => Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
+
+        /// <summary>Starts the new version (it waits for this one to let go of the single-copy lock), then closes this one.</summary>
+        public static void Restart(string? exe)
+        {
+            if (exe == null) return;
+            Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true, Arguments = "--after-update" });
+            var form = Application.OpenForms.Count > 0 ? Application.OpenForms[0] : null;
+            if (form != null) form.BeginInvoke(new Action(Application.Exit)); else Application.Exit();
         }
     }
 }

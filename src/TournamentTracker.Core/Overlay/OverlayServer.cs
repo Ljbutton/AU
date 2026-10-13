@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using TournamentTracker.Control;
 
 namespace TournamentTracker.Overlay
 {
@@ -37,18 +38,7 @@ namespace TournamentTracker.Overlay
             _listener = new TcpListener(IPAddress.Loopback, port);
             _listener.Start();
             Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
-            Task.Run(AcceptLoop);
-        }
-
-        private async Task AcceptLoop()
-        {
-            while (!_cts.IsCancellationRequested)
-            {
-                TcpClient client;
-                try { client = await _listener.AcceptTcpClientAsync().ConfigureAwait(false); }
-                catch (Exception) { return; }
-                _ = Task.Run(() => Serve(client));
-            }
+            Task.Run(() => LocalServer.AcceptLoop(_listener, _cts.Token, Serve));
         }
 
         private async Task Serve(TcpClient client)
@@ -59,14 +49,8 @@ namespace TournamentTracker.Overlay
                 {
                     client.ReceiveTimeout = 2000;
                     var stream = client.GetStream();
-                    using var reader = new StreamReader(stream, Encoding.ASCII, false, 1024, leaveOpen: true);
-                    string? requestLine = await reader.ReadLineAsync().ConfigureAwait(false);
-                    if (requestLine == null) return;
-                    string? line;
-                    while (!string.IsNullOrEmpty(line = await reader.ReadLineAsync().ConfigureAwait(false))) { }
-
-                    var parts = requestLine.Split(' ');
-                    string path = parts.Length > 1 ? parts[1] : "/";
+                    var (method, path, _, _) = await HttpRequest.ReadAsync(stream).ConfigureAwait(false);
+                    if (method.Length == 0) return;          // closed without asking anything
                     byte[] bytes;
                     string type, cache = "no-store";
                     int status = 200;
@@ -97,11 +81,7 @@ namespace TournamentTracker.Overlay
                         bytes = Encoding.UTF8.GetBytes("Not found");
                         type = "text/plain";
                     }
-                    string head = $"HTTP/1.1 {status} {(status == 200 ? "OK" : "Not Found")}\r\nContent-Type: {type}\r\nContent-Length: {bytes.Length}\r\n" +
-                                  $"Cache-Control: {cache}\r\nConnection: close\r\n\r\n";
-                    byte[] headBytes = Encoding.ASCII.GetBytes(head);
-                    await stream.WriteAsync(headBytes, 0, headBytes.Length).ConfigureAwait(false);
-                    await stream.WriteAsync(bytes, 0, bytes.Length).ConfigureAwait(false);
+                    await HttpRequest.WriteAsync(stream, status, type, bytes, cache).ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {

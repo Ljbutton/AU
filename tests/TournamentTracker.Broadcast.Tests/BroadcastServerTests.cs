@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using TournamentTracker.App;
 using TournamentTracker.App.Broadcast;
 using TournamentTracker.Setup;
 using Xunit;
@@ -34,6 +35,10 @@ public class BroadcastServerTests : IDisposable
         Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync("app/state")).StatusCode);
         var head = await anon.GetByteArrayAsync("/crew/7.png");                       // players' colours
         Assert.Equal((byte)0x89, head[0]);
+        Assert.Contains("<link rel=\"stylesheet\" href=\"/base.css\">", page);       // the look and page script it shares with The Button
+        Assert.Contains("#toast{", await anon.GetStringAsync("/base.css"));
+        Assert.Contains("<script src=\"/base.js\"></script>\n<script>\nconst TOKEN", page);
+        Assert.Contains("const esc = ", await anon.GetStringAsync("/base.js"));
 
         using var http = new HttpClient { BaseAddress = new Uri(server.Url) };
         http.DefaultRequestHeaders.Add("X-App-Token", server.Token);
@@ -68,8 +73,8 @@ public class BroadcastServerTests : IDisposable
               { "tag_name": "broadcast-v0.1.2", "draft": false, "assets": [ { "name": "RedAlert.exe", "browser_download_url": "https://x/012" } ] } ]
             """).RootElement;
         Assert.Equal(("broadcast-v0.1.2", "https://x/012"), BroadcastServer.PickRelease(releases));
-        Assert.True(BroadcastServer.Newer("broadcast-v0.1.2", "0.1.0"));
-        Assert.False(BroadcastServer.Newer("broadcast-v0.1.0", "0.1.0"));
+        Assert.True(AppUpdater.Newer("broadcast-v0.1.2", "0.1.0", BroadcastServer.TagPrefix));
+        Assert.False(AppUpdater.Newer("broadcast-v0.1.0", "0.1.0", BroadcastServer.TagPrefix));
     }
 
     [Fact]

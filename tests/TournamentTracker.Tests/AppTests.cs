@@ -310,6 +310,15 @@ public class AppTests : IDisposable
         var head = await anon.GetByteArrayAsync("/crew/17.png");            // every colour has a head, up to coral
         Assert.Equal(new byte[] { 0x89, (byte)'P', (byte)'N', (byte)'G' }, head.Take(4).ToArray());
         Assert.Equal(HttpStatusCode.NotFound, (await anon.GetAsync("/crew/18.png")).StatusCode);
+        // The look and page script it shares with Red Alert.
+        Assert.Contains("<link rel=\"stylesheet\" href=\"/base.css\">", page);
+        Assert.Contains("<script src=\"/base.js\"></script>\n<script>\nconst TOKEN", page);
+        var css = await anon.GetAsync("/base.css");
+        Assert.Equal("text/css", css.Content.Headers.ContentType?.MediaType);
+        Assert.Contains(".winctl{", await css.Content.ReadAsStringAsync());
+        var js = await anon.GetAsync("/base.js");
+        Assert.Equal("text/javascript", js.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("host.postMessage('drag')", await js.Content.ReadAsStringAsync());
     }
 
     [Fact]
@@ -406,7 +415,75 @@ public class AppVersionTests
     [InlineData("v1.2.0", "v1.2.0", false)]
     [InlineData("v1.2.0", null, true)]
     public void Offers_an_update_only_for_a_newer_release(string latest, string? installed, bool newer) =>
-        Assert.Equal(newer, AppServer.Newer(latest, installed));
+        Assert.Equal(newer, AppUpdater.Newer(latest, installed));
+
+    [Fact]
+    public void Red_Alerts_tags_are_read_only_with_its_prefix()
+    {
+        Assert.True(AppUpdater.Newer("broadcast-v0.3.16", "0.3.15", "broadcast-v"));
+        Assert.False(AppUpdater.Newer("broadcast-v0.3.15", "0.3.15", "broadcast-v"));
+        // The Button never takes one of Red Alert's releases for its own (or the mod's).
+        Assert.False(AppUpdater.Newer("broadcast-v0.3.16", "v0.1.63"));
+    }
+}
+
+/// <summary>The apps' own logs: The Button's starts again past 1 MB, Red Alert's keeps the one before as *.log.1.</summary>
+public class FileLogTests : IDisposable
+{
+    private readonly TempDir _dir = new();
+    public void Dispose() => _dir.Dispose();
+
+    private static void Fill(string path) => File.WriteAllText(path, new string('x', (int)FileLog.MaxBytes + 1));
+
+    [Fact]
+    public void The_Buttons_log_starts_again_past_1_MB()
+    {
+        var log = new FileLog(_dir.Path, "the-button.log");
+        Fill(log.FilePath!);
+        log.Warn("after");
+        Assert.Matches(@"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d WARN after\r?\n$", File.ReadAllText(log.FilePath!));
+        Assert.False(File.Exists(log.FilePath + ".1"));
+    }
+
+    [Fact]
+    public void Red_Alerts_log_keeps_the_one_before_past_1_MB()
+    {
+        var log = new FileLog(_dir.Path, "red-alert.log", keepPrevious: true);
+        Fill(log.FilePath!);
+        log.Error("after");
+        Assert.EndsWith(" ERROR after" + Environment.NewLine, File.ReadAllText(log.FilePath!));
+        Assert.Equal(FileLog.MaxBytes + 1, new FileInfo(log.FilePath + ".1").Length);
+    }
+
+    [Fact]
+    public void No_folder_logs_nowhere()
+    {
+        var log = new FileLog(null, "the-button.log");
+        log.Info("nothing");
+        Assert.Null(log.FilePath);
+    }
+}
+
+/// <summary>What's built into an app, and the fonts and crewmate heads both apps serve from it.</summary>
+public class UiFilesTests
+{
+    [Fact]
+    public void Fonts_and_crewmate_heads_and_nothing_else()
+    {
+        var app = typeof(AppServer).Assembly;
+        var font = UiFiles.Asset(app, "/fonts/teko-700.woff2");
+        Assert.Equal("font/woff2", font?.Type);
+        Assert.True(font?.Body.Length > 1000);
+        Assert.Equal("image/png", UiFiles.Asset(app, "/crew/0.png")?.Type);
+        Assert.Null(UiFiles.Asset(app, "/crew/18.png"));
+        Assert.Null(UiFiles.Asset(app, "/fonts/OFL-Teko.txt"));
+        Assert.Null(UiFiles.Asset(app, "/index.html"));
+        Assert.Contains("function toast(", Encoding.UTF8.GetString(UiFiles.Base(app, "/base.js")!.Value.Body));
+        Assert.Null(UiFiles.Base(app, "/base.html"));
+        Assert.Contains("__APP_TOKEN__", UiFiles.Text(app, "ui/index.html"));
+        Assert.Equal("", UiFiles.Text(app, "ui/nothing.html"));
+        Assert.Empty(UiFiles.Bytes(app, "ui/nothing.png"));
+    }
 }
 public class AppUpdaterTests : IDisposable
 {

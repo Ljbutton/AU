@@ -5,8 +5,6 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
-using System.Reflection;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -187,7 +185,7 @@ namespace TournamentTracker.App
         private volatile string? _appUpdateError;
 
         private bool AppUpdateAvailable =>
-            _env.ExePath != null && _latest?.AppUrl != null && _appReady == null && Newer(_latest.Tag, _env.Version);
+            _env.ExePath != null && _latest?.AppUrl != null && _appReady == null && AppUpdater.Newer(_latest.Tag, _env.Version);
 
         private async Task UpdateAppAsync()
         {
@@ -228,17 +226,13 @@ namespace TournamentTracker.App
             // The same token and port as last time when possible, so the send page (open in the browser)
             // keeps working after The Button restarts.
             if (string.IsNullOrEmpty(_settings.AppToken) || _settings.AppToken!.Length < 16)
-            {
-                var bytes = new byte[18];
-                using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(bytes);
-                _settings.AppToken = Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_');
-            }
+                _settings.AppToken = LocalServer.NewToken();
             Token = _settings.AppToken!;
-            _listener = Listen(_settings.AppPort);
+            _listener = LocalServer.Listen(_settings.AppPort);
             Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
             if (_settings.AppPort != Port) _settings.AppPort = Port;
             TrySave();
-            Task.Run(AcceptLoop);
+            Task.Run(() => LocalServer.Serve(_listener, _cts.Token, Route));
             StartOrganizer();
             _voiceIdle = new Timer(_ => { try { _voice?.StopIfIdle(VoiceIdle); } catch (Exception) { } }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
             // The bot stays online while The Button is open; the mod reaches Discord through it.
@@ -247,20 +241,6 @@ namespace TournamentTracker.App
         }
 
         public string? GamePath => _settings.GamePath;
-
-        /// <summary>The port used last time if it's free, else any.</summary>
-        private static TcpListener Listen(int port)
-        {
-            if (port > 0 && port < 65536)
-            {
-                var l = new TcpListener(IPAddress.Loopback, port);
-                try { l.Start(); return l; }
-                catch (SocketException) { }
-            }
-            var any = new TcpListener(IPAddress.Loopback, 0);
-            any.Start();
-            return any;
-        }
 
         private List<GameInstall> Candidates() => GameLocator.Find(_env.SteamRoot, _env.EpicManifests, _env.Fallbacks);
 
@@ -271,32 +251,6 @@ namespace TournamentTracker.App
         {
             lock (_saveLock)
                 try { _settings.Save(_env.SettingsFile); } catch (Exception) { }
-        }
-
-        private async Task AcceptLoop()
-        {
-            while (!_cts.IsCancellationRequested)
-            {
-                TcpClient client;
-                try { client = await _listener.AcceptTcpClientAsync().ConfigureAwait(false); }
-                catch (Exception) { return; }
-                _ = Task.Run(() => Serve(client));
-            }
-        }
-
-        private async Task Serve(TcpClient client)
-        {
-            using (client)
-            {
-                try
-                {
-                    var stream = client.GetStream();
-                    var (method, path, headers, body) = await HttpRequest.ReadAsync(stream).ConfigureAwait(false);
-                    var (status, type, bytes) = await Route(method, path, headers, body).ConfigureAwait(false);
-                    await HttpRequest.WriteAsync(stream, status, type, bytes).ConfigureAwait(false);
-                }
-                catch (Exception) { /* the window closed mid-request */ }
-            }
         }
 
         private static (int, string, byte[]) Text(int status, string type, string text) => (status, type, Encoding.UTF8.GetBytes(text));
@@ -316,19 +270,9 @@ namespace TournamentTracker.App
                 return Text(200, "text/html; charset=utf-8", SendPage.Html);
             if (method == "GET" && route == "/generator")
                 return Text(200, "text/html; charset=utf-8", Resource("docs/setup-codes.html"));
-            var font = Regex.Match(route, @"^/fonts/([a-z0-9-]+\.woff2)$");
-            if (method == "GET" && font.Success)
-            {
-                var bytes = ResourceBytes("ui/fonts/" + font.Groups[1].Value);
-                return bytes.Length > 0 ? (200, "font/woff2", bytes) : Text(404, "text/plain", "Not found");
-            }
+            if (method == "GET" && UiFiles.Asset(typeof(AppServer).Assembly, route) is { } asset) return (200, asset.Type, asset.Body);
             if (method == "GET" && route == "/logo.png") return (200, "image/png", ResourceBytes("ui/logo.png"));
-            var crew = Regex.Match(route, @"^/crew/(\d{1,2})\.png$");
-            if (method == "GET" && crew.Success)
-            {
-                var png = ResourceBytes($"ui/crew/{crew.Groups[1].Value}.png");
-                return png.Length > 0 ? (200, "image/png", png) : Text(404, "text/plain", "Not found");
-            }
+            if (method == "GET" && UiFiles.Base(typeof(AppServer).Assembly, route) is { } shared) return (200, shared.Type, shared.Body);
             if (!route.StartsWith("/app/", StringComparison.Ordinal)) return Text(404, "text/plain", "Not found");
 
             headers.TryGetValue("x-app-token", out var token);
@@ -755,15 +699,6 @@ namespace TournamentTracker.App
             }
         }
 
-        /// <summary>"v1.3.0" is newer than "v1.2.1" (or than nothing recorded).</summary>
-        public static bool Newer(string latest, string? installed)
-        {
-            static Version? V(string? tag) => Version.TryParse((tag ?? "").TrimStart('v', 'V'), out var v) ? v : null;
-            var l = V(latest);
-            var i = V(installed);
-            return l != null && (i == null || l > i);
-        }
-
         /// <summary>
         /// Keeps The Button's copy of the setup code and the one in the Among Us folder the same:
         /// a code put in some other way is copied here, and one that went missing (the mod
@@ -893,7 +828,7 @@ namespace TournamentTracker.App
 
         private DateTime _nextAutoRepair = DateTime.MinValue, _nextAutoModUpdate = DateTime.MinValue;
 
-        private bool ModUpdateAvailable(ModState mod) => _latest != null && mod.Installed && Newer(_latest.Tag, mod.InstalledVersion);
+        private bool ModUpdateAvailable(ModState mod) => _latest != null && mod.Installed && AppUpdater.Newer(_latest.Tag, mod.InstalledVersion);
 
         /// <summary>Update was pressed while Among Us was running: the mod updates as soon as it's closed.</summary>
         private volatile bool _modWanted;
@@ -1150,22 +1085,8 @@ namespace TournamentTracker.App
             catch (Exception e) { return new { ok = false, message = e.Message }; }
         }
 
-        private static string Resource(string name)
-        {
-            using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name);
-            if (stream == null) return "";
-            using var reader = new StreamReader(stream);
-            return reader.ReadToEnd();
-        }
-
-        private static byte[] ResourceBytes(string name)
-        {
-            using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name);
-            if (stream == null) return Array.Empty<byte>();
-            using var copy = new MemoryStream();
-            stream.CopyTo(copy);
-            return copy.ToArray();
-        }
+        private static string Resource(string name) => UiFiles.Text(typeof(AppServer).Assembly, name);
+        private static byte[] ResourceBytes(string name) => UiFiles.Bytes(typeof(AppServer).Assembly, name);
 
         public void Dispose()
         {

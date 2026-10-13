@@ -92,6 +92,15 @@ public sealed class FakeVoiceApi : IVoiceApi
     }
 }
 
+/// <summary>A log that keeps every line, for tests that check what was logged.</summary>
+public sealed class ListLog : ILog
+{
+    public List<string> All { get; } = new();
+    public void Info(string message) => All.Add(message);
+    public void Warn(string message) => All.Add(message);
+    public void Error(string message) => All.Add(message);
+}
+
 public sealed class TempDir : IDisposable
 {
     public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "tt-tests-" + Guid.NewGuid().ToString("N"));

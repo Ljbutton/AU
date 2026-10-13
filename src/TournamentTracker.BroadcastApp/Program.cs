@@ -1,9 +1,6 @@
 using System;
-using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Net.Http;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TournamentTracker.App.Broadcast;
@@ -19,18 +16,8 @@ namespace TournamentTracker.App
             // An install from before the rename may still run as TTBroadcast.exe.
             NativeMethods.ProcessName = Path.GetFileNameWithoutExtension(Environment.ProcessPath) ?? "RedAlert";
             // One copy at a time: a second start just brings the first to the front.
-            using var single = new Mutex(true, "RedAlert.App", out bool first);
-            // After Settings → Update the old copy is still closing: give it a few seconds.
-            if (!first && Environment.GetCommandLineArgs().Contains("--after-update"))
-            {
-                try { first = single.WaitOne(TimeSpan.FromSeconds(10)); }
-                catch (AbandonedMutexException) { first = true; }
-            }
-            if (!first)
-            {
-                NativeMethods.ShowExisting();
-                return;
-            }
+            using var single = AppStart.SingleCopy("RedAlert.App");
+            if (single == null) return;
 
             // Red Alert's page carries every host's data link and sends their commands: it keeps running at
             // full speed when the window is minimised or covered (by an OBS projector, say). Chromium
@@ -55,16 +42,10 @@ namespace TournamentTracker.App
             var env = new BroadcastEnvironment
             {
                 SettingsFile = settings,
-                Open = target => Process.Start(new ProcessStartInfo(target) { UseShellExecute = true }),
+                Open = AppStart.Open,
                 Version = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "",
                 ExePath = exe,
-                Restart = () =>
-                {
-                    if (exe == null) return;
-                    Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true, Arguments = "--after-update" });
-                    var open = Application.OpenForms.Count > 0 ? Application.OpenForms[0] : null;
-                    if (open != null) open.BeginInvoke(new Action(Application.Exit)); else Application.Exit();
-                },
+                Restart = () => AppStart.Restart(exe),
             };
             AppUpdater.CleanUp(exe);
             using var server = new BroadcastServer(env, new HttpClient { Timeout = TimeSpan.FromMinutes(10) });

@@ -15,14 +15,6 @@ public class SafeModeTests : IDisposable
     private readonly FakeClock _clock = new();
     public void Dispose() => _dir.Dispose();
 
-    private sealed class Lines : ILog
-    {
-        public List<string> All { get; } = new();
-        public void Info(string message) => All.Add(message);
-        public void Warn(string message) => All.Add(message);
-        public void Error(string message) => All.Add(message);
-    }
-
     private TournamentSession Session(int port = -1) =>
         new(new TrackerSettings { TournamentName = "Cup", LiveStatus = false, ControlPort = port }, _dir.Path, NullLog.Instance,
             new HttpClient(new FakeHttp()), () => _clock.Now, new FakeVoiceApi(), new VoicePresenceState("g1"));
@@ -227,7 +219,7 @@ public class SafeModeTests : IDisposable
     public void A_broken_saved_choice_is_ignored()
     {
         File.WriteAllText(Path.Combine(_dir.Path, SafeMode.FileName), "{not json");
-        var log = new Lines();
+        var log = new ListLog();
         var safe = new SafeMode(_dir.Path, log, "2026.10.20", "2026.9.29");
         Assert.True(safe.On);
         Assert.Contains(log.All, l => l.Contains("couldn't read the saved choice"));
