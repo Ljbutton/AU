@@ -189,18 +189,22 @@ namespace TournamentTracker.App.Broadcast
             return list;
         }
 
-        private Segment? SponsorCard(Montage m)
+        /// <summary>A montage's first segments: its sponsor's card, when a sponsor has the montage placement.</summary>
+        private List<Segment> Opening(Montage m)
         {
             var sp = _sponsors?.Next("montage");
-            if (sp == null) return null;
+            if (sp == null) return new List<Segment>();
             m.Sponsor = sp.Name;
-            return new Segment
+            return new List<Segment>
             {
-                CardTop = "PRESENTED BY",
-                Card = sp.Name,
-                CardSmall = sp.Tagline.Length > 0 ? sp.Tagline : null,
-                CardLogo = sp.Logo.Length > 0 && File.Exists(sp.Logo) ? sp.Logo : null,
-                Length = SponsorSeconds,
+                new Segment
+                {
+                    CardTop = "PRESENTED BY",
+                    Card = sp.Name,
+                    CardSmall = sp.Tagline.Length > 0 ? sp.Tagline : null,
+                    CardLogo = sp.Logo.Length > 0 && File.Exists(sp.Logo) ? sp.Logo : null,
+                    Length = SponsorSeconds,
+                },
             };
         }
 
@@ -215,12 +219,11 @@ namespace TournamentTracker.App.Broadcast
             var clips = ReadyClips(c => string.Equals(c.Lobby, g.Lobby, StringComparison.OrdinalIgnoreCase) && c.EventAt >= g.StartedAt.AddSeconds(-5) && c.EventAt <= end);
             m.ClipIds = clips.Select(c => c.Id).ToList();
             var picked = MontageBuilder.Pick(clips, s.GameMontageSeconds - CardSeconds, s.MontageBefore + s.MontageAfter);
-            var segs = new List<Segment>();
-            if (SponsorCard(m) is { } sc) segs.Add(sc);
+            var segs = Opening(m);
             string result = g.Winner == null ? "" : $"{g.Winner} win{(g.How != null ? " by " + g.How : "")}";
             segs.Add(Card(g.Lobby.ToUpperInvariant(), $"{(g.Game.Length > 0 ? g.Game + " · " : "")}{result}"));
             segs.AddRange(await CutAsync(picked).ConfigureAwait(false));
-            return await BuildAsync(m, segs, minClips: 1).ConfigureAwait(false);
+            return await BuildAsync(m, segs).ConfigureAwait(false);
         }
 
         /// <summary>The end-of-round montage: every kill of the round, then the top plays counting down.</summary>
@@ -236,8 +239,7 @@ namespace TournamentTracker.App.Broadcast
             var m = New("round", $"Round {round}", null, round);
             var all = ReadyClips(c => c.Round == round && c.Rule != "montage");
             m.ClipIds = all.Select(c => c.Id).ToList();
-            var segs = new List<Segment>();
-            if (SponsorCard(m) is { } sc) segs.Add(sc);
+            var segs = Opening(m);
 
             // Every kill: about 60% of the time; shorter cuts when there are lots, then the best of them.
             var kills = all.Where(c => c.Rule is "kill" or "winningKill").OrderBy(c => c.EventAt).ToList();
@@ -262,7 +264,7 @@ namespace TournamentTracker.App.Broadcast
                 var rank = top.Select((c, i) => (c.Id, n - i)).ToDictionary(x => x.Id, x => x.Item2);
                 segs.AddRange(await CutAsync(top, lower: c => $"#{rank[c.Id]} · {MontageBuilder.LowerThird(c)} ({c.Lobby})").ConfigureAwait(false));
             }
-            return await BuildAsync(m, segs, minClips: 1).ConfigureAwait(false);
+            return await BuildAsync(m, segs).ConfigureAwait(false);
         }
 
         /// <summary>A montage of the clips picked in the Moments library, in that order.</summary>
@@ -271,15 +273,14 @@ namespace TournamentTracker.App.Broadcast
             var m = New("custom", string.IsNullOrWhiteSpace(title) ? "Moments" : title!.Trim(), null, 0);
             var clips = clipIds.Select(id => _replays.Find(id)).Where(c => c != null && c.State == "ready" && c.File != null && File.Exists(c.File)).Cast<Clip>().ToList();
             m.ClipIds = clips.Select(c => c.Id).ToList();
-            var segs = new List<Segment>();
-            if (SponsorCard(m) is { } sc) segs.Add(sc);
+            var segs = Opening(m);
             segs.AddRange(await CutAsync(clips).ConfigureAwait(false));
-            return await BuildAsync(m, segs, minClips: 1).ConfigureAwait(false);
+            return await BuildAsync(m, segs).ConfigureAwait(false);
         }
 
-        private async Task<Montage> BuildAsync(Montage m, List<Segment> segs, int minClips)
+        private async Task<Montage> BuildAsync(Montage m, List<Segment> segs)
         {
-            if (segs.Count(x => x.Card == null) < minClips)
+            if (!segs.Any(x => x.Card == null))
             {
                 m.State = "failed";
                 m.Problem = "No saved clips to put in it.";
@@ -304,10 +305,8 @@ namespace TournamentTracker.App.Broadcast
             var m = Find(id);
             if (m == null) return "That montage is gone.";
             if (m.State != "ready" && m.State != "played" || m.File == null) return m.State == "building" ? "Still building." : "Not ready: " + (m.Problem ?? "it failed.");
-            string said = await _replays.PlayVideoAsync(m.Id, m.File, m.Title, m.Sponsor, m.Moments).ConfigureAwait(false);
+            string said = await PlayLoggedAsync(m.Id, m.File, m.Title, m.Sponsor, m.Moments, m.Lobby).ConfigureAwait(false);
             if (_desk.QueuedMontage?.Id == m.Id && _replays.Now?.Id == m.Id) _desk.QueuedMontage = null;
-            if (m.Sponsor != null && _replays.Now?.Id == m.Id)
-                _sponsors?.Log(m.Sponsor, "montage", _clock(), _clock().AddSeconds(SponsorSeconds), m.Lobby, m.Title);
             foreach (var cid in m.ClipIds) if (_replays.Find(cid) is { } c && m.Kind == "custom") c.Used = true;
             return said;
         }
@@ -362,9 +361,15 @@ namespace TournamentTracker.App.Broadcast
             var a = FindArchived(id);
             if (a == null) return "That montage isn't in the archive.";
             if (a.File == null || !File.Exists(a.File)) return "Its video file is gone: Rebuild makes it again from its clips.";
-            string said = await _replays.PlayVideoAsync(a.Id, a.File, a.Title, a.Sponsor, a.Moments).ConfigureAwait(false);
-            if (a.Sponsor != null && _replays.Now?.Id == a.Id)
-                _sponsors?.Log(a.Sponsor, "montage", _clock(), _clock().AddSeconds(SponsorSeconds), a.Lobby, a.Title);
+            return await PlayLoggedAsync(a.Id, a.File, a.Title, a.Sponsor, a.Moments, a.Lobby).ConfigureAwait(false);
+        }
+
+        /// <summary>A montage on stream; its sponsor's intro card is logged as an appearance once it's on.</summary>
+        private async Task<string> PlayLoggedAsync(string id, string file, string title, string? sponsor, List<MontageMoment> moments, string? lobby)
+        {
+            string said = await _replays.PlayVideoAsync(id, file, title, sponsor, moments).ConfigureAwait(false);
+            if (sponsor != null && _replays.Now?.Id == id)
+                _sponsors?.Log(sponsor, "montage", _clock(), _clock().AddSeconds(SponsorSeconds), lobby, title);
             return said;
         }
 
@@ -375,11 +380,10 @@ namespace TournamentTracker.App.Broadcast
             var m = New(a.Kind == "custom" ? "custom" : a.Kind, a.Title, a.Lobby, a.Round);
             var clips = a.Clips.Select(c => _replays.Find(c.Id) ?? c.ToClip()).Where(c => c.File != null && File.Exists(c.File)).ToList();
             m.ClipIds = clips.Select(c => c.Id).ToList();
-            var segs = new List<Segment>();
-            if (SponsorCard(m) is { } sc) segs.Add(sc);
+            var segs = Opening(m);
             if (a.Kind != "custom") segs.Add(Card(a.Title.ToUpperInvariant(), a.Kind == "round" ? "Round " + a.Round : null));
             segs.AddRange(await CutAsync(clips).ConfigureAwait(false));
-            return await BuildAsync(m, segs, minClips: 1).ConfigureAwait(false);
+            return await BuildAsync(m, segs).ConfigureAwait(false);
         }
 
         /// <summary>Deletes an archived montage and its video for good (its clips stay).</summary>

@@ -110,13 +110,7 @@ namespace TournamentTracker.App.Broadcast
                 stop = _now != null && (which(_now.Lobby) || gone.Any(c => c.Id == _now.Id) || alsoPlaying?.Contains(_now.Id) == true);
                 if (stop) { _now = null; _playing = false; _returnTo = null; }
             }
-            if (stop)
-            {
-                try { await _obs.MediaAsync("pause").ConfigureAwait(false); } catch (Exception) { }
-                EndSponsor();
-                TagChanged?.Invoke(JsonSerializer.Serialize(new { on = false }));
-                OnChanged?.Invoke(false);
-            }
+            if (stop) await OffAsync().ConfigureAwait(false);
             foreach (var c in gone) { Files.Delete(c.File); Files.Delete(c.Thumbnail); }
             return gone.Select(c => c.Id).ToHashSet();
         }
@@ -528,10 +522,7 @@ namespace TournamentTracker.App.Broadcast
         {
             OnAir? back;
             lock (_lock) { back = _returnTo; _now = null; _playing = false; _returnTo = null; }
-            try { await _obs.MediaAsync("pause").ConfigureAwait(false); } catch (Exception) { }
-            EndSponsor();
-            TagChanged?.Invoke(JsonSerializer.Serialize(new { on = false }));
-            OnChanged?.Invoke(false);
+            await OffAsync().ConfigureAwait(false);
             if (back != null && back.Layout != "none" && back.Layout != "replay")
             {
                 _desk.Show("", back.Layout, null, back.Slots.Select(x => x ?? "").ToList());
@@ -540,6 +531,15 @@ namespace TournamentTracker.App.Broadcast
             var top = _desk.Board.Ranking().FirstOrDefault(r => r.Online);
             if (top != null) _desk.Show(top.Lobby);
             return "Back to live.";
+        }
+
+        /// <summary>The replay scene let go: OBS's player paused, the sponsor's appearance over, the REPLAY tag off.</summary>
+        private async Task OffAsync()
+        {
+            try { await _obs.MediaAsync("pause").ConfigureAwait(false); } catch (Exception) { }
+            EndSponsor();
+            TagChanged?.Invoke(JsonSerializer.Serialize(new { on = false }));
+            OnChanged?.Invoke(false);
         }
 
         private void EndSponsor()
@@ -674,7 +674,6 @@ namespace TournamentTracker.App.Broadcast
             var now = _clock();
             lock (_lock)
             {
-                var c = _now;
                 return new
                 {
                     On = S.On,
@@ -691,20 +690,7 @@ namespace TournamentTracker.App.Broadcast
                         At = x.EventAt.ToString("o"),
                         Ago = Math.Max(0, (int)(now - x.EventAt).TotalSeconds),
                     }).ToList(),
-                    Now = c == null ? null : new
-                    {
-                        ClipId = c.Id, c.Lobby, c.Title, Montage = c.Rule == "montage",
-                        Playing = _playing, Ended = _ended, Speed = _speed,
-                        Cursor = Math.Round(Cursor(), 3),
-                        Duration = c.Duration,
-                        Start = Math.Round(c.StartAt(S.VideoDelayMs), 3),
-                        Event = c.Duration == null || c.SavedAt == null ? (double?)null : Math.Round(c.Duration.Value - (c.SavedAt.Value - c.EventAt).TotalSeconds, 3),
-                        View = new { _lastView.X, _lastView.Y, _lastView.Zoom },
-                        ZoomBy = Math.Round(_zoomBy, 2),
-                        Follow = _follow && _panX == 0 && _panY == 0,
-                        c.Angle,
-                        HasCam = c.CamFile != null,
-                    },
+                    Now = NowState(),
                 };
             }
         }

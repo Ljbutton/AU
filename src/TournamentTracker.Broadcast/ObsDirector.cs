@@ -135,6 +135,7 @@ namespace TournamentTracker.App.Broadcast
         public double Height { get; private set; } = 1080;
         public string? Problem { get; private set; }
         public bool Connected => _obs?.Connected == true;
+        private ObsClient Client => _obs ?? throw new InvalidOperationException("Not connected to OBS.");
         public string? ObsVersion => _obs?.ObsVersion;
         public string? Scene { get; private set; }
 
@@ -338,12 +339,11 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Makes the three TT scenes (if missing) and a source for every lobby sending video.</summary>
         public async Task BuildAsync()
         {
-            var obs = _obs ?? throw new InvalidOperationException("Not connected to OBS.");
+            var obs = Client;
             await _busy.WaitAsync().ConfigureAwait(false);
             try
             {
-                var list = await obs.RequestAsync("GetSceneList").ConfigureAwait(false);
-                var have = list.GetProperty("scenes").EnumerateArray().Select(s => s.GetProperty("sceneName").GetString()).ToHashSet();
+                var have = await SceneNamesAsync(obs).ConfigureAwait(false);
                 foreach (var scene in Settings.Scenes.Values.Where(s => !have.Contains(s)))
                     await obs.RequestAsync("CreateScene", new { sceneName = scene }).ConfigureAwait(false);
             }
@@ -470,19 +470,29 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Why a player camera source couldn't be made (shown on the OBS page), or null.</summary>
         public string? CamProblem { get; private set; }
 
-        private string? CamLobbyOf(string source)
+        private string? CamLobbyOf(string source) => LobbyOf(source, Settings.CamSources, Settings.CamPrefix);
+        private string? LobbyOf(string source) => LobbyOf(source, Settings.Sources, Settings.SourcePrefix);
+
+        /// <summary>The lobby one of our sources shows (as mapped, else by its name), or null for anything else.</summary>
+        private string? LobbyOf(string source, Dictionary<string, string> sources, string prefix)
         {
             if (_dead.Contains(source)) return null;
-            foreach (var (lobby, name) in Settings.CamSources) if (name == source) return lobby;
-            return source.StartsWith(Settings.CamPrefix, StringComparison.Ordinal) ? source.Substring(Settings.CamPrefix.Length) : null;
+            foreach (var (lobby, name) in sources) if (name == source) return lobby;
+            return source.StartsWith(prefix, StringComparison.Ordinal) ? source.Substring(prefix.Length) : null;
         }
 
-        private string? LobbyOf(string source)
+        /// <summary>A SetSceneItemTransform request: the item fitted inside the box, uncropped.</summary>
+        private static object Transform(string scene, int id, double x, double y, double w, double h) => new
         {
-            if (_dead.Contains(source)) return null;
-            foreach (var (lobby, name) in Settings.Sources) if (name == source) return lobby;
-            return source.StartsWith(Settings.SourcePrefix, StringComparison.Ordinal) ? source.Substring(Settings.SourcePrefix.Length) : null;
-        }
+            sceneName = scene,
+            sceneItemId = id,
+            sceneItemTransform = new
+            {
+                positionX = x, positionY = y, alignment = 5, rotation = 0.0,
+                boundsType = "OBS_BOUNDS_SCALE_INNER", boundsAlignment = 0, boundsWidth = w, boundsHeight = h,
+                cropLeft = 0, cropRight = 0, cropTop = 0, cropBottom = 0,
+            },
+        };
 
         // ---- When you switch in OBS yourself ------------------------------------------------------
 
@@ -601,8 +611,7 @@ namespace TournamentTracker.App.Broadcast
             SwitchingTo, SwitchProblem,
             Swoosh = new { Settings.Swoosh.On, Problem = SwooshProblem },
             Output = OutputView(),
-            Missing = Connected ? _desk.OnAir.Slots.Where(l => l != null).Distinct(StringComparer.OrdinalIgnoreCase)
-                .Select(l => (Lobby: l!, Why: SourceIssue(l!))).Where(x => x.Why != null).ToDictionary(x => x.Lobby, x => x.Why!) : new Dictionary<string, string>(),
+            Missing = Missing(),
             ReplayProblem, CamProblem,
             DesktopAudioOn = Connected ? DesktopAudioOn : new List<string>(),
         };
@@ -627,11 +636,14 @@ namespace TournamentTracker.App.Broadcast
             CheckedAt = CheckedAt?.ToString("o"),
             DesktopAudioOn = Connected ? DesktopAudioOn : new List<string>(),
             SourceRecord, ReplayProblem, CamProblem,
-            // Lobbies on stream whose picture isn't in OBS, and why (the Live desk warns, with Fix).
-            Missing = Connected ? _desk.OnAir.Slots.Where(l => l != null).Distinct(StringComparer.OrdinalIgnoreCase)
-                .Select(l => (Lobby: l!, Why: SourceIssue(l!))).Where(x => x.Why != null).ToDictionary(x => x.Lobby, x => x.Why!) : new Dictionary<string, string>(),
+            Missing = Missing(),
             SourceProblems,
         };
+
+        /// <summary>Lobbies on stream whose picture isn't in OBS, and why (the Live desk warns, with Fix).</summary>
+        private Dictionary<string, string> Missing() => !Connected ? new Dictionary<string, string>()
+            : _desk.OnAir.Slots.Where(l => l != null).Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(l => (Lobby: l!, Why: SourceIssue(l!))).Where(x => x.Why != null).ToDictionary(x => x.Lobby, x => x.Why!);
 
         public async ValueTask DisposeAsync()
         {

@@ -38,19 +38,8 @@ namespace TournamentTracker.App.Broadcast
             await _busy.WaitAsync().ConfigureAwait(false);
             try
             {
-                var inputs = await InputNamesAsync(obs).ConfigureAwait(false);
-                var have = (await obs.RequestAsync("GetSceneList").ConfigureAwait(false)).GetProperty("scenes").EnumerateArray().Select(x => x.GetProperty("sceneName").GetString()).ToHashSet();
-                var scenes = Settings.Scenes.Values.Concat(new[] { Settings.Replay.Scene }).Where(have.Contains).ToList();
-                var (name, ids, _) = await EnsureInputAsync(obs, BroadcastSource, Live(BroadcastSource), scenes, inputs, "browser_source",
-                    new { url = BroadcastUrl, width = (int)Width, height = (int)Height, shutdown = false, restart_when_active = false, reroute_audio = true },
-                    enabled: true).ConfigureAwait(false);
-                if (name != Live(BroadcastSource)) Renamed(BroadcastSource, name);
-                foreach (var scene in scenes)
-                {
-                    int count = (await ItemsAsync(obs, scene).ConfigureAwait(false)).Count;
-                    // OBS lists the bottom layer first: the top is the last index.
-                    await obs.RequestAsync("SetSceneItemIndex", new { sceneName = scene, sceneItemId = ids[scene], sceneItemIndex = count - 1 }).ConfigureAwait(false);
-                }
+                await EnsureOnTopAsync(obs, BroadcastSource, "browser_source",
+                    new { url = BroadcastUrl, width = (int)Width, height = (int)Height, shutdown = false, restart_when_active = false, reroute_audio = true }).ConfigureAwait(false);
             }
             catch (Exception e) { Problem = "OBS graphics layer: " + e.Message; }
             finally { _busy.Release(); }
@@ -119,7 +108,7 @@ namespace TournamentTracker.App.Broadcast
             await _busy.WaitAsync().ConfigureAwait(false);
             try
             {
-                var scenes = (await obs.RequestAsync("GetSceneList").ConfigureAwait(false)).GetProperty("scenes").EnumerateArray().Select(s => s.GetProperty("sceneName").GetString()).ToHashSet();
+                var scenes = await SceneNamesAsync(obs).ConfigureAwait(false);
                 if (!scenes.Contains(r.Scene)) await obs.RequestAsync("CreateScene", new { sceneName = r.Scene }).ConfigureAwait(false);
                 var inputs = await InputNamesAsync(obs).ConfigureAwait(false);
                 var scene = new[] { r.Scene };
@@ -156,7 +145,7 @@ namespace TournamentTracker.App.Broadcast
         private async Task<string> SaveSourceAsync(string source, string prefix)
         {
             var asked = DateTime.UtcNow;
-            var obs = _obs ?? throw new InvalidOperationException("Not connected to OBS.");
+            var obs = Client;
             var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             _saving[source] = tcs;
             try
@@ -230,7 +219,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Loads a clip into the replay Media Source (paused at its start), at <see cref="ReplaySpeed"/>; answers with its length in seconds.</summary>
         public async Task<double> LoadClipAsync(string file)
         {
-            var obs = _obs ?? throw new InvalidOperationException("Not connected to OBS.");
+            var obs = Client;
             if (_clipItem == null) await EnsureReplaySceneAsync().ConfigureAwait(false);
             await obs.RequestAsync("SetInputSettings", new { inputName = Live(Settings.Replay.ClipSource), inputSettings = new { local_file = file, is_local_file = true, speed_percent = ReplaySpeed } }).ConfigureAwait(false);
             for (int i = 0; i < 40; i++)
@@ -245,7 +234,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>The clip's state ("OBS_MEDIA_STATE_PLAYING", …), length and position, in seconds.</summary>
         public async Task<(string State, double Duration, double Cursor)> MediaStatusAsync()
         {
-            var obs = _obs ?? throw new InvalidOperationException("Not connected to OBS.");
+            var obs = Client;
             var st = await obs.RequestAsync("GetMediaInputStatus", new { inputName = Live(Settings.Replay.ClipSource) }).ConfigureAwait(false);
             double Ms(string p) => st.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.Number ? x.GetDouble() / 1000 : 0;
             return (st.TryGetProperty("mediaState", out var s) ? s.GetString() ?? "" : "", Ms("mediaDuration"), Ms("mediaCursor"));
@@ -258,7 +247,7 @@ namespace TournamentTracker.App.Broadcast
         /// </summary>
         public async Task SetReplaySpeedAsync(int percent)
         {
-            var obs = _obs ?? throw new InvalidOperationException("Not connected to OBS.");
+            var obs = Client;
             percent = Math.Max(1, Math.Min(200, percent));
             await obs.RequestAsync("SetInputSettings", new { inputName = Live(Settings.Replay.ClipSource), inputSettings = new { speed_percent = percent } }).ConfigureAwait(false);
             ReplaySpeed = percent;
@@ -277,17 +266,17 @@ namespace TournamentTracker.App.Broadcast
         }
 
         public Task MediaAsync(string action) =>
-            (_obs ?? throw new InvalidOperationException("Not connected to OBS.")).RequestAsync("TriggerMediaInputAction",
+            Client.RequestAsync("TriggerMediaInputAction",
                 new { inputName = Live(Settings.Replay.ClipSource), mediaAction = "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_" + action.ToUpperInvariant() });
 
         public Task SeekAsync(double seconds) =>
-            (_obs ?? throw new InvalidOperationException("Not connected to OBS.")).RequestAsync("SetMediaInputCursor",
+            Client.RequestAsync("SetMediaInputCursor",
                 new { inputName = Live(Settings.Replay.ClipSource), mediaCursor = Math.Max(0, Math.Round(seconds * 1000)) });
 
         /// <summary>Puts the replay scene on stream (our own switch, not mistaken for a manual one).</summary>
         public async Task ShowReplaySceneAsync()
         {
-            var obs = _obs ?? throw new InvalidOperationException("Not connected to OBS.");
+            var obs = Client;
             if (Scene != Settings.Replay.Scene) await SwooshAsync(true).ConfigureAwait(false);
             _airKey = null;
             bool already = Scene == Settings.Replay.Scene;
@@ -306,17 +295,7 @@ namespace TournamentTracker.App.Broadcast
             var obs = _obs;
             if (obs == null || _clipItem == null) return;
             var (x, y, w, h) = Framing.Place(view, Width, Height);
-            await obs.RequestAsync("SetSceneItemTransform", new
-            {
-                sceneName = Settings.Replay.Scene,
-                sceneItemId = _clipItem.Value,
-                sceneItemTransform = new
-                {
-                    positionX = x, positionY = y, alignment = 5, rotation = 0.0,
-                    boundsType = "OBS_BOUNDS_SCALE_INNER", boundsAlignment = 0, boundsWidth = w, boundsHeight = h,
-                    cropLeft = 0, cropRight = 0, cropTop = 0, cropBottom = 0,
-                },
-            }).ConfigureAwait(false);
+            await obs.RequestAsync("SetSceneItemTransform", Transform(Settings.Replay.Scene, _clipItem.Value, x, y, w, h)).ConfigureAwait(false);
         }
     }
 }

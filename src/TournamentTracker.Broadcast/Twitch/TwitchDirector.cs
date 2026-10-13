@@ -480,7 +480,7 @@ namespace TournamentTracker.App.Broadcast
             ShowResult(new
             {
                 type = "prediction", title = p.Title,
-                lines = p.Options.Select(o => new { name = o.Title, color = o.Color, icon = o.Icon, pct = total > 0 ? (int)Math.Round(100.0 * o.Points / total) : 0, win = o == winner }).ToList(),
+                lines = p.Options.Select(o => new { name = o.Title, color = o.Color, icon = o.Icon, pct = Pct(o.Points, total), win = o == winner }).ToList(),
                 text = $"{winner.Title}!",
             });
             Log($"Prediction resolved: {winner.Title}.");
@@ -613,7 +613,7 @@ namespace TournamentTracker.App.Broadcast
                 ShowResult(new
                 {
                     type = "chatThinks", title = "CHAT THINKS", lobby,
-                    lines = item.Options.OrderByDescending(o => o.Votes).Take(3).Select(o => new { name = o.Title, color = o.Color, pct = total > 0 ? (int)Math.Round(100.0 * o.Votes / total) : 0 }).ToList(),
+                    lines = item.Options.OrderByDescending(o => o.Votes).Take(3).Select(o => new { name = o.Title, color = o.Color, pct = Pct(o.Votes, total) }).ToList(),
                     text = ejName != null ? $"{ejName} was ejected" : "Nobody was ejected",
                     // Whether chat was right only when the game itself shows it (confirm ejects on).
                     right = Settings.RevealAtEject && top != null && wasImpostor != null && top.Value == ejected ? wasImpostor : null,
@@ -751,18 +751,18 @@ namespace TournamentTracker.App.Broadcast
             p.Status = "ended";
             var top = Top(p);
             long total = p.Options.Sum(o => o.Votes);
-            int Pct(TwitchOption o) => total > 0 ? (int)Math.Round(100.0 * o.Votes / total) : 0;
+            var lines = p.Options.OrderByDescending(o => o.Votes).Select(o => new { name = o.Title, color = o.Color, pct = Pct(o.Votes, total), win = o == top }).ToList();
             switch (p.Kind)
             {
                 case "lobby" when top != null:
                     // The caster decides: a card with a button to put it on.
-                    _desk.AddNotice(top.Value, "twitchLobby", "high", $"Chat picked {top.Value} next ({Pct(top)}% of {total} votes).", 72, 180, "show:" + top.Value);
-                    ShowResult(new { type = "poll", title = "CHAT PICKED", lines = p.Options.OrderByDescending(o => o.Votes).Select(o => new { name = o.Title, color = o.Color, pct = Pct(o), win = o == top }).ToList() });
+                    _desk.AddNotice(top.Value, "twitchLobby", "high", $"Chat picked {top.Value} next ({Pct(top.Votes, total)}% of {total} votes).", 72, 180, "show:" + top.Value);
+                    ShowResult(new { type = "poll", title = "CHAT PICKED", lines });
                     Log($"Chat picked {top.Value} next: waiting for the caster.");
                     break;
                 case "mvp" when top != null:
-                    ShowResult(new { type = "poll", title = p.Title.ToUpperInvariant(), lines = p.Options.OrderByDescending(o => o.Votes).Select(o => new { name = o.Title, color = o.Color, pct = Pct(o), win = o == top }).ToList(), text = $"Chat's MVP: {top.Title}" }, 15);
-                    try { await Api!.SendChatAsync($"Chat's {p.Title.TrimEnd('?')}: {top.Title} with {Pct(top)}% of the vote!").ConfigureAwait(false); } catch (Exception e) { Log("Chat: " + e.Message); }
+                    ShowResult(new { type = "poll", title = p.Title.ToUpperInvariant(), lines, text = $"Chat's MVP: {top.Title}" }, 15);
+                    try { await Api!.SendChatAsync($"Chat's {p.Title.TrimEnd('?')}: {top.Title} with {Pct(top.Votes, total)}% of the vote!").ConfigureAwait(false); } catch (Exception e) { Log("Chat: " + e.Message); }
                     break;
                 case "meeting":
                     break;                                                      // shown at the ejection
@@ -932,6 +932,8 @@ namespace TournamentTracker.App.Broadcast
 
         private void ShowResult(object data, double seconds = 10) => Result = (data, _clock().AddSeconds(seconds));
 
+        private static int Pct(long part, long total) => total > 0 ? (int)Math.Round(100.0 * part / total) : 0;
+
         private object View(TwitchItem i)
         {
             long total = i.Type == "prediction" ? i.Options.Sum(o => o.Points) : i.Options.Sum(o => o.Votes);
@@ -944,7 +946,7 @@ namespace TournamentTracker.App.Broadcast
                 Options = i.Options.Select(o => new
                 {
                     o.Id, o.Title, o.Color, o.Icon, o.Value, o.Votes, o.Points,
-                    Pct = total > 0 ? (int)Math.Round(100.0 * (i.Type == "prediction" ? o.Points : o.Votes) / total) : 0,
+                    Pct = Pct(i.Type == "prediction" ? o.Points : o.Votes, total),
                 }).ToList(),
             };
         }

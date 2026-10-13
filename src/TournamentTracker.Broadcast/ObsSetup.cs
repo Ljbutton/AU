@@ -138,7 +138,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>A setup check's Fix button. What it did.</summary>
         public async Task<string> FixAsync(string id)
         {
-            var obs = _obs ?? throw new InvalidOperationException("Not connected to OBS.");
+            var obs = Client;
             string said;
             switch (id)
             {
