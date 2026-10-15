@@ -1,0 +1,461 @@
+# What's left to do
+
+What needs doing, or could be done, to improve the tournament system, as of The Button and the mod **v0.1.64** and Red Alert **0.3.16** (15 October 2026). Each item says why, where the evidence is (file and line as of v0.1.64), and a rough size: **S** is under half a day, **M** is 1–2 days, **L** is 3 days or more.
+
+What each app already does is in [features-the-button.md](features-the-button.md), [features-mod.md](features-mod.md) and [features-red-alert.md](features-red-alert.md).
+
+**Why the list starts where it does:** 23 releases went out between 0.1.41 (9 October) and 0.1.64 (13 October), adding about 20,000 lines, and none of the 346 checks in [test-list.md](test-list.md) is ticked. 0.1.64 reworked the code that turns games into points and Discord posts. So the first job is proving what exists in real games, not adding more.
+
+---
+
+## Must do before the next event
+
+### Everyone (process)
+
+1. **Freeze one build, and every version, for the event.**
+   - **Why:** The Button updates itself and the mod by default. A release published during event week reaches a host the next time Among Us closes, for example after a crash mid-event. Lobbies then run different versions, and nothing has tested the new one.
+   - **Evidence:**
+     - `AppServer.cs:26-29`: both auto-updates default to on.
+     - `AppServer.cs:475-481`: GitHub is checked every 20 min and The Button installs itself.
+     - `AppServer.cs:888-901`: the mod installs itself whenever Among Us is closed.
+     - Three releases went out on 12–13 Oct.
+     - The build floats: `GameLibsVersion *-*` and `BepInEx.IL2CPP.MSBuild 2.*-*` (Plugin csproj:15, :30). v0.1.64 was built with MSBuild 2.1.0-rc.1, per its release notes.
+     - VDO.Ninja is used unversioned (`CasterFeed.cs:16`).
+   - **Do:**
+     - Pick the event release and publish nothing from T-48h.
+     - After the dry run, hosts switch **Update automatically** off.
+     - Any fix release is built with an explicit `game_libs_version`.
+     - Freeze OBS, Source Record, the Stream Deck app and the plugin on the caster PC as well.
+   - **Size:** S.
+
+2. **Cut the test list down to a one-night critical path, and play it.**
+   - **Why:** Nothing from 0.1.56 to 0.1.64 has been confirmed in a real game. The 0.1.64 refactor touched exactly the code that turns games into points and Discord posts.
+   - **Evidence:**
+     - docs/test-list.md: 346 unticked, 0 ticked. Its "Before you start" still names 0.1.41 / 0.3.9 (lines 7-8).
+     - `git show --stat HEAD` touches `Verify.cs`, `Voids.cs`, `Standings.cs`, `PrelimLeaderboards.cs`, `SlashLinks.cs` and `TournamentSession.cs`.
+     - Neither test-list.md nor dry-run.md mentions Epic Games or a fresh install on 64-bit Among Us (grep finds no "Epic" or "64-bit").
+   - **Do:**
+     - Choose about 30 items: items 3–5 below, F10 lag with the player cam, settings lock with the real code, automute through meetings with 10 players, and the 0.1.64 "Both apps" block.
+     - Add one fresh install with `Install-TheButton.bat` on a clean PC.
+     - Add one Epic host if any host uses Epic.
+   - **Size:** M.
+
+### The mod (in Among Us)
+
+3. **Prove host authority and the referee ghost with players who don't have the mod (ban risk).**
+   - **Why:** The +25 flag is on by default. The last two ways of making the referee dead for other players got the host kicked, then banned from their own room. Nothing has confirmed the new way in a live lobby.
+   - **Evidence:**
+     - `Patches/HostAuthority.cs`.
+     - README.md:399 still calls the referee ghost slot "(experimental)"; README.md:409-410 records the ban.
+     - Unticked: test-list.md:242 (votes count), :258 (crossed-out card on a phone), :273-275 (no kick over 3+ games, console join, `hostauth off`).
+   - **Do (with an alt account as host first):**
+     - The log shows `owner -2` and "host authority (modded host): True".
+     - With `[Debug] RefereeRecordSync = true`, lines read "written for sending … IsDead=True", with no "reset seen".
+     - A phone joins by code, and a console too if possible.
+     - Play 3 or more full games with no kick.
+     - A vote for the referee counts as a skip.
+     - Fallback if it fails: `hostauth off`, re-hosted from the main menu.
+   - **Size:** M.
+
+### The Button and Discord
+
+4. **Rehearse the scoring path end to end, with real Discord.**
+   - **Why:** Points are what the tournament is judged on, and the dry run doesn't touch them.
+   - **Evidence:**
+     - dry-run.md has no Submit, Void, `!adjust`, standings or round-start step (grep for submit / void / standings / !adjust finds only a "count, void or replay" mention).
+     - test-list.md:38-50, 170-181 and 445-470 are all unticked.
+   - **Do:** add a 5-minute "Scoring and Discord" block to dry-run.md, then run it. It covers:
+     - Referee tab: + / −, and Void with a reason.
+     - Submit and Submit all.
+     - The report, standings and round scores each land in the right channel. The public channel gets only results and the timeline.
+     - `!adjust`, `!void` and `!unvoid` from the channel, each answered with ✅.
+     - The preliminary Count.
+     - `!lobbies 2` and `!start 2`.
+     - Restart Among Us while games are waiting.
+   - **Size:** S (doc), plus the session.
+
+5. **Crash and drop drills for automute, plus a written manual unmute.**
+   - **Why:** The crash unmute only runs when The Button is reopened on that same PC. If the host's PC or internet is gone, the lobby's players stay server-muted and deafened.
+   - **Evidence:**
+     - `DiscordBridge.cs:537-576` and :670 (`button-muted.json`).
+     - Unticked: test-list.md:308-316 (gateway drop, crash of both apps, Among Us crash).
+     - No unmute action anywhere in `TournamentTracker.Common` or `TournamentTracker.Broadcast` (grep).
+   - **Do:**
+     - Run those drills.
+     - Add one line to dry-run.md: "Host PC gone: a moderator with Mute/Deafen Members right-clicks each player in that voice channel and turns off Server Mute and Server Deafen."
+   - **Size:** S.
+
+6. **Write an Among Us update-day runbook (and check the feed today).**
+   - **Why:** Safe mode is the right reaction to an update, but it turns off the referee slot, impostor rotation, settings lock and host authority, and nobody has a written plan for that day.
+   - **Evidence:**
+     - `SafeMode.cs:118-130`.
+     - dry-run.md only says "stop and tell the organiser".
+     - BepInEx is pinned to be.735 because newer builds break the interop generator (README.md:1197-1198).
+     - The Build workflow already takes `game_libs_version` and `release_tag` (build.yml:12-20).
+   - **Do, write down:**
+     - Who watches the BepInEx feed for a new `AmongUs.GameLibs.Steam`.
+     - Building with that version.
+     - Checking "Self-check: every hook is in place" and "Safe mode off" in a private lobby before hosts update.
+     - When "Run normally anyway" is acceptable.
+     - Plan B if be.735 can't load the new game at all: play without the referee slot (10-player lobbies), or AutoMuteUs with manual scoring.
+   - **Size:** S.
+
+7. **Don't count on the "every 10 minutes" preliminary leaderboard.**
+   - **Why:** GitHub runs the schedule about 4–5 times a day, so the combined board can be hours out of date during a preliminary session.
+   - **Evidence:**
+     - README.md:251 and prelim-leaderboards.yml:10 say every 10 minutes.
+     - Actual scheduled runs on 14–15 Oct: 01:43, 06:44, 12:26, 17:27, 20:52, 23:35, 01:47, 06:32, 12:02 UTC. That is gaps of 2.5 to 6 hours over these two days, and up to 9 hours in the full history (Actions API).
+   - **Do:**
+     - For a preliminary event, press Actions → Preliminary leaderboards → Run workflow after each session.
+     - The real fix is item 30.
+   - **Size:** S.
+
+---
+
+## Should do soon
+
+### Distribution and CI
+
+8. **Pin and record what the mod is built against.**
+   - **Why:** `*-*` takes prereleases too, and a rebuild in event week can silently target a different game version than the hosts run. This also confuses safe mode's "built for" comparison.
+   - **Evidence:**
+     - Plugin csproj:15 (`*-*`) and :30 (`2.*-*`).
+     - The BepInEx loaders are downloaded from builds.bepinex.dev at release time (build.yml `fetch()`).
+   - **Do:**
+     - Commit the versions, for example in Directory.Build.props.
+     - Have CI warn when the feed has a newer GameLibs than the pinned one.
+   - **Size:** S.
+
+9. **A CI check that every Harmony hook still fits the game.**
+   - **Why:** The mod has about 5,000 lines and 28 `[HarmonyPatch]` hooks, and no tests. HookCheck only runs inside Among Us at start. Positional arguments have already broken once: CastVote changed from byte to PlayerId (HookCheck.cs:9-11), and `RpcVotingComplete` now takes 5 parameters.
+   - **Do:** the interop assemblies are generated during the build. A test using `MetadataLoadContext` can resolve each patch's target and its `__N` and `__instance` types, so a game update shows up as a red build instead of a bad night.
+   - **Size:** M.
+
+10. **Check downloads before swapping them in.**
+    - **Why:** A truncated or tampered download is installed as long as it starts with "MZ".
+    - **Evidence:**
+      - `AppUpdater.cs:35-52` checks only "MZ" and a size over 1 MB.
+      - `ModInstaller.InstallAsync` (ModInstaller.cs:169 on) extracts whatever arrives.
+      - GitHub's release API already returns a `sha256:` digest for every asset (seen on all of v0.1.64's assets).
+    - **Do:** compare against that digest before swapping. It covers integrity; authenticity needs item 11.
+    - **Size:** S.
+
+11. **Code signing.**
+    - **Why:** Hosts are told to click "More info → Run anyway" (README.md:47 and the release notes). A .bat that runs PowerShell to download an exe, and BepInEx's `winhttp.dll` proxy, are both typical antivirus false-positive triggers.
+    - **Do:** sign `TheButton.exe` and `RedAlert.exe` (an OV certificate, or Azure Trusted Signing if eligible). Note any antivirus hits during the dry run.
+    - **Size:** M–L.
+
+12. **Let the organiser freeze updates in code.**
+    - **Why:** Item 1 relies on every host remembering to turn updates off.
+    - **Evidence:** everyone follows `releases/latest` (ModInstaller.cs:111). The only rollback is publishing a newer release.
+    - **Do:** add a setup-code field, "hold updates until <date>" or "stay on vX".
+    - **Size:** S–M.
+
+13. **A Windows CI job.**
+    - **Why:** Every job runs on ubuntu-24.04 (build.yml:29, :49), so Windows-only code never runs in CI:
+      - `ProcessAudio.cs` (292 lines of WASAPI process loopback; no test references it)
+      - `GlobalHotkey`
+      - `MainForm` and WebView2
+      - `File.Replace` and file-sharing behaviour
+      - the installers under Windows PowerShell 5.1 (tested only with pwsh)
+    - **Do:** add a windows-latest job that runs both test suites, then starts TheButton.exe and RedAlert.exe and polls `/app/state`.
+    - **Size:** M.
+
+14. **Run the embedded page scripts in CI.**
+    - **Why:** A syntax slip leaves a blank Live desk while CI stays green.
+    - **Evidence:**
+      - caster.html is 2,913 lines, index.html 1,321, plus the send page's inline JS.
+      - The tests only search the source text (`CasterPageScriptTests.cs:16-28`). Nothing parses or runs the JS (no Jint or node in the tests).
+    - **Do:**
+      - Run `node --check` on the extracted scripts (S).
+      - Add a Playwright smoke run against Red Alert in Simulation, and The Button with a fake mod (M).
+    - **Size:** S, then M.
+
+### The Button and the mod
+
+15. **Atomic writes, keeping the broken copy.**
+    - **Why:** A power cut mid-write wipes waiting games, links or a code. A corrupted Red Alert `settings.json` reopens it locked, with a new Stream Deck key, mid-show.
+    - **Evidence, all plain `File.WriteAllText`:**
+      - games waiting for Submit (`Verify.cs:63`)
+      - game records (`Voids.cs:161`)
+      - links (`LinkRegistry.cs:103`)
+      - round state, including the VDO link (`Rounds.cs:98`)
+      - The Button's settings with the setup code, admin code and bots (`AppServer.cs:81`)
+      - Red Alert's settings with the admin code and Stream Deck key (`Files.cs:22`)
+    - Loads quietly fall back to empty (`AppServer.cs:73-75`). `LinkRegistry.cs:91-94` then writes over the bad file.
+    - `StatsStore.cs:150-176` already does it right: a temporary file, `File.Replace`, and a `.corrupt-` copy.
+    - **Do:** reuse that pattern everywhere.
+    - **Size:** S–M.
+
+16. **Back up host data outside the Among Us folder.**
+    - **Why:** Uninstalling or reinstalling Among Us deletes every game, link and waiting game. The Button keeps only the setup code (`AppServer.cs:34-38`).
+    - **Evidence:** everything is in `<Among Us>/BepInEx/config/TournamentTracker` (`ModInstaller.cs:56`).
+    - **Do:** after each game, mirror `games/`, `links.json` and the waiting list to `%LOCALAPPDATA%\TheButton`.
+    - **Size:** S.
+
+17. **Protect secrets at rest, and write a rotation runbook.**
+    - **Why:** Any other BepInEx plugin, or anyone who can read the folder, can take the bots. A leaked code needs an exact recovery procedure.
+    - **Evidence, all plain JSON:**
+      - bot tokens in `setup-code.txt` and `host-discord.json` in the Among Us folder (`SetupCode.cs:240`, `HostDiscord.cs:95`)
+      - The Button's `settings.json` (`AppServer.cs:32-41`)
+      - Red Alert's `settings.json`, `obs.json` and `twitch-token.json`
+      - Codes are only encoded (`SetupCode.cs:19`), and the admin code, which holds a bot token, goes to every referee and caster.
+    - **Do:**
+      - Use DPAPI (CurrentUser).
+      - Write "code leaked: reset the token, make new codes, hosts paste them".
+    - **Size:** M.
+
+18. **An emergency unmute that doesn't need the host's PC.**
+    - **Why:** This is the code fix behind item 5. Today neither the Organiser tab nor Red Alert can help, because the live data has no voice channel or Discord IDs (`LivePublish.cs:61-95`).
+    - **Do:** add them to the live data, then add "Unmute LJ's players" with the admin bot. It needs Mute and Deafen Members.
+    - **Size:** M.
+
+19. **Host authority moves anti-cheat to the host.**
+    - **Why:** With +25 the server no longer checks kills. A cheat in a screened tournament is unlikely, but if one happens, the host's stats and the stream silently disagree with what players saw.
+    - **Evidence:**
+      - The `CheckMurder` prefix only protects the referee (`GamePatches.cs:95-115`), with no distance or cooldown check.
+      - `HostOnlyMessageGuard` only turns messages down on the host's own game (`HostAuthority.cs:101-129`). Home itself says other games may still have acted on them (`ControlApi.cs:233`).
+    - **Do:** add a cooldown and distance check, and an optional kick after repeats.
+    - **Size:** M.
+
+### Red Alert
+
+20. **Survive a WebView2 renderer crash.**
+    - **Why:** Every host's data receiver is a hidden iframe in the desk page (`caster.html:954`, 1165-1176). `MainForm.cs` has no `ProcessFailed` handler (no match in src/). A renderer crash means a white window, every lobby turns red, and auto switch fires.
+    - **Do:**
+      - A handler that reloads the page and logs it (S).
+      - The receivers in a second, hidden WebView2 (M).
+    - **Size:** S, then M.
+
+21. **Keep the lobby links on disk.**
+    - **Why:** A restart during a Discord hiccup shows no lobbies. Dry-run step C expects them to come straight back.
+    - **Evidence:** the Organiser keeps lobbies and their VDO links in memory only (no file access in `Organizer.cs`).
+    - **Do:** load the last known set at start, marked "cached".
+    - **Size:** S.
+
+22. **Twitch's delay should follow OBS's stream delay.**
+    - **Why:** Polls, predictions and !sus open up to 90 s before viewers see the game or meeting.
+    - **Evidence:**
+      - `TwitchSettings.DelaySeconds` defaults to 0 (TwitchSettings.cs:19-20) and is only set by hand (`BroadcastServer.cs:548`).
+      - Setup check sets OBS's delay to 90 s (`ObsSetup.cs:93-163`); the two are never compared.
+    - **Do:** default Twitch's delay to OBS's, or warn when they differ.
+    - **Size:** S.
+
+23. **Auto grid replaces a meeting that's on air.**
+    - **Why:** Only "ingame" counts as busy (`CasterDesk.cs:1127`), and `CasterDeskTests.cs:288-302` asserts that the grid comes up while the lobby on air is in a meeting.
+    - **Do:**
+      - Count the on-air lobby's meeting as busy, and change the test.
+      - Until then, keep Auto grid off.
+    - **Size:** S.
+
+24. **One "Jump to action".**
+    - **Why:** The desk's N / Action and the Stream Deck's lobby/action can pick different lobbies for the same moment.
+    - **Evidence:**
+      - The desk uses Discord-polled `ORG` data, 3 s or more old, and compares with `ORG.cast` (the overlay's pin), not Program (`caster.html:1326-1340`).
+      - The Stream Deck uses the server's live ranking (`BroadcastDeck.cs:437-448`).
+    - **Do:** use the server's ranking for both.
+    - **Size:** S.
+
+25. **A Red Alert restart forgets the desk's automation.**
+    - **Why:** Auto grid, auto intermission, the next-round countdown and Hold aren't saved.
+    - **Evidence:** only AdminCode, MuteHotkey, DeckKey and CamOff persist (`BroadcastServer.cs:20-33`); the others are set at :1009-1053.
+    - **Do:** save them with the other settings.
+    - **Size:** S.
+
+26. **One upload budget, and desk tiles that don't cost hosts upload.**
+    - **Why:** The numbers disagree, and the desk tiles cost each host an extra encode.
+    - **Evidence:**
+      - OBS asks every host for 8 Mbps (`ObsDirector.cs:38`).
+      - Desk tiles are a second VDO.Ninja video viewer per host (`&scale=25`, `BroadcastServer.cs:293`), which the host's PC encodes separately while it plays.
+      - The connection check budgets 4–6 Mbps for video and recommends 10 Mbps in all (`ConnectionCheck.cs:77-78`).
+      - (The docs now all give the connection check's figure, about 10 Mbps.)
+    - **Do:**
+      - Default to about 6,000 kbps.
+      - Build the tiles from OBS `GetSourceScreenshot` while OBS is connected (already used for Program, `ObsOutputs.cs:198`).
+    - **Size:** S, then M.
+
+27. **Pin VDO.Ninja.**
+    - **Why:** An upstream release before the event can break the caster feed. Everything depends on VDO.Ninja's iframe API: `dataReceived`, `getStats` and `_framesEncoded` (`SendPage.cs:261-277`).
+    - **Evidence:** `https://vdo.ninja/` is used unversioned (`CasterFeed.cs:16`, `Organizer.cs:330`, `ConnectionCheck.cs:95`).
+    - **Do:** pin a versioned path that passed the dry run, with a settings override.
+    - **Size:** S.
+
+28. **Organiser polling shares one bot.**
+    - **Why:** Red Alert and each referee's Button with the admin code all poll the results channel with the same token. With several referees, 429s slow lobby discovery.
+    - **Evidence:** every 3 s ±0.4 (`Organizer.cs:22`, :121-124), while The Button has an admin code in, whichever tab is open.
+    - **Do:** poll only while the Organiser tab is open, or use the gateway.
+    - **Size:** S.
+
+29. **Plan for the caster PC failing.**
+    - **Why:** Red Alert, OBS and the Stream Deck all run on one PC.
+    - **Do:**
+      - Export the OBS scene collection and profile, and `%LOCALAPPDATA%\RedAlert`, to a second PC.
+      - Test whether a second Red Alert can join the same lobbies. Every host's data link resends until Red Alert acknowledges, and two receivers acknowledging is untested.
+    - **Size:** S (runbook), plus a test.
+
+### Preliminaries and docs
+
+30. **Move the combined preliminary leaderboard off GitHub's scheduler.**
+    - **Why:** This is the fix behind item 7.
+    - **Do:** the code is already in Core (`PrelimLeaderboards.cs`). Have the organiser's Red Alert or Button run it after each lobby's Count, or trigger `workflow_dispatch` from an outside scheduler.
+    - **Size:** M.
+
+31. **Fix docs that disagree with the code.**
+    - README.md:1196 says "currently 2026.8.18"; 0.1.64 was built for 2026.9.29.
+    - README.md:1191 still uses the example `2025.x.y`.
+    - build.yml:256: Red Alert's release notes say it "never updates itself: download it again". Settings → Updates installs it (`BroadcastUpdate.cs:68`).
+    - test-list.md:7-8 still name 0.1.41 / 0.3.9.
+    - README.md:399 still says "(experimental)", though host authority is on by default.
+    - **Buttons that moved:** Void is now on the Referee tab ("Void this game"); Take over and the combined leaderboard Reset… are in Settings → Tournament; "Post under Standings", "Servers" and "Repost lobby message" are now Home → Tools → **Post** (Leaderboard, Server standings, Lobby message).
+    - **The Button's top bar:** the README says "New version available" and "Restart to update"; the app shows "The Button vX is out · Update" and "Restart The Button to finish", and also a "Live message can't post" warning the README leaves out.
+    - **Settings that don't exist:** the README's `VerifyResults = false` config setting isn't in the code (only the setup code turns the hold off). The config table puts `PublishLive` under [Discord] (it's [General]) and leaves out `ShowTalking` and `[Debug] RefereeRecordSync`.
+    - **Wrong details:** preliminary public channels get only the report (not standings); new links are announced on Home and in the log, not in the lobby chat; the bot is online whenever The Button is open (not only with Among Us); the player camera is 960×540 (not 720p); the referee ghost hears every kill; game files are `game-<id>.json`.
+    - **Red Alert:** the status bar says PROGRAM (not LIVE); the Graphics page's help calls the OBS source "Red Alert" (it's "TT Broadcast"); the OBS card's help lists 3 of the 9 TT scenes; Twitch's "Which lobby next?" button only puts the lobby into Preview; player cards go through the graphics queue (8 s by default); G, I, U, B, C, M, V and E work on every page; the grid goes five wide past 16 lobbies; end-of-game montages are about 45 s; docs/stream-deck.md leaves out `prompt/save`.
+    - README.md:794 calls Red Alert's viewer "the same replay viewer as The Button's", but The Button has no replay viewer now.
+    - **Size:** S–M.
+
+32. **Small wrong messages in the apps.**
+    - The mod's F9 message says "Type !automute on to resume" (`Driver.cs:99`), but chat commands were removed: it should point to The Button.
+    - The mod's `feed on` reply still says to share the Entire screen; The Button now recommends the Among Us window.
+    - The Automute card says the bot "comes with a tournament host code", ignoring bots added in Settings → **Your Discord**.
+    - A referee change made with + / − shows the breakdown line "Referee: referee".
+    - The overlay's reply says "Size 360×900"; the page is about 380 px wide.
+    - **Size:** S.
+
+33. **Administration code on a PC without Among Us.**
+    - **Why:** The README and the code maker say the Organiser tab works on a PC that isn't hosting, but The Button refuses every code with "Find Among Us first." until it has found an Among Us folder (`AppServer.cs`, `FindGameFirst`). An organiser or referee PC without Among Us can't open the Organiser tab.
+    - **Do:** accept an administration code without Among Us; keep the check for host codes.
+    - **Size:** S.
+
+34. **Who can use the `!` commands.**
+    - **Why:** Anyone who can post in the private results channel can run `!adjust`, `!void`, `!unvoid`, `!lobbies` and `!start`; the code checks no role. That's fine while the channel is truly private, but one wrong channel permission gives anyone points control.
+    - **Do:** an optional "referee role" in the setup code, checked before a `!` command runs; until then, say in the README that the channel's permissions are the only lock.
+    - **Size:** S.
+
+---
+
+## Could do
+
+### The mod
+
+35. **Small referee ghost hardening.** Four separate small fixes:
+    - (a) Home warns when the referee has a pet on. README.md:422 says to unequip it; no code checks.
+    - (b) Hide the meeting card by player id, not by the name text (`RefSlot.cs:530`). Duplicate names or roster names can pick the wrong card.
+    - (c) An in-bounds, unreachable parking spot per map, instead of 12 units below the map (`RefSlot.cs:208`), in case Innersloth adds position checks.
+    - (d) Stop the game kicking the host itself, with a KickPlayer prefix.
+    - **Size:** S each.
+
+36. **Make the referee's only role CrewmateGhost**.
+    - **Why:** It would remove the reliance on re-sending the referee's record every 5 s (`RefSlot.cs:147-148`).
+    - **Only after:** item 3 passes, and only with host authority on.
+    - **Size:** M, with alt-account testing.
+
+37. **One limiter for everything the mod sends.**
+    - **Why:** Innersloth says rate limits still apply under +25.
+    - **Evidence:** NetLog records each send (`Safety.cs:117` on) but limits nothing.
+    - **Size:** M.
+
+### The Button
+
+38. **Tally and "host away".**
+    - **Why:** A referee can't see that their lobby is on stream, so they don't know to avoid menus or alt-tabbing. There's no tally in AppCore (grep).
+    - **Do:**
+      - Red Alert sends live / next / off on each lobby's data link.
+      - The Button shows it, and warns the caster when Among Us isn't the foreground window.
+    - **Size:** S–M.
+
+39. **Onboarding.**
+    - **Why:** README.md is 1,221 lines covering hosts, organisers and casters together. Preliminary hosts must create their own Discord bot in the Developer Portal. The new docs/features-*.md pages (added today) say what each app does, but not "what do I do, in order".
+    - **Do:**
+      - A one-page quick start per role.
+      - A first-run checklist in The Button.
+    - **Size:** M.
+
+### Red Alert
+
+40. **Headphone cue (PFL).**
+    - **Why:** "Listen" keeps a lobby's voice up on the stream. There's no way to hear a lobby in the caster's headphones only (README "Lobby voice").
+    - **Size:** M.
+
+41. **Notice a frozen or black lobby in OBS.**
+    - **Why:** Health trusts the host's "frames encoded", so a source that froze in OBS stays green.
+    - **Do:** compare successive `GetSourceScreenshot` images per TT Lobby source.
+    - **Size:** M.
+
+42. **Show-package graphics.**
+    - **Do:** a "Starting soon" countdown, caster-name lower thirds, and Twitch stream markers at big plays. None of these exist in the code (grep).
+    - **Size:** S–M.
+
+43. **Stream Deck or Companion from another PC, opt-in.**
+    - **Why:** Red Alert only listens on this PC.
+    - **Do:** an opt-in LAN listener for `/deck/*`, with the key and a Host check.
+    - **Size:** S–M.
+
+44. **Remote co-caster.**
+    - **Do:** VDO.Ninja guest sources in OBS, ducked under the host's mic.
+    - **Size:** L.
+
+### Stream Deck plugin
+
+45. **Safer defaults and a current runtime.**
+    - **Lobby keys:** they default to cutting straight to stream (`actions.js:144`, `mode: "cut"`), and dry-run.md warns about it twice. Default to Preview.
+    - **Node:** the plugin runs on Node 20 (manifest `Nodejs 20`, package.json engines), which reached end of life in April 2026. Move when the Stream Deck app offers a newer runtime.
+    - **CI:** run `npm run validate`. It exists in package.json, but build.yml doesn't run it.
+    - **Size:** S.
+
+### Both apps
+
+46. **Accessibility and language.**
+    - **Accessibility:**
+      - Status is mostly shown by colour (red / amber / green).
+      - Red Alert's flashing pills ignore `prefers-reduced-motion` (0 matches in caster.html).
+      - The send page has no aria attributes.
+    - **Language:** every screen and every Discord post is English only.
+    - **Size:** M (accessibility), L (translation).
+
+47. **A Host check on the overlay ports.**
+    - **Why:** It closes the remaining DNS-rebinding route to impostor roles; the app servers already check.
+    - **Evidence:** `OverlayServer` reads only the request line (`OverlayServer.cs:44-60`). It serves `/state?full=1`, which includes roles, on 8765 (the mod) and 8767 (Red Alert's caster pages) with no Host check.
+    - **Size:** S.
+
+---
+
+## Already done: don't redo
+
+These ideas from earlier audits are in the code now, so they are not on the list:
+
+- **Host authority and the referee:**
+  - +25 host authority with the `hostauth on|off` command and the Home warning (`Patches/HostAuthority.cs`).
+  - The host-only message guard (`HostAuthority.cs:101-129`).
+  - `IsReferee` asks the game's own ghost-role list, so the spirit guide counts (`RefSlot.cs:450`).
+- **Safe mode** against newer game versions and failed hooks, with "Run normally anyway" (`SafeMode.cs`).
+- **Disconnects:** the reason and the mod's last 10 s of sends are logged and shown on Home (`DisconnectWatch.cs`, `Disconnects.cs`).
+- **Discord:**
+  - Unmute after a crash (`button-muted.json`, `DiscordBridge.cs:670`).
+  - Gateway RESUME (`VoiceGateway.cs:628`; `GatewayResumeTests`).
+- **Performance fixes:**
+  - Buffered HTTP header parsing (`HttpRequest.cs:32-37`).
+  - The `control.json` cache (`ModClient.cs:24-51`).
+  - No per-frame `FindObjectOfType`; only `Drawing.MakeText` uses it.
+  - Caster commands no longer echo into the host's chat or the mini chat (`SpectatorView.cs:157`).
+- **The send page:** shares the Among Us window by default, the voice pump runs in a Worker, Lower quality, and Check my connection (`ConnectionCheck.cs`).
+- **Red Alert's switching engine:**
+  - Newest switch wins, sent as one batch, and source upkeep only runs when it's needed (`ObsSwitch.cs:10-95`).
+  - Stream Deck status codes (401 / 404 / 409 / 503), camera guards with ARMED, and camera picks resent until the host has them.
+  - Lobby numbers kept in `lobby-numbers.json`, and the port fallback to 8768–8771.
+  - Host commands deduplicated per kind and capped at 200 (`BroadcastDeck.cs:34-58`).
+- **Live desk:**
+  - Preview, Take and Program, with the Program picture from OBS (`ObsOutputs.cs:198`).
+  - OBS streaming, recording, dropped frames and disk warnings, and an "OBS not connected" warning.
+  - Panic and Undo, Hold, Replay that, Play last, slow motion, and Cut / Swoosh / Fade.
+  - Keyed list updates instead of rebuilding, and preview tiles that don't reconnect.
+- **The Stream Deck plugin:** `/deck/state` long-poll, `/deck/img`, dials, and no impostor flags unless `&imp=1`.
+- **Red Alert reliability:**
+  - WebView2 anti-throttling flags and crash handlers (`BroadcastApp/Program.cs:26-28`, :53-55).
+  - Logs roll over to `.1` instead of being deleted.
+  - The sponsor log is cached by size and time (`Sponsors.cs:250-270`).
+  - Game replays are stored as raw frames and streamed out (`GameReplays.cs:43`, :260).
+  - Desk tick re-entry guard (`CasterDesk.cs:256-264`).
+  - Replay clip clean-up by size, age and free disk.
+- **Support bundles with redaction** in both apps, and the dry-run checklist.
+- **The Referee tab on one screen,** with one void reason, the admin lobby list filled when the tab opens, and the "Not held for Submit" subtitle (`index.html:918`).

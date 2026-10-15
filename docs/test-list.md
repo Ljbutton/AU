@@ -450,7 +450,7 @@ _Nothing new to see: this release shrinks the code and merges logic both apps ha
 - [ ] Title bar in both: drag to move, double-click to maximise and back, the minimise / maximise / close buttons work
 - [ ] Starting a second copy of either app brings the open one to the front instead
 - [ ] Links that open the browser (help, GitHub, the dry-run checklist) still open it
-- [ ] Settings → Updates: Check now finds nothing newer once you're on 0.1.64 / 0.3.16; The Button never offers a Red Alert release, and Red Alert never offers a Button release
+- [ ] Updates: on 0.1.64 The Button's top bar offers no update (it looks every 20 minutes); in Red Alert, Settings → Updates → Check now finds nothing newer on 0.3.16. The Button never offers a Red Alert release, and Red Alert never offers a Button release
 - [ ] Logs: the-button.log starts again past 1 MB; red-alert.log keeps the one before as red-alert.log.1
 - [ ] Save support bundle in both: same files as in 0.1.63, and still nothing secret in them
 
