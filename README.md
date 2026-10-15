@@ -34,7 +34,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 **Features at a glance:** each app has its own list of everything it does today:
 [The Button](docs/features-the-button.md) · [the mod and Discord](docs/features-mod.md) ·
-[Red Alert and its Stream Deck plugin](docs/features-red-alert.md).
+[Red Alert and its Stream Deck plugin](docs/features-red-alert.md). What is still to do is in [docs/improvements.md](docs/improvements.md).
 
 ---
 
@@ -633,7 +633,8 @@ stream.
     meeting or an ejection happening. Silent (the video page carries the sound);
     `?sound=1` plays the lobby on air if you use the multiview on its own.
   * The Caster tab ranks what's happening in every lobby, so you know where to jump.
-  * Each host needs about 3-6 Mbps upload spare, and you download every lobby at once, so
+  * Each host needs about 10 Mbps upload (4-6 for the picture, 2-3 more for the player camera;
+    **Check my connection** in The Button measures it), and you download every lobby at once, so
     use a wired connection.
   * Put a delay on your public stream (OBS → Settings → Advanced → Stream Delay, 2-3
     minutes) so players in other lobbies can't watch it for information.

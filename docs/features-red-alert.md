@@ -388,7 +388,7 @@ Deck key, so no website can drive it.
 * **Keep it off stream** — the desk, the player cams list, the host view and the game replay viewer all show impostors.
 * **A stream delay is needed** — the game pictures come from the referee ghost's screen, which shows impostors' names in red, and impostor tags are on by default; put a 2–3 minute delay on the public stream (the setup check warns under 30 s).
 * **The administration code** — Red Alert needs the tournament's administration code, whose bot reads the private results channel where hosts' games are listed.
-* **Hosts must send their game** — a lobby appears only when its host turns on **Send my game to the caster** in The Button (VDO.Ninja); each host needs about 3–6 Mbps upload spare (one more video stream with player cameras on), and the caster downloads every lobby at once, so a wired connection is best.
+* **Hosts must send their game** — a lobby appears only when its host turns on **Send my game to the caster** in The Button (VDO.Ninja); each host needs about 10 Mbps upload (4–6 for the picture, 2–3 more with the player camera on; The Button's **Check my connection** measures it), and the caster downloads every lobby at once, so a wired connection is best.
 * **OBS 28 or newer** — with its WebSocket server on. Panic, replays and Stream Deck switches need OBS connected; the desk alone switches only Red Alert's own pages without it.
 * **Source Record plugin** — needed for replays, clips and montages (OBS's own Replay Buffer isn't used).
 * **ffmpeg** — needed for montages, the swoosh and simulation's stand-in clips (**Get ffmpeg** downloads it on Windows).

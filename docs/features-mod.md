@@ -283,7 +283,7 @@ The full sheet, with examples, is in the README's [Scoring](../README.md#scoring
 * **Host authority** applies from the main menu (the next lobby hosted), online games only, and keeps the lobby out of public matchmaking.
 * **Replays** stay on this PC (the newest 20); the theatre needs Freeplay on the replay's map and lists only games this PC hosted; the characters glide rather than walk; replays recorded before outfits were saved show no cosmetics.
 * **Local ports** — 8765 (stream overlay) and 8766 (The Button's connection) on this PC only.
-* **Caster feed** needs a setup code with a bot and the private results channel, and about 3–6 Mbps upload spare (the player camera adds about one more video stream).
+* **Caster feed** needs a setup code with a bot and the private results channel, and about 10 Mbps upload (4–6 for the picture, 2–3 more for the player camera; The Button's **Check my connection** measures it).
 * **Impostors are shown** on the referee's screen, in the caster feed, in the Live data message and on the overlay's `?full=1`: none of these may be anywhere players can see them during a game.
 * **The combined preliminary leaderboard** runs on GitHub, not in the mod: it needs the `DISCORD_BOT_TOKEN` secret and the `PRELIM_CHANNEL_IDS` variable, and only runs on the repository's default branch.
 
