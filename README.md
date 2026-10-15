@@ -32,6 +32,10 @@ Button. Among Us without The Button open is plain Among Us: the mod still tracks
 them on the PC, but nothing reaches Discord, and the host's chat says so when a game starts.
 Closing The Button unmutes anyone the bot had muted.
 
+**Features at a glance:** each app has its own list of everything it does today:
+[The Button](docs/features-the-button.md) · [the mod and Discord](docs/features-mod.md) ·
+[Red Alert and its Stream Deck plugin](docs/features-red-alert.md).
+
 ---
 
 ## Install (host only)
