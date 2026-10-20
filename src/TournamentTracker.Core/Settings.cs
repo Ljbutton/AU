@@ -40,7 +40,7 @@ namespace TournamentTracker
         /// <summary>With rotation on: the chance each of last game's impostors is impostor again (0.02 = 2%).</summary>
         public double RepeatImpostorChance { get; set; } = 0.02;
 
-        /// <summary>This host's mod answers the organiser's commands in the results channel (!lobbies, !start…).</summary>
+        /// <summary>This host's mod carries out the round changes The Button's Organiser tab posts in the results channel (lobbies, round starts).</summary>
         public bool Lead { get; set; }
 
         /// <summary>Port for the stream overlay (!overlay on), on this computer only.</summary>

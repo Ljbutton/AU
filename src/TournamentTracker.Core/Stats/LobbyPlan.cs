@@ -25,7 +25,7 @@ namespace TournamentTracker.Stats
     /// <summary>
     /// The next round's lobbies: everyone who moved on, snake-seeded by their points (1st,
     /// 10th, 11th, 20th… into the first lobby), plus the best of the rest as alternates. The
-    /// organiser adjusts it from the results channel before starting the round.
+    /// organiser changes it in The Button's Organiser tab before starting the round.
     /// </summary>
     public sealed class LobbyPlan
     {
@@ -77,7 +77,7 @@ namespace TournamentTracker.Stats
             return ids;
         }
 
-        // ---- Changes from the results channel ------------------------------------------
+        // ---- Changes from The Button's Organiser tab (posted in the results channel) ------
 
         public PlannedLobby? FindLobby(string text)
         {
@@ -106,7 +106,7 @@ namespace TournamentTracker.Stats
             {
                 case "move":
                 {
-                    if (args.Count < 2) return "Usage: !move <player> <lobby>";
+                    if (args.Count < 2) return "A move needs a player and a lobby.";
                     var lobby = FindLobby(args[args.Count - 1]);
                     var found = FindPlayer(string.Join(" ", args.Take(args.Count - 1)));
                     if (lobby == null) return $"No lobby called {args[args.Count - 1]}.";
@@ -117,7 +117,7 @@ namespace TournamentTracker.Stats
                 }
                 case "swap":
                 {
-                    if (args.Count != 2) return "Usage: !swap <player> <player> (use the start of a name if it has spaces)";
+                    if (args.Count != 2) return "A swap needs two players, one word each (the start of a name is enough).";
                     var a = FindPlayer(args[0]);
                     var b = FindPlayer(args[1]);
                     if (a == null || b == null) return $"Couldn't find {(a == null ? args[0] : args[1])} in the lobbies.";
@@ -129,17 +129,17 @@ namespace TournamentTracker.Stats
                 }
                 case "drop":
                 {
-                    if (args.Count == 0) return "Usage: !drop <player>";
+                    if (args.Count == 0) return "A drop needs a player.";
                     var found = FindPlayer(string.Join(" ", args));
                     if (found == null) return $"Couldn't find {string.Join(" ", args)} in the lobbies.";
                     found.Value.Lobby!.Players.Remove(found.Value.Player);
                     var next = Alternates.Take(3).Select(p => $"{p.Name} ({Pts(p.Points)}, {p.From})");
                     return $"Dropped {found.Value.Player.Name} from {found.Value.Lobby.Name}." +
-                           (Alternates.Count > 0 ? $" Next up: {string.Join(", ", next)}. Add one with !add <player> {found.Value.Lobby.Name.Replace("Lobby ", "")}." : "");
+                           (Alternates.Count > 0 ? $" Next up: {string.Join(", ", next)}. Add one to {found.Value.Lobby.Name} in The Button's Organiser tab." : "");
                 }
                 case "add":
                 {
-                    if (args.Count < 2) return "Usage: !add <player> <lobby>";
+                    if (args.Count < 2) return "Adding needs a player and a lobby.";
                     var lobby = FindLobby(args[args.Count - 1]);
                     string name = string.Join(" ", args.Take(args.Count - 1));
                     if (lobby == null) return $"No lobby called {args[args.Count - 1]}.";
@@ -152,7 +152,7 @@ namespace TournamentTracker.Stats
                 }
                 case "host":
                 {
-                    if (args.Count < 2) return "Usage: !host <lobby> <host label>";
+                    if (args.Count < 2) return "A host change needs a lobby and the host's lobby label.";
                     var lobby = FindLobby(args[0]);
                     if (lobby == null) return $"No lobby called {args[0]}.";
                     lobby.Host = string.Join(" ", args.Skip(1));

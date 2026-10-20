@@ -55,7 +55,7 @@ namespace TournamentTracker.Setup
         /// <summary>Impostor rotation: last game's impostors rarely impostor again straight away.</summary>
         [JsonPropertyName("rot")] public bool? ImpostorRotation { get; set; }
 
-        /// <summary>Tournament host codes: this host's mod answers the results-channel commands. Give it to one host (you).</summary>
+        /// <summary>Tournament host codes: this host's mod carries out the Organiser tab's round changes. Give it to one host (you).</summary>
         [JsonPropertyName("lead")] public bool? Lead { get; set; }
         [JsonPropertyName("ref")] public List<string>? RefereeUserIds { get; set; }
 

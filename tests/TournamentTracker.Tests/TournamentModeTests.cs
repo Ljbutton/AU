@@ -255,25 +255,28 @@ public class TournamentModeTests : IDisposable
     }
 
     [Fact]
-    public async Task Referees_adjust_points_from_discord_and_see_a_tick()
+    public async Task Referees_adjust_points_from_the_button_and_see_a_tick_and_typed_ones_do_nothing()
     {
         var (s, lobby) = AtRoundOne();
         s.GameStarted("ABCDEF", "Polus", lobby);
         _clock.Advance(120);
-        _discord.Say("results", "!adjust LJ red -2 meta call in meeting", _clock.Now);      // typed during the game
-        _discord.Say("results", "!adjust LJ nobody +1 typo", _clock.Now);
+        _discord.BotSays("results", "!adjust LJ red -2 meta call in meeting", _clock.Now);   // The Button, as the administration bot, during the game
+        _discord.BotSays("results", "!adjust LJ nobody +1 typo", _clock.Now);
+        _discord.Say("results", "!adjust LJ red +5 typed by a person", _clock.Now);         // typed in Discord: ignored
         _clock.Advance(180);
         s.GameEnded("ImpostorByKill", lobby);
         await s.PendingPosts;
 
         var alice = s.Combined!.GameRecords.Single().Players.Single(p => p.Name == "Alice");
         Assert.Contains(alice.PointBreakdown, l => l.Rule == "Referee: meta call in meeting" && l.Points == -2);
+        Assert.DoesNotContain(alice.PointBreakdown, l => l.Rule.Contains("typed"));
         Assert.Equal(4 - 2, alice.Points);                                                // kill win, referee −2
-        string red = _discord.Messages.Single(m => m.Content.Contains(" red ")).Id;
+        Assert.Equal(2, s.Combined.Adjustments.Count);
+        string red = _discord.Messages.Single(m => m.Content.Contains(" red -2 ")).Id;
         string nobody = _discord.Messages.Single(m => m.Content.Contains("nobody")).Id;
         Assert.Contains(("results", red, "✅"), _discord.Reactions);
         Assert.Contains(("results", nobody, "❓"), _discord.Reactions);
-        Assert.Equal(2, _discord.Reactions.Count);
+        Assert.Equal(2, _discord.Reactions.Count);                                         // the typed one gets no answer
     }
 
     [Fact]
@@ -398,7 +401,16 @@ public class TournamentModeTests : IDisposable
         Play(s, lobby);
         await s.PendingPosts;
 
-        _discord.Say("results", "!void LJ-1 restarted after a crash", _clock.Now);
+        _discord.Say("results", "!void LJ-1 typed by a person", _clock.Now);         // typed in Discord: ignored
+        s.RunCommand("!lb");
+        await s.PendingPosts;
+        Assert.Equal(1, s.Combined!.Store.GamesRecorded);
+        Assert.Empty(s.Combined.Voids);
+        Assert.Empty(_discord.Reactions);
+        _discord.Messages.RemoveAll(m => m.Content.Contains("typed by a person"));
+
+        _clock.Advance(1);
+        _discord.BotSays("results", "!void LJ-1 restarted after a crash", _clock.Now);   // from The Button, as the administration bot
         s.RunCommand("!lb");
         await s.PendingPosts;
         Assert.Equal(0, s.Combined!.Store.GamesRecorded);
@@ -414,7 +426,7 @@ public class TournamentModeTests : IDisposable
         Assert.Equal(0, s.Combined!.Store.GamesRecorded);
 
         _clock.Advance(60);
-        _discord.Say("results", "!unvoid LJ-1", _clock.Now);
+        _discord.BotSays("results", "!unvoid LJ-1", _clock.Now);
         s.RunCommand("!lb");
         await s.PendingPosts;
         Assert.Equal(1, s.Combined!.Store.GamesRecorded);
@@ -441,11 +453,39 @@ public class TournamentModeTests : IDisposable
         Assert.Contains(_discord.Messages, m => m.Channel == "results" && m.Content == "Disconnect · LJ-1: Eve (crewmate) left at 1:12, before the first meeting.");
     }
 
+    /// <summary>A change from The Button's Organiser tab: posted in the results channel as the administration bot.</summary>
+    private static ChannelMessage FromButton(string text, string channel = "results") =>
+        new() { Id = "9" + Math.Abs(text.GetHashCode()), ChannelId = channel, Content = text, AuthorIsBot = true };
+
+    /// <summary>The same command typed by a person in Discord.</summary>
     private static ChannelMessage Typed(string text, string channel = "results") =>
-        new() { Id = "9" + Math.Abs(text.GetHashCode()), ChannelId = channel, Content = text };
+        new() { Id = "8" + Math.Abs(text.GetHashCode()), ChannelId = channel, Content = text, AuthorId = "ref" };
 
     [Fact]
-    public async Task The_organiser_builds_next_round_lobbies_and_starts_the_round_from_the_results_channel()
+    public async Task Round_commands_typed_by_a_person_in_discord_do_nothing()
+    {
+        foreach (var g in LobbyPlanTests.RoundOne(3)) { g.TournamentId = "fall-cup"; g.Tournament = "Fall Cup"; g.StartedUtc = _clock.Now.AddHours(-1); _discord.AddGame("results", g); }
+        var code = TournamentCode();
+        code.Lead = true;
+        var lead = Session(code);
+        var other = Session(TournamentCode());
+        int posts = _discord.Messages.Count, hooks = _discord.Webhooks.Count, round = lead.Round;
+
+        foreach (var text in new[] { "!lobbies 2", "!host final LJ", "!move Soggy B", "!start 2 in 10", "!start" })
+            foreach (var s in new[] { lead, other }) s.HandleChannelMessage(Typed(text));
+        await lead.PendingPosts;
+        await other.PendingPosts;
+        lead.Pump();
+        Assert.Null(lead.Plan);
+        Assert.Equal(round, lead.Round);
+        Assert.Equal(round, other.Round);
+        Assert.Equal(posts, _discord.Messages.Count);              // no answer, no lobbies posted
+        Assert.Equal(hooks, _discord.Webhooks.Count);              // nobody pinged
+        Assert.Empty(_discord.Reactions);
+    }
+
+    [Fact]
+    public async Task The_organiser_builds_next_round_lobbies_and_starts_the_round_from_the_button()
     {
         foreach (var g in LobbyPlanTests.RoundOne(3)) { g.TournamentId = "fall-cup"; g.Tournament = "Fall Cup"; g.StartedUtc = _clock.Now.AddHours(-1); _discord.AddGame("results", g); }
         var code = TournamentCode();
@@ -455,7 +495,7 @@ public class TournamentModeTests : IDisposable
         var delays = new List<TimeSpan>();
         lead.Delay = t => { delays.Add(t); return Task.CompletedTask; };
 
-        foreach (var s in new[] { lead, other }) s.HandleChannelMessage(Typed("!lobbies 2"));
+        foreach (var s in new[] { lead, other }) s.HandleChannelMessage(FromButton("!lobbies 2"));
         await lead.PendingPosts;
         lead.Pump();
         Assert.Null(other.Plan);                                   // only the lead answers
@@ -464,11 +504,11 @@ public class TournamentModeTests : IDisposable
         var posted = _discord.Messages.Last(m => m.Content.StartsWith("Round 2 lobbies"));
         Assert.Contains("**Final**", posted.Content);
 
-        lead.HandleChannelMessage(Typed("!host final LJ"));
+        lead.HandleChannelMessage(FromButton("!host final LJ"));
         await lead.PendingPosts;
         Assert.Equal("LJ", lead.Plan!.Lobbies[0].Host);
 
-        foreach (var s in new[] { lead, other }) s.HandleChannelMessage(Typed("!start 2 in 10"));
+        foreach (var s in new[] { lead, other }) s.HandleChannelMessage(FromButton("!start 2 in 10"));
         await lead.PendingPosts;
         await Task.Delay(50);
         await lead.PendingPosts;
@@ -492,7 +532,7 @@ public class TournamentModeTests : IDisposable
         var s = new TournamentSession(settings, _dir.Path, NullLog.Instance, new HttpClient(_http), () => _clock.Now, new FakeVoiceApi(), presence, TournamentCode());
         _sessions.Add(s);
         s.VoiceTick(VoicePhase.Lobby, Lobby("LJ"), "QWERTY", "Polus");
-        s.HandleChannelMessage(Typed("!start 3"));
+        s.HandleChannelMessage(FromButton("!start 3"));
         await s.PendingPosts;
         var join = _discord.Webhooks.Select(w => w.Payload.TryGetProperty("content", out var c) ? c.GetString() : null).Last(c => c != null && c.Contains("join"));
         Assert.Equal("**Round 3 · LJ's lobby:** join voice <#vc55> · lobby code `QWERTY` · Polus", join);
@@ -510,7 +550,7 @@ public class TournamentModeTests : IDisposable
         second.RunCommand("!lead");
         await second.PendingPosts;
         var note = _discord.Messages.ToList().Last(m => m.Content?.StartsWith("Lead · ") == true);   // the live data can be posted around it
-        Assert.StartsWith("Lead · Sam answers channel commands", note.Content);
+        Assert.StartsWith("Lead · Sam carries out the round changes", note.Content);
         first.HandleChannelMessage(new ChannelMessage { Id = note.Id, ChannelId = "results", Content = note.Content, AuthorIsBot = true });
         Assert.False(first.IsLead);
         Assert.True(second.IsLead);
@@ -811,7 +851,7 @@ public class PrelimLeaderboardTests
         Assert.Equal(0, await Job().UpdateAsync(new[] { "prelims" }));        // nothing new: no edits
 
         _discord.AddGame("prelims", Prelim("oct-sus", "October: Sus Squad", "Sus Squad", "Soggy", 2, "HumansByTask"));
-        _discord.Say("prelims", "!adjust Soggy-2 red -1 meta", _clock.Now);
+        _discord.BotSays("prelims", "!adjust Soggy-2 red -1 meta", _clock.Now);
         Assert.Equal(2, await Job().UpdateAsync(new[] { "prelims" }));      // Sus Squad's leaderboard and count
         Assert.Equal(2, _discord.Edits);
         Assert.Equal(4, _discord.Messages.Count(m => m.Embeds.HasValue));   // still four messages
@@ -823,7 +863,7 @@ public class PrelimLeaderboardTests
     {
         _discord.AddGame("prelims", Prelim("oct-sus", "October: Sus Squad", "Sus Squad", "Soggy", 1, "HumansByTask"));
         _discord.AddGame("prelims", Prelim("oct-sus", "October: Sus Squad", "Sus Squad", "Soggy", 2, "HumansByTask"));
-        _discord.Say("prelims", "!void Soggy-1 restarted", _clock.Now);
+        _discord.BotSays("prelims", "!void Soggy-1 restarted", _clock.Now);
 
         await Job().UpdateAsync(new[] { "prelims" });
         string Footer() => _discord.Messages.Single(m => m.Embeds.HasValue && FakeDiscord.Title(Payload(m)).EndsWith(PrelimLeaderboards.TitleSuffix)).Embeds!.Value[0].GetProperty("footer").GetProperty("text").GetString()!;
@@ -834,6 +874,25 @@ public class PrelimLeaderboardTests
         _discord.Messages.Remove(command);
         await Job().UpdateAsync(new[] { "prelims" });
         Assert.StartsWith("1 game ·", Footer());
+    }
+
+    [Fact]
+    public async Task Commands_typed_by_a_person_in_a_preliminary_channel_do_nothing()
+    {
+        var one = Prelim("oct-sus", "October: Sus Squad", "Sus Squad", "Soggy", 1, "HumansByTask");
+        var two = Prelim("oct-sus", "October: Sus Squad", "Sus Squad", "Soggy", 2, "HumansByTask");
+        _discord.AddGame("prelims", one);
+        _discord.AddGame("prelims", two);
+        _discord.Say("prelims", "!void Soggy-1 restarted", _clock.Now);
+        _discord.Say("prelims", "!adjust Soggy-2 red -1 meta", _clock.Now);
+        _discord.Say("prelims", "!resetleaderboard", _clock.Now);
+
+        await Job().UpdateAsync(new[] { "prelims" });
+        var board = _discord.Messages.Single(m => m.Embeds.HasValue && FakeDiscord.Title(Payload(m)).EndsWith(PrelimLeaderboards.TitleSuffix)).Embeds!.Value[0];
+        Assert.StartsWith("2 games ·", board.GetProperty("footer").GetProperty("text").GetString());   // nothing voided, nothing reset
+        Assert.Equal(PrelimLeaderboards.Board("October: Sus Squad", new[] { one, two }, 15).Embeds![0].Description, board.GetProperty("description").GetString());   // nor adjusted
+        Assert.Empty(_discord.Reactions);
+        Assert.DoesNotContain(_discord.Messages, m => m.Content.StartsWith("Game Soggy-1 is void"));
     }
 
     private static JsonElement Payload(FakeDiscord.Msg m) => JsonDocument.Parse("{\"embeds\":" + m.Embeds!.Value.GetRawText() + "}").RootElement;
