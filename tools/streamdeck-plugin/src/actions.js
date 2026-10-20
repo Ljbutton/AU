@@ -43,6 +43,7 @@ export const TOGGLES = {
 };
 
 const REPLAY_OPS = {
+	best: { title: "BEST REPLAY", icon: "replay" },
 	last: { title: "PLAY LAST", icon: "play" },
 	that: { title: "REPLAY THAT", icon: "replay" },
 	live: { title: "BACK TO LIVE", icon: "live" },
@@ -79,6 +80,23 @@ const withTransition = (settings, query = {}) => {
 	const t = pick(settings.t, TRANSITIONS, null);
 	return t ? { ...query, t } : query;
 };
+
+/**
+ * Keys saved before Preview became the default press: a key with settings of its own but no `mode` was
+ * set up when the default was "cut", so it keeps cutting. (Every key set up since saves its mode.)
+ */
+const keepCut = (saved) => (saved && typeof saved === "object" && Object.keys(saved).length > 0 && !("mode" in saved) ? { mode: "cut" } : {});
+
+/**
+ * Best replay (the Lobby key's "Best replay", the Replay key's "Best replay"): Red Alert picks the best
+ * recent clip (the same choice as the desk's N key) and puts it in Preview; Take plays it. The key shows
+ * what it would pick (by its lobby and kind of play: no names) and is lit while a replay is in Preview.
+ */
+function bestView(state, ctx) {
+	const best = state?.replay?.best ?? null;
+	const staged = state?.preview?.replay ?? null;
+	return { ...base(ctx), type: "label", icon: "replay", title: "BEST REPLAY", sub: staged ? "in Preview" : best?.title ?? "nothing yet", accent: "green", lit: Boolean(staged), dim: !best && !staged };
+}
 
 /** A key's target lobby setting as the path segment Red Alert takes: "pgm", "pvw" or the number. */
 export function targetSegment(settings) {
@@ -141,9 +159,13 @@ export function customRequest(settings) {
 
 const lobbyAction = {
 	uuid: id("lobby"),
-	defaults: { lobby: "1", mode: "cut", t: "" },
+	// Select, then submit: a press puts the lobby in Preview, Take puts it on stream. "cut" goes straight on.
+	defaults: { lobby: "1", mode: "preview", t: "" },
+	legacy: keepCut,
 	request(s, state) {
 		const which = String(s.lobby ?? "1").trim().toLowerCase();
+		// Where the action was is Best replay: into Preview whatever the press is set to.
+		if (which === "action") return go("replay/best");
 		// Adding builds a 2-up or quad in Preview one lobby at a time, so it takes a lobby number.
 		if (s.mode === "add") {
 			const n = posInt(which);
@@ -151,11 +173,10 @@ const lobbyAction = {
 		}
 		const preview = s.mode === "preview";
 		if (!preview) {
-			if (which === "next" || which === "prev" || which === "action") return go(`lobby/${which}`, withTransition(s));
+			if (which === "next" || which === "prev") return go(`lobby/${which}`, withTransition(s));
 			const n = posInt(which);
 			return n ? go(`lobby/${n}`, withTransition(s)) : refuse("Set the lobby number.");
 		}
-		if (which === "action") return refuse("Where the action is goes straight to stream: set this key to Cut.");
 		if (which === "next" || which === "prev") {
 			const from = previewLobby(state) ?? programLobby(state);
 			const to = stepLobby(state, from?.no, which === "next" ? 1 : -1);
@@ -167,9 +188,10 @@ const lobbyAction = {
 	view(s, state, ctx) {
 		const which = String(s.lobby ?? "1").trim().toLowerCase();
 		const mode = s.mode === "preview" || s.mode === "add" ? "preview" : "cut";
-		if (which === "next" || which === "prev" || which === "action") {
+		if (which === "action") return bestView(state, ctx);
+		if (which === "next" || which === "prev") {
 			const from = mode === "preview" ? (previewLobby(state) ?? programLobby(state)) : programLobby(state);
-			const target = which === "action" ? null : stepLobby(state, from?.no, which === "next" ? 1 : -1);
+			const target = stepLobby(state, from?.no, which === "next" ? 1 : -1);
 			return { ...base(ctx), type: "lobbyStep", label: which.toUpperCase(), mode, target: target ? { no: target.no, name: target.name } : null };
 		}
 		const no = posInt(which);
@@ -196,7 +218,9 @@ const lobbyAction = {
 
 const camAction = {
 	uuid: id("cam"),
-	defaults: { target: "pgm", lobbyNo: "1", who: "slot", slot: "1", colour: "red", mode: "cut" },
+	// Select, then submit: the camera (following that player) into Preview, Take puts it on. "cut" and "arm" as before.
+	defaults: { target: "pgm", lobbyNo: "1", who: "slot", slot: "1", colour: "red", mode: "preview" },
+	legacy: keepCut,
 	request(s) {
 		const seg = targetSegment(s);
 		if (seg === null) return refuse("Set the lobby number.");
@@ -205,7 +229,7 @@ const camAction = {
 		else if (s.who === "next" || s.who === "prev" || s.who === "auto") who = s.who;
 		else who = posInt(s.slot) && posInt(s.slot) <= 15 ? `slot${posInt(s.slot)}` : null;
 		if (!who) return refuse("Set the player slot (1 to 15) or colour.");
-		return go(`cam/${seg}/${who}`, s.mode === "arm" ? { arm: "1" } : {});
+		return go(`cam/${seg}/${who}`, s.mode === "arm" ? { arm: "1" } : s.mode === "cut" ? {} : { to: "pvw" });
 	},
 	view(s, state, ctx) {
 		const lobby = targetOf(s, state);
@@ -216,7 +240,7 @@ const camAction = {
 				type: "camStep",
 				label: s.who.toUpperCase(),
 				lobbyNo: lobby?.no ?? null,
-				mode: s.mode === "arm" ? "arm" : "cut",
+				mode: s.mode === "arm" || s.mode === "cut" ? s.mode : "preview",
 				noCam,
 				current: drawn(camChoice(lobby)),
 			};
@@ -249,7 +273,13 @@ const takeAction = {
 		const as = pick(s.as, LAYOUTS, null);
 		return go("take", withTransition(s, as ? { as } : {}));
 	},
+	/** "TAKE" (the submit key), and what's in Preview: its lobbies and layout, or the replay it plays. */
 	view(s, state, ctx) {
+		const replay = state?.preview?.replay ?? null;
+		if (replay) {
+			const no = lobbyByName(state, replay.lobby)?.no;
+			return { ...base(ctx), type: "label", icon: "take", title: "TAKE", sub: `REPLAY${Number.isFinite(no) ? ` L${no}` : ""}`, accent: "green", lit: true };
+		}
 		const staged = slotNumbers(state, "preview");
 		const as = pick(s.as, LAYOUTS, null);
 		const layout = as ?? normLayout(state?.preview?.layout);
@@ -302,6 +332,7 @@ const replayAction = {
 		const r = state?.replay ?? {};
 		const def = REPLAY_OPS[op];
 		const v = { ...base(ctx), type: "label", icon: def.icon, title: def.title, accent: "green" };
+		if (op === "best") return bestView(state, ctx);
 		if (op === "last") return { ...v, sub: r.last?.title ?? (r.ready ? `${r.ready} ready` : "no clips yet"), lit: (r.ready ?? 0) > 0, dim: !r.ready && !r.last };
 		if (op === "that") {
 			const on = programLobby(state);
@@ -497,7 +528,10 @@ export const ACTIONS = [
 
 export const BY_UUID = Object.fromEntries(ACTIONS.map((a) => [a.uuid, a]));
 
-/** An action's settings with its defaults filled in (a new key has none of its own yet). */
+/**
+ * An action's settings with its defaults filled in (a new key has none of its own yet), and a key saved
+ * before a default changed keeping what it had.
+ */
 export function settingsOf(action, settings) {
-	return { ...action.defaults, ...(settings ?? {}) };
+	return { ...action.defaults, ...(action.legacy?.(settings) ?? {}), ...(settings ?? {}) };
 }
