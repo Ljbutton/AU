@@ -83,7 +83,7 @@ thing it knew:
   then a play viewers missed (it happened while its lobby was off stream), then its points, then the
   newest. "Replay that" clips and montages are never picked. Press again for the next one down.
   Nothing worth it: the key shows *nothing yet* and a press says "No replay worth showing yet." and
-  changes nothing. The key shows the pick by its lobby and kind of play ("Lobby 2: winning kill"),
+  changes nothing. The key shows the pick by its lobby and kind of play ("LJ: winning kill"),
   never who did it.
 * **Lobby numbers stay put.** Lobby 3 is always the same lobby during an event: Red Alert keeps a
   list of lobby names and their numbers (`lobby-numbers.json` next to its desk settings), and uses
@@ -109,7 +109,7 @@ Alert (`/deck/<path>`), for reference and for Companion below.
 | **Cut to cam** | lobby: on stream, in Preview, or a number | That lobby's camera on stream, still following whoever it follows. | `cam/cut`, `cam/3/slot2` |
 | **Layout** | full, 2-up, quad, grid, cameras | What's in Preview (or, with nothing there, what's on stream) in that layout, in Preview: **Take** puts it on stream, so keep a Take key next to it. Lit red while on stream, green while in Preview. | `layout/quad` |
 | **Replay** | best replay, play last, replay that, back to live, play/pause, back, forward, frame back, frame forward, restart, zoom in, zoom out, follow, angle, speed | **Best replay** puts the best recent replay into Preview (Take plays it); **Replay that** saves the last seconds of the lobby on stream and plays them; **Play last** plays the newest ready clip; **Speed** steps 100 / 50 / 25%. | `replay/best`, `replay/that`, `replay/last`, `replay/slow`… |
-| **Toggle** | mute all lobby voice, hold, auto grid, auto intermission, auto switch, standings, alerts; **Press**: switch it, always on, always off | Shows ON / OFF (MUTED, HELD, PAUSED) from Red Alert's own state. **Hold** stops all automatic switching. | `voice/mute/toggle`, `hold/on`, `auto/grid/off`, `gfx/alerts/toggle`… |
+| **Toggle** | mute all lobby voice, Hear Preview (HEAR PREVIEW: the lobby in Preview in your headphones), hold, auto grid, auto intermission, auto switch, standings, alerts; **Press**: switch it, always on, always off | Shows ON / OFF (MUTED, HELD, PAUSED) from Red Alert's own state. **Hold** stops all automatic switching. | `voice/mute/toggle`, `voice/cue/toggle`, `hold/on`, `auto/grid/off`, `gfx/alerts/toggle`… |
 | **Break** | be right back, starting soon, intermission, sponsor, end the break | That break screen, or back from it. **Starting soon** keeps the countdown and line set on the Live desk (a Custom path key can set them: `break/soon?in=10`). | `break/brb`, `break/soon`, `break/off` |
 | **Panic** | | One press: fade to Be right back, mute every lobby voice, clear the graphics, pause alerts and hold switching. While that panic is on the key says **UNDO PANIC**: a press puts it all back (that panic's undo only, never another switch). | `panic`, `panic/undo` |
 | **Undo** | | Takes back the panic while there is one, else an automatic switch away from a lobby that dropped, else the last switch made by hand. Lit while a panic is on. Refused (503) while OBS isn't connected when it would switch. | `undo` |
@@ -217,7 +217,7 @@ ready-made links with your key in them.
 | `undo` | The panic, else an automatic switch, else the last switch by hand |
 | `gfx/standings/…`, `gfx/alerts/…` (`on`, `off`, `toggle`), `gfx/skip`, `gfx/clear`, `gfx/card` | Graphics |
 | `prompt/show`, `prompt/skip`, `prompt/save` | After-game prompts: show the table, skip it, or save it for intermission |
-| `voice/mute/on`, `voice/mute/off`, `voice/mute/toggle`, `voice/listen/<n>`, `voice/listen/off` | Lobby voice |
+| `voice/mute/on`, `voice/mute/off`, `voice/mute/toggle`, `voice/listen/<n>`, `voice/listen/off`, `voice/cue/on`, `voice/cue/off`, `voice/cue/toggle` | Lobby voice; `cue` is Hear Preview (the lobby in Preview in the caster's headphones, never on stream) |
 | `spec/lit`, `spec/vision`, `spec/eye` | The host's view modes |
 | `mute`, `quad`, `grid`, `cam`, `cam/on`, `cam/off`, `cam/<who>` | Older links, still working |
 | `lobby/action`, `action` | Older links for *where the action is*: they do what `replay/best` does now |

@@ -550,3 +550,80 @@ _Auto grid on (Live desk → Auto → Grid), two or more lobbies, OBS connected.
 - [ ] Home → Tools → **Stream overlay** on → the answer ends "Size 360×720."
 - [ ] Automute card on a code with no bot → "Off: it needs a Discord bot. Add one in Settings → Your Discord, or use a setup code with a bot in it."
 - [ ] Referee tab: + with an empty box on a waiting game → the breakdown says "Referee change +1" (not "Referee: referee"); Submit → the report says the same
+
+## New in 0.1.66 (Red Alert 0.3.18)
+_Red Alert 0.3.18 on the caster's PC with OBS connected and the Stream Deck plugin from the same release. Hosts on The Button 0.1.66 for the On stream light and the voice bot fix._
+
+### Red Alert: Best replay
+_Two or more lobbies playing, replays saving (Source Record)._
+- [ ] After a kill: **N** (or the Live desk's **Best replay** button) → Preview shows the clip's still, REPLAY and "Replay: LJ · … (MEDIUM)" (or HIGH, VERY HIGH, MUST SHOW); the toast ends "In Preview: Take plays it."; nothing changes on stream
+- [ ] **Take** (Enter) → the replay plays in TT Replay, as Play last does, and Preview empties
+- [ ] Several replays ready: the highest tier comes first, and in the same tier a play from a lobby that wasn't on stream comes before one viewers saw; **N** again → the next one down, and after the last back to the best
+- [ ] A replay that has played, a **Replay that** clip, a montage or a play older than 3 minutes is never offered; with none left → "No replay worth showing yet." (or "No replay worth showing yet: one is still being saved.") and Preview doesn't change
+- [ ] **Hold** on → N still puts a replay in Preview (it switches nothing), and Take plays it
+- [ ] Auto grid on: a replay in Preview isn't replaced by auto grid's suggestion
+- [ ] OBS disconnected with a replay in Preview → Take says "OBS isn't connected: replays play in OBS." and the replay stays in Preview
+- [ ] Stream Deck: a Lobby key set to **Best replay** and a Replay key set to **Best replay** show BEST REPLAY with the pick's lobby and kind of play ("LJ: kill", never a player's name), "in Preview" while it's staged, "nothing yet" when there's none; a press does what N does
+- [ ] An old `lobby/action` or `action` link (Companion, a Website key) does the same as `replay/best`
+
+### Stream Deck: select, then submit
+- [ ] A new Lobby key: its **Press** is **Put it in Preview (Take puts it on)**; a press puts the lobby in Preview (green border) and nothing on stream; the Take key reads TAKE with the lobby under it; Take puts it on stream
+- [ ] A new Player cam key: a press answers "Preview: Lobby 3's player camera on Bob. Take puts it on." and sets who it follows; the camera's next, previous and auto keys have a green border; Take puts TT Player Cam on stream
+- [ ] A key set up with the older plugin (its Press or any other setting changed before) still cuts straight to stream after the plugin update
+- [ ] A key whose settings were never opened (Lobby 1 as it came) now puts its lobby in Preview: set **Press** to **Cut it to stream** if it should cut
+- [ ] A replay in Preview → the Take key reads TAKE with REPLAY L<n> under it
+- [ ] Settings → Stream Deck → link builder: **Camera into Preview (Take puts it on)** adds `&to=pvw`; the Replay list has **Best replay into Preview (Take plays it)**; the Lobby list no longer offers "Where the action is"
+
+### Red Alert: Starting soon
+- [ ] Live desk → Breaks → **Starting soon** → TT Starting Soon on stream at once with the tournament's name and logo; the status bar says BREAK, the Program box STARTING SOON, and the Starting soon card shows
+- [ ] **Starts**: type 10 and **Set** → the card says "at <time> · 9:59 to go" and the stream counts down; 19:30 → counts down to 19:30 (a time already past today means tomorrow); empty → "No countdown"; "abc" → "Type minutes (10) or a time (19:30)."
+- [ ] Your line: type it and press **Set** (or Enter) → it shows on stream; it takes at most 120 characters
+- [ ] At zero the stream says "Starting now" and stays; while it's on, auto grid, auto intermission, armed cameras and the graphics queue wait, and lobby voice is silent
+- [ ] Sponsors listed for `startingsoon` in sponsors.json take turns every 10 s; with none listed, the `break` sponsors do; **Export report** has "Starting soon screen" appearances
+- [ ] Click **Starting soon** again while it's on → the cursor goes to **Starts**; nothing switches
+- [ ] **Take** a lobby with the broadcast delay on (3 s) → the lobby comes on at once and no Starting soon graphic lingers for 3 s on top of it
+- [ ] **End break**, **Undo** and Panic's undo come off it, or go back to it
+- [ ] Stream Deck: the Break key set to **Starting soon** shows SOON / STARTING SOON and puts it on; a Custom path `break/soon?in=10&text=Doors%20open` puts it on with that countdown and line; `soon/set?at=19:30` changes the countdown without switching
+
+### The Button: On stream light
+_A host sending their game to Red Alert 0.3.18._
+- [ ] Their lobby on stream full screen → Home shows the red **ON STREAM** bar: "On stream (full screen)" and "You're on stream: stay in the game window, no menus."; in a 2-up, the quad, the grid, a player camera or a sponsor break it says "On stream (in the 2-up)", "(in the quad)", "(in the grid)", "(player camera)", "(sponsor break)"
+- [ ] Their lobby in Red Alert's Preview (not on stream) → amber **NEXT**: "Next: the caster has your lobby in Preview."; neither → no bar
+- [ ] Close Red Alert, or turn **Send my game to the caster** off → the bar goes within about 10 s
+- [ ] Another host's Home shows only their own lobby's state
+
+### Red Alert: broadcast delay
+- [ ] After the update, every TT Lobby, TT Voice and TT Cam source in OBS reloads once (a moment of black); the OBS card's **Broadcast delay** says 3 s
+- [ ] With 3 s: a kill on the Live desk reaches the stream about 3 s later, and its impostor tags, alive counts, sabotage timer and off-screen alert arrive with the picture, not before; **Take** changes the layout on stream at once
+- [ ] Change it to 1 s → "Broadcast delay 1 s: the lobbies and the graphics reach the stream 1 s late. The Live desk stays live. Every lobby in OBS reloaded with it."; **Off** → "Broadcast delay off: the lobbies go to the stream as they come."; back to 3 s
+- [ ] Off with impostor tags on → the warnings rail says "No broadcast delay" with **Turn on a 3 s delay**, and the setup check says "Broadcast delay off · impostor tags are on"; the button puts it back to 3 s
+- [ ] On: the setup check's delay line says your mic isn't held back and gives a Sync Offset of 3000 ms
+- [ ] **Replay that** and the kill clips play about 3 s later than in 0.3.17, and the zoom, crop and the play's mark still line up
+- [ ] Intermission, Be right back and a replay go on with no 3 s of the old graphics left on them
+- [ ] Simulation: the graphics are delayed too
+- [ ] The lobby voice on stream is in step with the picture (fine-tune with the per-lobby delay if not)
+
+### Red Alert: Hear Preview
+_OBS → Settings → Audio → Advanced → Monitoring Device set to the caster's headphones; Desktop Audio muted._
+- [ ] Setup check: "Headphones (OBS monitoring device): <your headphones>" is OK; set the device to Default → a warning; Disabled → a warning
+- [ ] A lobby in Preview → **HEAR** turns green "🎧 LJ" and you hear LJ live in your headphones; the stream and the recording don't have it (OBS's **TT Cue** source is Monitor Only)
+- [ ] **Take** it → the headphones go quiet (Preview is empty); another lobby in Preview → that one is heard
+- [ ] Mute all, Panic, an empty Preview and auto grid's own suggestion → silent
+- [ ] Unmute Desktop Audio → **HEAR** turns amber: "Hear Preview waits while Desktop Audio is capturing: it could carry your headphones to the stream. Mute Desktop Audio."; mute it → it plays again
+- [ ] Click **HEAR** → **HEAR: OFF** ("Hear Preview off."); again → on ("Hear Preview on: the lobby in Preview plays in your headphones (OBS's monitoring device), not on stream.")
+- [ ] Stream Deck Toggle → **Hear Preview in headphones** shows HEAR PREVIEW on or off and switches it
+- [ ] Delete TT Cue in OBS → Red Alert makes it again; close Red Alert while TT Cue is playing and open it → TT Cue is muted when it connects
+
+### Red Alert: restarts and crashes
+- [ ] Turn on Hold, Auto grid, Auto intermission, set a countdown, Win counter: this round, Standings: whole tournament → close and reopen Red Alert → all still set (a countdown or timed hold that ran out meanwhile isn't)
+- [ ] With lobbies showing → close and reopen Red Alert (or reopen with the internet off) → the lobbies and their OBS sources are there at once; a lobby not sending yet says **CACHED** on its tile (hover: "Kept from before Red Alert restarted…") until the results channel confirms it, within a few seconds once Discord answers
+- [ ] A lobby whose live message was deleted meanwhile → it goes after the first poll
+- [ ] **Save support bundle** → no lobbies-cache.json in the zip, and no VDO.Ninja password in any file
+- [ ] Lock Red Alert → lobbies-cache.json is gone from %LOCALAPPDATA%\RedAlert
+- [ ] End the desk's msedgewebview2.exe renderer process in Task Manager → the page comes back by itself, the lobbies reconnect, no auto switch or LOBBY DOWN cards; red-alert.log says "Window: the page's renderer crashed" and "The desk page is back"
+- [ ] End the WebView2 browser process (the parent msedgewebview2.exe) → a new one starts and the desk comes back
+- [ ] The Button: end its renderer process the same way → its page comes back; the-button.log says "Window: the page's renderer crashed"
+
+### Discord voice bot
+- [ ] Host with the bot in their voice channel → close Among Us → the bot leaves the voice channel and stays out (try it several times, also straight after The Button reconnects to Discord); it never comes back into the host's channel by itself
+- [ ] Host again → the bot joins once

@@ -70,15 +70,17 @@ straight away (see [What to send if something fails](#what-to-send-if-something-
 * [ ] Red Alert unlocked with the administration code. The OBS page says **Connected**; press
   **Rebuild TT scenes**.
 * [ ] **OBS scenes built**: TT Full, TT 2-up, TT Quad, TT Grid, TT Player Cam, TT Intermission,
-  TT Be Right Back, TT Sponsor Break and TT Replay are all in OBS.
-* [ ] OBS → **Setup check** all green: Source Record found (replays), Desktop Audio muted, and a
-  stream delay if Impostor tags are on.
+  TT Be Right Back, TT Starting Soon, TT Sponsor Break and TT Replay are all in OBS.
+* [ ] OBS → **Setup check** all green: Source Record found (replays), Desktop Audio muted, a
+  broadcast delay (OBS card → **Broadcast delay**, 3 s by default) if Impostor tags are on, and
+  **Headphones (OBS monitoring device)** set to the caster's headphones (OBS → Settings → Audio →
+  Advanced → Monitoring Device). No OBS stream delay is needed.
 * [ ] **Stream Deck plugin paired**: the plugin's **Test** finds Red Alert (Settings → Stream Deck
   has the port and the key), and no key shows SET UP, OFFLINE or WRONG KEY.
-* [ ] **Lobby keys set to Preview**: each Stream Deck lobby key's **Press** setting is **Put it in
-  Preview**, with a **Take** key next to them (as in the
-  [recommended layouts](stream-deck.md#recommended-layouts)). A lobby key left on the default,
-  **Cut it to stream**, puts its lobby on stream at once.
+* [ ] **Lobby keys set to Preview**: each Stream Deck lobby and player cam key's **Press** setting
+  is **Put it in Preview** (the default for new keys), with a **Take** key next to them (as in the
+  [recommended layouts](stream-deck.md#recommended-layouts)). A key set up with an older plugin
+  keeps **Cut it to stream** and puts its lobby on stream at once: open each key and check.
 * [ ] **Simulation off**: no TEST MODE bar across the top.
 * [ ] The test stream (unlisted) or the recording is ready to start.
 
@@ -108,26 +110,32 @@ bundles at the end.
   PC). Sent moving but silence in OBS means OBS's side; Sent still means the host's side.
 * [ ] **Each lobby in turn** says something: the stream carries only the lobby on stream (the voice
   follows the picture). **Listen** on a row keeps that lobby's voice up; press it again to stop.
+* [ ] **Caster**: put a lobby that isn't on stream in Preview: **HEAR** on Preview turns green with
+  its name and you hear it in your headphones; the watcher doesn't hear it on stream.
 
 ### T+6 to T+9 · Every lobby: Preview, then Take
 
 * [ ] **Caster**, for each lobby: its number key (1-9), or its Stream Deck lobby key set to **Press:
   Put it in Preview**, puts it in **Preview** (green); **Take** (Enter, or the Take key) puts it on
   stream. Program turns red, OBS switches within a couple of seconds, and the status bar says PROGRAM.
-  (A lobby key left on the default, **Cut it to stream**, skips Preview and puts the lobby on stream
-  at once.)
-* [ ] The watcher sees the right lobby with the right label, and hears that lobby.
+  (A lobby key set to **Cut it to stream** skips Preview and puts the lobby on stream at once.)
+* [ ] The watcher sees the right lobby with the right label, and hears that lobby, about the
+  broadcast delay (3 s) behind the Live desk.
+* [ ] **Each host**: The Button's Home shows a red **ON STREAM** bar while their lobby is on stream,
+  and an amber **NEXT** bar while it's in Preview.
 * [ ] Two lobbies in Preview (Ctrl+click), **Take**: 2-up on stream. Four: the quad. **Back** undoes
   the last switch.
 
 ### T+9 to T+13 · Player cams from the Stream Deck
 
 * [ ] Hosts start real games in at least two lobbies.
-* [ ] **Caster**, mid-game on the lobby on stream: a Stream Deck **Player cam** slot key puts **TT
-  Player Cam** on stream, following that player; next and previous change who; **Wide** goes back to
-  the whole map. The picture is sharp and keeps up with the game.
-* [ ] **During a meeting**, press a player's camera key: the key and the Live desk say **ARMED**
-  (amber) and nothing cuts. When the meeting ends, the camera goes on stream by itself.
+* [ ] **Caster**, mid-game on the lobby on stream: a Stream Deck **Player cam** slot key puts that
+  lobby's camera in Preview, following that player, and **Take** puts **TT Player Cam** on stream;
+  next and previous change who; **Wide** goes back to the whole map. The picture is sharp and keeps
+  up with the game.
+* [ ] **During a meeting**, press a player's camera key set to **Cut to the camera**: the key and
+  the Live desk say **ARMED** (amber) and nothing cuts. When the meeting ends, the camera goes on
+  stream by itself.
 * [ ] Each lobby's camera key follows the lobby it says (the numbers from T+0).
 
 ### T+13 to T+16 · Replays
@@ -136,6 +144,8 @@ bundles at the end.
   seconds play within a few seconds.
 * [ ] **Slow-mo**: the speed key steps 100 / 50 / 25 %. **Back to live** returns to the lobby.
 * [ ] **Play last** plays the newest replay again. If the player cam was on, **P** switches angle.
+* [ ] **Best replay** (N, or the Stream Deck key) puts the best recent replay in Preview (REPLAY and
+  what happened); **Take** plays it. N again offers the next one.
 
 ### T+16 to T+18 · Panic, Undo and Hold
 
@@ -151,6 +161,9 @@ bundles at the end.
   and press **Set**: the countdown shows on stream. Lobby voice is silent. I again: back to the
   lobbies.
 * [ ] **Sponsor break**: the lobby on one side, the sponsor on the other; it ends by itself.
+* [ ] **Starting soon** (Live desk, Breaks): type 2 in **Starts** and press **Set**: the stream shows
+  the countdown, the tournament's name and logo; at zero it says "Starting now" and stays. Take a
+  lobby: the lobby comes straight on, with no Starting soon left over.
 
 ### T+21 to T+22 · Mute all
 
@@ -190,8 +203,9 @@ switch on (Lobby health).
 
 * [ ] While it's closed, the stream keeps showing what was on (the hosts' video goes straight to
   OBS), the on-stream graphics may freeze or go, and the Stream Deck keys say OFFLINE.
-* [ ] It opens unlocked, reconnects to OBS by itself, and every lobby comes back with the **same
-  lobby number**. The graphics come back, and the Stream Deck keys come back by themselves and
+* [ ] It opens unlocked, reconnects to OBS by itself, and every lobby comes back at once with the
+  **same lobby number** (its tile may say **CACHED** for a few seconds until Discord confirms it).
+  Hold, Auto grid and Auto intermission are as they were. The graphics come back, and the Stream Deck keys come back by themselves and
   still mean the same lobbies.
 * [ ] Mute all, volumes and Listen are as they were.
 
