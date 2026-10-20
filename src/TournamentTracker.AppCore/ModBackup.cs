@@ -174,11 +174,25 @@ namespace TournamentTracker.App
         }
 
         /// <summary>A copy of the file, with its time (so newer and older can be told apart later).</summary>
+        /// <summary>A JSON file that can't be read is never copied, so a good copy is never replaced by a broken one.</summary>
         private static void Copy(FileInfo from, string to)
         {
             var time = from.LastWriteTimeUtc;
-            SafeFile.WriteAllBytes(to, SafeFile.ReadAllBytes(from.FullName));
+            var bytes = SafeFile.ReadAllBytes(from.FullName);
+            if (from.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase) && !ReadableJson(bytes))
+                throw new InvalidDataException("it can't be read, so the backup keeps its last good copy");
+            SafeFile.WriteAllBytes(to, bytes);
             File.SetLastWriteTimeUtc(to, time);
+        }
+
+        private static bool ReadableJson(byte[] bytes)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(bytes);
+                return true;
+            }
+            catch (Exception) { return false; }
         }
 
         private static void TryDelete(string path)

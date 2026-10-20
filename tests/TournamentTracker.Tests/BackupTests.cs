@@ -400,4 +400,22 @@ public class BackupTests : IDisposable
         Assert.Equal("The mod's", found[1].Whose);
         Assert.Equal(new DateTime(2026, 10, 20, 13, 0, 0, DateTimeKind.Utc), found[0].At);
     }
+
+    [Fact]
+    public void A_newer_file_that_cant_be_read_never_replaces_the_good_copy()
+    {
+        Write("links.json", "[]", T0);
+        _backup.Mirror(_data, T0.AddHours(1));
+        Assert.Equal("[]", File.ReadAllText(Bak("links.json")));
+
+        Write("links.json", "[{\"PlayerName\":", T0.AddMinutes(5));     // broken by hand, and newer
+        _backup.Mirror(_data, T0.AddHours(2));
+        Assert.Equal("[]", File.ReadAllText(Bak("links.json")));            // the good copy stays
+        Assert.Contains("links.json", _backup.State.Problem);
+
+        Write("links.json", "[ ]", T0.AddMinutes(10));                      // fixed again: copied as usual
+        _backup.Mirror(_data, T0.AddHours(3));
+        Assert.Equal("[ ]", File.ReadAllText(Bak("links.json")));
+        Assert.Null(_backup.State.Problem);
+    }
 }
