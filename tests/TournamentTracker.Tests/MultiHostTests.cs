@@ -198,12 +198,12 @@ public class MultiHostTests : IDisposable
     }
 
     [Fact]
-    public async Task Resetting_from_discord_starts_the_leaderboard_over_and_deleting_it_undoes_that()
+    public async Task A_reset_from_the_button_starts_the_leaderboard_over_and_deleting_it_undoes_that()
     {
         var channel = new Channel();
         _http.Default = channel.Handle;
         channel.AddGame(OtherHostGame("MAL", 1, "x", _clock.Now.AddHours(-2)));
-        channel.AddText("!resetleaderboard");                  // the organiser, typed in Discord
+        channel.AddText("!resetleaderboard", bot: true);       // another lobby's Reset…, or the organiser's
         channel.AddGame(OtherHostGame("MAL", 2, "x", _clock.Now.AddHours(-1)));
 
         var s = Session(c => c.ResultsChannelId = "results");
@@ -215,6 +215,21 @@ public class MultiHostTests : IDisposable
         Assert.True(s.RunCommand("!leaderboard"));
         await s.PendingPosts;
         Assert.Equal(2, s.Combined!.Games);
+    }
+
+    [Fact]
+    public async Task A_reset_typed_by_a_person_in_discord_does_nothing()
+    {
+        var channel = new Channel();
+        _http.Default = channel.Handle;
+        channel.AddGame(OtherHostGame("MAL", 1, "x", _clock.Now.AddHours(-2)));
+        channel.AddText("!resetleaderboard");                  // typed in Discord
+        channel.AddGame(OtherHostGame("MAL", 2, "x", _clock.Now.AddHours(-1)));
+
+        var s = Session(c => c.ResultsChannelId = "results");
+        await s.PendingPosts;
+        Assert.Equal(2, s.Combined!.Games);
+        Assert.False(s.Combined.SinceReset);
     }
 
     [Fact]

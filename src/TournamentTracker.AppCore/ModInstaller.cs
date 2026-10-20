@@ -27,10 +27,10 @@ namespace TournamentTracker.App
     {
         public string Tag { get; set; } = "";
         /// <summary>The full bundle (mod and BepInEx) for each game bitness: "x86" and "x64".</summary>
-        public Dictionary<string, string> BundleUrls { get; set; } = new Dictionary<string, string>();
-        public string? BundleFor(string arch) => BundleUrls.TryGetValue(arch, out var url) ? url : null;
+        public Dictionary<string, ReleaseAsset> Bundles { get; set; } = new Dictionary<string, ReleaseAsset>();
+        public ReleaseAsset? BundleFor(string arch) => Bundles.TryGetValue(arch, out var bundle) ? bundle : null;
         /// <summary>The Button itself (TheButton.exe) in this release, if it has one.</summary>
-        public string? AppUrl { get; set; }
+        public ReleaseAsset? App { get; set; }
     }
 
     /// <summary>Installs and updates the mod (with its BepInEx loader) in the Among Us folder.</summary>
@@ -50,8 +50,13 @@ namespace TournamentTracker.App
         public const string AppName = "TheButton.exe";
         private const string Marker = "installed.json";
         private readonly HttpClient _http;
+        private readonly ILog _log;
 
-        public ModInstaller(HttpClient http) => _http = http;
+        public ModInstaller(HttpClient http, ILog? log = null)
+        {
+            _http = http;
+            _log = log ?? NullLog.Instance;
+        }
 
         public static string DataDir(string gameDir) => Path.Combine(gameDir, "BepInEx", "config", "TournamentTracker");
 
@@ -113,20 +118,21 @@ namespace TournamentTracker.App
                 using var response = await _http.SendAsync(request).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode) return null;
                 var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync().ConfigureAwait(false)).RootElement;
+                // Each file with the size and SHA-256 the release lists, so a download can be checked.
                 var assets = json.GetProperty("assets").EnumerateArray()
-                    .Where(a => a.TryGetProperty("name", out _) && a.TryGetProperty("browser_download_url", out _))
-                    .ToDictionary(a => a.GetProperty("name").GetString() ?? "", a => a.GetProperty("browser_download_url").GetString() ?? "");
-                var bundles = new Dictionary<string, string>();
+                    .Select(ReleaseAsset.From).OfType<ReleaseAsset>()
+                    .ToDictionary(a => a.Name);
+                var bundles = new Dictionary<string, ReleaseAsset>();
                 foreach (var arch in new[] { "x86", "x64" })
-                    if (assets.TryGetValue(BundleName(arch), out var url)) bundles[arch] = url;
+                    if (assets.TryGetValue(BundleName(arch), out var bundle)) bundles[arch] = bundle;
                 // Releases from before 64-bit Among Us only have the x86 bundle, under its old name.
                 if (!bundles.ContainsKey("x86") && assets.TryGetValue(LegacyBundleName, out var legacy)) bundles["x86"] = legacy;
                 if (bundles.Count == 0) return null;
                 return new Release
                 {
                     Tag = json.GetProperty("tag_name").GetString() ?? "",
-                    BundleUrls = bundles,
-                    AppUrl = assets.TryGetValue(AppName, out var app) ? app : null,
+                    Bundles = bundles,
+                    App = assets.TryGetValue(AppName, out var app) ? app : null,
                 };
             }
             catch (Exception) { return null; }
@@ -163,8 +169,9 @@ namespace TournamentTracker.App
         }
 
         /// <summary>
-        /// Downloads the release's bundle and copies it over the game folder. Settings, links,
-        /// stats and the setup code live in BepInEx/config, which the bundle never contains.
+        /// Downloads the release's bundle and, when it matches the size and SHA-256 the release
+        /// lists, copies it over the game folder. Settings, links, stats and the setup code live in
+        /// BepInEx/config, which the bundle never contains.
         /// </summary>
         public async Task<string> InstallAsync(string gameDir, Release release, Action<string> progress)
         {
@@ -172,8 +179,8 @@ namespace TournamentTracker.App
             if (GameRunning()) return "Close Among Us first: its files are in use while it runs.";
             // BepInEx's loader has to match the game: the newest Among Us is 64-bit, so always the x64 build.
             string arch = TargetArch;
-            string? bundleUrl = release.BundleFor(arch);
-            if (bundleUrl == null)
+            ReleaseAsset? bundle = release.BundleFor(arch);
+            if (bundle == null)
                 return $"{release.Tag} has no mod download for {Bits(arch)} Among Us yet. Update The Button, or wait for the next release.";
             RemoveSetAside(gameDir);
             string temp = Path.Combine(Path.GetTempPath(), "tt-install-" + Guid.NewGuid().ToString("N"));
@@ -182,20 +189,15 @@ namespace TournamentTracker.App
                 progress($"Downloading {release.Tag} ({Bits(arch)})…");
                 Directory.CreateDirectory(temp);
                 string zip = Path.Combine(temp, BundleName(arch));
-                var request = new HttpRequestMessage(HttpMethod.Get, bundleUrl);
-                request.Headers.UserAgent.ParseAdd("TournamentTracker-App");
-                using (var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false))
-                {
-                    if (!response.IsSuccessStatusCode) return $"The download failed ({(int)response.StatusCode}). Check your internet connection and try again.";
-                    using var file = File.Create(zip);
-                    await response.Content.CopyToAsync(file).ConfigureAwait(false);
-                }
+                string error = await bundle.DownloadAsync(_http, zip, _log,
+                    status => $"The download failed ({status}). Check your internet connection and try again.").ConfigureAwait(false);
+                if (error.Length > 0) return error;
                 progress("Installing…");
-                string bundle = Path.Combine(temp, "bundle");
-                ZipFile.ExtractToDirectory(zip, bundle);
-                CopyOver(bundle, gameDir);
+                string unpacked = Path.Combine(temp, "bundle");
+                ZipFile.ExtractToDirectory(zip, unpacked);
+                CopyOver(unpacked, gameDir);
                 Directory.CreateDirectory(DataDir(gameDir));
-                File.WriteAllText(Path.Combine(DataDir(gameDir), Marker), JsonSerializer.Serialize(new { tag = release.Tag, at = DateTime.UtcNow }));
+                SafeFile.WriteAllText(Path.Combine(DataDir(gameDir), Marker), JsonSerializer.Serialize(new { tag = release.Tag, at = DateTime.UtcNow }));
                 var state = State(gameDir);
                 if (!state.Installed || state.LoaderArch == null) return "The files didn't all land. Try again, or run the app as administrator if the game is in Program Files.";
                 if (!state.LoaderMatchesGame)
@@ -265,8 +267,8 @@ namespace TournamentTracker.App
                 if (at >= 0) lines[at] = "Enabled = " + value;
                 else lines.Insert(section + 1, "Enabled = " + value);
             }
-            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            File.WriteAllLines(file, lines);
+            // As File.WriteAllLines writes it, but never half a file.
+            SafeFile.WriteAllText(file, string.Concat(lines.Select(l => l + Environment.NewLine)));
         }
 
         /// <summary>What a file in use is renamed to so the new one can go in its place.</summary>

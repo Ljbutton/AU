@@ -219,10 +219,8 @@ namespace TournamentTracker.App.Broadcast
                 lock (_lock) { if (g.Gone || g.OnDisk) return; final = g.End != null; }
                 var bytes = Build(g);
                 if (bytes == null) return;
-                Directory.CreateDirectory(_folder!);
-                string path = PathOf(g.Id)!, temp = path + ".tmp";
-                System.IO.File.WriteAllBytes(temp, bytes);
-                System.IO.File.Move(temp, path, overwrite: true);
+                // Whole or not at all, flushed to the disk (a side file first, then in the old one's place).
+                SafeFile.WriteAllBytes(PathOf(g.Id)!, bytes);
                 // The final copy is on disk: the frames leave memory (the file is read back when asked for).
                 if (final) lock (_lock) { g.Frames = null; g.Events = null; g.EventSeen.Clear(); g.Players = null; g.Geometry = null; }
             }

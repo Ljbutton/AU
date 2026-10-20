@@ -46,9 +46,9 @@ namespace TournamentTracker.Stats
     /// <summary>
     /// A private Discord channel used as the shared record of a tournament run by several
     /// hosts. Each host's mod posts every finished game there as a JSON file; any host can
-    /// read them all back to build one leaderboard. A message saying !resetleaderboard
-    /// (from anyone, e.g. the organiser on their phone) starts the leaderboard over:
-    /// only games posted after the newest one count. Deleting it undoes the reset.
+    /// read them all back to build one leaderboard. A bot's message saying !resetleaderboard
+    /// (posted by The Button's Reset…; typed by a person it does nothing) starts the leaderboard
+    /// over: only games posted after the newest one count. Deleting it undoes the reset.
     /// </summary>
     public sealed class SharedResults
     {
@@ -107,10 +107,12 @@ namespace TournamentTracker.Stats
             return result.Ok;
         }
 
+        /// <summary>The reset message: the command alone on its first line, then who did it.</summary>
+        public static string ResetMessage(string who) => $"{ResetCommand}\n(Leaderboard reset by {who}. Delete this message to undo it.)";
+
         public async Task<bool> PostResetAsync(string who)
         {
-            var result = await _rest.PostMessageAsync(_token, _channelId,
-                $"{ResetCommand}\n(Leaderboard reset by {who}. Delete this message to undo it.)").ConfigureAwait(false);
+            var result = await _rest.PostMessageAsync(_token, _channelId, ResetMessage(who)).ConfigureAwait(false);
             if (!result.Ok) _log.Error("Could not post the reset to the results channel: " + result);
             return result.Ok;
         }
@@ -139,7 +141,7 @@ namespace TournamentTracker.Stats
             return load;
         }
 
-        /// <summary>Reads a channel: game files, referee adjustments, and where the last reset was.</summary>
+        /// <summary>Reads a channel: game files, referee changes, and where the last reset was (the last two from bots only).</summary>
         public async Task<ChannelData?> ReadAsync(string channelId)
         {
             var data = new ChannelData();
@@ -151,16 +153,22 @@ namespace TournamentTracker.Stats
                 if (messages == null) return null;
                 foreach (var m in messages)
                 {
-                    if (IsReset(m.Content))
+                    // Resets and referee changes count only when an app posted them (The Button, Red Alert
+                    // or a mod, all as bots): the same command typed by a person in the channel does nothing.
+                    if (m.FromBotAccount && IsReset(m.Content))
                     {
                         data.SinceReset = true;
                         goto done;
                     }
-                    var adjustment = RefereeAdjustment.TryParse(m.Content, m.Id, RefereeAdjustment.TimeOfSnowflake(m.Id));
-                    if (adjustment != null) data.Adjustments.Add(adjustment);
+                    if (m.FromBotAccount)
+                    {
+                        var adjustment = RefereeAdjustment.TryParse(m.Content, m.Id, RefereeAdjustment.TimeOfSnowflake(m.Id));
+                        if (adjustment != null) data.Adjustments.Add(adjustment);
+                        var voiding = RefereeVoid.TryParse(m.Content, m.Id, RefereeAdjustment.TimeOfSnowflake(m.Id));
+                        if (voiding != null) data.Voids.Add(voiding);
+                    }
+                    // Notes the lobbies posted (a webhook's too), so the same note isn't posted twice.
                     if (m.AuthorIsBot && m.Content.Length > 0 && m.Attachments.Count == 0) data.Notes.Add(m.Content);
-                    var voiding = RefereeVoid.TryParse(m.Content, m.Id, RefereeAdjustment.TimeOfSnowflake(m.Id));
-                    if (voiding != null) data.Voids.Add(voiding);
                     foreach (var (name, url) in m.Attachments)
                         if (name.StartsWith(FilePrefix, StringComparison.Ordinal) && name.EndsWith(".json", StringComparison.Ordinal))
                             files.Add((m.Id + "/" + name, url));

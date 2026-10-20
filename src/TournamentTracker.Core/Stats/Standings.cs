@@ -7,9 +7,11 @@ using System.Text.RegularExpressions;
 namespace TournamentTracker.Stats
 {
     /// <summary>
-    /// A referee's point change, typed in the private results channel:
+    /// A referee's point change, made in The Button (Referee tab, with the administration code),
+    /// which posts it in the private results channel as the administration bot:
     /// <c>!adjust LJ-3 red -2 meta call</c>. The game is its name (LJ-3), or just the host's
-    /// label (LJ) for the game that lobby was playing when the message was sent.
+    /// label (LJ) for the game that lobby was playing when the message was sent. Only a bot's
+    /// message counts (<see cref="SharedResults.ReadAsync"/>): the same text typed by a person does nothing.
     /// </summary>
     public sealed class RefereeAdjustment
     {
@@ -35,7 +37,7 @@ namespace TournamentTracker.Stats
                 Game = m.Groups["game"].Value,
                 Player = m.Groups["player"].Value.Trim(),
                 Points = double.Parse(m.Groups["pts"].Value.Replace(',', '.'), CultureInfo.InvariantCulture),
-                Reason = m.Groups["reason"].Success ? m.Groups["reason"].Value.Trim() : "adjustment",
+                Reason = m.Groups["reason"].Success ? m.Groups["reason"].Value.Trim() : "",
             };
         }
 
@@ -47,8 +49,9 @@ namespace TournamentTracker.Stats
     }
 
     /// <summary>
-    /// A referee throwing a game out (a restart) or bringing it back, typed in the private
-    /// results channel: <c>!void LJ-3 lobby restarted</c> or <c>!unvoid LJ-3</c>. The game is
+    /// A referee throwing a game out (a restart) or bringing it back, posted in the private
+    /// results channel by The Button or Red Alert as the administration bot (a person's typed
+    /// copy doesn't count): <c>!void LJ-3 lobby restarted</c> or <c>!unvoid LJ-3</c>. The game is
     /// found the same way as for <see cref="RefereeAdjustment"/>. Once the lobby's mod has
     /// seen it, it reposts the game with the new state, so deleting this message later
     /// changes nothing; only another !void or !unvoid does.
@@ -122,7 +125,7 @@ namespace TournamentTracker.Stats
 
         public string Describe() => Settled
             ? $"Round {Round} · {Host}: {string.Join(", ", Tied)} tied on {Fmt(Points)} at the cut. {string.Join(", ", Bumped)} move{(Bumped.Count == 1 ? "s" : "")} on by {DecidedBy}: +{Fmt(Standings.TiebreakBump)} added to the round total, not shown publicly."
-            : $"Round {Round} · {Host}: {string.Join(", ", Tied)} tied on {Fmt(Points)} at the cut and level on impostor wins, vote % and task %. A referee needs to decide (e.g. !adjust {Host}-<game> <player> +0.25 tiebreak).";
+            : $"Round {Round} · {Host}: {string.Join(", ", Tied)} tied on {Fmt(Points)} at the cut and level on impostor wins, vote % and task %. A referee needs to decide: give one of them +{Fmt(Standings.TiebreakBump)} in The Button's Referee tab (reason: tiebreak).";
 
         private static string Fmt(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
     }
@@ -149,7 +152,7 @@ namespace TournamentTracker.Stats
                 result.Player = result.Game == null ? null : FindPlayer(result.Game, a.Player);
                 if (result.Player != null)
                 {
-                    result.Player.PointBreakdown.Add(new PointLine("Referee: " + a.Reason, a.Points));
+                    result.Player.PointBreakdown.Add(new PointLine(PointLine.RefereeRule(a.Reason), a.Points));
                     result.Player.Points += a.Points;
                 }
                 results.Add(result);

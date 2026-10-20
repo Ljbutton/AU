@@ -43,12 +43,15 @@ namespace TournamentTracker
                 _held = new List<HeldGame>();
                 try
                 {
-                    if (File.Exists(HeldPath))
-                        foreach (var h in JsonSerializer.Deserialize<List<HeldGame>>(File.ReadAllText(HeldPath)) ?? new List<HeldGame>())
-                        {
-                            h.Game = LoadGameFile(h.Id);
-                            if (h.Game != null) _held.Add(h);
-                        }
+                    // A broken file is kept as waiting.json.corrupt-… (its games are still in their own files).
+                    var saved = SafeFile.ReadOrRecover(HeldPath, text => JsonSerializer.Deserialize<List<HeldGame>>(text),
+                        m => _log.Warn(m + " The games waiting to be verified start again from none.")) ?? new List<HeldGame>();
+                    foreach (var h in saved)
+                    {
+                        if (h == null) continue;
+                        h.Game = LoadGameFile(h.Id);
+                        if (h.Game != null) _held.Add(h);
+                    }
                 }
                 catch (Exception e) { _log.Warn("Couldn't read the games waiting to be verified: " + e.Message); }
                 return _held;
@@ -57,11 +60,7 @@ namespace TournamentTracker
 
         public IReadOnlyList<GameRecord> WaitingGames => Held.Where(h => h.Game != null).Select(h => h.Game!).ToList();
 
-        private void SaveHeld() => TrySave(() =>
-        {
-            Directory.CreateDirectory(_gamesDir);
-            File.WriteAllText(HeldPath, JsonSerializer.Serialize(Held));
-        }, "games waiting to be verified");
+        private void SaveHeld() => TrySave(() => SafeFile.WriteAllText(HeldPath, JsonSerializer.Serialize(Held)), "games waiting to be verified");
 
         private void Hold(GameRecord game, bool roundDone)
         {
@@ -159,9 +158,11 @@ namespace TournamentTracker
                 return;
             }
             string reason = string.Join(" ", args.Skip(3)).Trim();
+            // An older Button's + and − on the Referee tab sent "referee" as the reason: that's no reason.
+            if (string.Equals(reason, "referee", StringComparison.OrdinalIgnoreCase)) reason = "";
             bool counted = game.Counted;
             if (counted) Store.Remove(game);
-            player.PointBreakdown.Add(new PointLine("Referee" + (reason.Length > 0 ? ": " + reason : ""), change));
+            player.PointBreakdown.Add(new PointLine(PointLine.RefereeRule(reason), change));
             player.Points = player.Points + change;
             if (counted) Store.Apply(game);
             SaveStatsAndGame(game);

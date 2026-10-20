@@ -676,7 +676,7 @@ namespace TournamentTracker.App.Broadcast
                 if (_detectivesPath == null) return;
                 string json;
                 lock (_lock) json = JsonSerializer.Serialize(_detectives);
-                File.WriteAllText(_detectivesPath, json);
+                SafeFile.WriteAllText(_detectivesPath, json);
             }
             catch (Exception) { }
         }

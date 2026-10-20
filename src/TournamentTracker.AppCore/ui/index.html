@@ -75,6 +75,8 @@
 .org-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,430px);gap:14px;align-items:start}
 @media (max-width:900px){.org-head{grid-template-columns:minmax(0,1fr)}}
 .cast-card{display:grid;gap:4px;font-size:13.5px}
+.org-rounds h3{font:400 12px var(--round);color:var(--hi);text-transform:uppercase;letter-spacing:.08em;margin:14px 0 0}
+.org-rounds .row{margin-top:6px}
 .off{font:700 11px/1 var(--round);padding:3px 7px;border-radius:6px;background:var(--sunk);color:var(--muted)}
 .org-lobbies{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
 .lob{display:grid;gap:6px;border:1.5px solid var(--line);border-radius:14px;padding:10px 12px;background:var(--panel)}
@@ -273,6 +275,8 @@ details.advanced summary h2{margin:0}
 
 <!-- Home: the lobby, on one screen. -->
 <section id="home" class="on">
+  <!-- The backup holds games the mod's folder doesn't; a file that couldn't be read was set aside. Shown with or without Among Us. -->
+  <div id="home-files" class="health"></div>
   <div class="stage" id="home-wait">
     <h1 id="wait-title">Waiting for Among Us</h1>
     <div class="loader" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
@@ -365,10 +369,10 @@ details.advanced summary h2{margin:0}
         <div class="ref-scroll" id="points-list"></div>
       </div>
       <details class="card ref-tools" id="home-ref" hidden>
-        <summary><h2>Results channel</h2><span class="muted" title="Posted to the private results channel as the administration bot, exactly like typing it there.">Posted as the administration bot, like typing it there</span></summary>
-        <div class="row"><select id="adj-lobby" aria-label="Lobby"></select><input id="adj-player" placeholder="Player (colour or name)" style="flex:1 1 130px"><input id="adj-points" inputmode="decimal" placeholder="Points" title="Any amount up to 3 significant figures" style="width:64px"><button class="b sm" id="adj-minus" title="Take these points away">−</button><button class="b sm" id="adj-plus" title="Add these points">+</button><input id="adj-reason" placeholder="Reason" style="flex:1 1 100px"></div>
+        <summary><h2>Results channel</h2><span class="muted" title="Any lobby's games. The Button posts the change in the private results channel as the administration bot, and that lobby's game applies it.">Any lobby's games, posted as the administration bot</span></summary>
+        <div class="row"><select id="adj-lobby" aria-label="Lobby"></select><input id="adj-game" inputmode="numeric" placeholder="Game" title="The game's number (3 for LJ-3). Empty: the game that lobby is playing, or played last." aria-label="Game number" style="width:58px"><input id="adj-player" placeholder="Player (colour or name)" style="flex:1 1 130px"><input id="adj-points" inputmode="decimal" placeholder="Points" title="Any amount up to 3 significant figures" style="width:64px"><button class="b sm" id="adj-minus" title="Take these points away">−</button><button class="b sm" id="adj-plus" title="Add these points">+</button><input id="adj-reason" placeholder="Reason" style="flex:1 1 100px"></div>
         <div class="row"><input id="void-game" placeholder="Game (LJ-3) or lobby (LJ)" style="flex:1 1 150px"><input id="void-why" placeholder="Reason" style="flex:1 1 100px"><button class="b sm danger" id="void-go">Void</button><button class="b sm" id="unvoid-go">Unvoid</button></div>
-        <div class="row"><input id="org-cmd" placeholder="Any command: !start 3 in 10, !lobbies 3, !move Soggy B…" class="mono" style="flex:1"><button class="b sm" id="org-cmd-go">Post</button></div>
+        <p class="muted ref-note" style="margin-top:6px" title="Round starts and the next round's lobbies are made on the Organiser tab.">Rounds and lobbies: the Organiser tab.</p>
       </details>
     </div>
   </div>
@@ -389,6 +393,24 @@ details.advanced summary h2{margin:0}
   <div class="org-lobbies" id="org-lobbies"></div>
   <h2 style="margin:6px 0 0">Standings</h2>
   <div class="points-grid" id="org-standings"></div>
+  <div class="card org-rounds" id="org-rounds">
+    <h2 style="margin:0">Rounds</h2>
+    <p class="muted" style="margin:4px 0 10px;font-size:12.5px">Posted in the private results channel as the administration bot. Every lobby's game switches round; the lead lobby builds the lobbies and pings the players with theirs.</p>
+    <div class="row"><span>Round</span><input id="rd-round" type="number" min="1" max="99" style="width:64px" aria-label="Round">
+      <button class="b" id="rd-build" title="Everyone who moved on from the round before, snake-seeded into lobbies of up to 10, with the best of the rest as alternates (round 2 or later)">Build its lobbies</button>
+      <span class="muted">·</span><span>starts in</span><input id="rd-in" type="number" min="0" max="120" placeholder="0" style="width:64px" aria-label="Minutes until it starts" title="Empty or 0: it starts now"><span>min</span>
+      <button class="b primary" id="rd-start" title="Every lobby switches to this round (after the game it's playing); the players are pinged with their lobby">Start round</button></div>
+    <h3>Change the lobbies</h3>
+    <div class="row"><input id="pl-player" list="org-players" placeholder="Player" aria-label="Player" style="flex:1 1 150px"><input id="pl-lobby" list="org-plan-lobbies" placeholder="Lobby (A, B… Final)" aria-label="Lobby" style="width:150px">
+      <button class="b sm" data-plan="move" title="From the lobby they're in">Move there</button><button class="b sm" data-plan="add" title="An alternate, or someone new">Add there</button><button class="b sm danger" data-plan="drop" title="Out of the lobbies; the best alternates are listed">Drop</button></div>
+    <div class="row"><input id="pl-a" list="org-players" placeholder="Player" aria-label="First player to swap" style="flex:1 1 150px"><span>and</span><input id="pl-b" list="org-players" placeholder="Player" aria-label="Second player to swap" style="flex:1 1 150px"><button class="b sm" data-plan="swap" title="Swap their lobbies. One word each: the start of a name is enough.">Swap</button></div>
+    <div class="row"><input id="pl-hlobby" list="org-plan-lobbies" placeholder="Lobby (A, B… Final)" aria-label="Lobby" style="width:150px"><span>is hosted by</span><input id="pl-host" list="org-hosts" placeholder="Lobby label (LJ)" aria-label="Host" style="width:150px"><button class="b sm" data-plan="host">Set host</button></div>
+    <p class="muted" style="margin:8px 0 0;font-size:12.5px">Each change posts the new lobbies in the results channel. Build them first, then start the round.</p>
+    <h3>Standings</h3>
+    <div class="row"><button class="b danger" id="org-reset">Start over…</button><span class="muted" style="font-size:12.5px">Every lobby's combined standings count only games after this. Deleting the reset message in the results channel undoes it.</span></div>
+    <p id="org-reset-confirm" class="note warn" hidden style="margin-top:8px">Start every lobby's combined standings over? <button class="b danger" id="org-reset-go">Reset</button> <button class="b" id="org-reset-cancel">Cancel</button></p>
+    <datalist id="org-players"></datalist><datalist id="org-plan-lobbies"><option value="A"><option value="B"><option value="C"><option value="D"><option value="Final"></datalist><datalist id="org-hosts"></datalist>
+  </div>
   <div class="card">
     <div class="row" style="justify-content:space-between"><h2 style="margin:0">Awards</h2>
       <div class="row"><button class="b on" data-awards="round" id="aw-round">This round</button><button class="b" data-awards="all" id="aw-all">Whole tournament</button><button class="b" id="aw-copy">Copy for Discord</button></div></div>
@@ -472,7 +494,7 @@ details.advanced summary h2{margin:0}
   </div>
   <div class="card" id="tour-card" hidden>
     <h2>Tournament</h2>
-    <div class="toggle"><div><b>Lead lobby</b><span>The lead lobby's game carries out referee commands typed in the private results channel (!start, !move, !void…). One lobby at a time: usually yours.</span></div><button class="b" id="t-lead"></button></div>
+    <div class="toggle"><div><b>Lead lobby</b><span>The lead lobby's game builds the next round's lobbies and pings the players when the organiser starts a round from The Button's Organiser tab. One lobby at a time: usually yours.</span></div><button class="b" id="t-lead"></button></div>
     <div class="toggle"><div><b>Combined leaderboard</b><span>Starts every lobby's combined leaderboard over. Deleting the reset message in the results channel undoes it.</span></div><button class="b danger" id="reset-lb">Reset…</button></div>
     <p id="reset-confirm" class="note warn" hidden style="margin-top:8px">Start every lobby's combined leaderboard over? <button class="b danger" data-cmd="resetleaderboard">Reset</button> <button class="b" id="reset-cancel">Cancel</button></p>
   </div>
@@ -490,6 +512,11 @@ details.advanced summary h2{margin:0}
     <p class="muted" style="margin:0 0 8px">Something went wrong? Save a support bundle and send it to the organiser: one zip with The Button's and the mod's logs, settings and versions. Bot tokens, webhooks, codes and passwords are taken out first.</p>
     <div class="row"><button class="b primary" id="support-go">Save support bundle</button></div>
     <p id="support-result" class="note" hidden style="margin-top:8px"></p>
+    <div id="backup-box" hidden>
+      <p class="muted" style="margin:14px 0 8px">The Button keeps a copy of the mod's games, links and rounds in its own folder, so reinstalling Among Us loses nothing. Restore backup puts back what's missing or older (close Among Us first). <span id="backup-line"></span></p>
+      <div class="row"><button class="b" id="backup-restore">Restore backup</button><button class="b" data-open="backup">Backup folder</button></div>
+      <p id="backup-result" class="note" hidden style="margin-top:8px"></p>
+    </div>
   </div>
   <details class="card advanced">
     <summary><h2>Advanced</h2><span class="muted">Files, for troubleshooting</span></summary>
@@ -584,8 +611,8 @@ function needsRepair(m) { return !!(m && m.installed && !m.loaderMatchesGame); }
 function bits(arch) { return arch === 'x64' ? '64-bit' : arch === 'x86' ? '32-bit' : 'missing'; }
 function renderAlerts() {
   const g = S.game, m = S.mod, list = [];
-  // Someone who only uses the Organiser tab (a caster, say) doesn't need Among Us here.
-  const orgOnly = S.admin && !g.found;
+  // Someone who only uses the Organiser tab (the organiser, a referee) doesn't need Among Us here.
+  const orgOnly = !!S.organiserPc;
   if (orgOnly) {}
   else if (!g.found) list.push(['bad', 'Among Us not found']);
   else if (!m.installed) list.push(['bad', 'Mod not installed']);
@@ -604,7 +631,7 @@ function renderAlerts() {
   else if (S.setup.error) list.push(['bad', 'Setup code damaged']);
   const a = S.status && S.status.autoMute;
   if (a && a.voiceProblem || !S.status && S.bot && S.bot.problem) list.push(['bad', 'Discord bot refused', 'home']);
-  else if (a && a.voiceWarning) list.push(['', 'Referee commands not heard', 'home']);
+  else if (a && a.voiceWarning) list.push(['', 'Round changes not heard', 'home']);
   if (a && a.liveProblem) list.push(['', 'Live message can\'t post', 'home']);
   setHTML($('alerts'), list.map(([k, t, page, act]) => act ? `<button class="alert ${k}" data-app="${act}"${act === 'busy' ? ' disabled' : ''} title="${act === 'restart' ? 'Restart The Button now to use the new version' : act === 'update' ? (u.error ? esc(u.error) : 'Download and install it now') : ''}">${esc(t)}</button>`
     : `<button class="alert ${k}" data-go="${page || 'settings'}">${esc(t)}</button>`).join(''));
@@ -701,20 +728,53 @@ $('health').addEventListener('click', e => {
   cmd('safemode off');
 });
 
+// ---- Home: the backup has games Among Us's folder doesn't; a damaged file was set aside ----------------
+let dismissedDamaged = stored('damaged-dismissed') || '';
+const when = t => new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+function renderFiles() {
+  const b = S.backup, d = (S.damaged || [])[0], cards = [], one = b && b.missing === 1;
+  if (b && b.missing > 0 && S.game.found) cards.push(`<div class="hcard"><div><b>The backup has ${one ? 'a game' : b.missing + ' games'} that ${one ? 'isn\'t' : 'aren\'t'} in Among Us's folder</b><span>After reinstalling Among Us, say. Close Among Us and press Restore to put ${one ? 'it' : 'them'} back. Removed on purpose? Forget ${one ? 'it' : 'them'}.</span></div>
+    <div class="acts"><button class="b sm primary" data-backup="restore">Restore</button><button class="b sm" data-backup="forget" title="Take ${one ? 'it' : 'them'} out of the backup too">Forget</button></div></div>`);
+  if (d && d.kept !== dismissedDamaged) cards.push(`<div class="hcard"><div><b>A damaged file was set aside</b><span>${esc(d.whose)} ${esc(d.name)} couldn't be read (${esc(when(d.at))}). A copy is kept next to it as ${esc(d.kept)}, so nothing in it is lost.</span></div>
+    <div class="acts"><button class="x" data-damaged="${esc(d.kept)}" title="Dismiss">✕</button></div></div>`);
+  setHTML($('home-files'), cards.join(''));
+}
+$('home-files').addEventListener('click', async e => {
+  const x = e.target.closest('[data-damaged]');
+  if (x) { dismissedDamaged = x.dataset.damaged; store('damaged-dismissed', dismissedDamaged); renderFiles(); return; }
+  const b = e.target.closest('[data-backup]');
+  if (!b) return;
+  // Forget: a second click to be sure (the backup's copies of those games go).
+  if (b.dataset.backup === 'forget' && !b._sure) {
+    b._sure = true; b.textContent = 'Sure? Click again';
+    setTimeout(() => { b._sure = false; b.textContent = 'Forget'; }, 5000);
+    return;
+  }
+  b.disabled = true;
+  try { const r = await api('POST', '/app/backup/' + b.dataset.backup); toast(r.message); refresh(); }
+  catch (err) { toast('Couldn\'t reach The Button.'); }
+  finally { b.disabled = false; }
+});
+
 function renderHome() {
+  renderFiles();
   const st = S.status;
   $('home-wait').hidden = !!st; $('home-live').hidden = !st;
   if (!st) {
-    // An organiser or referee's PC needn't have Among Us: it just waits (the results-channel tools are on the Referee tab).
-    const desk = S.admin && !S.game.found;
-    const fix = desk ? null
+    // An organiser or referee's PC needn't have Among Us: one short line, and the way to the Organiser tab
+    // (the results-channel tools are on the Referee tab).
+    const desk = !!S.organiserPc;
+    const fix = desk ? ['Organiser PC', 'Among Us isn\'t needed here: the live lobbies and standings are on the Organiser tab, and the results channel is on the Referee tab.', 'organiser', 'Open the Organiser tab']
       : !S.game.found ? ['Among Us not found', 'The Button couldn\'t find Among Us on this PC. Pick its folder in Settings.']
       : !S.mod.installed ? ['Mod not installed', 'Install the mod into Among Us from Settings (it takes a minute).']
       : needsRepair(S.mod) ? ['Mod needs repair', `The mod loader in the game folder is ${bits(S.mod.loaderArch)}; the newest Among Us needs the 64-bit one. Repair it in Settings.`]
       : null;
     $('wait-title').textContent = fix ? fix[0] : 'Waiting for Among Us';
     $('wait-say').textContent = fix ? fix[1] : 'Start Among Us and host a lobby: The Button connects on its own.';
-    $('wait-fix').hidden = !fix || desk;
+    const btn = $('wait-fix'), label = fix && fix[3] || 'Open Settings';
+    btn.hidden = !fix;
+    btn.dataset.go = fix && fix[2] || 'settings';
+    if (btn.textContent !== label) btn.textContent = label;
     document.querySelector('#home-wait .loader').hidden = !!fix;
     // The bot is The Button's: online while it's open, before Among Us starts.
     const b = S.bot || {};
@@ -834,7 +894,7 @@ function renderAutomute(st) {
   $('mute-problem').hidden = !a.voiceProblem && !a.voiceWarning && !a.liveProblem;
   $('mute-problem').className = 'note ' + (a.voiceProblem ? 'bad' : 'warn');
   $('mute-problem').textContent = a.voiceProblem || a.liveProblem || a.voiceWarning || '';
-  $('mute-say').textContent = !a.configured ? 'Off: it needs a bot, which comes with a tournament host code.'
+  $('mute-say').textContent = !a.configured ? 'Off: it needs a Discord bot. Add one in Settings → Your Discord, or use a setup code with a bot in it.'
     : a.voiceProblem ? 'Not working: see below.'
     : !a.enabled ? 'Off: the bot won\'t touch anyone\'s voice (players can use AutoMuteUs). Stays off until you turn it on.'
     : !a.voiceConnected ? 'Connecting to Discord voice…'
@@ -963,7 +1023,7 @@ document.addEventListener('click', e => {
     if (n === null) { box.classList.add('bad'); box.focus(); return toast(BAD_AMOUNT); }
     delete amounts[name + '|' + key];
     box.value = '';
-    cmd(`adjust ${name} ${key} ${step.dataset.step < 0 ? '-' : ''}${n} referee`);
+    cmd(`adjust ${name} ${key} ${step.dataset.step < 0 ? '-' : ''}${n}`);
   }
 });
 document.addEventListener('input', e => {
@@ -1005,6 +1065,8 @@ async function loadOrganiser() {
 // Organiser's data, loaded when the tab opens, the section unfolds or the lobby list is picked).
 function renderReferee() {
   $('home-ref').hidden = !(S && S.admin);
+  // On an organiser's PC it's the Referee tab's main part: open, unless it was folded before.
+  if (S && S.organiserPc && stored('ref-tools-open') === null && !$('home-ref').open) $('home-ref').open = true;
   if (!ORG) return;
   const sel = $('adj-lobby'), cur = sel.value, labels = ORG.lobbies.map(l => l.label);
   if (sel.dataset.labels !== labels.join('|')) { sel.dataset.labels = labels.join('|'); sel.innerHTML = labels.map(l => `<option>${esc(l)}</option>`).join(''); if (cur) sel.value = cur; }
@@ -1025,19 +1087,60 @@ $('aw-copy').addEventListener('click', async () => {
     .map(c => `${c.title}: ${c.top.map((p, i) => `${i === 0 ? '**' + p.name + '**' : p.name} (${p.value})`).join(', ')}`).join('\n');
   try { await navigator.clipboard.writeText(text); toast('Copied. Paste it in Discord and keep the winners you choose.'); } catch (e) { toast('Couldn\'t copy.'); }
 });
-async function orgPost(text) { const r = await api('POST', '/app/admin/command', { text }); toast(r.message); }
+// Every change is sent as its fields ({ kind, game, player… }): The Button builds the command and posts it in the
+// results channel as the administration bot. Nobody types a command.
+async function orgDo(change) { const r = await api('POST', '/app/admin/command', change); toast(r.message); return r; }
 function orgAdjust(sign) {
   const who = $('adj-player').value.trim(), raw = $('adj-points').value.trim(), n = raw ? refAmount(raw) : null;
   if (!who || !raw) return toast('Pick the player and the points.');
   if (n === null) return toast(BAD_AMOUNT);
-  orgPost(`!adjust ${$('adj-lobby').value} ${who} ${sign}${n} ${$('adj-reason').value.trim()}`.trim());
+  const lobby = $('adj-lobby').value, no = $('adj-game').value.trim();
+  orgDo({ kind: 'adjust', game: lobby && no ? `${lobby}-${no}` : lobby, player: who, points: sign + n, reason: $('adj-reason').value.trim() });
   $('adj-points').value = '';
 }
 $('adj-plus').addEventListener('click', () => orgAdjust('+'));
 $('adj-minus').addEventListener('click', () => orgAdjust('-'));
-$('void-go').addEventListener('click', () => { const g = $('void-game').value.trim(); if (g) orgPost(`!void ${g} ${$('void-why').value.trim()}`.trim()); });
-$('unvoid-go').addEventListener('click', () => { const g = $('void-game').value.trim(); if (g) orgPost(`!unvoid ${g}`); });
-$('org-cmd-go').addEventListener('click', () => { const t = $('org-cmd').value.trim(); if (t) { orgPost(t); $('org-cmd').value = ''; } });
+$('void-go').addEventListener('click', () => { const g = $('void-game').value.trim(); if (g) orgDo({ kind: 'void', game: g, reason: $('void-why').value.trim() }); });
+$('unvoid-go').addEventListener('click', () => { const g = $('void-game').value.trim(); if (g) orgDo({ kind: 'unvoid', game: g }); });
+// Rounds (Organiser tab): build the next round's lobbies, change them, then start the round.
+$('rd-build').addEventListener('click', () => orgDo({ kind: 'lobbies', round: $('rd-round').value.trim() }));
+// Starting a round switches every lobby and pings every player: a second click to be sure.
+$('rd-start').addEventListener('click', () => {
+  const b = $('rd-start'), round = $('rd-round').value.trim();
+  if (!round) return toast('Which round?');
+  clearTimeout(b._t);
+  if (!b._sure) {
+    b._sure = true; b.textContent = `Sure? Start round ${round}`;
+    b._t = setTimeout(() => { b._sure = false; b.textContent = 'Start round'; }, 5000);
+    return;
+  }
+  b._sure = false; b.textContent = 'Start round';
+  orgDo({ kind: 'start', round, minutes: $('rd-in').value.trim() });
+});
+const PLAN_FIELDS = {
+  move: () => ({ player: $('pl-player').value, lobby: $('pl-lobby').value }),
+  add: () => ({ player: $('pl-player').value, lobby: $('pl-lobby').value }),
+  drop: () => ({ player: $('pl-player').value }),
+  swap: () => ({ player: $('pl-a').value, other: $('pl-b').value }),
+  host: () => ({ lobby: $('pl-hlobby').value, host: $('pl-host').value }),
+};
+$('org-rounds').addEventListener('click', e => {
+  const b = e.target.closest('[data-plan]');
+  if (b && PLAN_FIELDS[b.dataset.plan]) orgDo({ kind: b.dataset.plan, ...PLAN_FIELDS[b.dataset.plan]() });
+});
+$('org-reset').addEventListener('click', () => $('org-reset-confirm').hidden = false);
+$('org-reset-cancel').addEventListener('click', () => $('org-reset-confirm').hidden = true);
+$('org-reset-go').addEventListener('click', () => { $('org-reset-confirm').hidden = true; orgDo({ kind: 'reset' }); });
+// Suggestions for the name boxes: this round's players and the lobbies' hosts.
+function orgLists() {
+  const fill = (id, values) => { const el = $(id), k = values.join('\n'); if (el.dataset.k !== k) { el.dataset.k = k; el.innerHTML = values.map(v => `<option value="${esc(v)}">`).join(''); } };
+  const names = new Set((ORG.standings ? ORG.standings.all : []).map(r => r.name));
+  ORG.lobbies.forEach(l => (l.data.p || []).forEach(p => names.add(p[0])));
+  fill('org-players', [...names].filter(Boolean).sort((a, b) => a.localeCompare(b)));
+  fill('org-hosts', ORG.lobbies.map(l => l.label));
+  const r = $('rd-round');
+  if (!r.value && document.activeElement !== r) r.value = (ORG.round || 0) + 1;
+}
 const ago = s => s < 60 ? s + 's ago' : Math.round(s / 60) + ' min ago';
 function renderOrganiser() {
   if (!ORG) return;
@@ -1055,6 +1158,7 @@ function orgAges() {
 }
 function drawOrganiser() {
   $('org-sub').textContent = `${ORG.tournament}${ORG.round ? ' · round ' + ORG.round : ''} · ${ORG.lobbies.filter(l => !l.quiet && l.data.phase !== 'Menu').length} lobbies live`;
+  orgLists();
   $('org-problem').hidden = !ORG.problem; $('org-problem').textContent = ORG.problem || '';
   $('org-lobbies').innerHTML = ORG.lobbies.length ? ORG.lobbies.map((l, i) => {
     const d = l.data, ev = (d.f || []).filter(f => showRoles || ['meeting', 'eject', 'end'].includes(f[1])).slice(-2).reverse();
@@ -1219,7 +1323,21 @@ function renderSettings() {
   renderHostDiscord();
   renderAppUpdate();
   renderAdmin();
+  renderBackup();
 }
+// Help: the backup of the mod's games, links and rounds (in The Button's own folder).
+function renderBackup() {
+  const b = S.backup;
+  $('backup-box').hidden = !b || !S.game.found;
+  if (!b) return;
+  $('backup-line').textContent = (b.files ? `It holds ${b.files} file${b.files === 1 ? '' : 's'}${b.copiedAt ? ', last copied at ' + clock(b.copiedAt) : ''}.` : 'Nothing copied yet: it starts with the mod\'s first saved game.') + (b.problem ? ' ' + b.problem : '');
+}
+$('backup-restore').addEventListener('click', async () => {
+  const b = $('backup-restore'); b.disabled = true;
+  try { showResult('backup-result', await api('POST', '/app/backup/restore')); refresh(); }
+  catch (e) { toast('Couldn\'t restore the backup.'); }
+  finally { b.disabled = false; }
+});
 function renderAdmin() {
   const on = !!S.admin;
   $('admin-card').hidden = !on;
@@ -1236,7 +1354,8 @@ function renderAppUpdate() {
   const u = S.appUpdate || {}, m = S.mod || {}, g = S.game || {};
   const appNew = !!(u.available && !u.ready && !u.busy), modNew = !!(m.installed && m.updateAvailable && !needsRepair(m));
   const app = `The Button ${S.app || '?'}` + (u.ready ? ` (${u.ready} is ready: restart to use it)` : u.busy ? ' (downloading the new version…)' : appNew ? ` (${u.available} is out)` : '');
-  const mod = !g.found ? 'Find Among Us first to install the mod.'
+  const mod = S.organiserPc ? 'Organiser PC: Among Us isn\'t needed here.'
+    : !g.found ? 'Find Among Us first to install the mod.'
     : !m.installed ? 'The mod isn\'t installed yet.'
     : `${m.gameArch ? bits(m.gameArch) + ' Among Us with ' : ''}the mod ${m.installedVersion || '?'}` + (modNew ? ` (${m.latest} is out)` : '');
   const upToDate = !appNew && !u.ready && !u.busy && m.installed && !modNew && !needsRepair(m);

@@ -37,7 +37,7 @@ namespace TournamentTracker
                     return true;
                 case "unmuteall":
                     UnmuteEveryone();
-                    Reply(AutoMute == null ? "Automute isn't set up." : "Everyone unmuted; automute is OFF. Use !automute on to resume.", false);
+                    Reply(AutoMute == null ? "Automute isn't set up." : "Everyone unmuted; automute is OFF. Press Automute on The Button's Home to turn it back on.", false);
                     return true;
                 case "leaderboard":
                 case "lb":
@@ -147,14 +147,14 @@ namespace TournamentTracker
             {
                 if (!AutoMute.Enabled)
                 {
-                    Reply("Automute is off; turn it on with !automute on first.", false);
+                    Reply("Automute is off: press Automute on The Button's Home first.", false);
                     return;
                 }
                 var host = Links.Find(sender.Key)?.DiscordUserId;
                 AutoMute.StartRefereeMode(host == null ? Array.Empty<string>() : new[] { host });
                 Reply(host == null
-                    ? "Referee mode ON: everyone in voice is muted except RefereeUserIds. You aren't linked, so link yourself to talk. !ref off to end."
-                    : "Referee mode ON: everyone in voice is muted except you and the referees. !ref off to end.", false);
+                    ? "Referee mode ON: everyone in voice is muted except RefereeUserIds. You aren't linked, so link yourself to talk. Press Referee on The Button's Home to end it."
+                    : "Referee mode ON: everyone in voice is muted except you and the referees. Press Referee on The Button's Home to end it.", false);
                 if (Players.Count > 0) Reply("Referee is explaining the rules; you're muted for now.", true);
             }
             else if (arg == "off")

@@ -40,7 +40,7 @@ namespace TournamentTracker
         /// <summary>With rotation on: the chance each of last game's impostors is impostor again (0.02 = 2%).</summary>
         public double RepeatImpostorChance { get; set; } = 0.02;
 
-        /// <summary>This host's mod answers the organiser's commands in the results channel (!lobbies, !start…).</summary>
+        /// <summary>This host's mod carries out the round changes The Button's Organiser tab posts in the results channel (lobbies, round starts).</summary>
         public bool Lead { get; set; }
 
         /// <summary>Port for the stream overlay (!overlay on), on this computer only.</summary>
@@ -159,7 +159,7 @@ namespace TournamentTracker
         /// <summary>Discord user IDs never muted as spectators (casters, referees).</summary>
         public List<string> SpectatorExemptUserIds { get; set; } = new List<string>();
 
-        /// <summary>Discord user IDs who can still talk while referee mode (!ref on) mutes everyone else.</summary>
+        /// <summary>Discord user IDs who can still talk while referee mode (Referee on The Button's Home) mutes everyone else.</summary>
         public List<string> RefereeUserIds { get; set; } = new List<string>();
 
         /// <summary>Link players automatically when their in-game name matches a Discord name in the voice channel.</summary>

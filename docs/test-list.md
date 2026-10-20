@@ -38,7 +38,7 @@ _Tournament or preliminary code, lock on._
 ## Referee tab (The Button)
 _Tournament code with a results channel or webhook._
 - [ ] After a game: nothing in Discord yet — Home says the game is waiting; the Referee tab shows a number.
-- [ ] − / + change a player's points — hover the points to see "Referee" in their breakdown.
+- [ ] − / + change a player's points — hover the points to see "Referee" in their breakdown. _(changed in 0.1.65: "Referee change")_
 - [ ] Verify & send posts the report and standings — the totals include your change.
 - [ ] Void a waiting game, then press Done — nothing about it ever reaches Discord.
 - [ ] Verify all sends every waiting game — in order.
@@ -168,11 +168,11 @@ _A new code from the code maker (old codes keep their old values; new rules use 
 - [ ] Points Lab shows the new rules; the code maker's Point values… lists them
 
 ## New in 0.1.50 — referee amounts
-- [ ] Referee tab: type 0.25 next to a player and press + → their points go up by exactly 0.25 ("Referee +0.25")
+- [ ] Referee tab: type 0.25 next to a player and press + → their points go up by exactly 0.25 ("Referee +0.25") _(changed in 0.1.65: "Referee change +0.25")_
 - [ ] Type 1.5 and press − → down by 1.5
 - [ ] Empty box + → one point, as before
 - [ ] 1.234 (4 significant figures) or 0 is refused with a message, and nothing changes
-- [ ] Home → Results channel (administration code): − / + buttons post !adjust with the sign
+- [ ] Referee tab → Results channel (administration code): − / + buttons post !adjust with the sign
 
 ## New in 0.1.51 — public channel
 - [ ] Public channel: each game is one post with two parts, the results (who won and how, map, length, each player's role, result and total) and the timeline
@@ -289,7 +289,7 @@ _Unused code was removed. If anything below misbehaves, it's likely from the cle
 - [ ] Referee tab: type an amount in a player's box while the game list redraws (submit another game, or wait for a refresh): the box keeps focus and the cursor; + and − still work
 - [ ] Referee tab, Points: tabs for this lobby / every lobby / running total; the chosen tab is remembered after a restart; the cut line and green "moves on" rows are kept; hidden columns are in the row tooltip
 - [ ] Referee tab: "Reset points…" opens a small box under the top line; Escape or Cancel closes it; typing RESET and pressing Reset all points still resets
-- [ ] Referee tab with an administration code: Results channel is folded (open state remembered); the lobby list is filled when the tab opens (without visiting Home or Organiser first); !adjust / void / any-command still post
+- [ ] Referee tab with an administration code: Results channel is folded (open state remembered); the lobby list is filled when the tab opens (without visiting Home or Organiser first); !adjust / void / unvoid still post _(changed in 0.1.65: no any-command box; rounds and lobbies are on Organiser tab → Rounds)_
 - [ ] Home → Tools with the new mod: Host authority switch shows and sends "hostauth on/off"; with an older mod the switch doesn't show and nothing breaks
 - [ ] Home: referee slot on, host authority on but the lobby was hosted before it was switched on: the checklist shows "Restart hosting from the main menu so host authority takes effect"; after rehosting from the main menu it goes away
 - [ ] Home: the Post Leaderboard / Server standings / Lobby message buttons (now at the bottom of Tools) post as before; Home still fits the default window
@@ -355,7 +355,7 @@ _Red Alert with the new Stream Deck state, Stream Deck app 6.5+ on the same PC, 
 - [ ] Red Alert: player camera key while the lobby is in a meeting answers 202 "armed" and the camera goes on by itself when play resumes; pressing it again disarms; with cameras off it is refused (409)
 - [ ] Red Alert: camera follow (cam/1/slot3, colour, next/prev) reaches the host's game within a couple of seconds and is sent again until the host has it
 - [ ] Red Alert: /deck/state?key=... waits and answers as soon as something changes (rev goes up); no impostor flags in it unless &imp=1; /deck/img keys draw lobby tally/phase and player heads
-- [ ] Red Alert: Hold on: auto grid, auto intermission, the camera going back to the map, auto switch off a dropped lobby, break end and armed cameras all wait, and the desk says what was held back; the caster's own switches still go
+- [ ] Red Alert: Hold on: auto grid, auto intermission, the camera going back to the map, auto switch off a dropped lobby, break end and armed cameras all wait, and the desk says what was held back; the caster's own switches still go _(changed in Red Alert 0.3.17: auto grid only fills Preview, and Hold stops that)_
 - [ ] Red Alert: Panic fades to be-right-back, mutes lobby voice, clears graphics, pauses alerts and holds; Undo puts the previous view, voice and alerts back
 - [ ] Red Alert: Panic, then put it right by hand (another lobby, hold off, voice back on). Later press BRB, Hold and Mute all yourself → the desk doesn't show "Undo panic"; Undo takes back the BRB (to the lobby you were on, not the one before the panic) and the voice stays muted
 - [ ] Red Alert: Panic, then OBS closes; the Stream Deck's Undo → refused (OBS isn't connected), still on be right back and held; reconnect OBS → the desk still says "Undo panic" and Undo puts the lobby back in OBS. (Or, with OBS still closed, the desk's Back undoes it and says OBS didn't switch)
@@ -390,7 +390,7 @@ _Red Alert with the new Stream Deck state, Stream Deck app 6.5+ on the same PC, 
 - [ ] Replay that, Play last and ready-replay buttons; replay controls in the action panel with slow motion 100/50/25%; the cursor moves while playing
 - [ ] After-game prompt: buttons stay clickable while the countdown ticks; sponsor read Done/Snooze; Sponsor break button counts down
 - [ ] Panic: be right back, AUDIO "All muted", PANIC pill, "Undo panic" puts everything back
-- [ ] Hold blocks auto grid / intermission; the held-back switch shows as a toast and a warning with Release hold
+- [ ] Hold blocks auto grid / intermission; the held-back switch shows as a toast and a warning with Release hold _(changed in Red Alert 0.3.17: auto grid only fills Preview)_
 - [ ] Clicking cards, Save replay and player-card buttons always works (no lost clicks while polls run); tooltips stay up
 - [ ] Other pages (Health, Montages, Graphics, Standings, Sponsors, Twitch, OBS, Lobby voice, Players, Settings) still work; lobby voice Discord/Among Us/Sent meters move; Twitch clip picker keeps the chosen clip
 - [ ] Lobby pictures don't reconnect when another lobby starts sending
@@ -468,3 +468,85 @@ _Nothing new to see: this release shrinks the code and merges logic both apps ha
 - [ ] Replay that / Play last: the replay layer shows on top in OBS, and the swoosh too
 - [ ] Editing roster.csv or sponsors.json while Red Alert runs: the change shows within a few seconds
 - [ ] Lobby numbers stay the same after a restart
+
+## New in 0.1.65 (Red Alert 0.3.17)
+_Every host, referee and the organiser on 0.1.65: a mod from before it still acts on commands typed in Discord. Red Alert 0.3.17 on the caster's PC._
+
+### Safe saving
+_A crash in the middle of a save is hard to make on purpose, so these check that saving still works and that a damaged file is kept._
+- [ ] A normal session: play and Submit games, /link someone, press Next round, void and unvoid a game. Restart Among Us and The Button → the games, the waiting games, the links and the round are all still there
+- [ ] After the session: no `.tmp` file left in BepInEx/config/TournamentTracker (or its games folders), %LOCALAPPDATA%\TheButton or %LOCALAPPDATA%\RedAlert
+- [ ] Damaged file: close Among Us, open BepInEx/config/TournamentTracker/links.json in Notepad, delete its second half and save. Start Among Us → links.json.corrupt-<time> appears next to it with the broken text; the mod's log says "links.json couldn't be read (…). A copy is kept as links.json.corrupt-…. Starting with no links."
+- [ ] Within about 10 s The Button's Home shows "A damaged file was set aside: The mod's links.json couldn't be read (…). A copy is kept next to it as links.json.corrupt-…"; ✕ hides it, and it stays hidden after restarting The Button
+- [ ] Put links.json right again (copy the good part back from the .corrupt copy), restart Among Us → the links are back. Note whether Settings → Help → **Backup folder** has the good links.json or the broken one (the backup copies the newest file)
+- [ ] The Button's own settings: close The Button, break %LOCALAPPDATA%\TheButton\app.json the same way, open The Button → app.json.corrupt-<time> next to it, the-button.log says so, the setup code comes back from the Among Us folder, and Home shows the damaged-file notice for "The Button's app.json"
+- [ ] Red Alert: Graphics → **Edit theme**, make a mistake in broadcast.json (`tru` for `true`) and save → the Graphics page says "broadcast.json couldn't be read (…); using the last good settings." and the look doesn't change; switch a graphic on or off → broadcast.json.corrupt-<time> holds your edit, and broadcast.json has the last good settings with the switch
+
+### The Button's backup of the mod's data
+- [ ] After a game is saved (or submitted): within about 10 s %LOCALAPPDATA%\TheButton\backup has games/<tournament>/game-….json, the replay, links.json, state-<tournament>.json and stats-<tournament>.json
+- [ ] The backup has no setup-code.txt, host-discord.json, control.json or other connection file
+- [ ] Settings → Help: "The Button keeps a copy of the mod's games, links and rounds… It holds N files, last copied at <time>."; **Backup folder** opens the folder
+- [ ] Reinstall and restore: close Among Us; move BepInEx/config/TournamentTracker/games to the Desktop (or uninstall Among Us, install it again and let The Button install the mod) → Home shows "The backup has N games that aren't in Among Us's folder" with **Restore** and **Forget**
+- [ ] Press **Restore** with Among Us closed → "Put back from the backup: N games, … and the points totals."; start Among Us → the Referee tab has the games, the points and the round again, and waiting games still wait for Submit
+- [ ] **Restore** with Among Us running → "Close Among Us first: the mod would save over what's put back." and nothing changes
+- [ ] Settings → Help → **Restore backup** when nothing is missing → "Nothing to put back: the mod's folder already has everything in the backup, as new or newer."
+- [ ] **Forget** asks "Sure? Click again"; the second click → the notice goes and the backup no longer has those games (put the games folder back from the Desktop afterwards)
+- [ ] Save support bundle → summary.txt has a "Backup (The Button's copy of the mod's games, links and rounds): N files, last copied …" line (and a "Damaged file:" line after the test above); no file from the backup folder is in the zip
+
+### Updates checked against the release
+- [ ] The Button: with an older version installed, the top bar's **Update** still downloads and installs the new one ("The Button vX is ready · Restart"); the-button.log says "Downloaded TheButton.exe (N bytes): the size and SHA-256 match the release."
+- [ ] The mod: Settings → **Reinstall the mod** (Among Us closed) still installs; the log has the same "match the release" line for the bundle
+- [ ] Red Alert: Settings → Updates → **Update** (when a newer Red Alert is out) installs, and **Restart Red Alert** opens the new one; red-alert.log has the "match the release" line
+
+### Points and round changes only from The Button
+- [ ] Type `!adjust LJ red -2 test`, `!void LJ test`, `!unvoid LJ`, `!lobbies 2`, `!start 2` and `!resetleaderboard` yourself in the private results channel → no ✅ or ❓, no answer from any bot, no lobby changes round, and the standings (Organiser tab, Red Alert, the next standings posted) don't change. Delete them afterwards
+- [ ] Preliminary: a `!void` typed in your private reports channel doesn't change the scheduled job's leaderboard (Actions → Preliminary leaderboards → Run); the host's **Void** in their Referee tab does
+- [ ] Settings → Tournament → Lead lobby says the lead lobby "builds the next round's lobbies and pings the players…"; **Take over** posts "LJ carries out the round changes from The Button's Organiser tab now."
+- [ ] A bot without its Message Content Intent → the top bar says "Round changes not heard"
+
+### Referee tab → Results channel (administration code)
+- [ ] The card has Lobby, Game (number), Player, Points, − / +, Reason, the void row, and "Rounds and lobbies: the Organiser tab."; there's no box to type a command
+- [ ] Pick LJ, type 3 in Game, red, 0.5 and a reason, press + → the channel gets `!adjust LJ-3 red +0.5 <reason>` from the administration bot; LJ's bot ticks it when it next posts standings; the player's breakdown in game LJ-3 shows "Referee: <reason> +0.5"
+- [ ] Same with Game empty → it lands on the game LJ is playing (or played last)
+- [ ] No reason → the breakdown says "Referee change"
+- [ ] A player name ending in a number ("Bob 2") with a points amount → refused ("… can't be told apart from the points: use the player's colour."), nothing posted
+- [ ] Void and Unvoid with `LJ-3` and a reason → `!void LJ-3 <reason>` and `!unvoid LJ-3` posted; LJ reposts the game each time and ticks the message
+
+### Organiser tab → Rounds (administration code)
+- [ ] The Rounds card shows the next round in its Round box (current round + 1)
+- [ ] **Build its lobbies** for round 2 → the lead lobby posts round 2's lobbies and alternates, ending "Change them in The Button's Organiser tab (Rounds), then start round 2 there."; for round 1 → "Lobbies are built for round 2 or later, from the round before." and nothing is posted
+- [ ] **Move there**, **Add there**, **Drop**, **Swap** and **Set host** each post their change; the lead lobby posts the lobbies again with it (Drop lists the next alternates); the Player boxes suggest this round's players
+- [ ] A change before any lobbies were built → the lead lobby answers "No lobbies to change yet: build them first in The Button's Organiser tab." with ❓
+- [ ] **Start round** once → it says "Sure? Start round 2" (back to Start round after 5 s, nothing posted); click again → `!start 2 in 10` (with 10 in "starts in") is posted
+- [ ] → "**Round 2 starts in 10 minutes!**" with each lobby's players pinged; every lobby's Round chip shows round 2 (a lobby mid-game: its host's chat says "Round 2 was started by the organiser: it begins after this game."); each lobby posts where to go; 10 minutes later "Round 2 is starting now!"
+- [ ] Minutes empty → "Round N is starting now!"
+- [ ] **Start over…** → "Start every lobby's combined standings over?" with Reset and Cancel; **Reset** → the administration bot posts the reset message, the toast says "The standings start over from now. Deleting the reset message in the results channel undoes it.", the combined standings start over; delete the message → they come back
+
+### Organiser PC (no Among Us)
+_A PC without Among Us, or with Among Us's folder renamed for the test._
+- [ ] Paste the administration code into Settings → Setup code → "Organiser view unlocked for …" (not "Find Among Us first.")
+- [ ] Home shows "Organiser PC" with "Among Us isn't needed here: …" and **Open the Organiser tab**, which opens it
+- [ ] The top bar shows no Among Us, mod or setup code warning; Settings → Mod and updates says "Organiser PC: Among Us isn't needed here."
+- [ ] The Referee tab's Results channel card is open the first time (fold it, restart: it stays folded); adjust and void post
+- [ ] A host's setup code pasted there → "Find Among Us first."; no Among Us folder is made anywhere
+- [ ] Save support bundle → summary.txt says "organiser PC (no Among Us here, and none needed)"
+
+### Red Alert: auto grid fills Preview
+_Auto grid on (Live desk → Auto → Grid), two or more lobbies, OBS connected._
+- [ ] Every lobby between games or in a meeting → the grid goes into Preview with "All lobbies quiet: Grid is in Preview. Take to show it."; nothing switches on stream until Take (Enter, TAKE or the Stream Deck's Take)
+- [ ] Grid taken, then a game starts → what was on before (or the top lobby) goes into Preview: "A game started: … is in Preview. Take to go back."; nothing switches until Take
+- [ ] A lobby you put in Preview yourself is never replaced; clear auto grid's suggestion (Esc) → it isn't put back until something changes
+- [ ] The suggestion goes again when a game starts before you Take the grid, when auto grid is switched off, and when a break goes on
+- [ ] **Hold** on → no suggestion in Preview, and the desk says "Held back: Auto grid"
+- [ ] Stream Deck: the suggested lobbies' keys show green PVW like any Preview; the Take key puts the grid on
+
+### Installers
+- [ ] Put Install-TheButton.bat and Install-RedAlert.bat in a folder with an apostrophe in its name (Downloads\Jo's stuff) and double-click each → each installs, makes its Start menu and desktop shortcuts, and opens
+
+### Messages
+- [ ] F9 in Among Us (hosting, automute set up) → the chat says "Everyone unmuted; automute is OFF. Press Automute on The Button's Home to turn it back on."; **Unmute all** on Home answers the same
+- [ ] **Referee** on Home with automute off → "Automute is off: press Automute on The Button's Home first."; with automute on, the answer ends "Press Referee on The Button's Home to end it."
+- [ ] **Send my game to the caster** on → the answer says to press the share button, open the Window tab and pick Among Us (not the Entire screen)
+- [ ] Home → Tools → **Stream overlay** on → the answer ends "Size 360×720."
+- [ ] Automute card on a code with no bot → "Off: it needs a Discord bot. Add one in Settings → Your Discord, or use a setup code with a bot in it."
+- [ ] Referee tab: + with an empty box on a waiting game → the breakdown says "Referee change +1" (not "Referee: referee"); Submit → the report says the same

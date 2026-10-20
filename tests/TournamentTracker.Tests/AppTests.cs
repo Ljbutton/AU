@@ -146,9 +146,9 @@ public class AppTests : IDisposable
         var installer = new ModInstaller(new HttpClient(ReleaseWithBothBundles(BothBundles)));
         var release = await installer.LatestAsync();
         Assert.Equal("v1.2.0", release!.Tag);
-        Assert.Equal("https://github.com/x/TournamentTracker-Full-x64.zip", release.BundleFor("x64"));
-        Assert.Equal("https://github.com/x/TournamentTracker-Full-x86.zip", release.BundleFor("x86"));
-        Assert.Equal("https://github.com/x/TheButton.exe", release.AppUrl);
+        Assert.Equal("https://github.com/x/TournamentTracker-Full-x64.zip", release.BundleFor("x64")!.Url);
+        Assert.Equal("https://github.com/x/TournamentTracker-Full-x86.zip", release.BundleFor("x86")!.Url);
+        Assert.Equal("https://github.com/x/TheButton.exe", release.App!.Url);
         var progress = new List<string>();
         Assert.Equal("", await installer.InstallAsync(game, release, progress.Add));
 
@@ -232,7 +232,7 @@ public class AppTests : IDisposable
         var installer = new ModInstaller(new HttpClient(ReleaseWithBothBundles(
             """[{"name":"TournamentTracker-Full.zip","browser_download_url":"https://github.com/x/TournamentTracker-Full.zip"}]""")));
         var release = await installer.LatestAsync();
-        Assert.Equal("https://github.com/x/TournamentTracker-Full.zip", release!.BundleFor("x86"));
+        Assert.Equal("https://github.com/x/TournamentTracker-Full.zip", release!.BundleFor("x86")!.Url);
         Assert.Null(release.BundleFor("x64"));
         string game = Game(Path.Combine(_dir.Path, "AU"), 0x8664);
         Assert.Contains("no mod download for 64-bit Among Us", await installer.InstallAsync(game, release, _ => { }));
@@ -374,6 +374,54 @@ public class AppTests : IDisposable
     }
 
     [Fact]
+    public async Task The_organisers_changes_are_sent_as_fields_and_posted_as_the_bot_never_as_free_text()
+    {
+        string game = Game(Path.Combine(_dir.Path, "Steam", "steamapps", "common", "Among Us"));
+        var posted = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var net = new LocalOrFake
+        {
+            Internet = r =>
+            {
+                if (!r.RequestUri!.AbsolutePath.EndsWith("/channels/1/messages")) return new HttpResponseMessage(HttpStatusCode.NotFound);
+                if (r.Method != HttpMethod.Post) return FakeHttp.Json(HttpStatusCode.OK, "[]");
+                posted.Enqueue(JsonDocument.Parse(r.Content!.ReadAsStringAsync().Result).RootElement.GetProperty("content").GetString()!);
+                return FakeHttp.Json(HttpStatusCode.OK, "{\"id\":\"7\"}");
+            },
+        };
+        using var app = new AppServer(ButtonApp.Env(_dir.Path, Path.Combine(_dir.Path, "Steam")), new HttpClient(net));
+        var http = ButtonApp.Client(app);
+        var admin = new SetupCode { Mode = "admin", TournamentId = "oct", TournamentName = "October", BotTokens = new() { "a.b.c" }, ResultsChannelId = "1" };
+        Assert.True((await Post(http, "app/setup", new { code = admin.Encode() })).GetProperty("admin").GetBoolean());
+
+        var start = await Post(http, "app/admin/command", new { kind = "start", round = "3", minutes = "10" });
+        Assert.True(start.GetProperty("ok").GetBoolean());
+        Assert.Equal("Posted: !start 3 in 10", start.GetProperty("message").GetString());
+        var adjust = await Post(http, "app/admin/command", new { kind = "adjust", game = "LJ-2", player = "red", points = "-2", reason = "meta call" });
+        Assert.True(adjust.GetProperty("ok").GetBoolean());
+
+        var free = await Post(http, "app/admin/command", new { text = "!start 3" });            // the old "any command" box
+        Assert.False(free.GetProperty("ok").GetBoolean());
+        var bad = await Post(http, "app/admin/command", new { kind = "move", player = "Soggy", lobby = "B\n!start 9" });
+        Assert.False(bad.GetProperty("ok").GetBoolean());
+        Assert.Equal(new[] { "!start 3 in 10", "!adjust LJ-2 red -2 meta call" }, posted.ToArray());
+    }
+
+    [Fact]
+    public void The_page_has_no_command_box_and_no_one_is_told_to_type_a_command()
+    {
+        string page = UiFiles.Text(typeof(AppServer).Assembly, "ui/index.html");
+        Assert.DoesNotContain("id=\"org-cmd\"", page);
+        Assert.DoesNotContain("Any command", page);
+        Assert.DoesNotContain("typed in the private results channel", page);
+        Assert.DoesNotContain("like typing it there", page);
+        foreach (var id in new[] { "rd-round", "rd-build", "rd-in", "rd-start", "pl-player", "pl-lobby", "pl-a", "pl-b", "pl-hlobby", "pl-host", "org-reset-go", "adj-game" })
+            Assert.Contains($"id=\"{id}\"", page);
+        foreach (var kind in new[] { "move", "add", "drop", "swap", "host" })
+            Assert.Contains($"data-plan=\"{kind}\"", page);
+        Assert.Contains("api('POST', '/app/admin/command', change)", page);
+    }
+
+    [Fact]
     public async Task Commands_from_the_app_reach_the_mod_in_the_game()
     {
         var (app, http, game) = App();
@@ -481,6 +529,9 @@ public class AppUpdaterTests : IDisposable
     private readonly TempDir _dir = new();
     public void Dispose() => _dir.Dispose();
 
+    /// <summary>A release file with no size or checksum listed (as before releases had them).</summary>
+    private static readonly ReleaseAsset Exe = new() { Name = "TheButton.exe", Url = "https://github.com/x/TheButton.exe" };
+
     [Fact]
     public async Task A_new_version_replaces_the_running_one_and_the_old_one_is_cleaned_up_later()
     {
@@ -489,7 +540,7 @@ public class AppUpdaterTests : IDisposable
         var newExe = new byte[2 * 1024 * 1024]; newExe[0] = (byte)'M'; newExe[1] = (byte)'Z';
         var http = new HttpClient(new FakeHttp { Default = _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(newExe) } });
 
-        Assert.Equal("", await AppUpdater.InstallAsync(http, "https://github.com/x/TheButton.exe", exe));
+        Assert.Equal("", await AppUpdater.InstallAsync(http, Exe, exe));
         Assert.Equal(newExe.Length, new FileInfo(exe).Length);
         Assert.Equal("old version", File.ReadAllText(AppUpdater.OldPath(exe)));   // kept until the next start
         AppUpdater.CleanUp(exe);
@@ -502,10 +553,10 @@ public class AppUpdaterTests : IDisposable
         string exe = Path.Combine(_dir.Path, "TheButton.exe");
         File.WriteAllText(exe, "old version");
         var http = new HttpClient(new FakeHttp { Default = _ => FakeHttp.Json(HttpStatusCode.OK, "<html>not a program</html>") });
-        Assert.StartsWith("The download wasn't a complete copy", await AppUpdater.InstallAsync(http, "https://github.com/x/TheButton.exe", exe));
+        Assert.StartsWith("The download wasn't a complete copy", await AppUpdater.InstallAsync(http, Exe, exe));
         Assert.Equal("old version", File.ReadAllText(exe));
         Assert.False(File.Exists(exe + ".download"));
         var down = new HttpClient(new FakeHttp { Default = _ => FakeHttp.Json(HttpStatusCode.NotFound, "{}") });
-        Assert.Contains("404", await AppUpdater.InstallAsync(down, "https://github.com/x/TheButton.exe", exe));
+        Assert.Contains("404", await AppUpdater.InstallAsync(down, Exe, exe));
     }
 }

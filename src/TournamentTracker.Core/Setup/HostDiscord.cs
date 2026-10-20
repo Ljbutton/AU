@@ -92,7 +92,7 @@ namespace TournamentTracker.Setup
             string path = Path.Combine(dataDir, FileName);
             var clean = Clean();
             if (clean.IsEmpty) { if (File.Exists(path)) File.Delete(path); return; }
-            File.WriteAllText(path, JsonSerializer.Serialize(clean));
+            SafeFile.WriteAllText(path, JsonSerializer.Serialize(clean));
         }
     }
 }

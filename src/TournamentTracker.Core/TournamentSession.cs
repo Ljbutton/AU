@@ -70,7 +70,10 @@ namespace TournamentTracker
             _statsPath = Path.Combine(dataDir, $"stats-{slug}.json");
             _gamesDir = Path.Combine(dataDir, "games", slug);
 
-            Store = StatsStore.Load(_statsPath, settings.TournamentName);
+            // Side files a crash left behind (a save cut short) go; the saved files themselves are whole.
+            SafeFile.RemoveLeftovers(dataDir);
+            SafeFile.RemoveLeftovers(_gamesDir);
+            Store = StatsStore.Load(_statsPath, settings.TournamentName, m => log.Warn(m + " The totals start again from this game."));
             LoadState();
             if (_overlayOn) StartOverlay();
             Links = LinkRegistry.Load(Path.Combine(dataDir, "links.json"), log);

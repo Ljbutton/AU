@@ -25,7 +25,7 @@ namespace TournamentTracker.Plugin
             s.RecordReplays = config.Bind("General", "RecordReplays", d.RecordReplays,
                 "Record a replay of every game for the replay viewer (about 0.5 MB each, saved with the game).").Value;
             s.OverlayPort = config.Bind("General", "OverlayPort", d.OverlayPort,
-                "Port for the stream overlay (!overlay on), reachable from this computer only.").Value;
+                "Port for the stream overlay (The Button: Home → Tools → Stream overlay), reachable from this computer only.").Value;
             s.GamesPerRound = config.Bind("General", "GamesPerRound", d.GamesPerRound,
                 "Tournament rounds: games each lobby plays per round. A setup code overrides it.").Value;
 
@@ -36,7 +36,7 @@ namespace TournamentTracker.Plugin
             s.StatusWebhookUrl = config.Bind("Discord", "StatusWebhookUrl", "",
                 "Webhook for the live status message. Leave empty to use the StatsWebhookUrl channel.").Value.Trim();
             s.ResultsChannelId = config.Bind("Discord", "ResultsChannelId", "",
-                "For several hosts: the ID of a private channel where every host's mod posts its games, so one combined leaderboard covers all lobbies. Type !resetleaderboard in that channel to start it over. Needs a bot token and the Message Content Intent.").Value.Trim();
+                "For several hosts: the ID of a private channel where every host's mod posts its games, so one combined leaderboard covers all lobbies. Start it over from The Button (Settings, Tournament, Reset). Needs a bot token and the Message Content Intent.").Value.Trim();
             s.PostLeaderboardAfterEachGame = config.Bind("Discord", "PostLeaderboardAfterEachGame", d.PostLeaderboardAfterEachGame,
                 "Post the updated leaderboard after every game.").Value;
             s.LeaderboardSize = config.Bind("Discord", "LeaderboardSize", d.LeaderboardSize,
@@ -68,14 +68,14 @@ namespace TournamentTracker.Plugin
                 "Seconds between a meeting being called and alive players being unmuted. 0 so nobody misses the start of the discussion.").Value;
 
             m.MuteSpectators = config.Bind("AutoMute", "MuteSpectators", m.MuteSpectators,
-                "Server-mute people in the game's voice channel who aren't playing, while a game is running. Also !spectators on|off.").Value;
+                "Server-mute people in the game's voice channel who aren't playing, while a game is running. Also the Spectators button on The Button's Home.").Value;
             m.VoiceChannelId = config.Bind("AutoMute", "VoiceChannelId", "",
                 "The game's voice channel ID. Leave empty to use the channel most linked players are in.").Value.Trim();
             m.SpectatorExemptUserIds = config.Bind("AutoMute", "SpectatorExemptUserIds", "",
                 "Discord user IDs never muted as spectators (casters, referees), comma separated.").Value
                 .Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim()).ToList();
             m.RefereeUserIds = config.Bind("AutoMute", "RefereeUserIds", "",
-                "Discord user IDs who can still talk during referee mode (!ref on), besides the host. Comma separated.").Value
+                "Discord user IDs who can still talk during referee mode (Referee on The Button's Home), besides the host. Comma separated.").Value
                 .Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim()).ToList();
             m.AutoLinkByName = config.Bind("AutoMute", "AutoLinkByName", m.AutoLinkByName,
                 "In the lobby, link a player automatically when their in-game name matches exactly one person's Discord name in the voice channel.").Value;

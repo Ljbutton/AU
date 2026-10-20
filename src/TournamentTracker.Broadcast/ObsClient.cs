@@ -178,12 +178,29 @@ namespace TournamentTracker.App.Broadcast
             finally { _pending.TryRemove(id, out _); }
         }
 
+        /// <summary>How long a message may take to go out before the connection counts as stuck.</summary>
+        public static TimeSpan SendTimeout { get; set; } = TimeSpan.FromSeconds(10);
+
+        /// <summary>
+        /// One message out (one at a time). A frozen OBS stops reading, and a send would then wait forever,
+        /// with every switch after it queued behind: after <see cref="SendTimeout"/> it gives up instead (the
+        /// connection is dropped and the director connects again).
+        /// </summary>
         private async Task SendRawAsync(object message, CancellationToken ct)
         {
             var bytes = JsonSerializer.SerializeToUtf8Bytes(message);
-            await _send.WaitAsync(ct).ConfigureAwait(false);
-            try { await _ws.SendAsync(bytes, WebSocketMessageType.Text, true, ct).ConfigureAwait(false); }
-            finally { _send.Release(); }
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            limit.CancelAfter(SendTimeout);
+            try
+            {
+                await _send.WaitAsync(limit.Token).ConfigureAwait(false);
+                try { await _ws.SendAsync(bytes, WebSocketMessageType.Text, true, limit.Token).ConfigureAwait(false); }
+                finally { _send.Release(); }
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                throw new TimeoutException("OBS isn't taking messages (the connection is stuck).");
+            }
         }
 
         // One reader at a time (the hello, then the read loop), so its buffers are kept and reused:

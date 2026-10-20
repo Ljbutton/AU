@@ -10,14 +10,16 @@ using TournamentTracker.Stats;
 namespace TournamentTracker
 {
     /// <summary>
-    /// The organiser's commands, typed in the private results channel from any device:
+    /// The organiser's round changes, made in The Button's Organiser tab, which posts them in the
+    /// private results channel as the administration bot:
     /// <list type="bullet">
     /// <item>!lobbies 3: the lobbies for round 3 from round 2's results, snake-seeded.</item>
-    /// <item>!move, !swap, !drop, !add, !host: adjust them (someone can't continue, a host changes).</item>
+    /// <item>!move, !swap, !drop, !add, !host: change them (someone can't continue, a host changes).</item>
     /// <item>!start 3 [in 10]: every lobby's mod switches to round 3, and the players are pinged with their lobby.</item>
     /// </list>
+    /// Only a bot's message is acted on: the same text typed by a person in Discord does nothing.
     /// Every tournament host's mod hears them over the gateway; the lead lobby (from its setup
-    /// code, or whoever typed !lead in-game last) answers, so nothing is posted twice.
+    /// code, or whoever pressed Take over last) answers, so nothing is posted twice.
     /// </summary>
     public sealed partial class TournamentSession
     {
@@ -46,20 +48,18 @@ namespace TournamentTracker
         /// <summary>Handles one results-channel message. Public for tests; normally fed by the gateway.</summary>
         public void HandleChannelMessage(ChannelMessage m)
         {
+            // Changes are made in The Button, which posts them as the administration bot: a command
+            // typed by a person in the channel is ignored.
+            if (!m.FromBotAccount) return;
             string text = m.Content.Trim();
-            if (m.AuthorIsBot)
+            // Another lobby took over answering.
+            if (text.StartsWith(LeadNotePrefix, StringComparison.Ordinal))
             {
-                // Another lobby took over answering.
-                if (text.StartsWith(LeadNotePrefix, StringComparison.Ordinal))
-                {
-                    _isLead = text.StartsWith(LeadNotePrefix + LobbyLabel() + " ", StringComparison.OrdinalIgnoreCase);
-                    return;
-                }
-                // Other bot messages are notes and results, except commands from the organiser's
-                // view in The Button, which posts them as the administration bot.
-                if (!text.StartsWith("!", StringComparison.Ordinal) || text.StartsWith(SharedResults.ResetCommand, StringComparison.OrdinalIgnoreCase)) return;
+                _isLead = text.StartsWith(LeadNotePrefix + LobbyLabel() + " ", StringComparison.OrdinalIgnoreCase);
+                return;
             }
-            if (!text.StartsWith("!", StringComparison.Ordinal)) return;
+            // Other bot messages are notes and results, except the commands from The Button.
+            if (!text.StartsWith("!", StringComparison.Ordinal) || text.StartsWith(SharedResults.ResetCommand, StringComparison.OrdinalIgnoreCase)) return;
             var parts = text.Substring(1).Split(new[] { ' ', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length == 0) return;
             string command = parts[0].ToLowerInvariant();
@@ -69,7 +69,7 @@ namespace TournamentTracker
             {
                 if (args.Count == 0 || !int.TryParse(args[0].TrimStart('r', 'R'), out int round) || round <= 0)
                 {
-                    if (IsLead) Answer(m, "Usage: !start <round> [in <minutes>]", ok: false);
+                    if (IsLead) Answer(m, "Couldn't start the round: it has no round number.", ok: false);
                     return;
                 }
                 int? minutes = args.Count >= 3 && args[1].Equals("in", StringComparison.OrdinalIgnoreCase) && int.TryParse(args[2], out var mins) ? mins : (int?)null;
@@ -83,7 +83,7 @@ namespace TournamentTracker
             {
                 if (args.Count == 0 || !int.TryParse(args[0].TrimStart('r', 'R'), out int round) || round < 2)
                 {
-                    Answer(m, "Usage: !lobbies <round> (2 or later: it's built from the round before)", ok: false);
+                    Answer(m, "Lobbies are built for round 2 or later, from the round before.", ok: false);
                     return;
                 }
                 Chain(async () =>
@@ -106,7 +106,7 @@ namespace TournamentTracker
             {
                 if (Plan == null)
                 {
-                    Answer(m, "No lobbies to change yet: type !lobbies <round> first.", ok: false);
+                    Answer(m, "No lobbies to change yet: build them first in The Button's Organiser tab.", ok: false);
                     return;
                 }
                 string result = Plan.Apply(command, args);
@@ -120,18 +120,18 @@ namespace TournamentTracker
             }
         }
 
-        /// <summary>!lead in-game: this lobby answers the channel commands from now on.</summary>
+        /// <summary>Take over (lead): this lobby carries out the Organiser tab's round changes from now on.</summary>
         private void LeadCommand()
         {
             if (Shared == null || _settings.Mode != TrackerMode.Tournament)
             {
-                Reply("Channel commands need a tournament host code with a results channel.", false);
+                Reply("Leading the rounds needs a tournament host code with a results channel.", false);
                 return;
             }
             _isLead = true;
             string label = LobbyLabel();
-            Chain(() => Shared.PostNoteAsync($"{LeadNotePrefix}{label} answers channel commands (!lobbies, !start…) now."));
-            Reply("This lobby now answers the results-channel commands (!lobbies, !move, !start…).", false);
+            Chain(() => Shared.PostNoteAsync($"{LeadNotePrefix}{label} carries out the round changes from The Button's Organiser tab now."));
+            Reply("This lobby now carries out the round changes from The Button's Organiser tab (lobbies, round starts).", false);
         }
 
         private void StartRoundFromChannel(int round)
@@ -141,10 +141,10 @@ namespace TournamentTracker
             if (Tracker.InGame)
             {
                 _pendingRound = round;
-                Reply($"Round {round} was started from Discord: it begins after this game.", false);
+                Reply($"Round {round} was started by the organiser: it begins after this game.", false);
                 return;
             }
-            StartRound(round, "was started from Discord", sayRotation: false);
+            StartRound(round, "was started by the organiser", sayRotation: false);
         }
 
         /// <summary>
@@ -168,13 +168,13 @@ namespace TournamentTracker
             });
         }
 
-        /// <summary>Called after a game ends: a round started from Discord during it takes effect now.</summary>
+        /// <summary>Called after a game ends: a round the organiser started during it takes effect now.</summary>
         private void ApplyPendingRound()
         {
             if (_pendingRound is int round)
             {
                 _pendingRound = null;
-                StartRound(round, "was started from Discord", sayRotation: false);
+                StartRound(round, "was started by the organiser", sayRotation: false);
             }
         }
 
@@ -242,7 +242,7 @@ namespace TournamentTracker
             }
             if (plan.Alternates.Count > 0)
                 sb.Append("\n\n**Alternates:** " + string.Join(", ", plan.Alternates.Take(5).Select(p => $"{p.Name} ({LobbyPlan.Pts(p.Points)})")));
-            sb.Append($"\n\nChange with !move <player> <lobby> · !swap <a> <b> · !drop <player> · !add <player> <lobby> · !host <lobby> <host>. Then !start {plan.Round} in 10.");
+            sb.Append($"\n\nChange them in The Button's Organiser tab (Rounds), then start round {plan.Round} there.");
             await Shared!.PostNoteAsync(ReportFormatter.Clip(sb.ToString(), 2000)).ConfigureAwait(false);
         }
 

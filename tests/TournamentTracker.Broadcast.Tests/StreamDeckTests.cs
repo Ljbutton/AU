@@ -213,6 +213,38 @@ public class StreamDeckTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Auto_grid_fills_Preview_like_any_other_and_the_Take_key_puts_it_on()
+    {
+        await ConnectObs();
+        Snap("Lobby 1", "ingame");
+        Snap("Lobby 2", "ingame");
+        Desk.AutoGrid = true;
+        Desk.Show("Lobby 1");
+        await Until(() => _obs!.Program == "TT Full");
+        Snap("Lobby 1", "meeting");
+        Snap("Lobby 2", "lobby");
+        Desk.Tick();
+        // Every lobby quiet: the grid is in Preview (green tally, the Grid layout's), nothing switched.
+        var state = await State();
+        Assert.Equal("full", state.GetProperty("program").GetProperty("layout").GetString());
+        Assert.Equal("grid", state.GetProperty("preview").GetProperty("layout").GetString());
+        Assert.Equal(new[] { "Lobby 1", "Lobby 2" }, state.GetProperty("preview").GetProperty("slots").EnumerateArray().Select(x => x.GetString()));
+        Assert.False(state.GetProperty("preview").TryGetProperty("note", out _));        // the same Preview as ever
+        Assert.Equal("pvw", state.GetProperty("lobbies").EnumerateArray().Single(l => l.GetProperty("no").GetInt32() == 2).GetProperty("tally").GetString());
+        Assert.Equal("pgm", state.GetProperty("lobbies").EnumerateArray().Single(l => l.GetProperty("no").GetInt32() == 1).GetProperty("tally").GetString());
+        Assert.All(state.GetProperty("lobbies").EnumerateArray().SelectMany(l => l.GetProperty("players").EnumerateArray()), p => Assert.False(p.TryGetProperty("imp", out _)));
+        // The desk page says what it is.
+        Assert.Equal(CasterDesk.GridNote, (await Get("app/admin/live")).GetProperty("desk").GetProperty("preview").GetProperty("note").GetString());
+        Assert.Equal("full", Desk.OnAir.Layout);
+
+        // Take: on stream.
+        Assert.Equal(HttpStatusCode.OK, (await Press("take")).Status);
+        Assert.Equal("grid", Desk.OnAir.Layout);
+        await Until(() => _obs!.Program == "TT Grid");
+        Assert.Empty(Desk.Preview.Slots);
+    }
+
+    [Fact]
     public async Task The_state_waits_for_a_change_and_leaves_out_impostors_unless_asked()
     {
         Snap("Lobby 3", "ingame");

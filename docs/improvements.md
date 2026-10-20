@@ -1,6 +1,6 @@
 # What's left to do
 
-What needs doing, or could be done, to improve the tournament system, as of The Button and the mod **v0.1.64** and Red Alert **0.3.16** (15 October 2026). Each item says why, where the evidence is (file and line as of v0.1.64), and a rough size: **S** is under half a day, **M** is 1–2 days, **L** is 3 days or more.
+What needs doing, or could be done, to improve the tournament system, as of The Button and the mod **v0.1.65** and Red Alert **0.3.17** (20 October 2026; first written for v0.1.64). Each item says why, where the evidence is (file and line as of v0.1.64), and a rough size: **S** is under half a day, **M** is 1–2 days, **L** is 3 days or more.
 
 What each app already does is in [features-the-button.md](features-the-button.md), [features-mod.md](features-mod.md) and [features-red-alert.md](features-red-alert.md).
 
@@ -62,15 +62,15 @@ What each app already does is in [features-the-button.md](features-the-button.md
 4. **Rehearse the scoring path end to end, with real Discord.**
    - **Why:** Points are what the tournament is judged on, and the dry run doesn't touch them.
    - **Evidence:**
-     - dry-run.md has no Submit, Void, `!adjust`, standings or round-start step (grep for submit / void / standings / !adjust finds only a "count, void or replay" mention).
+     - dry-run.md has no Submit, Void, points change, standings or round-start step (grep for submit / void / standings / adjust finds only a "count, void or replay" mention).
      - test-list.md:38-50, 170-181 and 445-470 are all unticked.
    - **Do:** add a 5-minute "Scoring and Discord" block to dry-run.md, then run it. It covers:
      - Referee tab: + / −, and Void with a reason.
      - Submit and Submit all.
      - The report, standings and round scores each land in the right channel. The public channel gets only results and the timeline.
-     - `!adjust`, `!void` and `!unvoid` from the channel, each answered with ✅.
+     - A points change, a void and an unvoid from the Referee tab's **Results channel** card (administration code), each answered with ✅.
      - The preliminary Count.
-     - `!lobbies 2` and `!start 2`.
+     - Organiser tab → **Rounds**: **Build its lobbies** for round 2, then **Start round**.
      - Restart Among Us while games are waiting.
    - **Size:** S (doc), plus the session.
 
@@ -131,18 +131,21 @@ What each app already does is in [features-the-button.md](features-the-button.md
    - **Do:** the interop assemblies are generated during the build. A test using `MetadataLoadContext` can resolve each patch's target and its `__N` and `__instance` types, so a game update shows up as a red build instead of a bad night.
    - **Size:** M.
 
-10. **Check downloads before swapping them in.**
-    - **Why:** A truncated or tampered download is installed as long as it starts with "MZ".
-    - **Evidence:**
-      - `AppUpdater.cs:35-52` checks only "MZ" and a size over 1 MB.
-      - `ModInstaller.InstallAsync` (ModInstaller.cs:169 on) extracts whatever arrives.
-      - GitHub's release API already returns a `sha256:` digest for every asset (seen on all of v0.1.64's assets).
-    - **Do:** compare against that digest before swapping. It covers integrity; authenticity needs item 11.
+10. **Check the installers' downloads too.**
+    - **Why:** The Button's own update, the mod bundle and Red Alert's update are now checked against the release's size and SHA-256 (see [Done in 0.1.65](#done-in-0165)). The one-click installers aren't: they run whatever arrives.
+    - **Evidence:** `install.ps1:50` and `install-redalert.ps1:72` download with `Invoke-WebRequest` and use the file as it is; `install-redalert.ps1` already reads the release list, which has each asset's `sha256:` digest.
+    - **Do:** compare `Get-FileHash` with the API's digest before installing. It covers integrity; authenticity needs item 11.
     - **Size:** S.
 
 11. **Code signing.**
     - **Why:** Hosts are told to click "More info → Run anyway" (README.md:47 and the release notes). A .bat that runs PowerShell to download an exe, and BepInEx's `winhttp.dll` proxy, are both typical antivirus false-positive triggers.
-    - **Do:** sign `TheButton.exe` and `RedAlert.exe` (an OV certificate, or Azure Trusted Signing if eligible). Note any antivirus hits during the dry run.
+    - **Do:** sign `TheButton.exe` and `RedAlert.exe`. Note any antivirus hits during the dry run.
+    - **Options found:**
+      - Azure Artifact Signing: about $9.99 a month; organisations in the US, Canada, the EU or the UK, individuals in the US or Canada only.
+      - An OV certificate on a cloud HSM: about $116–219 a year.
+      - EV: not worth it.
+      - SignPath Foundation (free for open source): likely not eligible (WebView2).
+    - **Where:** in build.yml after `dotnet publish` and before the installers are built and uploaded (jsign on the Linux runner, or a Windows signing job), on releases only. Later the updater can check the Authenticode signer too.
     - **Size:** M–L.
 
 12. **Let the organiser freeze updates in code.**
@@ -151,15 +154,7 @@ What each app already does is in [features-the-button.md](features-the-button.md
     - **Do:** add a setup-code field, "hold updates until <date>" or "stay on vX".
     - **Size:** S–M.
 
-13. **A Windows CI job.**
-    - **Why:** Every job runs on ubuntu-24.04 (build.yml:29, :49), so Windows-only code never runs in CI:
-      - `ProcessAudio.cs` (292 lines of WASAPI process loopback; no test references it)
-      - `GlobalHotkey`
-      - `MainForm` and WebView2
-      - `File.Replace` and file-sharing behaviour
-      - the installers under Windows PowerShell 5.1 (tested only with pwsh)
-    - **Do:** add a windows-latest job that runs both test suites, then starts TheButton.exe and RedAlert.exe and polls `/app/state`.
-    - **Size:** M.
+*13 is done: see [Done in 0.1.65](#done-in-0165).*
 
 14. **Run the embedded page scripts in CI.**
     - **Why:** A syntax slip leaves a blank Live desk while CI stays green.
@@ -173,25 +168,7 @@ What each app already does is in [features-the-button.md](features-the-button.md
 
 ### The Button and the mod
 
-15. **Atomic writes, keeping the broken copy.**
-    - **Why:** A power cut mid-write wipes waiting games, links or a code. A corrupted Red Alert `settings.json` reopens it locked, with a new Stream Deck key, mid-show.
-    - **Evidence, all plain `File.WriteAllText`:**
-      - games waiting for Submit (`Verify.cs:63`)
-      - game records (`Voids.cs:161`)
-      - links (`LinkRegistry.cs:103`)
-      - round state, including the VDO link (`Rounds.cs:98`)
-      - The Button's settings with the setup code, admin code and bots (`AppServer.cs:81`)
-      - Red Alert's settings with the admin code and Stream Deck key (`Files.cs:22`)
-    - Loads quietly fall back to empty (`AppServer.cs:73-75`). `LinkRegistry.cs:91-94` then writes over the bad file.
-    - `StatsStore.cs:150-176` already does it right: a temporary file, `File.Replace`, and a `.corrupt-` copy.
-    - **Do:** reuse that pattern everywhere.
-    - **Size:** S–M.
-
-16. **Back up host data outside the Among Us folder.**
-    - **Why:** Uninstalling or reinstalling Among Us deletes every game, link and waiting game. The Button keeps only the setup code (`AppServer.cs:34-38`).
-    - **Evidence:** everything is in `<Among Us>/BepInEx/config/TournamentTracker` (`ModInstaller.cs:56`).
-    - **Do:** after each game, mirror `games/`, `links.json` and the waiting list to `%LOCALAPPDATA%\TheButton`.
-    - **Size:** S.
+*15 and 16 are done: see [Done in 0.1.65](#done-in-0165).*
 
 17. **Protect secrets at rest, and write a rotation runbook.**
     - **Why:** Any other BepInEx plugin, or anyone who can read the folder, can take the bots. A leaked code needs an exact recovery procedure.
@@ -233,20 +210,18 @@ What each app already does is in [features-the-button.md](features-the-button.md
     - **Do:** load the last known set at start, marked "cached".
     - **Size:** S.
 
-22. **Twitch's delay should follow OBS's stream delay.**
-    - **Why:** Polls, predictions and !sus open up to 90 s before viewers see the game or meeting.
-    - **Evidence:**
-      - `TwitchSettings.DelaySeconds` defaults to 0 (TwitchSettings.cs:19-20) and is only set by hand (`BroadcastServer.cs:548`).
-      - Setup check sets OBS's delay to 90 s (`ObsSetup.cs:93-163`); the two are never compared.
-    - **Do:** default Twitch's delay to OBS's, or warn when they differ.
-    - **Size:** S.
+22. **No stream delay: what shows the impostors live.**
+    - **Why:** The owner has decided there will be no stream delay (so the old item, Twitch's delay following OBS's, no longer applies). Without one, these show who the impostors are on stream as it happens, where players in any lobby can watch:
+      - impostor tags on the on-stream graphics (on by default);
+      - kill cards naming the killer (the off-screen kill alerts too);
+      - instant kill replays (each kill saves a clip; **Replay that** plays the last seconds at once);
+      - player cams marking impostors (Auto follows an impostor closing in on someone alone);
+      - the referee view on stream: the game picture is the referee ghost's screen, with impostors' names in red.
+    - **Evidence:** Red Alert and the docs still count on a delay: README "Put a delay on your public stream", features-red-alert.md "A stream delay is needed", dry-run.md "a stream delay if Impostor tags are on", and the OBS setup check's **Set a 90 s delay**.
+    - **Do:** to be decided in the Red Alert session: what goes off or waits, and what the docs say.
+    - **Size:** to be decided.
 
-23. **Auto grid replaces a meeting that's on air.**
-    - **Why:** Only "ingame" counts as busy (`CasterDesk.cs:1127`), and `CasterDeskTests.cs:288-302` asserts that the grid comes up while the lobby on air is in a meeting.
-    - **Do:**
-      - Count the on-air lobby's meeting as busy, and change the test.
-      - Until then, keep Auto grid off.
-    - **Size:** S.
+*23 is done: see [Done in 0.1.65](#done-in-0165).*
 
 24. **One "Jump to action".**
     - **Why:** The desk's N / Action and the Stream Deck's lobby/action can pick different lobbies for the same moment.
@@ -300,39 +275,53 @@ What each app already does is in [features-the-button.md](features-the-button.md
     - **Do:** the code is already in Core (`PrelimLeaderboards.cs`). Have the organiser's Red Alert or Button run it after each lobby's Count, or trigger `workflow_dispatch` from an outside scheduler.
     - **Size:** M.
 
-31. **Fix docs that disagree with the code.**
-    - README.md:1196 says "currently 2026.8.18"; 0.1.64 was built for 2026.9.29.
-    - README.md:1191 still uses the example `2025.x.y`.
-    - build.yml:256: Red Alert's release notes say it "never updates itself: download it again". Settings → Updates installs it (`BroadcastUpdate.cs:68`).
-    - test-list.md:7-8 still name 0.1.41 / 0.3.9.
-    - README.md:399 still says "(experimental)", though host authority is on by default.
-    - **Buttons that moved:** Void is now on the Referee tab ("Void this game"); Take over and the combined leaderboard Reset… are in Settings → Tournament; "Post under Standings", "Servers" and "Repost lobby message" are now Home → Tools → **Post** (Leaderboard, Server standings, Lobby message).
-    - **The Button's top bar:** the README says "New version available" and "Restart to update"; the app shows "The Button vX is out · Update" and "Restart The Button to finish", and also a "Live message can't post" warning the README leaves out.
-    - **Settings that don't exist:** the README's `VerifyResults = false` config setting isn't in the code (only the setup code turns the hold off). The config table puts `PublishLive` under [Discord] (it's [General]) and leaves out `ShowTalking` and `[Debug] RefereeRecordSync`.
-    - **Wrong details:** preliminary public channels get only the report (not standings); new links are announced on Home and in the log, not in the lobby chat; the bot is online whenever The Button is open (not only with Among Us); the player camera is 960×540 (not 720p); the referee ghost hears every kill; game files are `game-<id>.json`.
-    - **Red Alert:** the status bar says PROGRAM (not LIVE); the Graphics page's help calls the OBS source "Red Alert" (it's "TT Broadcast"); the OBS card's help lists 3 of the 9 TT scenes; Twitch's "Which lobby next?" button only puts the lobby into Preview; player cards go through the graphics queue (8 s by default); G, I, U, B, C, M, V and E work on every page; the grid goes five wide past 16 lobbies; end-of-game montages are about 45 s; docs/stream-deck.md leaves out `prompt/save`.
-    - README.md:794 calls Red Alert's viewer "the same replay viewer as The Button's", but The Button has no replay viewer now.
-    - **Size:** S–M.
-
-32. **Small wrong messages in the apps.**
-    - The mod's F9 message says "Type !automute on to resume" (`Driver.cs:99`), but chat commands were removed: it should point to The Button.
-    - The mod's `feed on` reply still says to share the Entire screen; The Button now recommends the Among Us window.
-    - The Automute card says the bot "comes with a tournament host code", ignoring bots added in Settings → **Your Discord**.
-    - A referee change made with + / − shows the breakdown line "Referee: referee".
-    - The overlay's reply says "Size 360×900"; the page is about 380 px wide.
+31. **Docs that still disagree with the code.** Most are fixed (see [Done in 0.1.65](#done-in-0165)). Left:
+    - test-list.md:7-8 ("Before you start") still name 0.1.41 / 0.3.9.
+    - README.md still calls the referee ghost slot "(experimental)", though host authority is on by default.
+    - The docs that ask for a stream delay (item 22).
     - **Size:** S.
 
-33. **Administration code on a PC without Among Us.**
-    - **Why:** The README and the code maker say the Organiser tab works on a PC that isn't hosting, but The Button refuses every code with "Find Among Us first." until it has found an Among Us folder (`AppServer.cs`, `FindGameFirst`). An organiser or referee PC without Among Us can't open the Organiser tab.
-    - **Do:** accept an administration code without Among Us; keep the check for host codes.
-    - **Size:** S.
+*32 and 33 are done: see [Done in 0.1.65](#done-in-0165).*
 
-34. **Who can use the `!` commands.**
-    - **Why:** Anyone who can post in the private results channel can run `!adjust`, `!void`, `!unvoid`, `!lobbies` and `!start`; the code checks no role. That's fine while the channel is truly private, but one wrong channel permission gives anyone points control.
-    - **Do:** an optional "referee role" in the setup code, checked before a `!` command runs; until then, say in the README that the channel's permissions are the only lock.
+34. **Which bots can post a change.**
+    - **Why:** A command a person types in the private results channel now does nothing: the mods act only on bots' messages, and every points and round change is made in The Button (see [Done in 0.1.65](#done-in-0165)). But any bot's message counts: the administration bot (its token is in the administration code every referee and caster holds), any other bot that can post there, and a webhook into the channel (Discord marks its messages as a bot's).
+    - **Evidence:** `ChannelCommands.cs:53` and `SharedResults.ReadAsync` (SharedResults.cs:158-170) check only `AuthorIsBot` (`DiscordRest.cs:602`), no bot ID or role.
+    - **Do:** accept changes only from known bots (the administration bot's user ID could go in the host codes), or the earlier idea of a referee role; until then, keep the channel staff only, with no webhooks or other bots in it.
     - **Size:** S.
 
 ---
+
+### Found in the 0.1.65 review (not fixed yet)
+
+49. **Preliminary games: only the host can change points now.**
+    - **Why:** typed `!void` / `!adjust` in the preliminary channels no longer count, and the Organiser tab only posts to the tournament's results channel. An organiser can't correct a preliminary game; its host does it in the Referee tab.
+    - **Do (if wanted):** list the preliminary channels in the administration code and let the Organiser tab post changes there too.
+    - **Size:** M.
+
+50. **Upgrading during a running tournament.**
+    - **Why:** changes typed in Discord before 0.1.65 (`!adjust`, `!void`, `!resetleaderboard`) stop counting after the update, and older mods still count them, so standings can differ between lobbies until everyone updates.
+    - **Do:** update every host, referee and the caster before an event, and redo any typed change from The Button. If a tournament is already running, count typed commands older than the release (by message time).
+    - **Size:** S.
+
+51. **Only The Button's own bot should be able to post a change.**
+    - **Why:** the mods take changes from any bot account in the channel (not webhooks, not people). A host's bot added to the private channel could post one.
+    - **Do:** put the administration bot's user ID in tournament host codes and accept changes only from it.
+    - **Size:** S–M.
+
+52. **Backup details.**
+    - "Newer" is decided by file time, so a PC clock that was wrong for a while can keep stale copies; after a reinstall the round's game count isn't rebuilt from the game files.
+    - `.corrupt-…` copies are never removed (some are copies of files holding tokens); prune them after a while.
+    - The backup holds the caster-feed link and password from `state-*.json` (same PC as The Button's own settings, never in a support bundle).
+    - **Size:** S each.
+
+53. **Auto grid small things.** Hold says "Held back: Auto grid" while the caster's own Preview is waiting, and a replay going on doesn't take auto grid's suggestion out of Preview. **Size:** S.
+
+54. **Other automatic switches still don't wait for Take:** auto intermission, auto switch away from a dropped lobby (and swapping a dead tile, Be right back coming back), the sponsor break ending, a MUST SHOW play ending a break, the player camera going back to the map, an armed camera going on, the grid resizing, a montage going back to intermission. For the Red Alert session. **Size:** M.
+
+55. **Windows CI: an occasional stall in Red Alert's OBS tests.**
+    - **Why:** on the Windows runner, a test using the fake OBS (HttpListener) sometimes waited forever, a different test each time; Linux never did. Limits were added to the fake's sends and closes, and to Red Alert's own sends to OBS (10 s), and the runs since are green.
+    - **Do:** if it comes back, the CI step's watchdog prints every thread's stack and the waiting async chains (`dumpasync`) after 2 minutes: read them in the job log.
+    - **Size:** S–M.
 
 ## Could do
 
@@ -400,7 +389,7 @@ What each app already does is in [features-the-button.md](features-the-button.md
 45. **Safer defaults and a current runtime.**
     - **Lobby keys:** they default to cutting straight to stream (`actions.js:144`, `mode: "cut"`), and dry-run.md warns about it twice. Default to Preview.
     - **Node:** the plugin runs on Node 20 (manifest `Nodejs 20`, package.json engines), which reached end of life in April 2026. Move when the Stream Deck app offers a newer runtime.
-    - **CI:** run `npm run validate`. It exists in package.json, but build.yml doesn't run it.
+    - (The CI part is done: see [Done in 0.1.65](#done-in-0165).)
     - **Size:** S.
 
 ### Both apps
@@ -416,6 +405,13 @@ What each app already does is in [features-the-button.md](features-the-button.md
 47. **A Host check on the overlay ports.**
     - **Why:** It closes the remaining DNS-rebinding route to impostor roles; the app servers already check.
     - **Evidence:** `OverlayServer` reads only the request line (`OverlayServer.cs:44-60`). It serves `/state?full=1`, which includes roles, on 8765 (the mod) and 8767 (Red Alert's caster pages) with no Host check.
+    - **Size:** S.
+
+### The repository
+
+48. **Line endings for Windows developers.**
+    - **Why:** Git on Windows checks files out with CRLF line endings by default, and some tests fail on such a checkout. The Windows CI job sets `core.autocrlf false` to test the files as committed, so it doesn't show.
+    - **Do:** decide whether to add a `.gitattributes` with `eol=lf`.
     - **Size:** S.
 
 ---
@@ -459,3 +455,20 @@ These ideas from earlier audits are in the code now, so they are not on the list
   - Replay clip clean-up by size, age and free disk.
 - **Support bundles with redaction** in both apps, and the dry-run checklist.
 - **The Referee tab on one screen,** with one void reason, the admin lobby list filled when the tab opens, and the "Not held for Submit" subtitle (`index.html:918`).
+
+---
+
+## Done in 0.1.65
+
+Done in The Button and the mod 0.1.65 and Red Alert 0.3.17; the numbers are the items above.
+
+- **10 (the apps):** The Button's own update, the mod bundle and Red Alert's update are used only when their size and SHA-256 match the release (`Common/ReleaseAsset.cs`); a mismatch is deleted and nothing changes. The installers are still item 10.
+- **13:** a Windows CI job (build.yml `windows`) builds and tests everything on Windows, starts both apps, checks the installer scripts in Windows PowerShell 5.1 and runs both .bat installers from a folder with an apostrophe in its name, which found and fixed a real bug: such a folder stopped the installers.
+- **15:** safe saving everywhere (`Core/SafeFile.cs`): each file is written to a side file and swapped in, and one that can't be read is kept as `<name>.corrupt-<time>`; Home shows "A damaged file was set aside".
+- **16:** The Button backs up the mod's games, links, waiting list, rounds and totals to `%LOCALAPPDATA%\TheButton\backup` (`AppCore/ModBackup.cs`), with Settings → Help → **Restore backup** and a Home notice when the backup has games the mod's folder doesn't.
+- **23:** auto grid only fills Preview and Take puts it on; it never replaces a Preview the caster picked. Other automatic switches still go on by themselves: auto intermission, auto switch off a dropped lobby, a break ending, a camera going back to the map, armed cameras, the grid closing up, a montage going back to intermission.
+- **31 (most):** the README, the features pages, Red Alert's help texts, its release notes and the plugin's project file match the code (buttons that moved, the top bar, the player camera's size, every kill heard, the overlay's 360×720, the OBS scenes and source name, the replay viewer). What's left is item 31.
+- **32:** F9 and Unmute all point to **Automute** on The Button's Home, `feed on` says to share the Among Us window, the Automute card mentions Your Discord, + / − shows "Referee change", and the overlay's reply says 360×720.
+- **33:** an administration code works on a PC without Among Us (kept in The Button's own settings); Home says "Organiser PC" with **Open the Organiser tab**.
+- **34 (most):** commands typed in Discord do nothing; every points and round change is made in The Button (Referee tab → **Results channel**, Organiser tab → **Rounds**, with **Start over…** for the combined standings). What's left is item 34.
+- **45 (CI):** the Windows job runs `npm run validate`.

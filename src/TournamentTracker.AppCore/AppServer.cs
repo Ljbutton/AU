@@ -68,18 +68,20 @@ namespace TournamentTracker.App
         public string? AppToken { get; set; }
         public int AppPort { get; set; }
 
-        public static AppSettings Load(string file)
+        /// <summary>The saved settings, or the defaults. A file that can't be read is kept as app.json.corrupt-… (and <paramref name="warn"/> told) before the defaults are saved over it.</summary>
+        public static AppSettings Load(string file, Action<string>? warn = null)
         {
-            try { if (File.Exists(file)) return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(file)) ?? new AppSettings(); }
-            catch (Exception) { }
-            return new AppSettings();
+            try { return SafeFile.ReadOrRecover(file, text => JsonSerializer.Deserialize<AppSettings>(text), warn) ?? new AppSettings(); }
+            catch (Exception e)
+            {
+                // Couldn't even be read (in use too long, no permission): keep a copy before the defaults are saved over it.
+                string? kept = File.Exists(file) ? SafeFile.KeepCorrupt(file) : null;
+                warn?.Invoke($"{Path.GetFileName(file)} couldn't be read ({e.Message}). " + (kept != null ? $"A copy is kept as {Path.GetFileName(kept)}." : "It couldn't be copied aside."));
+                return new AppSettings();
+            }
         }
 
-        public void Save(string file)
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            File.WriteAllText(file, JsonSerializer.Serialize(this));
-        }
+        public void Save(string file) => SafeFile.WriteAllText(file, JsonSerializer.Serialize(this));
     }
 
     /// <summary>What the Windows window needs to give the app: where things are, and how to open files and links.</summary>
@@ -131,8 +133,14 @@ namespace TournamentTracker.App
         private readonly object _voiceLock = new object();
         /// <summary>the-button.log, next to the settings (the organiser's view writes to it too).</summary>
         private readonly FileLog _log;
-        private readonly Timer _voiceIdle;
+        /// <summary>Every 10 s: the lobby sound stops when the send page went away, and the backup catches up.</summary>
+        private readonly Timer _tick;
         private readonly DiscordBridge _bridge;
+        /// <summary>The copy of the mod's games, links and rounds in The Button's own folder (null: no settings folder).</summary>
+        private readonly ModBackup? _backup;
+        /// <summary>Copies kept of damaged files lately (The Button's and the mod's), as the last look found them.</summary>
+        private volatile List<DamagedFile> _damaged = new List<DamagedFile>();
+        private string? _backupProblem;
 
         /// <summary>The send page last asked about the lobby sound this long ago (closed): capturing stops until it asks again.</summary>
         private static readonly TimeSpan VoiceIdle = TimeSpan.FromSeconds(30);
@@ -185,18 +193,18 @@ namespace TournamentTracker.App
         private volatile string? _appUpdateError;
 
         private bool AppUpdateAvailable =>
-            _env.ExePath != null && _latest?.AppUrl != null && _appReady == null && AppUpdater.Newer(_latest.Tag, _env.Version);
+            _env.ExePath != null && _latest?.App != null && _appReady == null && AppUpdater.Newer(_latest.Tag, _env.Version);
 
         private async Task UpdateAppAsync()
         {
             var release = _latest;
             string? exe = _env.ExePath;
-            if (_appUpdating || release?.AppUrl == null || exe == null) return;
+            if (_appUpdating || release?.App == null || exe == null) return;
             _appUpdating = true;
             _appUpdateError = null;
             try
             {
-                string error = await AppUpdater.InstallAsync(_http, release.AppUrl, exe).ConfigureAwait(false);
+                string error = await AppUpdater.InstallAsync(_http, release.App, exe, log: _log).ConfigureAwait(false);
                 if (error.Length > 0) _appUpdateError = error;
                 else _appReady = release.Tag;
             }
@@ -215,8 +223,8 @@ namespace TournamentTracker.App
             _env = env;
             _http = http;
             _log = new FileLog(string.IsNullOrEmpty(env.SettingsFile) ? null : Path.GetDirectoryName(env.SettingsFile), "the-button.log");
-            _settings = AppSettings.Load(env.SettingsFile);
-            _installer = new ModInstaller(http);
+            _settings = AppSettings.Load(env.SettingsFile, m => _log.Warn(m + " The Button started with its default settings: a host's setup code comes back from the Among Us folder; an administration code has to be pasted again."));
+            _installer = new ModInstaller(http, _log);
             _mod = new ModClient(http);
             if (!GameLocator.IsGameFolder(_settings.GamePath))
             {
@@ -234,13 +242,79 @@ namespace TournamentTracker.App
             TrySave();
             Task.Run(() => LocalServer.Serve(_listener, _cts.Token, Route));
             StartOrganizer();
-            _voiceIdle = new Timer(_ => { try { _voice?.StopIfIdle(VoiceIdle); } catch (Exception) { } }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+            if (AppFolder is { } folder) _backup = new ModBackup(Path.Combine(folder, ModBackup.FolderName));
+            _tick = new Timer(_ => Tick(), null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
             // The bot stays online while The Button is open; the mod reaches Discord through it.
             _bridge = new DiscordBridge(() => DiscordBridge.FromSetupCode(_settings.SetupCode, _settings.HostDiscord),
                 () => GamePath == null ? null : ModInstaller.DataDir(GamePath), connect: env.Bots);
         }
 
         public string? GamePath => _settings.GamePath;
+
+        /// <summary>
+        /// The Among Us folder when it's really there, for anything that writes into it (null: none found, or the
+        /// one found before is gone). An organiser's PC has none, and nothing is made in a folder that isn't there.
+        /// </summary>
+        private string? GameFolder => GameLocator.IsGameFolder(GamePath) ? GamePath : null;
+
+        /// <summary>Where The Button keeps its settings, log and backup (%LOCALAPPDATA%\TheButton); null when it has none.</summary>
+        private string? AppFolder => string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.GetDirectoryName(_env.SettingsFile);
+
+        /// <summary>Every 10 s, on the timer: the lobby sound, then the backup.</summary>
+        private void Tick()
+        {
+            try { _voice?.StopIfIdle(VoiceIdle); } catch (Exception) { }
+            try { BackupNow(); } catch (Exception) { }
+        }
+
+        // ---- The backup of the mod's data, and damaged files -----------------------------------------
+
+        /// <summary>
+        /// Brings the backup up to date with the mod's folder when anything there changed (a game saved or submitted,
+        /// links or the waiting list changed), and looks for copies kept of damaged files. On the 10-second timer.
+        /// </summary>
+        internal void BackupNow()
+        {
+            string? data = GameFolder == null ? null : ModInstaller.DataDir(GameFolder);
+            if (_backup != null)
+            {
+                _backup.Mirror(data);
+                string? problem = _backup.State.Problem;
+                if (problem != null && problem != _backupProblem) _log.Warn("Backup: " + problem);
+                _backupProblem = problem;
+            }
+            _damaged = ModBackup.Damaged(AppFolder, data, DateTime.UtcNow);
+        }
+
+        private object? BackupView()
+        {
+            if (_backup == null) return null;
+            var s = _backup.State;
+            return new { s.Files, s.Missing, s.CopiedAt, s.Problem };
+        }
+
+        /// <summary>Settings → Help → Restore backup (and Home's notice): puts back what's missing or older in the mod's folder, with Among Us closed.</summary>
+        private object RestoreBackup()
+        {
+            if (_backup == null) return new { ok = false, message = "There's no backup on this PC." };
+            if (GameFolder == null) return new { ok = false, message = FindGameFirst };
+            if (ModInstaller.GameRunning()) return new { ok = false, message = "Close Among Us first: the mod would save over what's put back." };
+            var r = _backup.Restore(ModInstaller.DataDir(GameFolder));
+            _log.Info("Restore backup: " + r.Message);
+            BackupNow();
+            return new { ok = r.Ok, message = r.Message };
+        }
+
+        /// <summary>Home's notice → Forget them: the games only the backup has were removed from the mod's folder on purpose.</summary>
+        private object ForgetBackup()
+        {
+            if (_backup == null) return new { ok = false, message = "There's no backup on this PC." };
+            if (GameFolder == null) return new { ok = false, message = FindGameFirst };
+            int gone = _backup.Forget(ModInstaller.DataDir(GameFolder));
+            _log.Info($"Backup: forgot {gone} game(s) that aren't in the mod's folder.");
+            BackupNow();
+            return new { ok = true, message = gone == 1 ? "The backup no longer keeps that game." : $"The backup no longer keeps those {gone} games." };
+        }
 
         private List<GameInstall> Candidates() => GameLocator.Find(_env.SteamRoot, _env.EpicManifests, _env.Fallbacks);
 
@@ -324,6 +398,8 @@ namespace TournamentTracker.App
                 case ("POST", "/app/share"): return Ok(SetShare(Arg("mode"), Arg("low")));
                 case ("POST", "/app/conncheck"): return Ok(ConnectionCheckCommand(Arg("action")));
                 case ("POST", "/app/support"): return Ok(await SaveSupportBundleAsync().ConfigureAwait(false));
+                case ("POST", "/app/backup/restore"): return Ok(await Task.Run(RestoreBackup).ConfigureAwait(false));
+                case ("POST", "/app/backup/forget"): return Ok(await Task.Run(ForgetBackup).ConfigureAwait(false));
                 case ("GET", "/app/cam"):
                 {
                     // The player camera's next picture, for the send page (which sends it to the caster).
@@ -362,8 +438,12 @@ namespace TournamentTracker.App
                     return Text(200, "application/json", feed ?? "{\"last\":-1,\"items\":[]}");
                 }
                 case ("POST", "/app/admin/command"):
-                    if (_organizer == null) return Ok(new { ok = false, message = "Administration is locked." });
-                    return Ok(new { ok = true, message = await _organizer.CommandAsync(Arg("text")).ConfigureAwait(false) });
+                {
+                    // One change from the Referee or Organiser tab's fields ({kind, game, player…}); never free text.
+                    if (_organizer is not { } org) return Ok(new { ok = false, message = "Administration is locked." });
+                    var (ok, message) = await org.PostChangeAsync(Arg("kind"), Arg).ConfigureAwait(false);
+                    return Ok(new { ok, message });
+                }
                 case ("POST", "/app/update"):
                     if (!AppUpdateAvailable) return Ok(new { ok = false, message = "The Button is up to date." });
                     _ = Task.Run(UpdateAppAsync);
@@ -380,7 +460,7 @@ namespace TournamentTracker.App
                     return Ok(Switch(Arg("on") == "true", on =>
                     {
                         _settings.ShowModConsole = on;
-                        if (GamePath != null) try { ModInstaller.SetConsole(GamePath, on); } catch (Exception) { }
+                        if (GameFolder is { } game) try { ModInstaller.SetConsole(game, on); } catch (Exception) { }
                     }, "The mod's console window shows from the next start of Among Us.", "No console window from the next start of Among Us (the log is still in Settings → Mod and updates → Open log)."));
                 case ("POST", "/app/hostdiscord"): return Ok(await SaveHostDiscordAsync(input).ConfigureAwait(false));
                 case ("POST", "/app/twitch"):
@@ -488,6 +568,7 @@ namespace TournamentTracker.App
             JsonElement? status = mod.Installed && GamePath != null ? await StatusElementAsync(GamePath).ConfigureAwait(false) : null;
             if (await WatchSendPageAsync(status).ConfigureAwait(false) && GamePath != null)
                 status = await StatusElementAsync(GamePath).ConfigureAwait(false) ?? status;
+            var organizer = _organizer;          // read once: locking or a new code replaces it on another thread
             return new
             {
                 SendPage = new
@@ -512,7 +593,9 @@ namespace TournamentTracker.App
                 },
                 Setup = SetupView(),
                 HostDiscord = HostDiscordView(),
-                Admin = _organizer == null ? null : new { _organizer.Tournament },
+                Admin = organizer == null ? null : new { organizer.Tournament },
+                // An administration code and no Among Us: the organiser's (or a referee's) PC, where Home doesn't ask for the game or the mod.
+                OrganiserPc = organizer != null && !mod.GameFound,
                 AppUpdate = new
                 {
                     Supported = _env.ExePath != null,
@@ -528,6 +611,8 @@ namespace TournamentTracker.App
                 Share = new { Mode = ShareMode, Low = _settings.LowQuality, VoiceOn = !_settings.VoiceOff, Instructions = SendPage.Instructions(ShareMode, !_settings.VoiceOff) },
                 Health = HealthView(status),
                 ConnCheck = ConnectionCheckView(),
+                Backup = BackupView(),
+                Damaged = _damaged,
             };
         }
 
@@ -688,7 +773,13 @@ namespace TournamentTracker.App
             if (_feedNote != null) notes.Add("Send page note: " + _feedNote);
             notes.Add("Discord bot (The Button's): " + JsonSerializer.Serialize(_bridge.Status(), Json));
             notes.Add("Setup code: " + (SetupCode.TryParse(_settings.SetupCode, out var code, out _) ? code.Describe() : "none") + (_settings.AdminCode != null ? "; administration code saved" : ""));
+            if (_organizer is { } organizer)
+                notes.Add($"Organiser view: {organizer.Tournament}{(organizer.Problem is { } problem ? "; problem: " + problem : "")}{(mod.GameFound ? "" : "; organiser PC (no Among Us here, and none needed)")}.");
             notes.Add($"Updates: The Button automatic {(_settings.AutoUpdateApp ? "on" : "off")}, mod automatic {(_settings.AutoUpdateMod ? "on" : "off")}; newest release seen {_latest?.Tag ?? "not checked yet"}.");
+            // Only counts: the backup's files themselves never go in the bundle.
+            if (_backup?.State is { } bk)
+                notes.Add($"Backup (The Button's copy of the mod's games, links and rounds): {bk.Files} files, last copied {(bk.CopiedAt is DateTime at ? at.ToString("yyyy-MM-dd HH:mm") + " UTC" : "not since The Button started")}; {bk.Missing} saved game(s) only in the backup{(bk.Problem != null ? "; problem: " + bk.Problem : "")}.");
+            foreach (var d in _damaged) notes.Add($"Damaged file: {d.Whose} {d.Name} couldn't be read ({d.At:yyyy-MM-dd HH:mm} UTC); a copy is kept as {d.Kept}.");
             var inputs = new ButtonSupport.Inputs
             {
                 AppVersion = _env.Version, SettingsFile = _env.SettingsFile, GamePath = GamePath, Mod = mod,
@@ -716,8 +807,8 @@ namespace TournamentTracker.App
         /// </summary>
         private void KeepSetupCode()
         {
-            if (GamePath == null) return;
-            string dir = ModInstaller.DataDir(GamePath);
+            if (GameFolder is not { } game) return;
+            string dir = ModInstaller.DataDir(game);
             string file = Path.Combine(dir, SetupCode.FileName);
             try
             {
@@ -734,7 +825,6 @@ namespace TournamentTracker.App
                 {
                     SetupCode.Save(dir, _settings.SetupCode);
                     _settings.HostDiscord?.Save(dir);
-                    string game = GamePath;
                     _ = Task.Run(() => _mod.CommandAsync(game, "setup reload"));
                 }
                 if (_settings.HostDiscord != null && !_settings.HostDiscord.IsEmpty && !File.Exists(Path.Combine(dir, HostDiscord.FileName)))
@@ -782,11 +872,11 @@ namespace TournamentTracker.App
             _settings.HostStatusName = result.StatusName;
             TrySave();
             bool live = false;
-            if (GamePath != null)
+            if (GameFolder is { } game)
             {
-                string dir = ModInstaller.DataDir(GamePath);
+                string dir = ModInstaller.DataDir(game);
                 try { result.Saved.Save(dir); } catch (Exception) { }
-                live = await _mod.CommandAsync(GamePath, "setup reload").ConfigureAwait(false) != null;
+                live = await _mod.CommandAsync(game, "setup reload").ConfigureAwait(false) != null;
             }
             int bots = result.Saved.BotTokens.Count;
             string saved = bots > 0 ? $"Saved: {string.Join(", ", result.BotNames)} online while The Button is open." : "Saved.";
@@ -917,8 +1007,7 @@ namespace TournamentTracker.App
         private object StartInstall(bool repair = false, bool update = false)
         {
             if (_installing.Length > 0) return new { ok = false, message = "Already installing." };
-            if (GamePath == null) return new { ok = false, message = FindGameFirst };
-            string game = GamePath;
+            if (GameFolder is not { } game) return new { ok = false, message = FindGameFirst };
             _installing = repair ? "Repairing the mod loader (Among Us needs the 64-bit one)…" : update ? "Updating the mod by itself…" : "Checking for the latest version…";
             _installResult = "";
             _ = Task.Run(async () =>
@@ -943,28 +1032,30 @@ namespace TournamentTracker.App
 
         private async Task<object> SaveSetupAsync(string text)
         {
-            if (GamePath == null) return new { ok = false, message = FindGameFirst };
             if (!SetupCode.TryParse(text, out var code, out var error)) return new { ok = false, message = error };
-            // The organiser's own code unlocks the Organiser tab; nobody else sees that it exists.
+            // The organiser's own code unlocks the Organiser tab; nobody else sees that it exists. It's kept in
+            // The Button's own settings, so an organiser's PC needn't have Among Us.
             if (code.IsAdmin)
             {
                 SetAdminCode(text);
                 return new { ok = true, admin = true, message = $"Organiser view unlocked for {code.TournamentName}." };
             }
-            SetupCode.Save(ModInstaller.DataDir(GamePath), code.Encode());
+            // A host's code goes in the mod's folder, inside Among Us's.
+            if (GameFolder is not { } game) return new { ok = false, message = FindGameFirst };
+            SetupCode.Save(ModInstaller.DataDir(game), code.Encode());
             _settings.SetupCode = code.Encode();
             TrySave();
-            bool live = await _mod.CommandAsync(GamePath, "setup reload").ConfigureAwait(false) != null;
+            bool live = await _mod.CommandAsync(game, "setup reload").ConfigureAwait(false) != null;
             return new { ok = true, message = $"Setup saved: {code.Describe()}." + (live ? " The mod in Among Us picked it up." : " It's used next time Among Us starts.") };
         }
 
         private async Task<object> ClearSetupAsync()
         {
-            if (GamePath == null) return new { ok = false, message = FindGameFirst };
-            SetupCode.Clear(ModInstaller.DataDir(GamePath));
+            if (GameFolder is not { } game) return new { ok = false, message = FindGameFirst };
+            SetupCode.Clear(ModInstaller.DataDir(game));
             _settings.SetupCode = null;
             TrySave();
-            await _mod.CommandAsync(GamePath, "setup reload").ConfigureAwait(false);
+            await _mod.CommandAsync(game, "setup reload").ConfigureAwait(false);
             return new { ok = true, message = "Setup code removed: the mod uses its settings file." };
         }
 
@@ -1084,9 +1175,11 @@ namespace TournamentTracker.App
                 "releases" => $"https://github.com/{ModInstaller.Repo}/releases/latest",
                 "broadcast" => $"https://github.com/{ModInstaller.Repo}/releases?q={Uri.EscapeDataString("broadcast-v")}&expanded=true",
                 "generator" => Url + "generator",
+                "backup" => _backup?.Folder,
                 _ => null,
             };
             if (target == null) return new { ok = false };
+            if (what == "backup") try { Directory.CreateDirectory(target); } catch (Exception) { }
             try { _env.Open(target); return new { ok = true }; }
             catch (Exception e) { return new { ok = false, message = e.Message }; }
         }
@@ -1097,7 +1190,7 @@ namespace TournamentTracker.App
         public void Dispose()
         {
             _cts.Cancel();
-            _voiceIdle.Dispose();
+            _tick.Dispose();
             _bridge.Dispose();
             _organizer?.Dispose();
             _voice?.Dispose();

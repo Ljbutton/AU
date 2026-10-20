@@ -183,7 +183,7 @@ namespace TournamentTracker.App
             string path = Path.Combine(folder, FileName(localNow));
             for (int i = 2; File.Exists(path); i++)
                 path = Path.Combine(folder, Path.GetFileNameWithoutExtension(FileName(localNow)) + $"-{i}.zip");
-            File.WriteAllBytes(path, ToZip(localNow));
+            SafeFile.WriteAllBytes(path, ToZip(localNow));
             return path;
         }
 

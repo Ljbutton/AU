@@ -38,7 +38,8 @@ namespace TournamentTracker.App.Broadcast
             {
                 if (path == null) return new HealthSettings();
                 if (!File.Exists(path)) Files.WriteJson(path, new HealthSettings(), Json);
-                return JsonSerializer.Deserialize<HealthSettings>(File.ReadAllText(path), Json) ?? new HealthSettings();
+                // Edited wrong: the defaults are used and a copy is kept (health.json.corrupt-…) in case it's saved over.
+                return Files.ReadJson<HealthSettings>(path, Json) ?? new HealthSettings();
             }
             catch (Exception) { return new HealthSettings(); }
         }

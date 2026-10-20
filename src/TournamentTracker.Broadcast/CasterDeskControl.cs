@@ -17,6 +17,13 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>The layout picked for it ("full", "2up", "4up", "grid", "cams"), or null: by how many lobbies.</summary>
         public string? Chosen { get; init; }
         public IReadOnlyList<string> Slots { get; init; } = Array.Empty<string>();
+        /// <summary>
+        /// Auto grid's own suggestion: "grid" (no lobby is mid-game) or "back" (a game started while its grid
+        /// is on). Null: the caster's own Preview, which auto grid never changes.
+        /// </summary>
+        public string? Auto { get; init; }
+        /// <summary>What the desk says about auto grid's suggestion ("All lobbies quiet: Grid is in Preview…"), or null.</summary>
+        public string? Note { get; init; }
         /// <summary>The layout it goes on in: the one picked, else 1 full screen, 2 side by side, 3–4 the quad, more the grid.</summary>
         public string Layout => Slots.Count == 0 ? "none" : Chosen ?? CasterDesk.LayoutFor(Slots.Count);
         public bool Has(string lobby) => Slots.Contains(lobby, StringComparer.OrdinalIgnoreCase);
@@ -103,14 +110,20 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>
         /// Preview on stream (vMix's Take): in <paramref name="asLayout"/> when given, else the layout picked
         /// for it, else by how many lobbies. Preview is empty afterwards. Null when nothing was staged.
+        /// Auto grid's suggestion goes on the same way: this is the caster's switch.
         /// </summary>
         public OnAir? Take(string? asLayout = null, string? transition = null, string by = "deck")
         {
             PreviewState staged;
-            lock (_lock) staged = _preview;
+            OnAir before;
+            lock (_lock) { staged = _preview; before = _onAir; }
             if (staged.Slots.Count == 0) return null;
             var air = ShowPicked(staged.Slots.ToList(), by, NormLayout(asLayout) ?? staged.Chosen, transition);
-            lock (_lock) if (ReferenceEquals(_preview, staged)) _preview = new PreviewState();
+            lock (_lock)
+            {
+                if (ReferenceEquals(_preview, staged)) _preview = new PreviewState();
+                if (ReferenceEquals(_autoPick, staged)) AutoTaken(before, air);
+            }
             Touch();
             return air;
         }
@@ -129,10 +142,10 @@ namespace TournamentTracker.App.Broadcast
         public (string Text, DateTime At)? HeldBack { get; private set; }
 
         /// <summary>
-        /// Automatic switching paused: auto grid, auto intermission, the camera going back to the map,
-        /// auto switch off a lobby that dropped, the grid closing up, a MUST SHOW play ending a sponsor
-        /// break, the break timer, armed cameras and where-the-action-is all wait. The caster's own
-        /// switches still go through.
+        /// Automatic switching paused: auto intermission, the camera going back to the map, auto switch
+        /// off a lobby that dropped, the grid closing up, a MUST SHOW play ending a sponsor break, the
+        /// break timer, armed cameras and where-the-action-is all wait, and auto grid puts nothing in
+        /// Preview (its suggestion comes out). The caster's own switches still go through.
         /// </summary>
         public bool Held
         {
@@ -380,8 +393,9 @@ namespace TournamentTracker.App.Broadcast
         {
             try
             {
-                if (_numbersPath != null && File.Exists(_numbersPath) && JsonSerializer.Deserialize<Dictionary<string, Numbered>>(File.ReadAllText(_numbersPath), NumbersJson) is { } map)
-                    _numbered = new Dictionary<string, Numbered>(map.Where(kv => kv.Value.No > 0), StringComparer.OrdinalIgnoreCase);
+                // A broken file is kept as lobby-numbers.json.corrupt-… before the next number saved writes over it.
+                if (Files.ReadJson<Dictionary<string, Numbered>>(_numbersPath, NumbersJson) is { } map)
+                    _numbered = new Dictionary<string, Numbered>(map.Where(kv => kv.Value != null && kv.Value.No > 0), StringComparer.OrdinalIgnoreCase);
             }
             catch (Exception) { }
         }

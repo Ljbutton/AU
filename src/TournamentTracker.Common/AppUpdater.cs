@@ -32,18 +32,18 @@ namespace TournamentTracker.App
             return l != null && (i == null || l > i);
         }
 
-        /// <summary>Downloads and swaps in the new version. Returns "" when done, or what went wrong.</summary>
-        public static async Task<string> InstallAsync(HttpClient http, string url, string exePath, string appName = "The Button")
+        /// <summary>
+        /// Downloads and swaps in the new version, only if the download matches the size and SHA-256
+        /// the release lists (<see cref="ReleaseAsset.DownloadAsync"/>). Returns "" when done, or what went wrong.
+        /// </summary>
+        public static async Task<string> InstallAsync(HttpClient http, ReleaseAsset exe, string exePath, string appName = "The Button", ILog? log = null)
         {
             string incoming = exePath + ".download";
             try
             {
-                using (var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false))
-                {
-                    if (!response.IsSuccessStatusCode) return $"Couldn't download the new version (GitHub said {(int)response.StatusCode}).";
-                    using var file = File.Create(incoming);
-                    await response.Content.CopyToAsync(file).ConfigureAwait(false);
-                }
+                string error = await exe.DownloadAsync(http, incoming, log ?? NullLog.Instance,
+                    status => $"Couldn't download the new version (GitHub said {status}).").ConfigureAwait(false);
+                if (error.Length > 0) return error;
                 // A Windows program starts with "MZ"; anything else (an error page) isn't one.
                 var head = new byte[2];
                 using (var check = File.OpenRead(incoming))

@@ -48,11 +48,7 @@ namespace TournamentTracker
                 var result = await _rest.ExecuteWebhookAsync(url, message).ConfigureAwait(false);
                 if (!result.Ok) { _log.Error("Couldn't post the lobby's count: " + result); return; }
                 string id = DiscordRest.MessageIdOf(result) ?? "";
-                TrySave(() =>
-                {
-                    Directory.CreateDirectory(_gamesDir);
-                    File.WriteAllText(PrelimCountPath, JsonSerializer.Serialize(new CountMessage { Id = id, Webhook = url }));
-                }, "count message");
+                TrySave(() => SafeFile.WriteAllText(PrelimCountPath, JsonSerializer.Serialize(new CountMessage { Id = id, Webhook = url })), "count message");
             });
         }
     }

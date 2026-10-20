@@ -185,9 +185,9 @@ ready-made links with your key in them.
 
 | Path | Does |
 |---|---|
-| `lobby/<n>`, `lobby/next`, `lobby/prev`, `lobby/action`, `lobby/<name>` (add `?t=cut` or `?t=swoosh`) | A lobby full screen now |
+| `lobby/<n>`, `lobby/next`, `lobby/prev`, `lobby/action`, `lobby/<name>` (add `?t=cut`, `?t=swoosh` or `?t=fade`) | A lobby full screen now |
 | `pvw/lobby/<n>`, `pvw/add/<n>`, `pvw/clear` | Preview: one lobby, add a lobby, clear it |
-| `take` (add `?as=` full, 2up, quad, grid or cams, and `&t=cut` or `&t=swoosh`) | Preview on stream |
+| `take` (add `?as=` full, 2up, quad, grid or cams, and `&t=cut`, `&t=swoosh` or `&t=fade`) | Preview on stream |
 | `layout/full`, `layout/2up`, `layout/quad`, `layout/grid`, `layout/cams` | A layout into Preview (`take` puts it on stream) |
 | `cam/<lobby>/<who>` (add `?arm=1` to arm) | A player camera. `<lobby>` is a number, `pgm` or `pvw`; `<who>` is a colour, `slot1`…`slot15`, `next`, `prev` or `auto` |
 | `cam/cut`, `wide` | The camera on stream; back to the whole map |
@@ -197,7 +197,7 @@ ready-made links with your key in them.
 | `auto/grid/…`, `auto/intermission/…`, `auto/switch/…` (`on`, `off`, `toggle`) | Automatic switching |
 | `undo` | The panic, else an automatic switch, else the last switch by hand |
 | `gfx/standings/…`, `gfx/alerts/…` (`on`, `off`, `toggle`), `gfx/skip`, `gfx/clear`, `gfx/card` | Graphics |
-| `prompt/show`, `prompt/skip` | After-game prompts |
+| `prompt/show`, `prompt/skip`, `prompt/save` | After-game prompts: show the table, skip it, or save it for intermission |
 | `voice/mute/on`, `voice/mute/off`, `voice/mute/toggle`, `voice/listen/<n>`, `voice/listen/off` | Lobby voice |
 | `spec/lit`, `spec/vision`, `spec/eye` | The host's view modes |
 | `mute`, `quad`, `grid`, `cam`, `cam/on`, `cam/off`, `cam/<who>` | Older links, still working |
@@ -226,5 +226,6 @@ To try changes on a Stream Deck, `npx streamdeck link com.ljbutton.redalert.sdPl
 plugin's `logs` folder (`%APPDATA%\Elgato\StreamDeck\Plugins\com.ljbutton.redalert.sdPlugin\logs`);
 it has the path of each press and Red Alert's answer, never the key.
 
-CI builds and tests it on every push, uploads RedAlert.streamDeckPlugin with the other files, and
-attaches it to each `broadcast-v…` release.
+CI builds and tests it on every push (on Windows it also runs `npm run validate`, the Elgato
+CLI's check of the manifest and the files it names), uploads RedAlert.streamDeckPlugin with the
+other files, and attaches it to each `broadcast-v…` release.

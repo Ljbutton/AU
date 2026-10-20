@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text.Json;
 
@@ -148,31 +147,11 @@ namespace TournamentTracker.Stats
 
         public PlayerTotals? Find(string key) => Players.TryGetValue(key, out var t) ? t : null;
 
-        public static StatsStore Load(string path, string tournament)
-        {
-            try
-            {
-                if (File.Exists(path))
-                {
-                    var store = JsonSerializer.Deserialize<StatsStore>(File.ReadAllText(path), Json);
-                    if (store != null) return store;
-                }
-            }
-            catch (Exception)
-            {
-                // A corrupt file must never stop a tournament game; keep a copy and start over.
-                File.Copy(path, path + ".corrupt-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss"), true);
-            }
-            return new StatsStore { Tournament = tournament };
-        }
+        /// <summary>The saved totals; a fresh store when there are none. A corrupt file must never stop a tournament game: a copy is kept (stats.json.corrupt-…) and it starts over.</summary>
+        public static StatsStore Load(string path, string tournament, Action<string>? warn = null) =>
+            SafeFile.ReadOrRecover(path, text => JsonSerializer.Deserialize<StatsStore>(text, Json), warn)
+            ?? new StatsStore { Tournament = tournament };
 
-        public void Save(string path)
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            string tmp = path + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(this, Json));
-            if (File.Exists(path)) File.Replace(tmp, path, null);
-            else File.Move(tmp, path);
-        }
+        public void Save(string path) => SafeFile.WriteAllText(path, JsonSerializer.Serialize(this, Json));
     }
 }

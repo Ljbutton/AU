@@ -5,7 +5,7 @@ and updates the host-only Tournament Tracker mod, takes the organiser's setup co
 lobby's Discord bot online, and gives the host one window to run the lobby from: automute,
 rounds, checking each game's points before Discord sees them, and sending the game to the caster.
 Referees and the organiser use the same app with an administration code, which adds the Organiser
-tab. This page describes The Button as of v0.1.64. What the mod does inside Among Us, and exactly
+tab. This page describes The Button as of v0.1.65. What the mod does inside Among Us, and exactly
 what it posts in Discord, is in [features-mod.md](features-mod.md).
 
 ## At a glance
@@ -22,7 +22,10 @@ what it posts in Discord, is in [features-mod.md](features-mod.md).
 * **Before an event:** **Check my connection** measures the upload; **Save support bundle** makes
   one zip with secrets taken out when something goes wrong.
 * **Organiser tab** (administration code only): every lobby live, standings, award candidates and
-  results-channel commands, on a PC that needn't be hosting.
+  the round controls (build the next round's lobbies, change them, start a round), on a PC
+  without Among Us if need be.
+* **Nothing lost:** every file is saved whole or not at all, a damaged file is kept aside, and
+  The Button keeps a backup of the mod's games, links and rounds outside the Among Us folder.
 * **Setup code maker** (`docs/setup-codes.html`): the organiser's page for making preliminary,
   tournament host and administration codes.
 
@@ -30,14 +33,16 @@ what it posts in Discord, is in [features-mod.md](features-mod.md).
 
 * **One-click install:** `Install-TheButton.bat` from the latest release installs The Button for the
   Windows user (no admin needed) in `%LOCALAPPDATA%\Programs\TheButton`, with Start menu and desktop
-  shortcuts, and opens it. Running it again replaces the app with the newest one.
+  shortcuts, and opens it. Running it again replaces the app with the newest one. It works from
+  any folder, even one with an apostrophe in its name (`C:\Users\O'Brien\Downloads`).
 * **Finds Among Us by itself:** every Steam library, Epic Games' install records, then the usual
   folders. Settings → **Among Us** shows the folder (**Open folder**, **Change**); if none is found
   it lists any it can see as buttons, or takes a pasted folder (**Use it**).
 * **Nothing typed in the game:** every host action is a button in The Button; the mod never reads
   the lobby chat.
 * **Its own files:** settings in `%LOCALAPPDATA%\TheButton\app.json`, its log in `the-button.log`
-  next to it (started again past 1 MB).
+  next to it (started again past 1 MB), and the backup of the mod's data in `backup` (see
+  *Safe saving and the backup*).
 
 ## The window
 
@@ -64,21 +69,37 @@ The bar shows only what needs the host; clicking a warning goes where it's fixed
 * **Among Us not found**, **Mod not installed**, **Mod needs repair** (the 32-bit loader left from
   before Among Us went 64-bit): open Settings.
 * **No setup code installed** and **Setup code damaged**: open Settings.
-* **Discord bot refused** (the token was reset or refused), **Referee commands not heard** (the
-  bot's Message Content Intent is off) and **Live message can't post**: open Home.
+* **Discord bot refused** (the token was reset or refused), **Round changes not heard** (the
+  bot's Message Content Intent is off, so round starts and lobby changes from the Organiser tab
+  aren't heard) and **Live message can't post**: open Home.
 * **Updates, one pill at a time:** "The Button vX is out · Update", "Updating The Button to vX…",
   "The Button vX is ready · Restart", "The Button vX didn't install · Try again"; for the mod alone,
   "Mod vX installs when Among Us closes" (automatic updates on) or "Mod update in Among Us: vX".
-* On an organiser's PC with an administration code and no Among Us, the game and setup code
+* On an organiser's PC (an administration code and no Among Us), the game, mod and setup code
   warnings are left out.
 
 ## Home
+
+### Notices about saved data
+
+Shown at the top of Home, with or without Among Us running:
+
+* **The backup has N games that aren't in Among Us's folder** (after reinstalling Among Us, say):
+  **Restore** puts them back (close Among Us first); **Forget** (a second click: "Sure? Click
+  again") takes them out of the backup too, when they were removed on purpose. Shown only when The
+  Button has found Among Us.
+* **A damaged file was set aside:** "<The Button's or The mod's> <file> couldn't be read (<when>).
+  A copy is kept next to it as <file>.corrupt-<time>, so nothing in it is lost." Shown for 7 days;
+  ✕ dismisses it.
 
 ### Before Among Us connects
 
 * **Waiting for Among Us:** "Start Among Us and host a lobby: The Button connects on its own."
 * **What's in the way instead:** "Among Us not found", "Mod not installed" or "Mod needs repair",
   each with **Open Settings**.
+* **Organiser PC** (an administration code and no Among Us): "Among Us isn't needed here: the live
+  lobbies and standings are on the Organiser tab, and the results channel is on the Referee tab",
+  with **Open the Organiser tab**.
 * **The bot's state:** with a bot set up, "Discord bot online: <name>", "Connecting the Discord
   bot…" or why Discord refused it, before Among Us is even started.
 
@@ -141,14 +162,16 @@ The bar shows only what needs the host; clicking a warning goes where it's fixed
 
 * **Status line:** "N of M linked · the rest type /link in Discord", "Connecting to Discord voice…",
   "Referee mode: only referees can talk", "Off: the bot won't touch anyone's voice…", or why it's
-  not working.
+  not working. Without a bot: "Off: it needs a Discord bot. Add one in Settings → Your Discord, or
+  use a setup code with a bot in it."
 * **Automute:** on or off. Off stays off after restarts until it's switched on again, so
   AutoMuteUs can be used instead; linking and the lobby message still work.
 * **Referee:** mutes everyone in the voice channel (they can still hear) except the host and the
   code's referees, to explain the rules; press again to end. Needs automute on and the host
   linked to talk; it ends by itself when a game starts.
 * **Spectators:** mutes people in the game's voice channel who aren't playing while a game runs.
-* **Unmute all:** unmutes everyone at once and switches automute off; press **Automute** to resume.
+* **Unmute all:** unmutes everyone at once and switches automute off; press **Automute** to resume
+  (the answer says so: "Press Automute on The Button's Home to turn it back on.").
 * Without a bot the buttons are hidden and the card says automute needs one.
 
 ### Round card (tournament codes)
@@ -249,7 +272,7 @@ through the bot.
 * **Each player:** crewmate head, name and points; impostors ringed and named in red. Hover the
   points for where they came from.
 * **Referee changes:** type any amount up to 3 significant figures (0.125, 1.25, 12.5, 125; empty
-  means 1) and press **+** or **−**; it shows as "Referee" in their breakdown.
+  means 1) and press **+** or **−**; it shows as "Referee change" in their breakdown.
 * **Void:** keeps the game out of the points and, if it's never submitted, off Discord for good.
 * **Submit points:** posts the game (report, standings, the round's scores); on a void game the
   button reads **Done (stays off Discord)**. **Submit all N** sends every waiting game.
@@ -271,17 +294,21 @@ through the bot.
 
 ### Results channel (administration code)
 
-* Folded card for whoever has the administration code, posted in the private results channel as
-  the administration bot, exactly like typing it there:
-  * Adjust: pick the lobby, type the player (colour or name), the points, **−** or **+**, a reason.
+* A card for whoever has the administration code: any lobby's games, posted in the private
+  results channel as the administration bot. Folded (remembered), except that on an organiser's
+  PC it starts open.
+  * Adjust: pick the lobby, the game's number if need be (3 for LJ-3; empty: the game that lobby
+    is playing, or played last), the player (colour or name), the points, **−** or **+**, a
+    reason. A name that could be read as the points is refused ("use the player's colour").
   * Void or unvoid a game (`LJ-3`) or the game a lobby is playing (`LJ`), with a reason.
-  * **Post** any `!` command (`!start 3 in 10`, `!lobbies 3`, `!move Soggy B`…).
-* Works without Among Us running; the lead lobby's mod carries the commands out.
+  * Rounds and lobbies are on the Organiser tab; there's no box to type a command.
+* Works without Among Us; each lobby's mod applies the change to its own game, and its bot ticks
+  the message (✅, or ❓ when the player wasn't found).
 
 ## Organiser tab (administration code)
 
 Hidden from everyone without the administration code. It reads the "Live data" message each
-tournament lobby's bot keeps in the private results channel, so it doesn't need Among Us running.
+tournament lobby's bot keeps in the private results channel, so it works on a PC without Among Us.
 
 * **Header:** the tournament, the round and how many lobbies are live; a card pointing casters to
   **Get Red Alert** (the caster tools live there now).
@@ -298,13 +325,30 @@ tournament lobby's bot keeps in the private results channel, so it doesn't need 
 * **Awards:** the top three candidates for Top score, Most kills, Best impostor, Sharpest voter
   (at least 3 votes), Impostor hunter, Task machine and Survivor, for **This round** or **Whole
   tournament**. **Copy for Discord** copies them as a message; the organiser picks the winners.
+* **Rounds:** posted in the private results channel as the administration bot; every lobby's
+  game switches round, and the lead lobby builds the lobbies and pings the players.
+  * **Round** (filled with the next round) and **Build its lobbies**: everyone who moved on from
+    the round before, snake-seeded into lobbies of up to 10, with the best of the rest as
+    alternates (round 2 or later).
+  * **Starts in** N **min** and **Start round** (a second click: "Sure? Start round N"): every
+    lobby switches to that round (after the game it's playing) and the players are pinged with
+    their lobby; empty or 0 starts it now.
+  * **Change the lobbies:** a player and a lobby (A, B… Final) with **Move there**, **Add there**
+    (an alternate, or someone new) and **Drop**; two players and **Swap** (one word each: the
+    start of a name is enough); a lobby, the lobby label of its host and **Set host**. The boxes
+    suggest this round's players and the lobbies' hosts. Each change posts the new lobbies in the
+    results channel.
+  * **Standings: Start over…** asks "Start every lobby's combined standings over?" (**Reset** or
+    **Cancel**): every lobby's combined standings count only games after it. Deleting the reset
+    message in the results channel undoes it.
 * **Problems:** says why the channel can't be read (the bot's permissions, a wrong channel).
 
 ## Settings tab
 
 * **Among Us:** the game folder (see *Installing and starting*).
-* **Mod and updates:** both versions on one line ("The Button 0.1.64, 64-bit Among Us with the mod
-  v0.1.64. Everything is up to date."), one button for whatever is needed (**Install the mod**,
+* **Mod and updates:** both versions on one line ("The Button 0.1.65, 64-bit Among Us with the mod
+  v0.1.65. Everything is up to date."; on an organiser's PC, "Organiser PC: Among Us isn't needed
+  here."), one button for whatever is needed (**Install the mod**,
   **Repair the mod**, **Update the mod to vX**, **Update The Button to vX**, **Update both to vX**),
   **Restart The Button to finish**, **Reinstall the mod**, **Open log** (the mod's log), the
   **Update automatically** switch, and whether The Button is connected to the mod.
@@ -317,7 +361,9 @@ tournament lobby's bot keeps in the private results channel, so it doesn't need 
   * **Change code** (the new one replaces it) and **Remove** (the mod goes back to its settings file).
   * Saved during a game, a code is used as soon as that game ends.
   * The Button keeps its own copy and puts it back if reinstalling the mod or Among Us removes it.
-  * An administration code pasted here unlocks the Administration card and the Organiser tab instead.
+  * An administration code pasted here unlocks the Administration card and the Organiser tab
+    instead. It's kept in The Button's own settings, so it works on a PC without Among Us; a
+    host's code needs Among Us found first (it goes in the mod's folder).
 * **Your Discord:** the host's own bots and channels, so the organiser needn't hold anyone's token
   and a host can change bots without a new code.
   * **Server ID** (the code's server is used when it's empty), **Bot 1** to **Bot 3** (2 and 3 for
@@ -334,15 +380,18 @@ tournament lobby's bot keeps in the private results channel, so it doesn't need 
 * **Your Twitch:** the host's channel name, shown with their lobby on the tournament stream (sent
   with the game). Letters, numbers and _ only; empty removes it.
 * **Tournament** (tournament codes with a results channel):
-  * **Lead lobby:** **Take over** makes this lobby's mod the one that carries out results-channel
-    commands (`!start`, `!move`, `!void`…); one lobby at a time.
+  * **Lead lobby:** **Take over** makes this lobby's game the one that builds the next round's
+    lobbies and pings the players when the organiser starts a round from the Organiser tab; one
+    lobby at a time (usually the organiser's).
   * **Combined leaderboard: Reset…** starts every lobby's combined leaderboard over, after a
     confirm. Deleting the reset message in the results channel undoes it.
 * **Administration** (administration code only): "Unlocked: <tournament>", **Make setup codes**
   (opens the code maker in the browser), **Lock** (hides the card and the Organiser tab again), and
   **Mod console window**: BepInEx's black log window when Among Us starts, Hidden by default,
   changed on this PC only.
-* **Help:** **Save support bundle** (below).
+* **Help:** **Save support bundle** (below), and with Among Us found, the backup: "It holds N files,
+  last copied at <time>", **Restore backup** (close Among Us first) and **Backup folder** (see
+  *Safe saving and the backup*).
 * **Advanced** (folded): **Data folder**, **Config file** and **Mod log**.
 
 ## The mod: installing, updating and repairing
@@ -355,6 +404,9 @@ tournament lobby's bot keeps in the private results channel, so it doesn't need 
   program holding it.
 * **Never loses settings:** links, stats, games and the setup code live in BepInEx's config folder,
   which the bundle never touches.
+* **Checked download:** the bundle is unpacked only when its size and SHA-256 match what the GitHub
+  release lists; a mismatch is deleted and nothing changes. Older releases without a checksum still
+  install (the log says so).
 * **Repair:** a 32-bit loader left from before Among Us went 64-bit shows as "Mod needs repair";
   The Button swaps in the 64-bit one by itself once Among Us is closed (trying again every 15
   minutes if it fails), or on **Repair the mod**.
@@ -373,9 +425,39 @@ tournament lobby's bot keeps in the private results channel, so it doesn't need 
   `TheButton.exe` next to the running one; it's used from the next start. The top bar then offers
   **Restart**, and Settings **Restart The Button to finish**.
 * **Off:** the top bar and Settings say when a version is out; **Update** downloads it.
-* **Safe swap:** a download that isn't a complete Windows program is refused and tried again later;
-  the old copy is kept until the new one is in place and deleted at the next start.
+* **Checked download:** the download must match the size and SHA-256 the GitHub release lists, and be
+  a complete Windows program. One that doesn't is deleted and nothing changes: "The download didn't
+  match the release (it may be incomplete). Nothing was changed; try again later.", and the top bar
+  shows "The Button vX didn't install · Try again". Older releases without a checksum still install
+  (the log says so).
+* **Safe swap:** the old copy is kept until the new one is in place and deleted at the next start.
 * **Restart after an update:** the new copy waits for the old one to close, then opens.
+
+## Safe saving and the backup
+
+* **Saved whole or not at all:** every file The Button and the mod save (settings, games, the
+  waiting list, links, rounds, totals) is written to a side file next to it first, flushed to the
+  disk, and only then takes the old file's place. A crash, a power cut or a full disk part-way
+  through leaves the old file as it was. A busy file (antivirus, another program reading it) is
+  tried again for a moment.
+* **A damaged file is kept:** a file that can't be read (half-written, empty, edited wrongly) is
+  kept as `<name>.corrupt-<time>` next to it before anything is saved over it, the log says so,
+  and Home shows "A damaged file was set aside" (see *Notices about saved data*).
+* **The backup:** every 10 seconds The Button copies what changed of the mod's data to
+  `%LOCALAPPDATA%\TheButton\backup`, outside the Among Us folder: each saved game, the waiting
+  list, the replays (the newest 20 per tournament), `links.json`, and each tournament's round and
+  totals. Never the setup code, the host's Discord, the connection files or the count message
+  (it holds a webhook). Each copy keeps its file's time, and a newer file is never replaced by an
+  older one.
+* **Games removed from the mod's folder stay in the backup,** and while they do, the backup keeps
+  its own links, waiting list, round and totals for that tournament. Home then shows "The backup
+  has N games that aren't in Among Us's folder" with **Restore** and **Forget**.
+* **Restore backup** (Settings → Help, or **Restore** on Home; Among Us closed, else "Close Among
+  Us first: the mod would save over what's put back."): puts back what's missing or older in the
+  mod's folder and says what ("Put back from the backup: 3 games, 2 replays and the points
+  totals."). Where the mod's copy is newer it stays, but links and the waiting list are added to;
+  a tournament that got games back has its totals worked out again from its games.
+* **Backup folder** opens it.
 
 ## Check my connection
 
@@ -403,7 +485,9 @@ tournament lobby's bot keeps in the private results channel, so it doesn't need 
   voice, the bot, the setup code's description, update settings); versions (The Button, the mod,
   Among Us, the loader, Windows); The Button's log and settings; the mod's log, config, BepInEx's
   settings and its state, safe mode and disconnect records; only a list of saved games and replays;
-  Among Us's own log.
+  Among Us's own log. The summary also counts the backup (files, last copy, games only it has)
+  and lists any damaged file set aside, but no file from the backup goes in; on an organiser's PC
+  it says so, with the Organiser tab's problem if there is one.
 * **Nothing secret:** bot tokens, webhooks, setup and administration codes, passwords and keys are
   taken out of every file; the setup code file, the host's Discord file, links and connection files
   never go in. Files over 5 MB keep their last 5 MB; anything that isn't text is left out.
@@ -451,7 +535,8 @@ Reaches Discord (posted by the mod through The Button, details in [features-mod.
 * The "Live data" message in the private results channel (read by the Organiser tab and Red Alert),
   which carries the private video link while the game is being sent; the lead lobby note.
 * The voice-recording note in the voice channel chat when lobby voice starts.
-* Commands from the Results channel card, as the administration bot.
+* Changes from the Results channel card and the Organiser tab's Rounds card (Start over…
+  included), as the administration bot.
 
 ## Setup code maker (`docs/setup-codes.html`)
 
@@ -522,9 +607,9 @@ the mod's connection each need a private key, so no website can drive them.
   posted and nobody is muted.
 * **Most of Home and the Referee tab need Among Us running with the mod;** rounds and the referee
   ghost slot change only between games. Waiting games reappear when Among Us is back.
-* **The Setup code box needs an Among Us folder first:** any code, an administration code included,
-  is accepted only once The Button has found Among Us on the PC. After that the Organiser tab and the
-  Results channel card work without Among Us running.
+* **A host's setup code needs an Among Us folder first** (it goes in the mod's folder). An
+  administration code doesn't: the Organiser tab and the Results channel card work on a PC without
+  Among Us.
 * **Automute, linking, Referee and Spectators need a bot** (from the code, or Your Discord with a
   setup code in) and the server ID. Referee mode needs the host linked to talk.
 * **Send my game to the caster needs** a code with a bot and the private results channel, the send
@@ -537,6 +622,11 @@ the mod's connection each need a private key, so no website can drive them.
 * **Shows impostors:** the Referee tab, the Organiser tab with roles on and the shared referee view
   must never be where players can see them.
 * **Codes aren't encrypted;** any code with a bot token in it must be sent privately.
+* **Points and round changes only from The Button:** the mods act only on what a bot posted in the
+  results channel, so a command typed in Discord does nothing; every host needs a mod from this
+  version on, or a typed command would still count in their lobby.
+* **The backup** is on the host's PC only, and only for the mod's data folder (not the setup code,
+  which The Button keeps in its own settings anyway).
 * **No "check now" for updates:** The Button looks every 20 minutes; it doesn't remember its window
   size between runs.
 * **Check my connection** reaches speed.cloudflare.com, discord.com and vdo.ninja; a firewall, VPN or

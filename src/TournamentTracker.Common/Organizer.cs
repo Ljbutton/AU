@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using TournamentTracker.Discord;
@@ -456,15 +458,145 @@ namespace TournamentTracker.App
             r.Stats.Games, r.Stats.Wins, r.Stats.Losses, r.Advancing,
         }).ToList();
 
-        /// <summary>Posts a referee command (!adjust, !void, !start…) to the results channel as the administration bot.</summary>
-        public async Task<string> CommandAsync(string text)
+        // ---- Changes posted in the results channel ------------------------------------------------
+        // Every points change and round change is made in The Button: its Referee tab (points, voids)
+        // and Organiser tab (rounds, lobbies, a reset) post it in the private results channel as the
+        // administration bot, and the mods act on bots' messages only. Nobody types a command, and
+        // only these shapes are ever posted: no free text.
+
+        private const int MaxField = 60, MaxReason = 100, MaxCommand = 300;
+        /// <summary>The organiser's reset (the one message on two lines: the command, then who).</summary>
+        public static readonly string OrganiserReset = SharedResults.ResetMessage("the organiser");
+        private static readonly Regex[] CommandShapes =
         {
-            text = text.Trim();
-            if (!text.StartsWith("!") || text.Length < 3) return "Commands start with ! (for example !adjust LJ red -2 meta call).";
+            new Regex(@"^!adjust \S+ \S.*? [+-]\d+(?:\.\d+)?(?: \S.*)?$", RegexOptions.CultureInvariant),
+            new Regex(@"^!void \S+(?: \S.*)?$", RegexOptions.CultureInvariant),
+            new Regex(@"^!unvoid \S+$", RegexOptions.CultureInvariant),
+            new Regex(@"^!start \d{1,2}(?: in \d{1,3})?$", RegexOptions.CultureInvariant),
+            new Regex(@"^!lobbies \d{1,2}$", RegexOptions.CultureInvariant),
+            new Regex(@"^!(?:move|add) \S.* \S+$", RegexOptions.CultureInvariant),
+            new Regex(@"^!swap \S+ \S+$", RegexOptions.CultureInvariant),
+            new Regex(@"^!drop \S.*$", RegexOptions.CultureInvariant),
+            new Regex(@"^!host \S+ \S.*$", RegexOptions.CultureInvariant),
+        };
+
+        /// <summary>One of the commands The Button builds (one line, a known shape, or the reset). Public for tests.</summary>
+        public static bool IsChange(string text) =>
+            text == OrganiserReset
+            || text.Length <= MaxCommand && text.IndexOfAny(new[] { '\r', '\n' }) < 0 && CommandShapes.Any(s => s.IsMatch(text));
+
+        /// <summary>
+        /// The command for one change from The Button's fields (by name: game, player, points, reason,
+        /// round, minutes, lobby, other, host), or null with what's wrong in <paramref name="problem"/>.
+        /// Each is read back the way the mods read it, so it can't mean something else. Public for tests.
+        /// </summary>
+        public static string? BuildChange(string kind, Func<string, string> field, out string problem)
+        {
+            string F(string name) => Regex.Replace(field(name) ?? "", @"\s+", " ").Trim();
+            var (text, why) = Build(kind, F);
+            problem = why;
+            if (text != null && !IsChange(text)) { problem = "That's too long to post. Shorten the names or the reason."; return null; }
+            return text;
+        }
+
+        private static (string? Text, string Problem) Build(string kind, Func<string, string> f)
+        {
+            static (string?, string) Fail(string why) => (null, why);
+            static (string?, string) Done(string text) => (text, "");
+            string game = f("game"), player = f("player"), reason = f("reason");
+            if (reason.Length > MaxReason) return Fail($"Keep the reason under {MaxReason} characters.");
+            switch (kind)
+            {
+                case "adjust":
+                {
+                    if (!OneWord(game)) return Fail("Pick the lobby (LJ) or the game (LJ-3).");
+                    if (player.Length == 0 || player.Length > MaxField) return Fail("Pick the player (colour or name) and the points.");
+                    string raw = f("points").Replace(',', '.');
+                    if (!double.TryParse(raw, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out double points)
+                        || points == 0 || Math.Abs(points) > 1000 || !TournamentSession.ThreeSigFigs(points))
+                        return Fail("Use a number of points up to 1000 with up to 3 significant figures, e.g. -2, +0.125 or +12.5.");
+                    string text = $"!adjust {game} {player} {(points > 0 ? "+" : "-")}{Math.Abs(points).ToString("0.##########", CultureInfo.InvariantCulture)}"
+                                  + (reason.Length > 0 ? " " + reason : "");
+                    // Read back as the mods read it: a name ending in a number could pass for the points.
+                    var read = RefereeAdjustment.TryParse(text, "", DateTime.MinValue);
+                    if (read == null || read.Game != game || read.Player != player || read.Points != points)
+                        return Fail($"\"{player}\" can't be told apart from the points: use the player's colour.");
+                    return Done(text);
+                }
+                case "void":
+                case "unvoid":
+                {
+                    if (!OneWord(game)) return Fail("Pick the game (LJ-3), or the lobby (LJ) for the game it's playing.");
+                    string text = kind == "void" ? $"!void {game}" + (reason.Length > 0 ? " " + reason : "") : $"!unvoid {game}";
+                    var read = RefereeVoid.TryParse(text, "", DateTime.MinValue);
+                    return read != null && read.Game == game ? Done(text) : Fail("That game name can't be used.");
+                }
+                case "start":
+                {
+                    if (!Number(f("round"), 1, 99, out int round)) return Fail("Which round? A number from 1 to 99.");
+                    string m = f("minutes");
+                    if (m.Length == 0 || m == "0") return Done($"!start {round}");
+                    if (!Number(m, 1, 120, out int minutes)) return Fail("Start it now (leave the minutes empty) or in 1 to 120 minutes.");
+                    return Done($"!start {round} in {minutes}");
+                }
+                case "lobbies":
+                    return Number(f("round"), 2, 99, out int next) ? Done($"!lobbies {next}") : Fail("Lobbies are built for round 2 or later, from the round before.");
+                case "move":
+                case "add":
+                {
+                    string lobby = PlanLobby(f("lobby"));
+                    if (player.Length == 0 || player.Length > MaxField) return Fail("Which player?");
+                    if (!OneWord(lobby)) return Fail("Which lobby? A, B… or Final (or its host's lobby label).");
+                    return Done($"!{kind} {player} {lobby}");
+                }
+                case "swap":
+                {
+                    string other = f("other");
+                    if (player.Length == 0 || other.Length == 0) return Fail("Pick the two players to swap.");
+                    if (!OneWord(player) || !OneWord(other)) return Fail("A swap takes one word for each player: the start of a name is enough.");
+                    return Done($"!swap {player} {other}");
+                }
+                case "drop":
+                    return player.Length > 0 && player.Length <= MaxField ? Done($"!drop {player}") : Fail("Which player?");
+                case "host":
+                {
+                    string lobby = PlanLobby(f("lobby")), host = f("host");
+                    if (!OneWord(lobby)) return Fail("Which lobby? A, B… or Final.");
+                    if (host.Length == 0 || host.Length > MaxField) return Fail("Who hosts it? Their lobby label (LJ).");
+                    return Done($"!host {lobby} {host}");
+                }
+                case "reset":
+                    return Done(OrganiserReset);
+                default:
+                    return Fail("The Button doesn't make that change.");
+            }
+        }
+
+        private static bool OneWord(string s) => s.Length > 0 && s.Length <= MaxField && s.IndexOf(' ') < 0;
+
+        private static bool Number(string s, int min, int max, out int n) =>
+            int.TryParse(s, NumberStyles.None, CultureInfo.InvariantCulture, out n) && n >= min && n <= max;
+
+        /// <summary>The next round's lobbies are "Lobby A", "Lobby B"… or "Final": a lobby is named by its letter.</summary>
+        private static string PlanLobby(string s) => s.StartsWith("Lobby ", StringComparison.OrdinalIgnoreCase) ? s.Substring(6).Trim() : s;
+
+        /// <summary>Posts one change from The Button's fields (see <see cref="BuildChange(string, Func{string, string}, out string)"/>).</summary>
+        public async Task<(bool Ok, string Message)> PostChangeAsync(string kind, Func<string, string> field)
+        {
+            string? text = BuildChange(kind, field, out string problem);
+            return text == null ? (false, problem) : await PostAsync(text).ConfigureAwait(false);
+        }
+
+        /// <summary>Posts a change already written as a command (Red Alert's void of an interrupted game); only <see cref="IsChange"/> shapes go.</summary>
+        public async Task<string> CommandAsync(string text) => (await PostAsync(text.Trim()).ConfigureAwait(false)).Message;
+
+        private async Task<(bool Ok, string Message)> PostAsync(string text)
+        {
+            if (!IsChange(text)) return (false, "That isn't a change The Button makes, so it wasn't posted.");
             var result = await _rest.PostMessageAsync(_token, _code.ResultsChannelId!, text).ConfigureAwait(false);
-            if (!result.Ok) return $"Discord didn't take it ({result.Status}). Check the administration bot can send messages in the results channel.";
+            if (!result.Ok) return (false, $"Discord didn't take it ({result.Status}). Check the administration bot can send messages in the results channel.");
             _ = Task.Run(async () => { await Task.Delay(4000).ConfigureAwait(false); await LoadStandingsAsync().ConfigureAwait(false); });
-            return $"Posted: {text}";
+            return (true, text == OrganiserReset ? "The standings start over from now. Deleting the reset message in the results channel undoes it." : $"Posted: {text}");
         }
 
         public void Dispose() => _cts.Cancel();
