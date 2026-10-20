@@ -54,7 +54,7 @@ public class OrganiserPcTests : IDisposable
             Assert.Equal(HttpStatusCode.OK, (await http.GetAsync("app/admin")).StatusCode);   // the Organiser tab's lobbies and standings
 
             // The Referee tab's results-channel tools post as the administration bot, no mod needed.
-            var posted = await Post(http, "app/admin/command", new { text = "!adjust LJ red -2 meta call" });
+            var posted = await Post(http, "app/admin/command", new { kind = "adjust", game = "LJ", player = "red", points = "-2", reason = "meta call" });
             Assert.Equal("Posted: !adjust LJ red -2 meta call", posted.GetProperty("message").GetString());
             Assert.Contains(discord.Requests, r => r.Method == HttpMethod.Post && r.Url.EndsWith("/channels/1/messages") && r.Body.Contains("!adjust LJ red -2 meta call"));
         }
