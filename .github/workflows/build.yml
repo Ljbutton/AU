@@ -331,15 +331,20 @@ jobs:
         if: ${{ !cancelled() }}
         timeout-minutes: 20
         run: |
-          # A watchdog: if the tests are still running after 4 minutes (they take about 2), every thread's stack
-          # goes into this log, so a hang can be found without downloading anything.
+          # A watchdog: if the tests are still running after 2 minutes (they take under 1), every thread's stack
+          # and every waiting async chain go into this log, so a hang can be found without downloading anything.
           dotnet tool install --global dotnet-stack 2>&1 | Out-Null
+          dotnet tool install --global dotnet-dump 2>&1 | Out-Null
           $watch = Start-Job -ScriptBlock {
-            Start-Sleep -Seconds 240
-            $tool = Join-Path $env:USERPROFILE '.dotnet\tools\dotnet-stack.exe'
+            Start-Sleep -Seconds 120
+            $tools = Join-Path $env:USERPROFILE '.dotnet\tools'
             foreach ($p in Get-Process testhost -ErrorAction SilentlyContinue) {
-              "==== Still running after 4 minutes: testhost $($p.Id). Every thread's stack:"
-              if (Test-Path $tool) { & $tool report -p $p.Id 2>&1 } else { '(dotnet-stack isn''t installed)' }
+              "==== Still running after 2 minutes: testhost $($p.Id). Every thread's stack:"
+              & (Join-Path $tools 'dotnet-stack.exe') report -p $p.Id 2>&1
+              "==== Waiting async chains:"
+              $dump = Join-Path $env:RUNNER_TEMP "hang-$($p.Id).dmp"
+              & (Join-Path $tools 'dotnet-dump.exe') collect -p $p.Id -o $dump --type Heap 2>&1 | Out-Null
+              & (Join-Path $tools 'dotnet-dump.exe') analyze $dump -c "dumpasync --stacks" -c "exit" 2>&1 | Select-Object -First 400
             }
           }
           dotnet test tests/TournamentTracker.Broadcast.Tests -c Release --blame-hang-timeout 5m --blame-hang-dump-type none `
