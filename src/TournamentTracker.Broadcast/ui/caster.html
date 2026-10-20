@@ -1102,7 +1102,7 @@ function compose() {
   DECKPORT = (nw && nw.deck) || (old && old.deck) || null;
   READS = liveNewer ? (LIVE.reads || []) : (FULL && FULL.sponsors && FULL.sponsors.reads) || (LIVE && LIVE.reads) || [];
   if (FULL) {
-    ROSTER = FULL.roster || null; r_story = FULL.story || null; PREVIEWS = FULL.previews || []; TWH = FULL.twitchHandles || {}; GR = FULL.gameReplays || [];
+    ROSTER = FULL.roster || null; r_story = FULL.story || null; PREVIEWS = FULL.previews || []; TWH = FULL.twitchHandles || {}; CACHED = new Set(FULL.cached || []); GR = FULL.gameReplays || [];
     MONT = FULL.montages || null; MOMENTS = FULL.moments || []; SPON = FULL.sponsors || null; TW = FULL.twitch || null;
   }
   scheduleRender();
@@ -1599,7 +1599,7 @@ setInterval(async () => {
 // Click: Preview · Ctrl/Shift-click: add to Preview · double-click: on stream now · right-click: its
 // menu (host view, players). Red border on stream, green in Preview. Pictures stay connected: a tile's
 // picture is only made when its lobby starts sending, and only loaded again when its link changes.
-let PREVIEWS = [], TWH = {};
+let PREVIEWS = [], TWH = {}, CACHED = new Set();
 const tileRO = typeof ResizeObserver === 'function' ? new ResizeObserver(es => { for (const en of es) { const f = en.target.querySelector('iframe'); if (f) f.style.transform = `scale(${en.contentRect.width / 1920})`; } }) : null;
 let tilesAwaySince = 0, tilesPaused = false;
 function tileHtml(l) {
@@ -1644,7 +1644,9 @@ function renderTiles() {
     setClass(hd, l.health === 'red' ? 'hd red' : l.health === 'yellow' ? 'hd yellow' : 'hd');
     setTitle(hd, l.health === 'red' ? 'Down: see Lobby health' : l.health === 'yellow' ? 'Degraded: see Lobby health' : '');
     const ph = el.querySelector('.ph');
-    setText(ph, !l.online ? 'OFFLINE' : (PH[l.phase] || l.phase || '').toUpperCase());
+    // Kept from before a restart and not confirmed by the results channel yet.
+    setText(ph, !l.online ? (CACHED.has(l.lobby) ? 'CACHED' : 'OFFLINE') : (PH[l.phase] || l.phase || '').toUpperCase());
+    setTitle(ph, CACHED.has(l.lobby) ? 'Kept from before Red Alert restarted: the results channel hasn\'t confirmed this lobby yet' : '');
     setClass(ph, 'ph' + (!l.online ? ' off' : l.phase === 'meeting' ? ' meeting' : l.phase === 'ingame' ? ' game' : ''));
     const playing = l.online && (l.phase === 'ingame' || l.phase === 'meeting');
     setText(el.querySelector('.cnt'), playing && l.crew != null ? `${l.crew}c v ${l.imps}i` : '');

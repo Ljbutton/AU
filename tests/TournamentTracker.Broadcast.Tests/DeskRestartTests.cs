@@ -157,7 +157,10 @@ public class DeskRestartTests : IDisposable
         var lj = org.GetProperty("lobbies").EnumerateArray().Single();
         Assert.True(lj.GetProperty("cached").GetBoolean());
         // The desk page's data link for it is back too (before any data or the channel).
-        Assert.Contains((await Call(again, "GET", "/app/admin/desk")).GetProperty("receivers").EnumerateArray(), r => r.GetProperty("lobby").GetString() == "LJ");
+        var deskNow = await Call(again, "GET", "/app/admin/desk");
+        Assert.Contains(deskNow.GetProperty("receivers").EnumerateArray(), r => r.GetProperty("lobby").GetString() == "LJ");
+        // … and the desk's tiles can say it's cached.
+        Assert.Equal(new[] { "LJ" }, deskNow.GetProperty("cached").EnumerateArray().Select(x => x.GetString()).ToArray());
 
         // The bundle: no kept-lobbies file, and the password nowhere.
         var r = await Post(again, "/app/support", new { });
