@@ -103,8 +103,9 @@ public sealed class FakeObs : IAsyncDisposable
 
     private async Task Send(WebSocket ws, object msg)
     {
-        await _send.WaitAsync();
-        try { await ws.SendAsync(JsonSerializer.SerializeToUtf8Bytes(msg), WebSocketMessageType.Text, true, CancellationToken.None); }
+        using var limit = new CancellationTokenSource(5000);    // never a test that waits forever on a stuck socket
+        await _send.WaitAsync(limit.Token);
+        try { await ws.SendAsync(JsonSerializer.SerializeToUtf8Bytes(msg), WebSocketMessageType.Text, true, limit.Token); }
         finally { _send.Release(); }
     }
 
@@ -131,7 +132,7 @@ public sealed class FakeObs : IAsyncDisposable
         string? auth = identify.Value.GetProperty("d").TryGetProperty("authentication", out var a) ? a.GetString() : null;
         if (auth != ObsClient.Auth(Password, Salt, Challenge))
         {
-            await ws.CloseAsync((WebSocketCloseStatus)4009, "Authentication failed.", CancellationToken.None);
+            await ws.CloseAsync((WebSocketCloseStatus)4009, "Authentication failed.", new CancellationTokenSource(1000).Token);
             return;
         }
         await Send(ws, new { op = 2, d = new { negotiatedRpcVersion = 1 } });
@@ -365,7 +366,8 @@ public sealed class FakeObs : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _cts.Cancel();
-        try { if (_ws?.State == WebSocketState.Open) await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None); } catch { }
+        // With a time limit: on Windows (HttpListener) a close can wait forever for a client that has already gone.
+        try { if (_ws?.State == WebSocketState.Open) await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", new CancellationTokenSource(1000).Token); } catch { }
         _listener.Stop();
         _listener.Close();
     }
