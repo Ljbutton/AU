@@ -159,7 +159,7 @@ namespace TournamentTracker
         /// <summary>Discord user IDs never muted as spectators (casters, referees).</summary>
         public List<string> SpectatorExemptUserIds { get; set; } = new List<string>();
 
-        /// <summary>Discord user IDs who can still talk while referee mode (!ref on) mutes everyone else.</summary>
+        /// <summary>Discord user IDs who can still talk while referee mode (Referee on The Button's Home) mutes everyone else.</summary>
         public List<string> RefereeUserIds { get; set; } = new List<string>();
 
         /// <summary>Link players automatically when their in-game name matches a Discord name in the voice channel.</summary>
