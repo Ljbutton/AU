@@ -380,7 +380,9 @@ public sealed class FakeObs : IAsyncDisposable
         // With a time limit: on Windows (HttpListener) a close can wait forever for a client that has already gone.
         try { if (_ws?.State == WebSocketState.Open) await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", new CancellationTokenSource(1000).Token); } catch { }
         _listener.Stop();
-        _listener.Close();
+        // On Linux, Close after Stop looks the port up again and can find another test's listener on it
+        // ("Address already in use"): the fake is stopped by then, so that's nothing to fail a test over.
+        try { _listener.Close(); } catch (HttpListenerException) { }
     }
 }
 
