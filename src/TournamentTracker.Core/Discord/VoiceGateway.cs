@@ -227,6 +227,8 @@ namespace TournamentTracker.Discord
         private readonly string _guildId;
         private Func<object, Task>? _send;
         private readonly object _voiceLock = new object();
+        /// <summary>One voice state message at a time, so a rejoin can't reach Discord after a newer join or leave.</summary>
+        private readonly SemaphoreSlim _voiceSendGate = new SemaphoreSlim(1, 1);
         private string? _voiceWanted, _voiceSession, _voiceToken, _voiceEndpoint, _voiceIn;
         private VoiceListener? _listener;
 
@@ -284,7 +286,21 @@ namespace TournamentTracker.Discord
                 send = _send;
                 if (channelId == null) StopListening();
             }
-            if (send != null) _ = SendVoiceState(send, channelId);
+            if (send != null) _ = SendWantedVoice(send);
+        }
+
+        /// <summary>Tells Discord the channel wanted now (read when it's this message's turn, so the last one sent is always the latest).</summary>
+        private async Task SendWantedVoice(Func<object, Task> send)
+        {
+            await _voiceSendGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                string? wanted;
+                lock (_voiceLock) { if (_send != send) return; wanted = _voiceWanted; }
+                await SendVoiceState(send, wanted).ConfigureAwait(false);
+            }
+            catch (Exception e) { _log.Warn("Voice (who's talking): couldn't tell Discord the voice channel: " + e.Message); }
+            finally { _voiceSendGate.Release(); }
         }
 
         private Task SendVoiceState(Func<object, Task> send, string? channelId) =>
@@ -396,8 +412,13 @@ namespace TournamentTracker.Discord
                     await SendVoiceState(send, null).ConfigureAwait(false);
                     await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
                 }
-                lock (_voiceLock) { if (_voiceWanted != channel || _send != send) return; }
-                await SendVoiceState(send, channel).ConfigureAwait(false);
+                await _voiceSendGate.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    lock (_voiceLock) { if (_voiceWanted != channel || _send != send) return; }
+                    await SendVoiceState(send, channel).ConfigureAwait(false);
+                }
+                finally { _voiceSendGate.Release(); }
             }
             catch (Exception e) { _log.Warn("Voice (who's talking): couldn't ask to join again: " + e.Message); }
         }
