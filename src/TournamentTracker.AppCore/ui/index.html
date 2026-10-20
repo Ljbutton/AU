@@ -29,6 +29,12 @@
 .pill{font-size:12px;padding:1px 8px;border-radius:99px;background:var(--sunk);color:var(--muted);white-space:nowrap}
 
 /* ---- Home (the lobby): everything on one screen ---- */
+/* The caster's tally: red while this lobby is on stream, amber while it's next (in Red Alert's Preview). */
+.tally{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px;margin-bottom:10px;padding:7px 14px;border-radius:10px;border:2px solid var(--hi);background:var(--hi-soft);font-size:15px}
+.tally b{font:700 26px/1 "Teko","Rajdhani",sans-serif;letter-spacing:.1em;padding:4px 12px 1px;border-radius:6px;background:var(--hi);color:#fff}
+.tally .hint{color:var(--fg);opacity:.85;font-size:13.5px}
+.tally.pvw{border-color:var(--warn);background:var(--warn-soft)}
+.tally.pvw b{background:var(--warn);color:#16120a}
 .lobby-head{display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap}
 .facts{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:4px}
 .fact .k{font-size:11.5px;color:var(--hi);text-transform:uppercase;letter-spacing:.08em}
@@ -275,6 +281,8 @@ details.advanced summary h2{margin:0}
 
 <!-- Home: the lobby, on one screen. -->
 <section id="home" class="on">
+  <!-- Red Alert's tally for this lobby: on stream (and how) or next, sent over the send page's link. Nothing otherwise. -->
+  <div id="tally" class="tally" role="status" hidden></div>
   <!-- The backup holds games the mod's folder doesn't; a file that couldn't be read was set aside. Shown with or without Among Us. -->
   <div id="home-files" class="health"></div>
   <div class="stage" id="home-wait">
@@ -756,7 +764,17 @@ $('home-files').addEventListener('click', async e => {
   finally { b.disabled = false; }
 });
 
+// The caster's tally (from Red Alert, through the send page): only while it's fresh; an older Red Alert sends none.
+function renderTally() {
+  const t = S.tally, el = $('tally');
+  el.hidden = !t;
+  if (!t) return;
+  el.className = 'tally ' + (t.state === 'pvw' ? 'pvw' : 'pgm');
+  setHTML(el, `<b>${esc(t.badge)}</b><span>${esc(t.text)}</span>${t.hint ? `<span class="hint">${esc(t.hint)}</span>` : ''}`);
+}
+
 function renderHome() {
+  renderTally();
   renderFiles();
   const st = S.status;
   $('home-wait').hidden = !!st; $('home-live').hidden = !st;

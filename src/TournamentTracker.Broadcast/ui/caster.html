@@ -2528,6 +2528,25 @@ function sendNames(all) {
     sentNames[lobby] = { json, at: now };
   }
 }
+// ---- Each host's tally (on their Button's Home): their lobby on stream, in Preview, or neither -------
+// Red Alert works it out (desk lobbies' hostTally); this page is the only way to the hosts. Each host gets its
+// own lobby's state only (never other lobbies, players or impostors), when it changes and every 3 s. The Button
+// hides it 10 s after the last one, so it goes when the link drops or this page stops hearing from Red Alert.
+const sentTally = {};
+function sendTallies() {
+  if (!DESK || performance.now() - Math.max(liveAt, fullAt) > 6000) return;
+  const now = Date.now();
+  for (const [lobby, f] of Object.entries(RECV)) {
+    if (!f.contentWindow) continue;
+    const l = (DESK.lobbies || []).find(x => x.lobby === lobby);
+    const t = l && l.hostTally ? { v: l.hostTally.v, state: l.hostTally.state, view: l.hostTally.view || null } : { v: 1, state: 'none', view: null };
+    const json = JSON.stringify(t), was = sentTally[lobby];
+    if (was && was.json === json && now - was.at < 3000) continue;
+    f.contentWindow.postMessage({ sendData: { ttt: t }, type: 'rpcs' }, '*');
+    sentTally[lobby] = { json, at: now };
+  }
+}
+setInterval(sendTallies, 500);
 function realName(lobby, id, fallback) {
   const l = ROSTER && ROSTER.lobbies.find(x => x.lobby === lobby);
   const p = l && l.players.find(x => x.id === id);

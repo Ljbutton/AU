@@ -1419,6 +1419,7 @@ namespace TournamentTracker.App.Broadcast
                         }).ToList(),
                         OnAir = air.Label(r.Lobby),
                         Tally = Tally(r.Lobby, air, preview),
+                        HostTally = HostTally.For(r.Lobby, air, preview),
                         Cam = CamView(r.Lobby, r.Spec),
                         Health = Health.Status(r.Lobby).Level,
                     };

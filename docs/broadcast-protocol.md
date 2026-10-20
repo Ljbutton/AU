@@ -9,7 +9,7 @@ the feed in `LobbyFeed.cs` / `SpectatorView.cs`; the broadcast app reads it in `
 
 ```
 Among Us + mod ──(local control port, /feed)──▶ host's Button ──(send page, VDO.Ninja data channel)──▶ Red Alert
-                ◀──────── "spec …" commands ──── /app/command ◀──────────── ttc / ttn / ttack ─────────
+                ◀──────── "spec …" commands ──── /app/command ◀──────── ttc / ttn / ttack / ttt ───────
 ```
 
 * The mod keeps the last 600 messages; the host's Button page polls them (`/app/sendfeed?since=N`)
@@ -124,6 +124,7 @@ host's PC drops before the game is posted.
 | `ttc` | `"spec lit on"`… (only `^spec [a-z]+( [a-z0-9.]+)?$`) | passes it to the mod (`/app/command`) |
 | `ttn` | `{playerKey: "Real Name"}` | gives the mod roster names for nameplates (`/app/names`) |
 | `ttack` | `{src: lastSeq}` | stops sending those again |
+| `ttt` | `{v:1, state:"pgm"\|"pvw"\|"none", view:"full"\|"2up"\|"4up"\|"grid"\|"cam"\|"cams"\|"break"\|null}` | gives The Button the tally for its Home (`/app/tally`): on stream (and in which view), in Preview, or neither. Only this lobby's own state; sent when it changes and every 3 s; The Button hides it 10 s after the last one. An older page ignores it |
 
 Spectator commands: `spec lit|report|eye on|off`, `spec vision off|focus|rings`,
 `spec focus auto|<player id>`, `spec dim 0.22`, `spec cam on|off|auto|<player id>` (the player
