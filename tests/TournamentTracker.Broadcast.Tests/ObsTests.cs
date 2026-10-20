@@ -377,12 +377,18 @@ public sealed class FakeObs : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _cts.Cancel();
-        // With a time limit: on Windows (HttpListener) a close can wait forever for a client that has already gone.
-        try { if (_ws?.State == WebSocketState.Open) await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", new CancellationTokenSource(1000).Token); } catch { }
-        _listener.Stop();
-        // On Linux, Close after Stop looks the port up again and can find another test's listener on it
-        // ("Address already in use"): the fake is stopped by then, so that's nothing to fail a test over.
-        try { _listener.Close(); } catch (HttpListenerException) { }
+        var ws = _ws;
+        // On Windows, HttpListener's WebSocket can block inside CloseAsync (and the listener's Close)
+        // on a lock a cancelled receive still holds, before any time limit applies: shut down on
+        // another thread and stop waiting after a moment. The fake is done with either way.
+        var shut = Task.Run(async () =>
+        {
+            try { if (ws?.State == WebSocketState.Open) await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", new CancellationTokenSource(1000).Token); } catch { }
+            try { _listener.Stop(); } catch { }
+            // On Linux, Close after Stop looks the port up again and can find another test's listener on it.
+            try { _listener.Close(); } catch { }
+        });
+        await Task.WhenAny(shut, Task.Delay(3000));
     }
 }
 
