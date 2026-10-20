@@ -226,5 +226,6 @@ To try changes on a Stream Deck, `npx streamdeck link com.ljbutton.redalert.sdPl
 plugin's `logs` folder (`%APPDATA%\Elgato\StreamDeck\Plugins\com.ljbutton.redalert.sdPlugin\logs`);
 it has the path of each press and Red Alert's answer, never the key.
 
-CI builds and tests it on every push, uploads RedAlert.streamDeckPlugin with the other files, and
-attaches it to each `broadcast-v…` release.
+CI builds and tests it on every push (on Windows it also runs `npm run validate`, the Elgato
+CLI's check of the manifest and the files it names), uploads RedAlert.streamDeckPlugin with the
+other files, and attaches it to each `broadcast-v…` release.

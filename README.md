@@ -64,16 +64,18 @@ is typed in the game chat, so there's nothing for Among Us's anti-cheat to trip 
 The top bar only shows the logo, plus a warning when something needs you: "No setup code
 installed", "Mod not installed", "Mod needs repair", "Among Us not found", "Setup code
 damaged", "Discord bot refused" (the bot's token was reset: the host needs a new code or a
-new token in Your Discord), "Referee commands not heard" (the bot's Message Content Intent is
-off) or "Live message can't post" (Discord turned the lobby message down). Click one to go
-where it's fixed. A new version shows as one pill that does the next step itself: "The
+new token in Your Discord), "Round changes not heard" (the bot's Message Content Intent is
+off, so round starts and lobby changes from the Organiser tab aren't heard) or "Live message
+can't post" (Discord turned the lobby message down). Click one to go where it's fixed. A new version shows as one pill that does the next step itself: "The
 Button vX is out · Update", then "The Button vX is ready · Restart" (for the mod alone, "Mod
 vX installs when Among Us closes").
 
 **The Button updates itself.** When a new version is out it downloads it and uses it from
-the next start ("Restart to update" in Settings → Mod and updates). The mod in Among Us
-updates itself the same way while the game is closed. Turn **Update automatically** off
-there to update both only when you choose.
+the next start (**Restart The Button to finish** in Settings → Mod and updates). The mod in Among Us
+updates itself the same way while the game is closed. Every download is checked against the
+size and SHA-256 its GitHub release lists: one that doesn't match is deleted and nothing changes
+("The download didn't match the release (it may be incomplete). Nothing was changed; try again
+later."). Turn **Update automatically** off there to update both only when you choose.
 
 While you play, the app's pages run the lobby:
 
@@ -90,7 +92,7 @@ While you play, the app's pages run the lobby:
 * **Referee:** every game waits here before Discord sees anything. Under **Waiting for you**
   each finished game shows every player's points (hover for where they came from). Type any
   amount with up to 3 significant figures (0.125, 1.25, 12.5, 125; empty means 1) in the box
-  next to a player, then press **+** to add it or **−** to take it away (it shows as "Referee"
+  next to a player, then press **+** to add it or **−** to take it away (it shows as "Referee change"
   in their breakdown), **Void**
   keeps it out of the points and off Discord for good, and **Submit points** posts it (the
   report, the standings, the round's scores). **Submit all** sends every waiting game. The
@@ -104,13 +106,14 @@ While you play, the app's pages run the lobby:
   or through the bot: this lobby's round with the cut line and running totals, every lobby's
   round with a results channel, from round 2 the running total; with a preliminary code the
   lobby's leaderboard), and the folded **Results channel** card for whoever has the
-  administration code. Only the setup code can turn the hold off (**Hold each game until the
-  host presses Submit**); games then post as soon as they end.
+  administration code (change the points of any lobby's game, void or unvoid one). Only the
+  setup code can turn the hold off (**Hold each game until the host presses Submit**); games
+  then post as soon as they end.
 * **Settings:** the game folder; the mod and The Button's updates; the setup code as one line (details, change or
   remove it); **Your Discord** (below); **Your connection** (the upload check, what to share, lower quality);
   **Your Twitch**; in a tournament with a results channel, **Tournament** (**Take over** as the lead lobby, and the
   combined leaderboard's **Reset…**); with the administration code, **Administration**; **Help** (the support
-  bundle); files under **Advanced**.
+  bundle, and the backup of the mod's data: **Restore backup**, **Backup folder**); files under **Advanced**.
 
 **Your Discord** (Settings): the host's own bots and channels, so the organiser doesn't need
 anyone's bot token and a host can change bots without a new code. Up to 3 bot tokens, the
@@ -171,8 +174,9 @@ Discord developer settings or the config file.
   bottom. Make one webhook and use it in every preliminary code. Each preliminary server
   keeps its own public channel, which its host sets in The Button.
 * **Results channel:** tournament game reports and standings for players. Make a webhook.
-* **Private results channel:** staff only. The hosts' mods post each game's data here,
-  referees type point adjustments here, and `!resetleaderboard` here starts standings over.
+* **Private results channel:** staff only. The hosts' mods post each game's data here, and
+  the referees' and your changes made in The Button (points, voids, rounds, a reset) are posted
+  here by the administration bot. Anything a person types here is ignored.
 
 ### 2. Bots (tournament hosts only)
 
@@ -211,8 +215,9 @@ top. Fill it in:
   its own live lobby channel (otherwise the lobby message goes in the results channel, or
   where the host types `/new`), the preliminary channels and the referees' user IDs. The bot is optional: without one, games are still tracked, scored
   and reported, and the host has the whole app, but there's no automute, no `/link`, `/new`
-  or colour menu, no combined standings and no referee commands. 2 or 3 bots mute a full
-  lobby faster (Discord limits each bot's speed; the work is shared). A code with a bot
+  or colour menu, no combined standings and no changes from the Organiser tab or the Results
+  channel card. 2 or 3 bots mute a full lobby faster (Discord limits each bot's speed; the work
+  is shared). A code with a bot
   token in it must be sent privately.
 
 * **Administration code** (for you, referees and casters): the tournament name, the private
@@ -222,8 +227,8 @@ top. Fill it in:
 
 Both carry the point values, so every host scores the same, and the game settings (below).
 Tournament host codes also carry the games per round and, for one host only (you), the
-**lead lobby** tick that makes that host's mod answer your results-channel commands. Codes
-are only encoded, not encrypted: anyone holding one can read what's in it. The Button keeps
+**lead lobby** tick that makes that host's mod carry out your round changes from the Organiser
+tab. Codes are only encoded, not encrypted: anyone holding one can read what's in it. The Button keeps
 its own copy of the host's code, so reinstalling the mod or Among Us doesn't lose it: it's
 put back by itself.
 
@@ -276,35 +281,42 @@ right away.
 ### During the tournament
 
 Hosts do all of this from The Button (Home, the Referee tab and Settings → Tournament);
-referees and the organiser use the private results channel.
+referees and the organiser use The Button with the administration code (the Referee tab's
+**Results channel** card and the **Organiser** tab), which posts their changes in the private
+results channel as the administration bot. The mods act only on what a bot posted there: a
+command typed in Discord by a person does nothing.
 
 * **Rounds:** the host presses **Next round** (or sets a number) on Home before each round's
-  first game, for as many rounds as you need. Points restart each round, and a running total across all
+  first game, for as many rounds as you need, or the organiser starts a round for every lobby at
+  once (Organiser tab → Rounds, below). Points restart each round, and a running total across all
   rounds is kept alongside. After every game the lobby's standings for the round are
   posted with a line under the top players who move on (5 by default). **Post →
   Leaderboard** (Home → Tools) also shows every lobby in the round together.
-* **Referee adjustments:** in the private results channel, type
-  `!adjust LJ red -2 meta call` (the lobby name, the player's colour or name, the points,
-  the reason). You can type it during the game; it lands on the game that lobby was playing
-  at that moment. For a specific game use its name: `!adjust LJ-3 red -2 …`. The lobby's
-  bot reacts ✅ when it's applied, or ❓ if the player couldn't be found. It shows in the
-  points breakdown as "Referee: meta call −2".
-* **Restarted games:** if a game has to stop and restart, the host presses **Void** on Home
-  during it (or straight after it, for the last game), or a referee types
-  `!void LJ-3 reason` in the results channel (`!void LJ` means the game that lobby is
-  playing). A void game is kept for the record and its report says VOID, but it scores
-  nothing and doesn't count toward the round, so the replacement game is the one that counts.
-  Only **Unvoid** (on Home, or `!unvoid LJ-3` in the channel) brings it back: once the
-  lobby's bot has seen a void it reacts ✅ and reposts the game with it built in, so deleting
-  the `!void` message changes nothing. Preliminary channels work the same way (the scheduled
-  job applies them), so the organiser's bot needs Add Reactions and Attach Files there.
+* **Referee changes:** the host changes a player's points with **+** / **−** in the Referee tab
+  (see above). A referee with the administration code changes any lobby's game in the Referee
+  tab's **Results channel** card: the lobby, the game's number (3 for LJ-3; empty means the game
+  that lobby is playing, or played last), the player's colour or name, the points, **−** or
+  **+**, and a reason. The Button posts it (`!adjust LJ-3 red -2 meta call`) and that lobby's game
+  applies it; its bot reacts ✅ when it's applied, or ❓ if the player couldn't be found. It
+  shows in the points breakdown as "Referee: meta call −2" (without a reason, "Referee change").
+* **Restarted games:** if a game has to stop and restart, the host presses **Void this game** on
+  the Referee tab during it (or straight after it, for the last game); a referee voids any
+  lobby's game from the Results channel card (`LJ-3`, or `LJ` for the game that lobby is
+  playing, with a reason). A void game is kept for the record and its report says VOID, but it
+  scores nothing and doesn't count toward the round, so the replacement game is the one that
+  counts. Only **Unvoid** (on the Referee tab, or in the Results channel card) brings it back:
+  once the lobby's bot has seen a void it reacts ✅ and reposts the game with it built in, so
+  deleting the void message changes nothing. In a preliminary the host voids or changes a game
+  in their Referee tab: the game's data file is posted again, and the scheduled job goes by the
+  newest copy.
 * **Round progress and ties:** standings say which game of the round they're after
   ("after game 2 of 3"), the all-lobbies view shows how far each lobby has got, and a host
   starting a 4th game in a round is warned. When a lobby has played all its games, a tie
   across the cut line is broken by impostor wins, then vote %, then task % (over the
   round). The players it moves above the line get +0.25 on their total; it isn't shown in
   any public breakdown, but the referees get a note in the results channel saying who,
-  why and by how much. A tie that's level on all three is left to a referee (use `!adjust`).
+  why and by how much. A tie that's level on all three is left to a referee (give one of them
+  +0.25 in the Referee tab).
 * **Disconnects:** when a player leaves mid-game the host is told, and pointed to **Void this
   game** (Referee tab) if it's before the first meeting; the referees get a note. A player who leaves keeps
   the points they'd earned and takes their team's loss (and the sabotage penalty if they
@@ -313,19 +325,22 @@ referees and the organiser use the private results channel.
   it stays off, even after restarting, until they switch it on again. While it's off the bot
   never touches anyone's voice, so AutoMuteUs can be used instead; linking, the live
   message and the results channel still work.
-* **Next round's lobbies** (from the private results channel, any device; answered by the
-  lead lobby's mod):
-  * `!lobbies 3` puts everyone who moved on from round 2 into lobbies of 10, snake-seeded
-    by their round-2 points (1st, 4th, 5th, 8th… in lobby A when there are 2 lobbies), and
-    lists the best of the rest as alternates. 10 or fewer make the Final.
-  * `!move Soggy B`, `!swap Soggy Fred`, `!drop Fred` (shows the next alternates),
-    `!add Millie B` (an alternate or anyone), `!host B LJ` adjust it; each change reposts the list.
-  * `!start 3 in 10` switches every lobby's mod to round 3 (after the current game if one
-    is running) and pings each lobby's linked players in the tournament channel with their
-    lobby and host, then again when it starts. `!start 3` on its own says it's starting now.
-    Each lobby's own game then posts where to go: "**Round 3 · LJ's lobby:** join voice
-    #lobby-1 · lobby code `QWERTY` · Polus" (its voice channel is the one its host is in).
-  * **Take over** (Settings → Tournament → Lead lobby) makes that host's mod the one that answers from then on.
+* **Next round's lobbies and round starts** (Organiser tab → **Rounds**, with the administration
+  code; posted in the private results channel and carried out by the lead lobby's mod):
+  * **Build its lobbies** for round 3 puts everyone who moved on from round 2 into lobbies of up
+    to 10, snake-seeded by their round-2 points (1st, 4th, 5th, 8th… in lobby A when there are 2
+    lobbies), and lists the best of the rest as alternates. 10 or fewer make the Final.
+  * **Change the lobbies:** a player and a lobby (A, B… Final) with **Move there**, **Add there**
+    (an alternate or anyone) or **Drop** (shows the next alternates); two players and **Swap**;
+    a lobby, its host's lobby label and **Set host**. Each change reposts the list.
+  * **Start round** (round 3, starts in 10 min; it asks for a second click) switches every
+    lobby's mod to round 3 (after the current game if one is running) and pings each lobby's
+    linked players in the tournament channel with their lobby and host, then again when it
+    starts. With the minutes left empty it says it's starting now. Each lobby's own game then
+    posts where to go: "**Round 3 · LJ's lobby:** join voice #lobby-1 · lobby code `QWERTY` ·
+    Polus" (its voice channel is the one its host is in).
+  * **Take over** (Settings → Tournament → Lead lobby) makes that host's mod the one that
+    carries them out from then on.
   This needs the bot's Message Content Intent (already needed for the results channel).
 * **Server standings:** **Post → Server standings** (Home → Tools; and by itself each new round)
   posts servers ranked by their players' total points, with each server's furthest player. A player's server is the one
@@ -348,9 +363,12 @@ the choice is remembered.
 ### Organiser tab (administration code)
 
 With an administration code pasted into Settings → Setup code, The Button gets an
-**Organiser** tab, and it doesn't need Among Us on that computer. Every tournament host's
-game with a bot keeps one "Live data" message in the private results channel, updated a few
-seconds after anything changes; the Organiser tab reads them all:
+**Organiser** tab. The code is kept in The Button's own settings, so it works on a PC without
+Among Us (a host's code still needs Among Us found first: it goes in the mod's folder). There,
+Home says **Organiser PC** ("Among Us isn't needed here…") with **Open the Organiser tab**, and
+the top bar asks for no game, mod or setup code. Every tournament host's game with a bot keeps
+one "Live data" message in the private results channel, updated a few seconds after anything
+changes; the Organiser tab reads them all:
 
 * **Every lobby live:** phase, map, lobby code, who's alive or dead, and the round's games.
   Tick **Show roles and real deaths** (staff only) to see impostors, real deaths, kills,
@@ -364,10 +382,16 @@ seconds after anything changes; the Organiser tab reads them all:
 * **Caster tools** (the caster overlay, game video, the Caster tab, OBS, replays) are in
   their own app now, **Red Alert** (below), for whoever runs the stream. The Organiser tab
   links to it.
-* **Results channel** (a folded card on the **Referee** tab, for whoever has the administration
-  code): adjust points, void or unvoid a game, or type any `!` command; it's posted in the results channel as the
-  administration bot and the lead lobby carries it out. On a PC without Among Us, Home
-  waits for the game as usual, with the referee tools below.
+* **Rounds:** build the next round's lobbies (**Build its lobbies**), change them (**Move
+  there**, **Add there**, **Drop**, **Swap**, **Set host**), then **Start round**, now or in a
+  few minutes; see *Next round's lobbies and round starts* above. **Start over…** (after a
+  confirm) starts every lobby's combined standings over; deleting the reset message in the
+  results channel undoes it.
+* **Results channel** (a card on the **Referee** tab, for whoever has the administration code;
+  folded, except on an organiser's PC): change the points of any lobby's game, or void or
+  unvoid one (see *Referee changes* and *Restarted games* above). It's posted in the results
+  channel as the administration bot, and that lobby's game carries it out. There's no box to
+  type a command.
 
 The administration bot needs View Channel, Read Message History and Send Messages in the
 private results channel, and its **Message Content Intent** turned on (Discord Developer
@@ -499,10 +523,10 @@ stream.
   [Swoosh](#caster-tab-redzone-broadcast) below.
 * **Breaks** (Be right back, Intermission, Sponsor, in amber) sit in the action panel, apart from
   the layouts, so a break isn't clicked by mistake; they go on at once.
-* **Hold** (**H**, or the AUTO pill): nothing switches by itself until you release it: auto grid,
-  auto intermission, a camera going back to the map, auto switch off a dropped lobby, a break
-  ending, armed cameras. What it held back shows as a toast and a warning. Your own switches still
-  go through.
+* **Hold** (**H**, or the AUTO pill): nothing switches by itself until you release it (auto
+  intermission, a camera going back to the map, auto switch off a dropped lobby, a break ending,
+  armed cameras), and auto grid puts nothing in Preview. What it held back shows as a toast and a
+  warning. Your own switches still go through.
 * **Panic** (**P** twice, or the Panic button): something must come off stream now. It fades to
   Be right back, mutes every lobby voice, clears the graphics, pauses alerts and holds switching.
   While it's on, Panic says **Undo panic** and **Back** (or the Stream Deck's Undo) puts it all
@@ -552,8 +576,9 @@ stream.
   that updates itself becomes Red Alert where it is.
 * **Updates (Settings):** Red Alert never updates by itself, so nothing changes in the middle of
   a stream. **Settings → Updates** says when a new version is out (it looks every 30 minutes, or
-  **Check now**); **Update** downloads it and **Restart Red Alert** starts it. Hosts never need
-  to reinstall anything for a broadcast change.
+  **Check now**); **Update** downloads it (checked against the size and SHA-256 its release
+  lists: one that doesn't match is refused and nothing changes) and **Restart Red Alert** starts
+  it. Hosts never need to reinstall anything for a broadcast change.
 * **Player camera:** a second picture from each host's game that follows one player up close,
   960×540 at up to 30 frames a second, sent with the host's game. It's on by default
   (Settings → **Player cameras** turns it off). The Live desk's **Player cams** list has every
@@ -727,7 +752,7 @@ the caster's PC and off stream.
 * **Grid:** every active lobby at once in **TT Grid** (1 full, 2 side by side, up to 4×4, then five wide), each
   tile with its label, a status line, the impostor tag and a border that pulses at high
   priority; empty tiles show a sponsor or the logo. Click a tile (on stream) for full screen.
-  **Auto grid** brings it up whenever no lobby is mid-game.
+  **Auto grid** puts it into Preview whenever no lobby is mid-game (Take shows it).
 * **Multiview:** the lobby tiles on the Live desk are a small live picture of every lobby sending
   its game. Click one for Preview, Ctrl+click to add more (they're numbered in the order you pick),
   then **Take**: one goes full screen, two side by side, three or four in the quad, five and more
@@ -916,9 +941,9 @@ these, on the channels where they're used (channel → Edit Channel → Permissi
 | --- | --- | --- |
 | Each lobby voice channel | View Channel, Connect, Mute Members, Deafen Members, Send Messages | Automute; *Who's talking* (Connect); the "voice may be recorded" note in the channel's chat |
 | Live status channel | View Channel, Send Messages, Embed Links, Use External Emojis | The lobby message with its colour menu and crewmate heads |
-| Private results channel | View Channel, Send Messages, Embed Links, Attach Files, Read Message History, Add Reactions | Game files and standings (it reads back earlier games), referee commands |
+| Private results channel | View Channel, Send Messages, Embed Links, Attach Files, Read Message History, Add Reactions | Game files and standings (it reads back earlier games), the changes posted by The Button |
 
-Also in the Developer Portal: **Message Content Intent** on, for referee commands in the results channel.
+Also in the Developer Portal: **Message Content Intent** on, for the changes posted by The Button in the results channel.
 Not needed: Administrator, Manage Server/Roles/Channels/Messages/Webhooks, Move Members, Kick, Ban,
 Speak. The webhooks for stats and status are made by the organiser, not the bot, and slash commands
 come with the `applications.commands` scope.
@@ -1054,10 +1079,10 @@ In the Developer Portal, turn on **Message Content Intent** (Bot → Privileged 
 Intents) for every host's bot. Without it a bot can't read the files other bots posted, and
 the log warns about it.
 
-**To reset it**, type `!resetleaderboard` in that channel yourself, from any device, or use
-**Reset…** under Standings on The Button's Home. Only games posted after the newest reset
-message count. The older game files stay in the channel, so deleting the reset message
-brings the old standings back.
+**To reset it**, a host presses **Reset…** (Settings → Tournament → Combined leaderboard), or
+the organiser **Start over…** on the Organiser tab (Rounds). Typing `!resetleaderboard` in the
+channel yourself does nothing. Only games posted after the newest reset message count. The older
+game files stay in the channel, so deleting the reset message brings the old standings back.
 
 ## Nothing is typed in the game
 
@@ -1203,6 +1228,21 @@ Files go in `BepInEx/config/TournamentTracker/`:
 A game the host leaves before it ends is saved as `-abandoned` and is not counted; a void
 game is saved as `-void`.
 
+**Saved safely.** Every file (the mod's, The Button's and Red Alert's) is written whole to a side
+file next to it first, and only then takes the old file's place, so a crash, a power cut or a full
+disk part-way through leaves the old file as it was. A file that can't be read (half-written, or
+edited wrongly by hand) is kept as `<name>.corrupt-<time>` before anything is saved over it, and
+the log says so; The Button's Home shows "A damaged file was set aside" for its own files and the
+mod's.
+
+**The Button's backup.** Every 10 seconds The Button copies what changed of the mod's games
+(each game, the waiting list, the replays), `links.json` and each tournament's round and totals to
+`%LOCALAPPDATA%\TheButton\backup`, outside the Among Us folder (never the setup code, the host's
+Discord or the connection files). After reinstalling Among Us, Home says "The backup has N games
+that aren't in Among Us's folder": close Among Us and press **Restore** (or Settings → Help →
+**Restore backup**) to put back what's missing or older, or **Forget** them if they were removed on
+purpose. **Backup folder** opens it.
+
 ## Building
 
 ```bash
@@ -1220,19 +1260,28 @@ interop generator can't run. On GitHub, run the
 `release_tag` (e.g. `v0.1.1` for The Button and the mod, `broadcast-v0.1.0` for Red
 Alert) to publish a release, and `delete_tags` to remove old ones.
 
+The workflow also has a **Windows** job, run on the same events beside the Linux build: the same
+build and tests on Windows (the plugin and both apps' windows too), the Stream Deck plugin's tests
+and `npm run validate`, then it starts TheButton.exe and RedAlert.exe (each must keep running and
+answer on its own server), checks every installer script with Windows PowerShell 5.1, and runs
+both .bat installers as a user would, from a folder with an apostrophe in its name. Its logs,
+screenshots and test results are kept as the **windows-checks** artifact. Releases don't wait for
+it: the Linux build alone builds and publishes them.
+
 Layout:
 
 * `src/TournamentTracker.Core` has everything that doesn't touch the game: the stat tracker,
   scoring, leaderboard, Discord REST and webhooks, the automute planner and dispatcher, and
   the commands The Button sends. It is unit-tested.
 * `src/TournamentTracker.AppCore` is The Button's engine and pages (cross-platform, tested);
-  `src/TournamentTracker.App` is the Windows window around it (WebView2), built in CI.
+  `src/TournamentTracker.App` is the Windows window around it (WebView2), built in CI, and started
+  there on Windows.
 * `src/TournamentTracker.Common` is what both apps share: the organiser's tournament link
   (the Live data messages) and self-updating.
 * `src/TournamentTracker.Broadcast` is Red Alert's engine and pages (cross-platform, tested);
-  `src/TournamentTracker.BroadcastApp` is its Windows window, built in CI. The feed between a
-  host and Red Alert is defined in `Core/Broadcast/FeedProtocol.cs` and
-  `docs/broadcast-protocol.md`.
+  `src/TournamentTracker.BroadcastApp` is its Windows window, built in CI, and started there on
+  Windows. The feed between a host and Red Alert is defined in `Core/Broadcast/FeedProtocol.cs`
+  and `docs/broadcast-protocol.md`.
 * `src/TournamentTracker.Plugin` is the BepInEx plugin: Harmony hooks on the game, and a
   per-frame driver that reads the game phase for automute. It compiles the core in, so the
   build is a single DLL.

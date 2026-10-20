@@ -33,16 +33,17 @@ see the [README](../README.md#red-alert-the-broadcasters-app).
 
 ## Install, unlock and updates
 
-* **Installer** — `Install-RedAlert.bat` from the [Red Alert releases](https://github.com/Ljbutton/AU/releases?q=broadcast-v) (tags `broadcast-v…`); installs for this Windows user (no admin) to `%LOCALAPPDATA%\Programs\RedAlert` with Start menu and desktop shortcuts, and can sit next to The Button.
+* **Installer** — `Install-RedAlert.bat` from the [Red Alert releases](https://github.com/Ljbutton/AU/releases?q=broadcast-v) (tags `broadcast-v…`); installs for this Windows user (no admin) to `%LOCALAPPDATA%\Programs\RedAlert` with Start menu and desktop shortcuts, and can sit next to The Button. It works from any folder, even one with an apostrophe in its name.
 * **One copy at a time** — starting Red Alert again brings the open window to the front.
 * **Window** — opens maximised the first time, then where and as big as you left it; keeps running at full speed when minimised or covered (by an OBS projector, say), so host commands and camera picks still go out.
 * **Administration code lock** — Red Alert opens locked; paste the tournament's administration code (the organiser's, as in The Button's Organiser tab) to unlock. Settings → Administration code has **Change** and **Lock**.
 * **Check a host's setup code** — Settings → Administration code: paste a host's code to see whether their live data goes to the channel Red Alert reads, on the same server, with a bot Red Alert can read.
 * **First start** — on a PC that had The Button's caster tools, Red Alert copies their settings once (OBS, priority rules, roster, graphics, sponsors, alerts, health, Twitch, kept games, ffmpeg, the administration code) and never overwrites its own.
 * **Formerly TT Broadcast** — installing Red Alert replaces TT Broadcast, and its settings come over the first time.
-* **Updates** — Settings → Updates says when a new Red Alert is out (it looks every 30 minutes, or **Check now**); **Update** downloads it and **Restart Red Alert** starts it. It never updates by itself, so nothing changes mid-stream.
+* **Updates** — Settings → Updates says when a new Red Alert is out (it looks every 30 minutes, or **Check now**); **Update** downloads it and **Restart Red Alert** starts it. It never updates by itself, so nothing changes mid-stream. The download is checked against the size and SHA-256 its release lists: one that doesn't match is refused and nothing changes ("The download didn't match the release (it may be incomplete). Nothing was changed; try again later.").
 * **Log** — `red-alert.log` in `%LOCALAPPDATA%\RedAlert` records what Red Alert did and what went wrong (an error is logged and Red Alert carries on); past 1 MB it moves to `red-alert.log.1`.
 * **Settings files** — everything is in `%LOCALAPPDATA%\RedAlert` (`settings.json`, `obs.json`, `caster-priority.json`, `lobby-numbers.json`, `roster.csv`, `broadcast.json`, `sponsors.json`, `health.json`, `twitch.json`…); edited files are re-read while Red Alert runs.
+* **Saved safely** — every file is written whole to a side file first and only then takes the old one's place, so a crash, a power cut or a full disk part-way through leaves the old file as it was. A file that can't be read (half-written, or edited wrongly by hand) is kept as `<name>.corrupt-<time>` before anything is saved over it, and `red-alert.log` says so; a hand-edited `broadcast.json` with a mistake is kept that way before a switch saves the last good settings.
 
 ## The side menu
 
@@ -112,7 +113,7 @@ an item shows what needs a look; a number shows a count.
 
 ## Player cams
 
-* **Player camera** — a second picture from each host's game that follows one player up close, 720p at up to 30 frames a second while on stream; it darkens what that player can't see, as on their own screen. The host never sees it and can't change it.
+* **Player camera** — a second picture from each host's game that follows one player up close, 960×540 at up to 30 frames a second while on stream; it darkens what that player can't see, as on their own screen. The host never sees it and can't change it.
 * **Player cams card** (Live desk) — a tab per lobby in a game (the lobby in Preview, else the one on stream, by default), a chip per player with their crewmate head and real name (dimmed when dead, a knife mark on impostors), and a green underline on who the camera follows now.
 * **Follow a player** — click a player: that lobby's camera goes on stream following them; **Shift+click** only changes who it follows. **◀ Prev**, **Next ▶**, **Cut to cam** and **Wide** (back to the whole map) under the chips.
 * **Auto** — the camera picks by itself: an impostor closing in on a crewmate alone, else whoever is busy; a pick it made is kept at least 4 s, and your pick is kept for 4 s after they die so the kill is seen.
@@ -120,17 +121,17 @@ an item shows what needs a look; a number shows a count.
 * **Armed waits** — an armed camera waits out a replay, Be right back, intermission, a sponsor break and a hold; a switch you make by hand to another lobby or a break cancels it (a toast says so).
 * **Several cameras** — put lobbies in Preview, press **Cams** and **Take**: one camera full screen with its whole map small in the corner, two side by side, three or four in a quad.
 * **Back to the map by itself** — at a meeting or when the game ends, the stream goes back to the whole map (unless switching is held).
-* **Camera sound** — while a lobby's camera is on stream, its game sound is what the followed player would hear (room sounds from where they stand, a kill only if they're in it); otherwise the referee's whole-map sound.
+* **Camera sound** — while a lobby's camera is on stream, its game sound is what the followed player would hear (room sounds from where they stand, and their footsteps), and every kill is still heard; otherwise the referee's whole-map sound.
 * **Straight cuts** — switching to a camera, back, and between players is a cut, not a swoosh (unless you pick another transition).
 * **Other lobbies** — one line each for lobbies whose camera is ready or armed, with who it follows and ON AIR.
 * **On or off** — Settings → **Player cameras** (on by default); each host sends about one more video stream while it's on.
 
 ## Automation, Hold and Panic
 
-* **Auto grid** — the grid comes up by itself whenever no lobby is mid-game.
+* **Auto grid** — fills Preview, never switches: when no lobby is mid-game (all in meetings or between games) it puts the grid into Preview ("All lobbies quiet: Grid is in Preview. Take to show it."), and when a game starts while its grid is on stream, the way back (what was on before, else the top lobby) goes into Preview ("A game started: … Take to go back."). Nothing switches until **Take** (Enter, TAKE, or the Stream Deck's Take). It fills only an empty Preview or replaces its own suggestion, never a Preview you picked; it takes its suggestion out once it no longer applies (a game started before the grid was taken, auto grid off, Hold, a break on stream); and one you cleared or replaced isn't made again until things change.
 * **Auto intermission** — intermission by itself when every lobby has been out of a game for 45 s, and back to the game when one starts. Off, the desk offers it instead ("BETWEEN ROUNDS", **Intermission** or **Not now**).
 * **Auto switch** (Switch away) — when a lobby on stream goes down, switch away from it once (to the next lobby worth showing, else the grid); a card says what it did with **Undo / keep**. A lobby you put on yourself while it's down stays on.
-* **Hold** (**H**, the Hold button or the AUTO pill) — nothing switches by itself until released: auto grid, auto intermission, a camera going back to the map, auto switch, armed cameras, a break ending, the grid closing up. What it held back shows as a toast and a warning; your own switches still go through.
+* **Hold** (**H**, the Hold button or the AUTO pill) — nothing switches by itself until released (auto intermission, a camera going back to the map, auto switch, armed cameras, a break ending, the grid closing up), and auto grid puts nothing in Preview ("Held back: Auto grid"). What it held back shows as a toast and a warning; your own switches still go through.
 * **Panic** (**P** twice within 3 s, or **Panic** then **Sure? Panic**) — fades to Be right back, mutes every lobby voice, clears the graphics, pauses off-screen alerts and holds switching.
 * **Undo panic** — while a panic is on, **Undo panic**, **Back** or the Stream Deck's Undo puts back what was on, the voice, the alerts and your own hold. Put right by hand instead, the panic is over and later changes are yours.
 * **Stream delay caveat** — with a stream delay, what has already been sent still airs; OBS's own "stop streaming" is in OBS.
@@ -291,7 +292,7 @@ an item shows what needs a look; a number shows a count.
 
 ## Caster overlay and video pages
 
-* **Caster overlay** — `http://localhost:8767/` for OBS (380×720): players, round standings and the latest meetings and ejections of the lobby on stream; `?full=1` adds roles, kills and task bars (delayed stream only).
+* **Caster overlay** — `http://localhost:8767/` for OBS (360×720): players, round standings and the latest meetings and ejections of the lobby on stream; `?full=1` adds roles, kills and task bars (delayed stream only).
 * **Video page** — `/video` (1920×1080): the lobby on stream full frame with its game sound; every lobby stays connected so picking one switches at once; `?sound=0` for picture only.
 * **Multiview page** — `/multiview` (1920×1080): every lobby at once with its phase and players alive; silent unless `?sound=1`.
 * **Follow or pin** — the pages follow what's on stream; Settings → Caster overlay pins them to one lobby (PINNED, **Follow the stream** to undo), with each page's link to copy.
