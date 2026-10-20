@@ -62,10 +62,13 @@ is typed in the game chat, so there's nothing for Among Us's anti-cheat to trip 
    updates → **Open log**.
 
 The top bar only shows the logo, plus a warning when something needs you: "No setup code
-installed", "New version available", "Mod not installed", "Mod needs repair", "Among Us not
-found", "Setup code damaged", "Discord bot refused" (the bot's token was reset: the host
-needs a new code) or "Referee commands not heard" (the bot's Message Content Intent is off).
-Click one to go where it's fixed.
+installed", "Mod not installed", "Mod needs repair", "Among Us not found", "Setup code
+damaged", "Discord bot refused" (the bot's token was reset: the host needs a new code or a
+new token in Your Discord), "Referee commands not heard" (the bot's Message Content Intent is
+off) or "Live message can't post" (Discord turned the lobby message down). Click one to go
+where it's fixed. A new version shows as one pill that does the next step itself: "The
+Button vX is out · Update", then "The Button vX is ready · Restart" (for the mod alone, "Mod
+vX installs when Among Us closes").
 
 **The Button updates itself.** When a new version is out it downloads it and uses it from
 the next start ("Restart to update" in Settings → Mod and updates). The mod in Among Us
@@ -77,13 +80,13 @@ While you play, the app's pages run the lobby:
 * **Home:** a line at the top with the game's latest warnings (a player left and whether to
   void, an extra game, settings put back…; "N more" opens the rest, ✕ dismisses); a
   checklist of what the lobby needs (mod up to date, setup code, round set, Discord voice,
-  everyone linked, the lobby message, sending video), red or amber when something's
+  everyone linked, the lobby message, the upload check, sending video, the live data), red or amber when something's
   missing; and the whole lobby on one page, up to 15 players: code, server, map, round, each player
   as their crewmate with their Discord link and whether automute has them muted or deafened;
   the automute buttons (automute on/off, referee mode, spectator muting, unmute everyone);
-  start the next round; the settings lock, referee ghost slot,
-  host authority (see [Host authority](#referee-ghost-slot-experimental) below) and stream overlay switches; post the leaderboard or server standings, or repost the lobby
-  message.
+  start the next round; and **Tools**: the settings lock, referee ghost slot,
+  host authority (see [Host authority](#referee-ghost-slot-experimental) below) and stream overlay switches, **Send my game to the caster**, and **Post**
+  (**Leaderboard**, **Server standings** or a fresh **Lobby message**).
 * **Referee:** every game waits here before Discord sees anything. Under **Waiting for you**
   each finished game shows every player's points (hover for where they came from). Type any
   amount with up to 3 significant figures (0.125, 1.25, 12.5, 125; empty means 1) in the box
@@ -92,28 +95,32 @@ While you play, the app's pages run the lobby:
   keeps it out of the points and off Discord for good, and **Submit points** posts it (the
   report, the standings, the round's scores). **Submit all** sends every waiting game. The
   number on the tab says how many are waiting; they stay waiting across a restart.
-  Below: the game running now (void or unvoid it), every recent game with **Void** / **Unvoid**
+  At the top, **Void this game** (with an optional reason) voids the game running now, or the
+  last one, **Unvoid** brings it back, and **Reset points…**: type RESET, then **Reset all
+  points**, to put every game on this PC away (moved to a dated
+  "reset" folder in the games folder, never deleted) and start the totals and round counts
+  from zero. Discord isn't touched. Below: every recent game with **Void** / **Unvoid**
   (Discord is told, since it was posted), the point totals (players never see them in the game
   or through the bot: this lobby's round with the cut line and running totals, every lobby's
   round with a results channel, from round 2 the running total; with a preliminary code the
-  lobby's leaderboard), the results-channel commands for whoever has the administration code,
-  and **Reset all points**: type RESET to put every game on this PC away (moved to a dated
-  "reset" folder in the games folder, never deleted) and start the totals and round counts
-  from zero. Discord isn't touched. `VerifyResults = false` in the config posts games as soon
-  as they end instead.
+  lobby's leaderboard), and the folded **Results channel** card for whoever has the
+  administration code. Only the setup code can turn the hold off (**Hold each game until the
+  host presses Submit**); games then post as soon as they end.
 * **Settings:** the game folder; the mod and The Button's updates; the setup code as one line (details, change or
-  remove it); **Your Discord** (below); in a tournament with a results channel, the **lead lobby** and the combined
-  leaderboard reset; files under **Advanced**.
+  remove it); **Your Discord** (below); **Your connection** (the upload check, what to share, lower quality);
+  **Your Twitch**; in a tournament with a results channel, **Tournament** (**Take over** as the lead lobby, and the
+  combined leaderboard's **Reset…**); with the administration code, **Administration**; **Help** (the support
+  bundle); files under **Advanced**.
 
 **Your Discord** (Settings): the host's own bots and channels, so the organiser doesn't need
 anyone's bot token and a host can change bots without a new code. Up to 3 bot tokens, the
 server ID (a tournament code's server is used if it's left empty), a **public report
 channel** webhook and a live lobby channel webhook. **Save and check** asks Discord about each
-one: a token that's refused, or a bot that isn't in the server, is not saved (and says why);
-the rest is. Saved bots go online whenever The Button is open (with a setup code in), and
+one: a token that's refused, a bot that isn't in the server, or a webhook that doesn't exist,
+is not saved (and says why); the rest is. Saved bots go online whenever The Button is open (with a setup code in), and
 are used instead of any bot in the code. Tokens stay on the PC (the screen shows only each
-bot's name and the token's last 4 characters). With a preliminary code, reports and the
-lobby's standings go to the public channel (without the data file); the organiser's
+bot's name and the token's last 4 characters). With a preliminary code, the public channel
+gets only each game's results and timeline (no standings, points breakdown or data file); the organiser's
 private channel from the code still gets everything. With a tournament code, the public
 channel is used only when the code has no results channel webhook.
 
@@ -175,7 +182,7 @@ each: turn on **Message Content Intent** (Bot → Privileged Gateway Intents), a
 with this link (put in the application ID):
 `https://discord.com/oauth2/authorize?client_id=APP_ID&scope=bot+applications.commands&permissions=14011456`
 (view channels, send messages, embed links, attach files, read history, add reactions, use
-external emojis, connect, mute and deafen members, and the `/link` and `/unlink` commands,
+external emojis, connect, mute and deafen members, and the `/link`, `/unlink` and `/new` commands,
 which appear in the server the first time a host opens Among Us with the code). Never
 Administrator: see *What the bots need (least privilege)* for the per-channel version. Preliminary hosts don't need a bot,
 but can have one for automute (see below).
@@ -231,7 +238,7 @@ put back by itself.
   back and the host is told, once, in their own chat only (not again on every join, until the
   next game). A game that still starts on the wrong settings says so in its
   report (and to the referees). For a casual game the host turns **Settings lock** off on
-  The Button's Home page (until they restart Among Us); without a code nothing is ever touched.
+  The Button's Home page, under Tools (until they restart Among Us); without a code nothing is ever touched.
 * **Hold each game until the host presses Submit** (on by default): every game waits in
   The Button's Referee tab, nothing goes to Discord until the host checks it. Untick it to
   post results as soon as a game ends.
@@ -264,18 +271,18 @@ right away.
 | After each game | Report, the game's data, the lobby's standings and its count in your private channel; only the game's results (who won, how, each player's role, result and total) and timeline in the server's public channel (set in The Button); a summary in the host's chat | Report in the results channel; the lobby's round standings |
 | Leaderboard | The scheduled job's combined board per preliminary | Per lobby per round, with the cut line, plus a running total |
 | Automute | Optional: the host adds bots in The Button (otherwise players can use AutoMuteUs) | Yes, with the code's bots or the host's own |
-| Live status, referee tools | No | Yes |
+| Live status, referee tools | No (the live status only with a bot and a live lobby channel) | Yes |
 
 ### During the tournament
 
-Hosts do all of this from The Button's Home page; referees and the organiser use the
-private results channel.
+Hosts do all of this from The Button (Home, the Referee tab and Settings → Tournament);
+referees and the organiser use the private results channel.
 
 * **Rounds:** the host presses **Next round** (or sets a number) on Home before each round's
   first game, for as many rounds as you need. Points restart each round, and a running total across all
   rounds is kept alongside. After every game the lobby's standings for the round are
-  posted with a line under the top players who move on (5 by default). **Post** under
-  Standings also shows every lobby in the round together.
+  posted with a line under the top players who move on (5 by default). **Post →
+  Leaderboard** (Home → Tools) also shows every lobby in the round together.
 * **Referee adjustments:** in the private results channel, type
   `!adjust LJ red -2 meta call` (the lobby name, the player's colour or name, the points,
   the reason). You can type it during the game; it lands on the game that lobby was playing
@@ -298,8 +305,8 @@ private results channel.
   round). The players it moves above the line get +0.25 on their total; it isn't shown in
   any public breakdown, but the referees get a note in the results channel saying who,
   why and by how much. A tie that's level on all three is left to a referee (use `!adjust`).
-* **Disconnects:** when a player leaves mid-game the host is told, and pointed to **Void**
-  if it's before the first meeting; the referees get a note. A player who leaves keeps
+* **Disconnects:** when a player leaves mid-game the host is told, and pointed to **Void this
+  game** (Referee tab) if it's before the first meeting; the referees get a note. A player who leaves keeps
   the points they'd earned and takes their team's loss (and the sabotage penalty if they
   left alive), but doesn't share a win.
 * **Automute on or off:** the host can switch automute off on Home (the Automute button);
@@ -318,16 +325,16 @@ private results channel.
     lobby and host, then again when it starts. `!start 3` on its own says it's starting now.
     Each lobby's own game then posts where to go: "**Round 3 · LJ's lobby:** join voice
     #lobby-1 · lobby code `QWERTY` · Polus" (its voice channel is the one its host is in).
-  * **Take over** (Lead lobby, on Home) makes that host's mod the one that answers from then on.
+  * **Take over** (Settings → Tournament → Lead lobby) makes that host's mod the one that answers from then on.
   This needs the bot's Message Content Intent (already needed for the results channel).
-* **Server standings:** **Servers** on Home (and each new round) posts servers ranked by their
-  players' total points, with each server's furthest player. A player's server is the one
+* **Server standings:** **Post → Server standings** (Home → Tools; and by itself each new round)
+  posts servers ranked by their players' total points, with each server's furthest player. A player's server is the one
   they played the most preliminaries in. Unofficial.
 
 ### Stream overlay
 
 **Stream overlay** (Home → Tools) starts an overlay for OBS on the host's computer: add a
-**Browser source** with `http://localhost:8765/` (size 380×720). With more than 8 players
+**Browser source** with `http://localhost:8765/` (size 360×720). With more than 8 players
 the list goes into two columns, so a full 15-player lobby still fits. It shows the lobby,
 round and game number, the players (as the same crewmate heads The Button uses), the round standings with the cut line, and the latest meetings and
 ejections. It only shows what the players in the game already know (a death appears once a
@@ -346,7 +353,8 @@ game with a bot keeps one "Live data" message in the private results channel, up
 seconds after anything changes; the Organiser tab reads them all:
 
 * **Every lobby live:** phase, map, lobby code, who's alive or dead, and the round's games.
-  Tick **show roles** to see impostors, kills and task bars too. A lobby that hasn't sent
+  Tick **Show roles and real deaths** (staff only) to see impostors, real deaths, kills,
+  sabotages and players leaving too. A lobby that hasn't sent
   anything for a couple of minutes is shown as gone quiet.
 * **Standings:** each lobby's round standings with the cut line, and all lobbies combined.
   Until the new round's first game, the last round's final standings stay up.
@@ -356,14 +364,15 @@ seconds after anything changes; the Organiser tab reads them all:
 * **Caster tools** (the caster overlay, game video, the Caster tab, OBS, replays) are in
   their own app now, **Red Alert** (below), for whoever runs the stream. The Organiser tab
   links to it.
-* **Referee** (on **Home**, for whoever has the administration code): adjust points, void or
-  unvoid a game, or type any `!` command; it's posted in the results channel as the
+* **Results channel** (a folded card on the **Referee** tab, for whoever has the administration
+  code): adjust points, void or unvoid a game, or type any `!` command; it's posted in the results channel as the
   administration bot and the lead lobby carries it out. On a PC without Among Us, Home
   waits for the game as usual, with the referee tools below.
 
 The administration bot needs View Channel, Read Message History and Send Messages in the
 private results channel, and its **Message Content Intent** turned on (Discord Developer
-Portal → Bot). Hosts can turn the live data off with `PublishLive = false`.
+Portal → Bot). Hosts can turn the live data off with `PublishLive = false` (under `[General]`
+in the config).
 
 ### Replays
 
@@ -372,8 +381,9 @@ they're dead or in a vent), the map's walls, rooms and vents read from the game,
 game's events. The file (`tt-replay-LJ-3-….json.gz`, about 0.5 MB) is saved with the game on
 this PC only (the newest 20 are kept) and never posted to Discord: on stream, replays are Red
 Alert's, cut from the game's real picture. Open one in `docs/replay-viewer.html` if you want:
-play, pause, scrub, 0.5–8× speed, jump to any kill or meeting, follow a player, show bodies,
-trails, vents, roles and ghosts. `RecordReplays = false` in the config turns recording off.
+play, pause, ±5 s, scrub, 0.5–8× speed, jump to any kill or meeting, follow a player, with
+bodies and vents drawn and switches for roles, ghosts, trails and wall outlines (**Watch a
+sample** shows how it works). `RecordReplays = false` in the config turns recording off.
 
 **Watching in Among Us, on the real map.** Anyone with the mod can open **Freeplay** on the
 replay's map and press **F8** (Freeplay reminds you as it opens): it lists the newest replays
@@ -432,8 +442,8 @@ host's camera stays over the middle of the map, zoomed all the way out; the **ar
 newest chat messages show along the bottom edge of the screen, below the name plates (the **mini
 chat**), so the chat doesn't have to be opened to follow the vote; it isn't shown during play.
 The chat button still opens the full chat to type. Every kill plays the kill sound on the referee's game (the game
-itself only plays it for the killer and the victim), so the host, and the stream's whole-map
-view, hear it. Their task bar is smaller
+itself only plays it for the killer and the victim), so the host and the stream hear it,
+whatever is on stream (the player camera included). Their task bar is smaller
 and always shows the real progress, whatever the lobby's task bar setting. The host turns down any kill on the
 referee. In meetings the referee's card is taken off the list. That happens on the host's screen and on every player's game that has the
 mod; there the referee isn't drawn on the map either. A game without the mod lists them as a dead
@@ -443,7 +453,7 @@ mod; there the referee isn't drawn on the map either. A game without the mod lis
 
 <img src="docs/red-alert-logo.svg" alt="" width="56" align="left">
 
-**Red Alert** is a separate Windows app for whoever runs the stream: the Caster tab, OBS
+**Red Alert** is a separate Windows app for whoever runs the stream: the Live desk, OBS
 scenes, replays and montages, the on-stream graphics, the caster overlay and video pages,
 spectator view switches, Twitch, and Simulation. Hosts, referees and the organiser only need
 The Button; a host still turns on **Send my game to the caster** in their Button, and Red
@@ -460,14 +470,17 @@ stream.
   beside them, a tile per lobby, and three columns at the bottom that scroll on their own: what's
   happening, the player cams, and the graphics queue, talking points and earlier plays), **Lobby
   health**, **Montages**, **Graphics**, **Standings**, **Sponsors**, **Twitch**, **OBS**, **Lobby
-  voice**, **Players** and **Settings** (player camera, Stream Deck, updates). On the Live desk the
+  voice**, **Players** and **Settings** (caster overlay, administration code, player camera, Stream
+  Deck, updates, help). On the Live desk the
   menu is a narrow rail of short names. A dot beside an item shows what needs a look; the number on
-  Live desk is new plays since you last looked there (it clears when you open it). The replay keys
-  work on every page, the desk's keys on the Live desk (**?** in its status bar lists them). Each
-  card's explanation is behind its small **?**.
+  Live desk is new plays since you last looked there (it clears when you open it). Keys **G**,
+  **I**, **U**, **B**, **C**, **M**, **V**, **E** and the replay keys work on every page; **1–9**,
+  **Shift**+**1–9**, **Enter**, **Esc**, **N**, **H** and **P P** only on the Live desk (**?** in its
+  status bar lists them). Each card's explanation is behind its small **?**.
 * **One screen:** Red Alert opens maximised the first time, then where and as big as you left it.
   The Live desk fits one screen from about 1000 × 620 up (a smaller window becomes one long page).
-* **The status bar** says what OBS is showing right now: LIVE (red), BREAK (amber) or OFF AIR, the
+* **The status bar** says what OBS is showing right now: PROGRAM (red), BREAK (amber), REPLAY or
+  OFF AIR (EMPTY when a layout has no lobby in it, SWITCHING while it waits for OBS), the
   layout and lobbies, whether OBS is streaming and recording, whose lobby voice is heard (click it to
   mute every lobby), OBS, the lobbies' health, replays ready, AUTO or HOLD, and a shot timer that
   starts again on every switch. It follows OBS: switches made in OBS by hand show too, and a switch
@@ -501,7 +514,7 @@ stream.
   saved, no card needed; **Play last** plays the newest replay again. Ready replays show as buttons
   beside them and as a badge on their lobby's tile; the replay controls (with slow motion 100 / 50 /
   25%) take over the action panel while one plays.
-* **On stream** says **EMPTY** (not LIVE) when a layout has no lobby in it, and the Live desk warns
+* **The status bar** says **EMPTY** (not PROGRAM) when a layout has no lobby in it, and the Live desk warns
   when a lobby on stream isn't in OBS ("LJ isn't in OBS: …"), with **Fix** (it rebuilds the TT
   scenes). No button fails silently: anything that goes wrong says why.
 * **OBS that keeps a removed source:** OBS can keep a removed source alive in the background,
@@ -520,7 +533,7 @@ stream.
   the next. One about a lobby goes on that lobby: full screen, inside its tile in a multi-view
   when there's room, or in intermission; otherwise it waits. Off-screen alerts are one at a
   time. The Live desk shows what's on and what's next, with **Skip** and **Clear**.
-* **After a game** the Live desk asks "MAL finished, show the table?": **Show**, **Skip** or
+* **After a game** the Live desk asks "MAL finished · Show the table?": **Show**, **Skip** or
   **Save for intermission** (saved tables play when intermission comes up). Unanswered, it goes
   after a minute. Graphics → After a game → **Put the table up by itself** brings back the old way.
 * **Simulation** (OBS → Test): four fake lobbies, SIM-1 to SIM-4. While it runs a **TEST MODE**
@@ -542,7 +555,7 @@ stream.
   **Check now**); **Update** downloads it and **Restart Red Alert** starts it. Hosts never need
   to reinstall anything for a broadcast change.
 * **Player camera:** a second picture from each host's game that follows one player up close,
-  sharp at 720p and up to 30 frames a second, sent with the host's game. It's on by default
+  960×540 at up to 30 frames a second, sent with the host's game. It's on by default
   (Settings → **Player cameras** turns it off). The Live desk's **Player cams** list has every
   live lobby's players: click one to put that lobby's camera on stream following them, or
   **Auto** to let it pick (an impostor closing in on someone alone, else whoever is busy; a pick
@@ -552,12 +565,12 @@ stream.
   sponsor break, and a switch you make by hand to another lobby or a break cancels it (a toast says
   so). To show several at once, put the lobbies in Preview, press **Cams** and **Take**: two side
   by side, three or four in a quad (clicking a player then only changes who that lobby's camera
-  follows). When the game ends the stream goes
-  back to the whole map by itself. The camera darkens what the followed player can't see, as on
+  follows). At a meeting or when the game ends the stream goes
+  back to the whole map by itself (unless switching is held). The camera darkens what the followed player can't see, as on
   their own screen, and the referee sees task animations even with visual tasks off for the
   players (when their game sends them). Red Alert adds a **TT Player Cam** scene to OBS: one
-  camera full screen with the lobby's whole map small in the bottom right, or the cameras side by
-  side. Switching to it, back, and from player to player is a straight cut (no
+  camera full screen with the lobby's whole map small in the bottom right, or two cameras side by
+  side, three or four in a quad. Switching to it, back, and from player to player is a straight cut (no
   swoosh). How it gets to you: the host's mod draws it off screen (the host never sees it and
   can't change it) and hands each picture to The Button, whose *Send my game to the caster* page
   sends it as its own VDO.Ninja stream next to the game and the lobby voice; OBS's TT Cam source
@@ -565,13 +578,12 @@ stream.
   they send their game.
 * **Player camera sound:** while a lobby's player camera is on stream, its host's game sound is
   what the followed player would hear: sounds are measured from where they stand (room ambience,
-  vents, doors), their own footsteps play, and a kill is heard only if they're the killer or the
-  victim, as in the game. With the whole map on stream it's back to the referee's: alarms and every
-  kill. Red Alert tells each host which view is on stream, by itself; their task sounds stay on
+  vents, doors) and their own footsteps play; every kill is still heard (the referee's game plays
+  them all). With the whole map on stream it's back to the referee's: alarms and every kill. Red Alert tells each host which view is on stream, by itself; their task sounds stay on
   their own PC.
 * **Player camera replays:** the camera keeps its last 30 s in OBS like the lobbies, so every
   replay saved while it was on has a second angle. A kill the camera was following opens on the
-  close-up; **🎥 Player cam / 🗺 Whole map** in the replay controls (key **P**) switches angle at
+  close-up; **🎥 Cam** / **🗺 Map** in the replay controls (key **P**) switches angle at
   the same moment.
 * **Stream Deck:** Red Alert has its own Stream Deck plugin, **RedAlert.streamDeckPlugin** (with
   each Red Alert release): live keys that light red for Program and green for Preview, show each
@@ -609,12 +621,12 @@ stream.
 
 ### Caster overlay and game video
 
-* **Jump to action** (or **N**): puts the lobby worth watching into Preview (a meeting first, then
+* **Action** (or **N**): puts the lobby worth watching into Preview (a meeting first, then
   whatever just happened, else the next lobby in turn); Take puts it on. A lobby whose host has gone silent
   for a couple of minutes gets a warning at the top.
-* **Caster overlay:** an OBS Browser source at `http://localhost:8767/` that follows what's on
+* **Caster overlay:** an OBS Browser source at `http://localhost:8767/` (360×720) that follows what's on
   stream (the full-screen lobby, or slot 1 of a multi-view), as do the video and multiview
-  pages; **Pin** keeps them on one lobby (shown as PINNED, with **Follow the stream**). It shows
+  pages; **Pin** (Settings → Caster overlay) keeps them on one lobby (shown as PINNED, with **Follow the stream**). It shows
   players, round standings and the latest meetings and ejections for that game.
   `http://localhost:8767/?full=1` adds roles, kills and task bars (for a stream on a delay
   only).
@@ -632,7 +644,7 @@ stream.
     phase and players alive, the one on air outlined, and a red mark on a lobby with a
     meeting or an ejection happening. Silent (the video page carries the sound);
     `?sound=1` plays the lobby on air if you use the multiview on its own.
-  * The Caster tab ranks what's happening in every lobby, so you know where to jump.
+  * The Live desk's **Happening now** ranks what's happening in every lobby, so you know where to jump.
   * Each host needs about 10 Mbps upload (4-6 for the picture, 2-3 more for the player camera;
     **Check my connection** in The Button measures it), and you download every lobby at once, so
     use a wired connection.
@@ -641,7 +653,7 @@ stream.
 
 ### Caster tab (RedZone broadcast)
 
-Red Alert's main screen is the **Caster** tab: every lobby's live play,
+Red Alert's main screen is the **Live desk**: every lobby's live play,
 ranked, and one click to put a lobby on stream. It shows who the impostors are, so it stays on
 the caster's PC and off stream.
 
@@ -659,10 +671,11 @@ the caster's PC and off stream.
 * **Ranking:** every weight and limit is in `caster-priority.json` in Red Alert's
   folder (written the first time, re-read when you save it).
 * **OBS:** in OBS, Tools → WebSocket Server Settings → Enable WebSocket server, set a password,
-  and connect from the Caster tab. Red Alert builds the scenes **TT Full**, **TT 2-up**,
-  **TT Quad**, **TT Grid**, **TT Sponsor Break** and **TT Intermission** with one source per lobby (each stays connected, so switching is instant), places
+  and connect from Red Alert's OBS page. Red Alert builds the scenes **TT Full**, **TT 2-up**,
+  **TT Quad**, **TT Grid**, **TT Player Cam**, **TT Sponsor Break**, **TT Intermission**, **TT Be
+  Right Back** and **TT Replay** with one source per lobby (each stays connected, so switching is instant), places
   the lobbies in their slots, plays only slot 1's game sound, and switches scene when you click.
-  It never touches your other scenes. Switch in OBS yourself and the LIVE labels follow.
+  It never touches your other scenes. Switch in OBS yourself and the status bar and LIVE labels follow.
   Settings and the lobby → source mapping are in `obs.json` in Red Alert's folder.
 * **Replays** (needs the free **Source Record** plugin for OBS, by Exeldro): Red Alert puts a
   Source Record replay buffer (last 30 s) on every lobby source. Every kill saves a clip by itself
@@ -683,8 +696,8 @@ the caster's PC and off stream.
   or OUTLINES draws every living player's sight in their colour; impostors' names in red (in the game and in
   meetings); a faint **eye** by a crewmate's name while an impostor is in
   their sight, flashing when they see a kill or a vent, which also makes a "Lime SAW Purple
-  vent in MedBay" card. Switch each one per lobby under its row in the Caster tab (it goes to
-  the host over their VDO.Ninja link), or with keys for the lobby on stream (M lit, V vision,
+  vent in MedBay" card. Switch each one per lobby from its tile's right-click menu on the Live
+  desk (it goes to the host over their VDO.Ninja link), or with keys for the lobby on stream (M lit, V vision,
   E eye; change them under Keys).
 * **Real names:** `roster.csv` in Red Alert's folder (name, Discord ID, in-game names,
   friend codes, pronunciation; `;` between several). Each player is matched by the Discord
@@ -711,7 +724,7 @@ the caster's PC and off stream.
     picture).
   * Graphics slide to their new places when the layout changes and fade in and out, so a switch
     is smooth under the swoosh.
-* **Grid:** every active lobby at once in **TT Grid** (1 full, 2 side by side, up to 4×4), each
+* **Grid:** every active lobby at once in **TT Grid** (1 full, 2 side by side, up to 4×4, then five wide), each
   tile with its label, a status line, the impostor tag and a border that pulses at high
   priority; empty tiles show a sponsor or the logo. Click a tile (on stream) for full screen.
   **Auto grid** brings it up whenever no lobby is mid-game.
@@ -723,8 +736,8 @@ the caster's PC and off stream.
   **Standings & storylines** card lists talking points from them (records, streaks, first
   blood, rivalries, who keeps getting voted out, milestones), the ones about players on stream
   first: pin, dismiss, mark used, or put one on stream as a lower third.
-* **Standings** come from the tournament's own scoring (the same tables as the Points page and
-  Discord: `Stats/Scoring.cs` and `Stats/Standings.cs`, rules from the setup code). On the
+* **Standings** come from the tournament's own scoring (the same tables as The Button's Referee
+  tab and Discord: `Stats/Scoring.cs` and `Stats/Standings.cs`, rules from the setup code). On the
   **Standings** page: **Lobby on stream** (the default: the lobby full screen, or slot 1 of a
   multi-view, in its own round), **Round · every lobby** (that round's totals, all lobbies) or
   **Tournament**. Lobbies can be in different rounds (a big tournament starts round 2 in one
@@ -733,10 +746,10 @@ the caster's PC and off stream.
   table stays up. Near the end of a game, *points on the line* shows what each ending does to
   the lobby's table; after each game, arrows show who moved.
 * **Montages:** clips are saved by themselves for kills, ejections, meetings, witnessed kills and
-  game ends. When a game ends Red Alert builds a 30–60 s montage of it with ffmpeg (each moment
+  game ends. When a game ends Red Alert builds a montage of it with ffmpeg, about 45 s long (each moment
   cut to a few seconds, cropped like replays, a lower third such as "Jake → Maria,
-  Electrical", wipes between them); when a round ends, "every kill" then the top plays counting
-  down. The **Montages** card shows them ready with Play (in the replay scene), Preview and
+  Electrical", wipes between them); when a round ends, one of about 2 minutes: "every kill" then
+  the top plays counting down. The **Montages** card shows them ready with Play (in the replay scene), Preview and
   Discard; **Get ffmpeg** downloads it the first time. The **Moments** card lists every clip:
   pick some, drag them into order and Build montage; its clips are marked USED and can go in
   new montages. Once a montage has played it moves to the **Archive** (title, when, game or
@@ -764,7 +777,7 @@ the caster's PC and off stream.
   that isn't on screen; about 4 s each, three at once, the rest queued, merged per lobby. Each
   kind switches off in the graphics card; **B** pauses them all.
 * **Intermission:** the **TT Intermission** scene between rounds: a countdown to the next round
-  (set it in the tab: minutes or a time), standings, the win counter, storyline notes taking
+  (set it on the Live desk's intermission card: minutes or a time), standings, the win counter, storyline notes taking
   turns and the montage up next. Offered when every lobby has been out of a game for 45 s, or by
   itself with **Auto intermission**; a lobby going live brings it back (auto) or says so.
   Key **I**.
@@ -773,8 +786,9 @@ the caster's PC and off stream.
 * **Player cards:** a lower third with the player's real name, rank, points and today's
   impostor and crewmate records and kills. **Card** buttons on every notification, lobby and
   roster row, key **C** for the top notification's player, and by itself for the key player of
-  each replay and montage moment. One at a time, gone after 6 s; on the lobby's tile in a
-  multi-view, or skipped when the tile is too small.
+  each replay and montage moment. They go through the graphics queue, one big graphic at a time
+  for 8 s by default (a replay's own card, 6 s): on the lobby's tile in a multi-view, or waiting
+  while that lobby isn't on screen or its tile is too small.
 * **Lobby voice:** the referee's Button captures what Discord plays (the lobby voice as they
   hear it, which never includes their own voice) and what Among Us plays, each on its own
   (Windows 10 2004 or later; no virtual cables), mixes them with a level for each and, if they
@@ -795,9 +809,9 @@ the caster's PC and off stream.
   walls) as the game is played, and Red Alert keeps it (`game-replays` next to its settings). So a
   game can be watched, to count, void or replay it, even when the host's PC drops out before the
   game is posted: the copy runs up to where the host stopped sending. **Lobby health → Game
-  replays** lists them with **Watch**; interrupted games have a Watch button too. It's the same
-  replay viewer as The Button's and shows the impostors: keep it off stream.
-* **Auto switch** (Lobby health, shown ON/OFF, and "Auto switch ON" by the On stream indicator) moves
+  replays** lists them with **Watch**; interrupted games have a Watch button too. It opens the web
+  replay viewer (`docs/replay-viewer.html`, built into Red Alert), which shows the impostors: keep it off stream.
+* **Auto switch** (Lobby health, shown **Auto switch: ON** or **OFF**; the same setting as **Switch away** in the Live desk's Auto buttons) moves
   off a lobby that drops while it's on stream, once per outage, and the Live desk says what it did
   with **Undo / keep**. A lobby you put on yourself while it's down stays on (with a note) until it
   comes back and drops again.
@@ -850,7 +864,8 @@ the caster's PC and off stream.
   * **Chat Detective:** each !sus vote for a real impostor scores; the leaderboard is in
     intermission, and the round's best get a shoutout in chat and on stream when it starts.
   * **Which lobby next?** in a calm moment (by hand, or by itself with Auto): chat's pick becomes a
-    card with a **Put it on** button. Nothing switches until you press it.
+    card with a button that puts that lobby into Preview (**LJ into Preview**). Nothing switches
+    until you press it and then **Take**.
   * **Round MVP:** a poll of the round's top five from the standings when intermission starts.
   * **Channel points:** Red Alert makes "Request a replay" and "Shoutout a player". Requests wait in
     the card: approve a replay (pick the clip) or a shoutout (their player card goes up and chat is
@@ -877,8 +892,8 @@ The same channel gets a **live status message**: the lobby code, the server (NA,
 player's colour, name and Discord link. It updates as people join, link and play, and moves
 below each game report so it stays at the bottom. Deaths only appear once the game has
 revealed them (at a meeting or the end), so it never gives away a kill. Give it its own
-channel with `StatusWebhookUrl`, or turn it off with `LiveStatus = false`. **Repost lobby
-message** on The Button's Home posts a fresh copy.
+channel with `StatusWebhookUrl`, or turn it off with `LiveStatus = false`. **Post → Lobby
+message** (Home → Tools) in The Button posts a fresh copy.
 
 ### Automute (bot)
 
@@ -918,8 +933,9 @@ token, comma separated. The work is spread across all of them.
 
 **Keep the config file private.** Anyone with the bot token can control that bot.
 
-The bot isn't hosted anywhere: the mod on the host's PC acts as the bot while Among Us is
-open, so there's no server to run. The bot shows as offline when no host has the game open.
+The bot isn't hosted anywhere: The Button on the host's PC keeps it online while it's open
+(the mod in Among Us does the work through it), so there's no server to run. The bot shows as
+offline when no host has The Button open.
 
 #### Timing
 
@@ -976,7 +992,7 @@ colour changes, and they're saved in `BepInEx/config/TournamentTracker/links.jso
 * **In The Button** (hosts): on Home, press **Link** under a player (or their @name to change
   it). An `@` is already in the box: type the rest of their Discord name (username or server
   nickname) and press Link. If more than one person matches, The Button lists them so you
-  can type more. The Points page shows each player's @ next to their name.
+  can type more. The Referee tab's **Points** card shows each player's @ next to their name.
 * **`/new`** (hosts): picks where your lobby's live message goes. Type `/new` in the text
   channel you want (for example each lobby's own channel when several games run at once):
   your game moves the message there, removes the old one, and the bot posts it with the
@@ -986,8 +1002,8 @@ colour changes, and they're saved in `BepInEx/config/TournamentTracker/links.jso
   Without `/new`, the message goes to the status channel as before. The bot needs View
   Channel and Send Messages in the channel you pick; if it can't post, The Button says so.
 * **The newest link wins:** if a colour is already linked to someone, linking it again
-  (menu or `/link`) moves it to the new person and unlinks the old one. The lobby chat says
-  so ("Linked Pink (Millie) to @millie_b (replacing @someone)"), so a mistake is easy to spot.
+  (menu or `/link`) moves it to the new person and unlinks the old one. The answer and The
+  Button's Home say so ("Linked Pink (Millie) to @millie_b (replacing @someone)"), so a mistake is easy to spot.
 * **`/unlink`** removes their link (and stops auto-link from linking them again that session).
 * **The colour menu:** when the host has a bot (every tournament host code does), the bot
   posts the live status message itself, with each player's crewmate head and a
@@ -999,13 +1015,14 @@ colour changes, and they're saved in `BepInEx/config/TournamentTracker/links.jso
   menu. `LinkMenu = false` turns the menu off.
 * If no open lobby can match the name (the player isn't in the Among Us lobby yet, or used a
   colour from outside the lobby's voice channel), they're told why instead of getting no
-  answer. `/link` only works while a host has Among Us open, since the host's game is the bot.
-* New links show on The Button's Home ("Linked Red (Soggy) to @soggy"), not in the game chat.
+  answer. `/link` only works while a host has Among Us open, since the host's game answers it.
+* New links show on The Button's Home ("Linked Red (Soggy) to @soggy") and in the mod's log,
+  not in the game chat.
 * **Referees** (anyone who can mute members in the server) link someone else by adding
   `user`: `/link player:Red user:@Soggy`, `/unlink user:@Soggy`. The host can too, once linked.
 * **Automatically:** in the lobby, a player whose in-game name matches exactly one person in
   the voice channel (their server nickname, display name or username, ignoring capitals,
-  spaces and symbols) is linked for them, and the lobby chat says so. A wrong match is fixed
+  spaces and symbols) is linked for them, and The Button's Home says so. A wrong match is fixed
   with `/unlink`. Turn it off
   with `AutoLinkByName = false`.
 
@@ -1031,7 +1048,7 @@ To have one leaderboard across every lobby, make a **private** text channel (e.g
 `#tournament-data`) that each host's bot can see, send messages and attach files in, and put
 its channel ID in every host's `ResultsChannelId`. After each game, the host's mod posts
 the game's record there as a small file, then reads every host's files back and posts the
-combined leaderboard. Each host's **Post** (Standings) shows the combined numbers.
+combined leaderboard. Each host's **Post → Leaderboard** (Home → Tools) shows the combined numbers.
 
 In the Developer Portal, turn on **Message Content Intent** (Bot → Privileged Gateway
 Intents) for every host's bot. Without it a bot can't read the files other bots posted, and
@@ -1064,6 +1081,7 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | General | `GamesPerRound` | 3 | Tournament rounds; a setup code overrides it |
 | General | `PublicChat` | false | Send announcements to everyone's chat |
 | General | `ControlPort` | 8766 | The app's private connection; -1 turns it off |
+| General | `PublishLive` | true | Keep a "Live data" message in the private results channel for the Organiser tab and Red Alert |
 | Discord | `StatsWebhookUrl` | | Game reports and leaderboard |
 | Discord | `PostLeaderboardAfterEachGame` | true | |
 | Discord | `LeaderboardSize` | 15 | |
@@ -1071,7 +1089,6 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | Discord | `LeaderboardMentions` | false | Show linked players as @mentions on the leaderboard (nobody is pinged) |
 | Discord | `LiveStatus` | true | The live lobby status message |
 | Discord | `ResultsChannelId` | | Shared channel for the combined leaderboard across hosts |
-| Discord | `PublishLive` | true | Keep a "Live data" message in the private results channel for the Organiser tab |
 | Discord | `StatusWebhookUrl` | | Its own channel; empty = the stats channel |
 | AutoMute | `Enabled` | false | |
 | AutoMute | `BotTokens` | | Comma separated |
@@ -1086,9 +1103,11 @@ When the game closes, the mod unmutes everyone it muted before it exits.
 | AutoMute | `SpectatorExemptUserIds` | | Comma separated |
 | AutoMute | `AutoLinkByName` | true | |
 | AutoMute | `LinkMenu` | true | The bot posts the live status with a colour menu for linking |
+| AutoMute | `ShowTalking` | true | See *Who's talking* |
 | AutoMute | `RefereeUserIds` | | Who else can talk in referee mode, comma separated |
 | Scoring | *(see below)* | | Every point value on the tournament sheet |
 | Debug | `FrameProfiler` | false | Log the mod's slow frames (see below) |
+| Debug | `RefereeRecordSync` | false | Log each time the referee ghost's player record is sent, and whether it says dead |
 
 **Frame profiler.** To find hitches, press **F10** in the game (or set `FrameProfiler = true`
 under `[Debug]`). Press **F10** again to stop. While it's on, any frame where the mod takes more
@@ -1177,8 +1196,8 @@ Files go in `BepInEx/config/TournamentTracker/`:
   crew records, kills, deaths, first deaths, times ejected, survivals, correct and wrong votes,
   skips, missed votes, emergency meetings, bodies reported, tasks done, sabotages,
   disconnects and points.
-* `games/<tournament>/game-0001-….json` holds the full record of each game: roles, every kill
-  with its time, every meeting with the caller, the body and each vote, ejections, sabotages
+* `games/<tournament>/game-<id>.json` (for example `game-LJ-3-20261003-192144.json`) holds
+  the full record of each game: roles, every kill with its time, every meeting with the caller, the body and each vote, ejections, sabotages
   and the result.
 
 A game the host leaves before it ends is saved as `-abandoned` and is not counted; a void
@@ -1189,13 +1208,13 @@ game is saved as `-void`.
 ```bash
 dotnet test tests/TournamentTracker.Tests          # core logic and The Button, no game needed
 dotnet test tests/TournamentTracker.Broadcast.Tests # Red Alert
-dotnet build src/TournamentTracker.Plugin -c Release -p:GameLibsVersion=2025.x.y
+dotnet build src/TournamentTracker.Plugin -c Release -p:GameLibsVersion=2026.x.y
 ```
 
 The plugin builds against `AmongUs.GameLibs.Steam` from the BepInEx NuGet feed, with
 `BepInEx.IL2CPP.MSBuild` generating the interop assemblies at build time. By default it
-uses the newest game version (currently 2026.8.18); pass `GameLibsVersion` to match your
-game. BepInEx is pinned to be.735, because newer builds use an Il2CppInterop version the
+uses the newest game version (currently 2026.9.29: v0.1.64 was built against it); pass
+`GameLibsVersion` to match your game. BepInEx is pinned to be.735, because newer builds use an Il2CppInterop version the
 interop generator can't run. On GitHub, run the
 **Build** workflow by hand (Actions → Build → Run workflow) to choose the version; give it a
 `release_tag` (e.g. `v0.1.1` for The Button and the mod, `broadcast-v0.1.0` for Red

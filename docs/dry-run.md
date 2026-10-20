@@ -30,7 +30,8 @@ straight away (see [What to send if something fails](#what-to-send-if-something-
 ### Everyone
 
 * [ ] **Update everything** and restart each app afterwards:
-  * The Button: Settings → Mod and updates shows no **New version available**.
+  * The Button: no **The Button vX is out** in the top bar; Settings → Mod and updates says
+    **Everything is up to date**.
   * The mod: no **Mod not installed** or **Mod needs repair** in The Button's top bar.
   * Red Alert: Settings → Updates says **up to date**.
   * OBS, the Stream Deck app, and the Red Alert Stream Deck plugin from the same Red Alert release.
@@ -69,7 +70,7 @@ straight away (see [What to send if something fails](#what-to-send-if-something-
 * [ ] Red Alert unlocked with the administration code. The OBS page says **Connected**; press
   **Rebuild TT scenes**.
 * [ ] **OBS scenes built**: TT Full, TT 2-up, TT Quad, TT Grid, TT Player Cam, TT Intermission,
-  TT Be Right Back and TT Sponsor Break are all in OBS.
+  TT Be Right Back, TT Sponsor Break and TT Replay are all in OBS.
 * [ ] OBS → **Setup check** all green: Source Record found (replays), Desktop Audio muted, and a
   stream delay if Impostor tags are on.
 * [ ] **Stream Deck plugin paired**: the plugin's **Test** finds Red Alert (Settings → Stream Deck
@@ -112,7 +113,7 @@ bundles at the end.
 
 * [ ] **Caster**, for each lobby: its number key (1-9), or its Stream Deck lobby key set to **Press:
   Put it in Preview**, puts it in **Preview** (green); **Take** (Enter, or the Take key) puts it on
-  stream. Program turns red, OBS switches within a couple of seconds, and the status bar says LIVE.
+  stream. Program turns red, OBS switches within a couple of seconds, and the status bar says PROGRAM.
   (A lobby key left on the default, **Cut it to stream**, skips Preview and puts the lobby on stream
   at once.)
 * [ ] The watcher sees the right lobby with the right label, and hears that lobby.
