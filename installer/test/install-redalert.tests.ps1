@@ -1,7 +1,10 @@
 # Checks Red Alert's installer with PowerShell on any OS: pwsh installer/test/install-redalert.tests.ps1
+# (or, on Windows, powershell -File installer\test\install-redalert.tests.ps1: Windows PowerShell 5.1, as the .bat uses)
 $ErrorActionPreference = 'Stop'
 $env:TT_INSTALLER_TEST = '1'
-. (Join-Path $PSScriptRoot '..' 'install-redalert.ps1')
+# One child per Join-Path: Windows PowerShell 5.1 has no third argument.
+$installerDir = Split-Path -Parent $PSScriptRoot
+. (Join-Path $installerDir 'install-redalert.ps1')
 $failures = 0
 function Check([bool]$ok, [string]$what) {
     if ($ok) { Write-Host "  ok   $what" } else { Write-Host "  FAIL $what" -ForegroundColor Red; $script:failures++ }
@@ -29,7 +32,9 @@ Set-Content -LiteralPath (Join-Path $progs 'TT Broadcast.lnk') -Value 'old'; Set
 Set-Content -LiteralPath (Join-Path $old 'TTBroadcast.exe') -Value 'old'
 Remove-OldName $progs $desk $old
 Check (-not (Test-Path (Join-Path $progs 'TT Broadcast.lnk')) -and -not (Test-Path (Join-Path $desk 'TT Broadcast.lnk')) -and -not (Test-Path $old)) 'removes TT Broadcast''s shortcuts and program folder'
-Check ((Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '..' 'Install-RedAlert.header.bat')) -match 'PS-START') 'the .bat runs the PowerShell after #PS-START'
+$header = Get-Content -Raw -LiteralPath (Join-Path $installerDir 'Install-RedAlert.header.bat')
+Check ($header -match 'PS-START') 'the .bat runs the PowerShell after #PS-START'
+Check ($header -match 'LiteralPath \$env:TT_INSTALLER_BAT' -and $header -notmatch "'%~f0'") 'the .bat gives PowerShell its path in a variable, so a folder named O''Brien works'
 
 Remove-Item -LiteralPath $root -Recurse -Force
 if ($failures -gt 0) { Write-Host "$failures check(s) failed" -ForegroundColor Red; exit 1 }

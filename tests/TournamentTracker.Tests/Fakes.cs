@@ -108,7 +108,9 @@ public sealed class TempDir : IDisposable
     public TempDir() => Directory.CreateDirectory(Path);
     public void Dispose()
     {
-        try { Directory.Delete(Path, true); } catch (IOException) { }
+        // Windows won't delete a file something still has open (a server's last write): IOException, or
+        // UnauthorizedAccessException for one already being deleted. What's left is only a temp folder.
+        try { Directory.Delete(Path, true); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 }
 

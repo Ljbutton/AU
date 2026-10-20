@@ -4,6 +4,7 @@ name: Build
 # and packages a drop-in ZIP. Pushing a v* tag also publishes a GitHub Release of The Button
 # and the mod; pushing a broadcast-v* tag publishes Red Alert on its own (a pre-release
 # while it's in beta, never "latest", so The Button's updates never see it).
+# The windows job builds and tests the same on Windows and starts the apps and the installers.
 
 on:
   push:
@@ -267,3 +268,132 @@ jobs:
           gh release create "$TAG" dist/broadcast/RedAlert.exe dist/Install-RedAlert.bat dist/broadcast/TTBroadcast.exe \
             dist/RedAlert.streamDeckPlugin \
             --target "$GITHUB_SHA" --title "Red Alert $TAG" --notes-file broadcast-notes.md --prerelease --latest=false
+
+  # The same build and tests on Windows, where the apps really run: their WebView2 windows, Red Alert's
+  # global Mute all key, The Button's per-program audio capture, Windows' file locking and paths, and the
+  # installers under Windows PowerShell 5.1. It runs beside the build above, on the same events, and
+  # nothing waits for it: releases are still built and published by the build above alone.
+  windows:
+    name: Windows (build, tests, the apps, the installers)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      DOTNET_NOLOGO: 'true'
+      DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+    steps:
+      # Releases are built on Linux from the files as committed (LF line endings): test those, not the
+      # CRLF copies Git makes on Windows by default.
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+
+      # For the Stream Deck plugin, and the test that runs the Live desk's script in Node.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: tools/streamdeck-plugin/package-lock.json
+
+      - name: Build the solution (the plugin too, from the BepInEx feed)
+        env:
+          GAME_LIBS: ${{ inputs.game_libs_version }}
+        run: |
+          $extra = @()
+          if ($env:GAME_LIBS) { $extra += "-p:GameLibsVersion=$env:GAME_LIBS" }
+          dotnet build TournamentTracker.sln -c Release @extra
+
+      - name: Build The Button's and Red Alert's windows (net8.0-windows)
+        if: ${{ !cancelled() }}
+        run: |
+          dotnet build src/TournamentTracker.App -c Release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          dotnet build src/TournamentTracker.BroadcastApp -c Release
+
+      # A test that hangs is stopped after 5 minutes and named, rather than holding up the job.
+      - name: Test the core and The Button
+        if: ${{ !cancelled() }}
+        timeout-minutes: 20
+        run: >
+          dotnet test tests/TournamentTracker.Tests -c Release --blame-hang-timeout 5m --blame-hang-dump-type none
+          --logger "trx;LogFileName=core-and-the-button.trx" --results-directory "$env:RUNNER_TEMP/windows-checks/tests"
+
+      - name: Test Red Alert
+        if: ${{ !cancelled() }}
+        timeout-minutes: 20
+        run: >
+          dotnet test tests/TournamentTracker.Broadcast.Tests -c Release --blame-hang-timeout 5m --blame-hang-dump-type none
+          --logger "trx;LogFileName=red-alert.trx" --results-directory "$env:RUNNER_TEMP/windows-checks/tests"
+
+      - name: Test and validate the Stream Deck plugin
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        shell: bash
+        working-directory: tools/streamdeck-plugin
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm test
+          npm run build
+          # The Elgato CLI's check of the manifest and the files it names (needs no Stream Deck app).
+          npm run validate
+
+      - name: Publish TheButton.exe and RedAlert.exe (as released)
+        if: ${{ !cancelled() }}
+        run: |
+          dotnet publish src/TournamentTracker.App -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o dist/app
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          dotnet publish src/TournamentTracker.BroadcastApp -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o dist/broadcast
+
+      # Each app must start, keep running and answer on its own server (the script says what else it shows).
+      - name: Start The Button and Red Alert
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        run: ./.github/scripts/windows-checks.ps1 -Apps
+
+      # What the .bat installers run: syntax only PowerShell 7 knows fails here, then the installers' tests.
+      - name: Check the installers with Windows PowerShell 5.1
+        if: ${{ !cancelled() }}
+        timeout-minutes: 5
+        shell: powershell
+        run: |
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw "This is PowerShell $($PSVersionTable.PSVersion), not Windows PowerShell 5.1." }
+          $bad = 0
+          foreach ($file in Get-ChildItem -Path installer -Recurse -Filter *.ps1) {
+            $name = $file.FullName.Substring($PWD.Path.Length + 1).Replace('\', '/')
+            $tokens = $null; $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$tokens, [ref]$errors)
+            if ($errors.Count -eq 0) { Write-Host "  $name parses"; continue }
+            $bad++
+            foreach ($e in $errors) { Write-Host "::error file=$name,line=$($e.Extent.StartLineNumber)::$($e.Message)" }
+          }
+          if ($bad -gt 0) { exit 1 }
+          foreach ($test in 'installer.tests.ps1', 'install-redalert.tests.ps1') {
+            $global:LASTEXITCODE = 0
+            & (Join-Path 'installer\test' $test)
+            if ($LASTEXITCODE -ne 0) { $bad++ }
+          }
+          exit $bad
+
+      - name: Run the installers as a user would (the .bat files, Windows PowerShell 5.1)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 15
+        run: ./.github/scripts/windows-checks.ps1 -Installers
+
+      - name: Keep the logs, screenshots and test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: windows-checks
+          path: ${{ runner.temp }}/windows-checks
+          if-no-files-found: ignore
+          retention-days: 14
