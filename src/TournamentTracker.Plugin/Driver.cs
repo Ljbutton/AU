@@ -96,7 +96,7 @@ namespace TournamentTracker.Plugin
                 if (Input.GetKeyDown(KeyCode.F9) && session.AutoMute != null)
                 {
                     session.UnmuteEveryone();
-                    Game.LocalChat("Everyone unmuted; automute is OFF. Type !automute on to resume.");
+                    Game.LocalChat("Everyone unmuted; automute is OFF. Press Automute on The Button's Home to turn it back on.");
                 }
 
                 try { using (FrameProfiler.Time(FrameProfiler.Part.Replay)) ReplayCapture.Update(); }

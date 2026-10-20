@@ -584,8 +584,8 @@ function needsRepair(m) { return !!(m && m.installed && !m.loaderMatchesGame); }
 function bits(arch) { return arch === 'x64' ? '64-bit' : arch === 'x86' ? '32-bit' : 'missing'; }
 function renderAlerts() {
   const g = S.game, m = S.mod, list = [];
-  // Someone who only uses the Organiser tab (a caster, say) doesn't need Among Us here.
-  const orgOnly = S.admin && !g.found;
+  // Someone who only uses the Organiser tab (the organiser, a referee) doesn't need Among Us here.
+  const orgOnly = !!S.organiserPc;
   if (orgOnly) {}
   else if (!g.found) list.push(['bad', 'Among Us not found']);
   else if (!m.installed) list.push(['bad', 'Mod not installed']);
@@ -705,16 +705,20 @@ function renderHome() {
   const st = S.status;
   $('home-wait').hidden = !!st; $('home-live').hidden = !st;
   if (!st) {
-    // An organiser or referee's PC needn't have Among Us: it just waits (the results-channel tools are on the Referee tab).
-    const desk = S.admin && !S.game.found;
-    const fix = desk ? null
+    // An organiser or referee's PC needn't have Among Us: one short line, and the way to the Organiser tab
+    // (the results-channel tools are on the Referee tab).
+    const desk = !!S.organiserPc;
+    const fix = desk ? ['Organiser PC', 'Among Us isn\'t needed here: the live lobbies and standings are on the Organiser tab, and the results channel is on the Referee tab.', 'organiser', 'Open the Organiser tab']
       : !S.game.found ? ['Among Us not found', 'The Button couldn\'t find Among Us on this PC. Pick its folder in Settings.']
       : !S.mod.installed ? ['Mod not installed', 'Install the mod into Among Us from Settings (it takes a minute).']
       : needsRepair(S.mod) ? ['Mod needs repair', `The mod loader in the game folder is ${bits(S.mod.loaderArch)}; the newest Among Us needs the 64-bit one. Repair it in Settings.`]
       : null;
     $('wait-title').textContent = fix ? fix[0] : 'Waiting for Among Us';
     $('wait-say').textContent = fix ? fix[1] : 'Start Among Us and host a lobby: The Button connects on its own.';
-    $('wait-fix').hidden = !fix || desk;
+    const btn = $('wait-fix'), label = fix && fix[3] || 'Open Settings';
+    btn.hidden = !fix;
+    btn.dataset.go = fix && fix[2] || 'settings';
+    if (btn.textContent !== label) btn.textContent = label;
     document.querySelector('#home-wait .loader').hidden = !!fix;
     // The bot is The Button's: online while it's open, before Among Us starts.
     const b = S.bot || {};
@@ -834,7 +838,7 @@ function renderAutomute(st) {
   $('mute-problem').hidden = !a.voiceProblem && !a.voiceWarning && !a.liveProblem;
   $('mute-problem').className = 'note ' + (a.voiceProblem ? 'bad' : 'warn');
   $('mute-problem').textContent = a.voiceProblem || a.liveProblem || a.voiceWarning || '';
-  $('mute-say').textContent = !a.configured ? 'Off: it needs a bot, which comes with a tournament host code.'
+  $('mute-say').textContent = !a.configured ? 'Off: it needs a Discord bot. Add one in Settings → Your Discord, or use a setup code with a bot in it.'
     : a.voiceProblem ? 'Not working: see below.'
     : !a.enabled ? 'Off: the bot won\'t touch anyone\'s voice (players can use AutoMuteUs). Stays off until you turn it on.'
     : !a.voiceConnected ? 'Connecting to Discord voice…'
@@ -963,7 +967,7 @@ document.addEventListener('click', e => {
     if (n === null) { box.classList.add('bad'); box.focus(); return toast(BAD_AMOUNT); }
     delete amounts[name + '|' + key];
     box.value = '';
-    cmd(`adjust ${name} ${key} ${step.dataset.step < 0 ? '-' : ''}${n} referee`);
+    cmd(`adjust ${name} ${key} ${step.dataset.step < 0 ? '-' : ''}${n}`);
   }
 });
 document.addEventListener('input', e => {
@@ -1005,6 +1009,8 @@ async function loadOrganiser() {
 // Organiser's data, loaded when the tab opens, the section unfolds or the lobby list is picked).
 function renderReferee() {
   $('home-ref').hidden = !(S && S.admin);
+  // On an organiser's PC it's the Referee tab's main part: open, unless it was folded before.
+  if (S && S.organiserPc && stored('ref-tools-open') === null && !$('home-ref').open) $('home-ref').open = true;
   if (!ORG) return;
   const sel = $('adj-lobby'), cur = sel.value, labels = ORG.lobbies.map(l => l.label);
   if (sel.dataset.labels !== labels.join('|')) { sel.dataset.labels = labels.join('|'); sel.innerHTML = labels.map(l => `<option>${esc(l)}</option>`).join(''); if (cur) sel.value = cur; }
@@ -1236,7 +1242,8 @@ function renderAppUpdate() {
   const u = S.appUpdate || {}, m = S.mod || {}, g = S.game || {};
   const appNew = !!(u.available && !u.ready && !u.busy), modNew = !!(m.installed && m.updateAvailable && !needsRepair(m));
   const app = `The Button ${S.app || '?'}` + (u.ready ? ` (${u.ready} is ready: restart to use it)` : u.busy ? ' (downloading the new version…)' : appNew ? ` (${u.available} is out)` : '');
-  const mod = !g.found ? 'Find Among Us first to install the mod.'
+  const mod = S.organiserPc ? 'Organiser PC: Among Us isn\'t needed here.'
+    : !g.found ? 'Find Among Us first to install the mod.'
     : !m.installed ? 'The mod isn\'t installed yet.'
     : `${m.gameArch ? bits(m.gameArch) + ' Among Us with ' : ''}the mod ${m.installedVersion || '?'}` + (modNew ? ` (${m.latest} is out)` : '');
   const upToDate = !appNew && !u.ready && !u.busy && m.installed && !modNew && !needsRepair(m);

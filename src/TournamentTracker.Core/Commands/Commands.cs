@@ -37,7 +37,7 @@ namespace TournamentTracker
                     return true;
                 case "unmuteall":
                     UnmuteEveryone();
-                    Reply(AutoMute == null ? "Automute isn't set up." : "Everyone unmuted; automute is OFF. Use !automute on to resume.", false);
+                    Reply(AutoMute == null ? "Automute isn't set up." : "Everyone unmuted; automute is OFF. Press Automute on The Button's Home to turn it back on.", false);
                     return true;
                 case "leaderboard":
                 case "lb":
@@ -147,7 +147,7 @@ namespace TournamentTracker
             {
                 if (!AutoMute.Enabled)
                 {
-                    Reply("Automute is off; turn it on with !automute on first.", false);
+                    Reply("Automute is off: press Automute on The Button's Home first.", false);
                     return;
                 }
                 var host = Links.Find(sender.Key)?.DiscordUserId;

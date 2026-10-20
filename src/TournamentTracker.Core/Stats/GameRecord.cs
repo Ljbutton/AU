@@ -133,6 +133,10 @@ namespace TournamentTracker.Stats
 
         public string Rule { get; set; } = "";
         public double Points { get; set; }
+
+        /// <summary>A referee's change in a game's breakdown: "Referee: " and the reason, or "Referee change" without one.</summary>
+        public static string RefereeRule(string? reason) =>
+            string.IsNullOrWhiteSpace(reason) ? "Referee change" : "Referee: " + reason.Trim();
     }
 
     public sealed class MeetingRecord

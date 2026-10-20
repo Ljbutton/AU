@@ -159,9 +159,11 @@ namespace TournamentTracker
                 return;
             }
             string reason = string.Join(" ", args.Skip(3)).Trim();
+            // An older Button's + and − on the Referee tab sent "referee" as the reason: that's no reason.
+            if (string.Equals(reason, "referee", StringComparison.OrdinalIgnoreCase)) reason = "";
             bool counted = game.Counted;
             if (counted) Store.Remove(game);
-            player.PointBreakdown.Add(new PointLine("Referee" + (reason.Length > 0 ? ": " + reason : ""), change));
+            player.PointBreakdown.Add(new PointLine(PointLine.RefereeRule(reason), change));
             player.Points = player.Points + change;
             if (counted) Store.Apply(game);
             SaveStatsAndGame(game);

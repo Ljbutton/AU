@@ -35,7 +35,7 @@ namespace TournamentTracker.Stats
                 Game = m.Groups["game"].Value,
                 Player = m.Groups["player"].Value.Trim(),
                 Points = double.Parse(m.Groups["pts"].Value.Replace(',', '.'), CultureInfo.InvariantCulture),
-                Reason = m.Groups["reason"].Success ? m.Groups["reason"].Value.Trim() : "adjustment",
+                Reason = m.Groups["reason"].Success ? m.Groups["reason"].Value.Trim() : "",
             };
         }
 
@@ -149,7 +149,7 @@ namespace TournamentTracker.Stats
                 result.Player = result.Game == null ? null : FindPlayer(result.Game, a.Player);
                 if (result.Player != null)
                 {
-                    result.Player.PointBreakdown.Add(new PointLine("Referee: " + a.Reason, a.Points));
+                    result.Player.PointBreakdown.Add(new PointLine(PointLine.RefereeRule(a.Reason), a.Points));
                     result.Player.Points += a.Points;
                 }
                 results.Add(result);
