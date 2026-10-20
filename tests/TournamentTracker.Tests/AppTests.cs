@@ -146,9 +146,9 @@ public class AppTests : IDisposable
         var installer = new ModInstaller(new HttpClient(ReleaseWithBothBundles(BothBundles)));
         var release = await installer.LatestAsync();
         Assert.Equal("v1.2.0", release!.Tag);
-        Assert.Equal("https://github.com/x/TournamentTracker-Full-x64.zip", release.BundleFor("x64"));
-        Assert.Equal("https://github.com/x/TournamentTracker-Full-x86.zip", release.BundleFor("x86"));
-        Assert.Equal("https://github.com/x/TheButton.exe", release.AppUrl);
+        Assert.Equal("https://github.com/x/TournamentTracker-Full-x64.zip", release.BundleFor("x64")!.Url);
+        Assert.Equal("https://github.com/x/TournamentTracker-Full-x86.zip", release.BundleFor("x86")!.Url);
+        Assert.Equal("https://github.com/x/TheButton.exe", release.App!.Url);
         var progress = new List<string>();
         Assert.Equal("", await installer.InstallAsync(game, release, progress.Add));
 
@@ -232,7 +232,7 @@ public class AppTests : IDisposable
         var installer = new ModInstaller(new HttpClient(ReleaseWithBothBundles(
             """[{"name":"TournamentTracker-Full.zip","browser_download_url":"https://github.com/x/TournamentTracker-Full.zip"}]""")));
         var release = await installer.LatestAsync();
-        Assert.Equal("https://github.com/x/TournamentTracker-Full.zip", release!.BundleFor("x86"));
+        Assert.Equal("https://github.com/x/TournamentTracker-Full.zip", release!.BundleFor("x86")!.Url);
         Assert.Null(release.BundleFor("x64"));
         string game = Game(Path.Combine(_dir.Path, "AU"), 0x8664);
         Assert.Contains("no mod download for 64-bit Among Us", await installer.InstallAsync(game, release, _ => { }));
@@ -481,6 +481,9 @@ public class AppUpdaterTests : IDisposable
     private readonly TempDir _dir = new();
     public void Dispose() => _dir.Dispose();
 
+    /// <summary>A release file with no size or checksum listed (as before releases had them).</summary>
+    private static readonly ReleaseAsset Exe = new() { Name = "TheButton.exe", Url = "https://github.com/x/TheButton.exe" };
+
     [Fact]
     public async Task A_new_version_replaces_the_running_one_and_the_old_one_is_cleaned_up_later()
     {
@@ -489,7 +492,7 @@ public class AppUpdaterTests : IDisposable
         var newExe = new byte[2 * 1024 * 1024]; newExe[0] = (byte)'M'; newExe[1] = (byte)'Z';
         var http = new HttpClient(new FakeHttp { Default = _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(newExe) } });
 
-        Assert.Equal("", await AppUpdater.InstallAsync(http, "https://github.com/x/TheButton.exe", exe));
+        Assert.Equal("", await AppUpdater.InstallAsync(http, Exe, exe));
         Assert.Equal(newExe.Length, new FileInfo(exe).Length);
         Assert.Equal("old version", File.ReadAllText(AppUpdater.OldPath(exe)));   // kept until the next start
         AppUpdater.CleanUp(exe);
@@ -502,10 +505,10 @@ public class AppUpdaterTests : IDisposable
         string exe = Path.Combine(_dir.Path, "TheButton.exe");
         File.WriteAllText(exe, "old version");
         var http = new HttpClient(new FakeHttp { Default = _ => FakeHttp.Json(HttpStatusCode.OK, "<html>not a program</html>") });
-        Assert.StartsWith("The download wasn't a complete copy", await AppUpdater.InstallAsync(http, "https://github.com/x/TheButton.exe", exe));
+        Assert.StartsWith("The download wasn't a complete copy", await AppUpdater.InstallAsync(http, Exe, exe));
         Assert.Equal("old version", File.ReadAllText(exe));
         Assert.False(File.Exists(exe + ".download"));
         var down = new HttpClient(new FakeHttp { Default = _ => FakeHttp.Json(HttpStatusCode.NotFound, "{}") });
-        Assert.Contains("404", await AppUpdater.InstallAsync(down, "https://github.com/x/TheButton.exe", exe));
+        Assert.Contains("404", await AppUpdater.InstallAsync(down, Exe, exe));
     }
 }
