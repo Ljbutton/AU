@@ -484,6 +484,8 @@ namespace TournamentTracker.App.Broadcast
                 _offerDismissed.RemoveWhere(x => sim(x));
                 foreach (var d in new System.Collections.IDictionary[] { _camWant, _camSent, _armed })
                     foreach (var k in d.Keys.Cast<string>().Where(sim).ToList()) d.Remove(k);
+                // Auto grid's suggestion with their lobbies goes as a whole (the caster's own Preview keeps the rest).
+                if (_autoPick != null && _autoPick.Slots.Any(sim)) { if (ReferenceEquals(_preview, _autoPick)) _preview = new PreviewState(); _autoPick = null; }
                 if (_preview.Slots.Any(sim)) _preview = new PreviewState { Slots = _preview.Slots.Where(x => !sim(x)).ToList(), Chosen = _preview.Chosen };
                 // Whatever on stream was theirs: the desk forgets it, OBS stays where it is.
                 if (_onAir.Slots.Any(x => sim(x ?? "")))
@@ -495,6 +497,8 @@ namespace TournamentTracker.App.Broadcast
                 }
                 if (_beforeIntermission != null && _beforeIntermission.Slots.Any(x => sim(x ?? ""))) _beforeIntermission = null;
                 if (_beforeGrid != null && _beforeGrid.Slots.Any(x => sim(x ?? ""))) _beforeGrid = null;
+                if (_gridOver != null && _gridOver.Slots.Any(x => sim(x ?? ""))) _gridOver = null;
+                _autoDeclined = null;
                 _gridSponsors.Clear();
             }
             if (LiveDuringIntermission != null && sim(LiveDuringIntermission)) LiveDuringIntermission = null;
@@ -1090,10 +1094,139 @@ namespace TournamentTracker.App.Broadcast
 
         public static string? TwitchHandle(string? s) => TournamentTracker.Broadcast.FeedProtocol.TwitchHandle(s);
 
-        /// <summary>Use the grid by itself whenever no lobby is mid-game (all in meetings or between games).</summary>
+        /// <summary>
+        /// Auto grid, which never switches by itself: when no lobby is mid-game (all in meetings or between
+        /// games) it puts the grid into Preview, and when a game starts while the grid it suggested is on
+        /// stream, the view to go back to. Take puts either on. See <see cref="AutoGridTick"/>.
+        /// </summary>
         public bool AutoGrid { get; set; }
+        // What was on before auto grid's grid went on stream: a game starting suggests going back to it.
         private OnAir? _beforeGrid;
+        // Auto grid's suggestion in Preview (null: none); what was on while its grid waited there; and the
+        // kind ("grid" or "back") the caster cleared or replaced, not suggested again until things change.
+        private PreviewState? _autoPick;
+        private OnAir? _gridOver;
+        private string? _autoDeclined;
         private Timer? _tick;
+
+        public const string GridNote = "All lobbies quiet: Grid is in Preview. Take to show it.";
+
+        /// <summary>
+        /// Once a second (not over a replay, a break, intermission or be right back): auto grid's suggestion.
+        /// <list type="bullet">
+        /// <item>Every lobby quiet (none "ingame") and something on stream that isn't the grid: the grid into Preview.</item>
+        /// <item>A game started while the grid it suggested is on: what was on before (full, 2-up or quad), else
+        /// the top lobby, into Preview.</item>
+        /// </list>
+        /// It fills only an empty Preview or replaces its own suggestion, never one the caster chose; it takes its
+        /// suggestion out once it no longer applies (a game started before the grid was taken, auto grid turned
+        /// off, switching held, a break on stream: <see cref="AutoGridOff"/>); and one the caster cleared or
+        /// replaced isn't made again until things change.
+        /// Nothing goes on stream without Take.
+        /// </summary>
+        private void AutoGridTick(OnAir air, bool quiet)
+        {
+            bool onGrid = air.Layout == "grid";
+            bool changed = false;
+            string? kind;
+            bool declined;
+            OnAir? back;
+            lock (_lock)
+            {
+                // Switched since this second's look (a Take, say): the next second sees it as it is.
+                if (!ReferenceEquals(_onAir, air)) return;
+                if (_autoPick != null)
+                {
+                    bool inPreview = ReferenceEquals(_preview, _autoPick);
+                    // What it suggested is on stream some other way than Take (the grid put on by hand, or off it by hand).
+                    if (_autoPick.Auto == "grid" ? onGrid : !onGrid)
+                    {
+                        if (_autoPick.Auto == "grid") _beforeGrid = _gridOver;
+                        if (inPreview) { _preview = new PreviewState(); changed = true; }
+                        _autoPick = null;
+                    }
+                    // The caster cleared it or put something else in Preview.
+                    else if (!inPreview) { _autoDeclined = _autoPick.Auto; _autoPick = null; }
+                }
+                if (!onGrid) _beforeGrid = null;
+                kind = !AutoGrid ? null
+                    : onGrid ? (!quiet && _beforeGrid != null ? "back" : null)
+                    : quiet && air.Layout != "none" ? "grid" : null;
+                if (kind != _autoDeclined) _autoDeclined = null;
+                declined = kind != null && kind == _autoDeclined;
+                if (kind == "grid") _gridOver = air;
+                back = _beforeGrid;
+            }
+            // Held: no suggestion (and its own comes out); the desk says what the hold stopped.
+            if (kind != null && !declined && HoldBack(kind == "grid" ? "Auto grid" : "Auto grid going back to the game")) kind = null;
+            PreviewState? want = kind == null || declined ? null : kind == "grid" ? GridSuggestion() : BackSuggestion(back);
+            lock (_lock)
+            {
+                bool ours = _autoPick != null && ReferenceEquals(_preview, _autoPick);
+                // Switched meanwhile: left for the next second.
+                if (ReferenceEquals(_onAir, air))
+                {
+                    if (want == null)
+                    {
+                        if (ours) { _preview = new PreviewState(); changed = true; }
+                        _autoPick = null;
+                    }
+                    // Its own suggestion stays as it is: the grid follows the active lobbies, the way back doesn't move under the caster.
+                    else if (ours && _autoPick!.Auto == want.Auto && (want.Auto == "back" || _autoPick.Slots.SequenceEqual(want.Slots, StringComparer.OrdinalIgnoreCase))) { }
+                    // Only an empty Preview or its own: a Preview the caster chose (or just cleared) stays.
+                    else if (ours || _autoPick == null && _preview.Slots.Count == 0) { _preview = _autoPick = want; changed = true; }
+                }
+            }
+            if (changed) Touch();
+        }
+
+        /// <summary>Auto grid's suggestion out of Preview (a break went on, say).</summary>
+        private void AutoGridOff()
+        {
+            lock (_lock)
+            {
+                if (_autoPick == null) return;
+                bool ours = ReferenceEquals(_preview, _autoPick);
+                if (ours) _preview = new PreviewState();
+                _autoPick = null;
+                if (!ours) return;
+            }
+            Touch();
+        }
+
+        /// <summary>Every active lobby, in the grid, for Preview (null when there's none).</summary>
+        private PreviewState? GridSuggestion()
+        {
+            var lobbies = GridLobbies();
+            return lobbies.Count == 0 ? null : new PreviewState { Slots = lobbies, Chosen = "grid", Auto = "grid", Note = GridNote };
+        }
+
+        /// <summary>
+        /// Off the grid once a game starts: what was on before it (full screen, 2-up or quad, as it was), else
+        /// the top lobby that's up, full screen. Null when there's nothing to go back to.
+        /// </summary>
+        private PreviewState? BackSuggestion(OnAir? before)
+        {
+            List<string> slots;
+            string layout;
+            if (before != null && before.Layout is "full" or "2up" or "4up" && before.Slots.Any(x => !string.IsNullOrEmpty(x)))
+            {
+                slots = before.Slots.Where(x => !string.IsNullOrEmpty(x)).Select(x => x!).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                layout = before.Layout;
+            }
+            else if (Board.Ranking().FirstOrDefault(r => r.Online && !IsDown(r.Lobby)) is { } top) { slots = new List<string> { top.Lobby }; layout = "full"; }
+            else return null;
+            string name = layout == "2up" ? "2-up" : layout == "4up" ? "quad" : "full screen";
+            return new PreviewState { Slots = slots, Chosen = layout, Auto = "back", Note = $"A game started: {string.Join(", ", slots)} ({name}) is in Preview. Take to go back." };
+        }
+
+        /// <summary>Auto grid's suggestion went on by Take: from its grid, a game starting suggests going back to what was on before. Under the desk's lock.</summary>
+        private void AutoTaken(OnAir before, OnAir now)
+        {
+            _autoPick = null;
+            _autoDeclined = null;
+            _beforeGrid = now.Layout == "grid" ? before : null;
+        }
 
         /// <summary>Once a second: keeps the grid's tiles matching the active lobbies, and runs auto grid.</summary>
         private DateTime _nextSlowTick;
@@ -1113,6 +1246,8 @@ namespace TournamentTracker.App.Broadcast
             lock (_lock) air = _onAir;
             CamAudioTick(air);
             CamFollowTick();
+            // A break on stream (be right back, intermission, sponsor): auto grid's suggestion no longer applies.
+            if (air.Layout is "slate" or "intermission" or "break") AutoGridOff();
             if (air.Layout is "replay" or "slate") return;
             // An armed camera waits out intermission and a sponsor break too: it goes on once they're over.
             if (air.Layout is not ("intermission" or "break") && ArmedTick(air)) return;
@@ -1125,25 +1260,13 @@ namespace TournamentTracker.App.Broadcast
             }
             var ranking = Board.Ranking().Where(r => r.Online && r.Phase != "menu").ToList();
             bool quiet = ranking.Count > 0 && ranking.All(r => r.Phase != "ingame");
+            // Auto grid only fills Preview: the caster's Take switches.
+            AutoGridTick(air, quiet);
             if (air.Layout == "grid")
             {
-                if (AutoGrid && _beforeGrid != null && !quiet && !HoldBack("Auto grid going back to the game"))
-                {
-                    var back = _beforeGrid;
-                    _beforeGrid = null;
-                    if (back.Layout is "full" or "2up" or "4up") Show("", back.Layout, null, back.Slots.Select(x => x ?? "").ToList(), "auto");
-                    else if (Board.Ranking().FirstOrDefault(r => r.Online && !IsDown(r.Lobby)) is { } top) Show(top.Lobby, "full", null, null, "auto");
-                    return;
-                }
                 var want = GridLobbies();
                 var have = air.Slots.Where(x => x != null).ToList();
                 if (!want.SequenceEqual(have!, StringComparer.OrdinalIgnoreCase) && !HoldBack("The grid closing up")) ShowGrid(air.By);
-                return;
-            }
-            if (AutoGrid && quiet && air.Layout != "none" && !HoldBack("Auto grid"))
-            {
-                _beforeGrid = air;
-                ShowGrid("auto");
             }
         }
 
@@ -1269,7 +1392,7 @@ namespace TournamentTracker.App.Broadcast
                 WinScope, Wins = new { Impostors = wins.Impostors, Crew = wins.Crew },
                 Break = Break is { } br ? new { Sponsor = br.Sponsor.Name, Left = Math.Max(0, (int)Math.Ceiling((br.Until - now).TotalSeconds)), br.Lobby } : null,
                 OnAir = new { air.Layout, air.Slots, air.By, air.Scene, Since = air.Since == default ? null : air.Since.ToString("o") },
-                Preview = new { Layout = preview.Layout, preview.Slots },
+                Preview = new { Layout = preview.Layout, preview.Slots, preview.Note },
                 Hold = HoldState(),
                 Panic = PanicOn(),
                 ArmedDropped = ArmedDropped is { } dropped && (now - dropped.At).TotalSeconds < 15 ? new { dropped.Text, At = dropped.At.ToString("o") } : null,
