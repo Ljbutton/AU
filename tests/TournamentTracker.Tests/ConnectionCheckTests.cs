@@ -165,7 +165,7 @@ public class ConnectionCheckTests
         Assert.True(r.BytesSent <= budget, $"sent {r.BytesSent}");
         Assert.True(net.Received <= budget);
         Assert.True(r.BytesSent > budget / 2);
-        Assert.True(r.UploadMbps > 50);
+        Assert.True(r.UploadMbps > 15, $"{r.UploadMbps} Mbps");   // the fake network paces itself with short sleeps, which Windows rounds up to ~15 ms
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2.4));                      // finished before the 2.5 s it was allowed
     }
 
