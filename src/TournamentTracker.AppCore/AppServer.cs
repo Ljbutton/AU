@@ -362,8 +362,12 @@ namespace TournamentTracker.App
                     return Text(200, "application/json", feed ?? "{\"last\":-1,\"items\":[]}");
                 }
                 case ("POST", "/app/admin/command"):
+                {
+                    // One change from the Referee or Organiser tab's fields ({kind, game, player…}); never free text.
                     if (_organizer == null) return Ok(new { ok = false, message = "Administration is locked." });
-                    return Ok(new { ok = true, message = await _organizer.CommandAsync(Arg("text")).ConfigureAwait(false) });
+                    var (ok, message) = await _organizer.PostChangeAsync(Arg("kind"), Arg).ConfigureAwait(false);
+                    return Ok(new { ok, message });
+                }
                 case ("POST", "/app/update"):
                     if (!AppUpdateAvailable) return Ok(new { ok = false, message = "The Button is up to date." });
                     _ = Task.Run(UpdateAppAsync);

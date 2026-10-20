@@ -144,7 +144,7 @@ dialog h2{font:600 16px var(--body);margin:0 0 4px}
       <div class="f"><label for="advance">Players who move on per lobby</label><input type="number" id="advance" min="1" max="10" value="5"></div>
       <div class="f"><label for="gpr">Games per round</label><input type="number" id="gpr" min="1" max="10" value="3"></div>
     </div>
-    <label class="check tour-only"><input type="checkbox" id="lead"><span><b>Lead lobby</b><span class="hint">This host's mod answers <code>!lobbies</code>, <code>!move</code>, <code>!start</code>… in the results channel. One host only (you).</span></span></label>
+    <label class="check tour-only"><input type="checkbox" id="lead"><span><b>Lead lobby</b><span class="hint">This host's mod builds the next round's lobbies and pings the players when you start a round from The Button's Organiser tab. One host only (you).</span></span></label>
     <label class="check host-only"><input type="checkbox" id="verify" checked><span><b>Hold each game until the host presses Submit</b><span class="hint">Nothing goes to Discord until it's checked in The Button's Referee tab (points can be changed or the game voided first). Off: results post as soon as a game ends.</span></span></label>
     <label class="check host-only"><input type="checkbox" id="rot" checked><span><b>Impostor rotation</b><span class="hint">Last game's impostors are rarely impostor again straight away; everyone else shares the rest.</span>
       <span class="inline" id="rr-row">Chance each repeats <input type="number" id="rr" value="2" min="0" max="100" step="any"> %</span></span></label>
@@ -330,11 +330,11 @@ const HINTS = {
   },
   tournament: {
     webhook: 'Your results channel for players: Channel settings → Integrations → Webhooks → Copy URL.',
-    bot: 'Without a bot games are still tracked and reported. The bot adds automute, /link, /new and the colour menu, combined standings across lobbies and the referee commands. Give each lobby its own bots, or leave the tokens empty and let the host add theirs in The Button (Settings → Your Discord).',
+    bot: 'Without a bot games are still tracked and reported. The bot adds automute, /link, /new and the colour menu, combined standings across lobbies, and the points changes and round starts made in The Button. Give each lobby its own bots, or leave the tokens empty and let the host add theirs in The Button (Settings → Your Discord).',
     status: 'Its own channel for the live lobby message. Empty: it goes in the results channel (or a channel the host picks with /new).',
   },
   admin: {
-    bot: 'The Button and Red Alert read every lobby\'s data and the results from the private results channel with this bot, and post referee commands there. One of your hosts\' bots is fine.',
+    bot: 'The Button and Red Alert read every lobby\'s data and the results from the private results channel with this bot, and post the changes made in The Button there (points, voids, rounds). One of your hosts\' bots is fine.',
   },
 };
 
