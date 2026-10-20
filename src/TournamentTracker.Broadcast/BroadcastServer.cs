@@ -416,7 +416,10 @@ namespace TournamentTracker.App.Broadcast
             string route = path.Split('?')[0];
             string query = path.Contains('?') ? path.Substring(path.IndexOf('?') + 1) : "";
             if (method == "GET" && (route == "/" || route == "/index.html"))
+            {
+                PageOpened();
                 return Text(200, "text/html; charset=utf-8", Resource("ui/caster.html").Replace("__APP_TOKEN__", Token));
+            }
             // The replay viewer (the same as The Button's): it loads a kept game with ?src=.
             if (method == "GET" && route == "/viewer")
                 return Text(200, "text/html; charset=utf-8",
@@ -430,6 +433,7 @@ namespace TournamentTracker.App.Broadcast
 
             headers.TryGetValue("x-app-token", out var token);
             if (token != Token && HttpRequest.Query(query, "token") != Token) return Text(401, "application/json", "{\"error\":\"bad token\"}");
+            PageAsked();
             // An action: the desk's next answer is new (it shows what the click did).
             if (method == "POST") Interlocked.Increment(ref _postVersion);
 
