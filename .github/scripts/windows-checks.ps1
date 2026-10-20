@@ -6,8 +6,9 @@
 #                whether WebView2 started, Red Alert's global Mute all key, and The Button's lobby voice capture
 #                (Windows' per-program audio capture) with a stand-in Discord running. Then closes them.
 #   -Installers  Builds Install-TheButton.bat and Install-RedAlert.bat as the release does and runs each as a
-#                user would (cmd, then Windows PowerShell 5.1), downloading the exe from a web server on this PC.
-#                Checks the app is installed, has its Start menu and desktop shortcuts, and opens.
+#                user would (cmd, then Windows PowerShell 5.1) from a folder named "Jo's Downloads",
+#                downloading the exe from a web server on this PC. Checks the app is installed, has its
+#                Start menu and desktop shortcuts, and opens.
 #
 # Logs, screenshots and the installers' output go to $env:RUNNER_TEMP\windows-checks (kept with the run).
 
@@ -293,7 +294,8 @@ try {
         foreach ($f in $buttonExe, $redAlertExe) { if (-not (Test-Path -LiteralPath $f)) { throw "$f wasn't built." } }
         Reset-ButtonSettings
         Remove-Item Env:TT_INSTALLER_TEST -ErrorAction SilentlyContinue
-        $work = Join-Path $temp 'installers'
+        # Run from a folder with a space and an apostrophe in its name, as a user's Downloads can be.
+        $work = Join-Path $temp "installers\Jo's Downloads"
         New-Item -ItemType Directory -Force -Path $work | Out-Null
 
         # The downloads come from a web server on this PC (the real installers fetch them from GitHub's releases).

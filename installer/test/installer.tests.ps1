@@ -23,7 +23,9 @@ Check ((Get-Content -LiteralPath $exe) -eq 'app v1') 'puts the app in place'
 Set-Content -LiteralPath $download -Value 'app v2'
 Install-App $download $dir | Out-Null
 Check ((Get-Content -LiteralPath $exe) -eq 'app v2') 'running it again replaces the app'
-Check ((Get-Content -Raw -LiteralPath (Join-Path $installerDir 'Install-TournamentTracker.header.bat')) -match 'PS-START') 'the .bat runs the PowerShell after #PS-START'
+$header = Get-Content -Raw -LiteralPath (Join-Path $installerDir 'Install-TournamentTracker.header.bat')
+Check ($header -match 'PS-START') 'the .bat runs the PowerShell after #PS-START'
+Check ($header -match 'LiteralPath \$env:TT_INSTALLER_BAT' -and $header -notmatch "'%~f0'") 'the .bat gives PowerShell its path in a variable, so a folder named O''Brien works'
 
 Remove-Item -LiteralPath $root -Recurse -Force
 if ($failures -gt 0) { Write-Host "$failures check(s) failed" -ForegroundColor Red; exit 1 }
