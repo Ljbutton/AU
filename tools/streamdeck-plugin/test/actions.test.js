@@ -104,7 +104,7 @@ test("Panic shows a panic that is on and undoes only that; Undo is lit while it 
 });
 
 test("Toggles go to their own paths: toggle by default, or always on or off", () => {
-	const paths = { mute: "voice/mute", hold: "hold", autogrid: "auto/grid", autointermission: "auto/intermission", autoswitch: "auto/switch", standings: "gfx/standings", alerts: "gfx/alerts" };
+	const paths = { mute: "voice/mute", cue: "voice/cue", hold: "hold", autogrid: "auto/grid", autointermission: "auto/intermission", autoswitch: "auto/switch", standings: "gfx/standings", alerts: "gfx/alerts" };
 	assert.deepEqual(Object.keys(TOGGLES).sort(), Object.keys(paths).sort());
 	for (const [which, path] of Object.entries(paths)) {
 		assert.deepEqual(req("toggle", { which }), { path: `${path}/toggle`, query: {} });

@@ -425,6 +425,9 @@ kbd{display:inline-block;font:600 11.5px/1 var(--mono);padding:3px 6px;border:1p
 .mon header span{overflow:hidden;text-overflow:ellipsis;min-width:0}
 .mon header .mini{all:unset;cursor:pointer;margin-left:auto;font:600 11px/1 var(--round);padding:3px 7px;border:1px solid var(--line);color:var(--muted)}
 .mon header .mini:hover{color:#fff;border-color:var(--red)}
+/* Hear Preview: green while the lobby in Preview is in the caster's headphones, amber when it can't be. */
+.mon header .mini.cue-on{color:#fff;border-color:var(--good);background:var(--good-soft)}
+.mon header .mini.cue-wait{color:var(--warn);border-color:var(--warn)}
 .mon-box{position:relative;aspect-ratio:16/9;overflow:hidden;background:#050506}
 .mon-box img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
 .sch{position:absolute;inset:0}
@@ -696,7 +699,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       </div>
     </div>
     <div class="ld-sw">
-      <section class="mon pvw" id="pvw"><header><b>PREVIEW</b><span id="stage-line"></span></header>
+      <section class="mon pvw" id="pvw"><header><b>PREVIEW</b><span id="stage-line"></span><button class="mini" type="button" id="pvw-cue" title="Hear Preview: the lobby in Preview plays in your headphones (OBS's monitoring device), never on stream">HEAR</button></header>
         <div class="mon-box"><div class="sch" id="pvw-sch"></div><div class="pvw-note" id="pvw-note" hidden></div></div></section>
       <div class="ld-take">
         <button class="b take" id="stage-send" type="button" disabled title="Take: Preview on stream (Enter)">TAKE</button>
@@ -799,6 +802,8 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       <input id="obs-pass" type="password" placeholder="Password (Tools → WebSocket Server Settings)" style="flex:1;min-width:200px" autocomplete="off">
       <button class="b primary">Connect</button>
     </form>
+    <div class="row" style="margin-top:8px"><label class="muted" style="font-size:12.5px" for="obs-delay">Broadcast delay</label><select id="obs-delay" title="The lobbies (picture, voice, cameras) and the graphics reach the stream this late; the Live desk stays live. Up to 4 s (the most VDO.Ninja's buffer holds in OBS)."><option value="0">Off</option><option value="0.5">0.5 s</option><option value="1">1 s</option><option value="1.5">1.5 s</option><option value="2">2 s</option><option value="2.5">2.5 s</option><option value="3">3 s</option><option value="3.5">3.5 s</option><option value="4">4 s</option></select>
+      <span class="muted" style="font-size:12.5px">Viewers see the lobbies this late, so you can cut to a play before it airs. Changing it reloads every lobby in OBS (a moment of black): set it before you go live.</span></div>
     <p class="muted help" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. Red Alert then builds the scenes TT Full, TT 2-up, TT Quad, TT Grid, TT Player Cam, TT Sponsor Break, TT Intermission, TT Be Right Back and TT Replay, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
   </div>
   <div class="card setup-card" id="setup-card" data-page="obs" hidden>
@@ -831,7 +836,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
   <details class="card roster-card" id="vo-card" open data-page="voice">
     <summary><div><b>Lobby voice</b> <span class="muted" id="vo-line"></span></div>
       <div class="row"><button class="b" id="vo-mute" title="Mute every lobby voice (key U)">Mute all</button><button class="b" id="vo-on" title="Lobby voice on stream at all">On stream</button></div></summary>
-    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Each referee's Button sends the lobby's Discord voice and game sound (and their own mic only if they tick it). The voice follows the picture: the full-screen lobby, or slot 1, is heard; replays, montages and intermission are silent. <b>Listen</b> keeps one lobby's voice up whatever is on screen. It only goes to the stream; nothing is played back to the players.</p>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Each referee's Button sends the lobby's Discord voice and game sound (and their own mic only if they tick it). The voice follows the picture: the full-screen lobby, or slot 1, is heard; replays, montages and intermission are silent. <b>Listen</b> keeps one lobby's voice up whatever is on screen. It only goes to the stream; nothing is played back to the players. <b>HEAR</b> on Preview plays the lobby in Preview in your headphones (OBS's monitoring device): live, never on stream, and silent on Mute all.</p>
     <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">Duck under</span><select id="vo-duck" title="Your mic in OBS: lobby voice gets quieter while you talk"></select>
       <span style="flex:1"></span><span class="muted" style="font-size:12.5px">Mute all key (works from any window)</span><button class="b" id="vo-key" title="Click, then press the new key combination">Ctrl+Shift+M</button></div>
     <p class="note bad" id="vo-keyprob" hidden></p>
@@ -1378,6 +1383,7 @@ function renderBar() {
   setTitle($('pill-audio'), o && o.muteAll ? `Every lobby voice is muted: nothing from any lobby reaches the stream. Click (or ${o.hotkey || 'the mute key'}) to unmute.` : 'Whose lobby voice the stream hears. Click: mute every lobby (key U).');
   const db = o && o.heard ? obsDb(o, o.heard) : null;
   setStyle($('pill-meter').firstElementChild, 'width', (db == null ? 0 : meterPct(db)) + '%');
+  renderCue(o);
   // OBS: connected, and how the output is doing.
   const ow = out ? out.warnings || [] : [];
   setText($('pill-obs-t'), !OBS ? '—' : !OBS.connected ? 'OFF' : out && out.droppedPct > 1 ? `${out.droppedPct}% drop` : out && out.cpu != null ? `CPU ${Math.round(out.cpu)}%` : 'OK');
@@ -1409,6 +1415,17 @@ function renderBar() {
 }
 let heldSaid = null, droppedSaid = null;
 $('pill-audio').addEventListener('click', () => voiceDo({ action: 'mute' }));
+// Hear Preview: what's in the headphones (live, never on stream), or why nothing is.
+function renderCue(o) {
+  const c = o && o.cue, b = $('pvw-cue');
+  const on = !!(c && c.on), lobby = c && c.lobby, wait = on && c.problem;
+  setClass(b, 'mini' + (on && lobby ? ' cue-on' : wait ? ' cue-wait' : ''));
+  setText(b, on && lobby ? '🎧 ' + lobby : on ? 'HEAR' : 'HEAR: OFF');
+  setTitle(b, !c ? 'Hear Preview' : !on ? 'Hear Preview is off. Click: the lobby in Preview plays in your headphones (OBS\'s monitoring device), never on stream.'
+    : wait ? c.problem + ' Click to turn Hear Preview off.'
+    : lobby ? `${lobby} is in your headphones (live, not on stream). Click to turn Hear Preview off.` : (o.muteAll ? 'Every lobby is muted: nothing in your headphones either.' : 'Put a lobby in Preview to hear it in your headphones (never on stream).') + ' Click to turn Hear Preview off.');
+}
+$('pvw-cue').addEventListener('click', () => voiceDo({ action: 'cue', on: String(!(LVOICE && LVOICE.obs && LVOICE.obs.cue && LVOICE.obs.cue.on)) }));
 $('pill-hold').addEventListener('click', () => { if (DESK && DESK.panic) deckDo('undo'); else holdToggle(); });
 // ---- Warnings: one line in the bar (the worst one, and how many more); all of them in its popover ----
 let obsSeen = false, pausedAt = 0, pausedFor = 0, warnNew = '', warnNewAt = 0;
@@ -1434,7 +1451,7 @@ function warnings() {
   if (o && o.connected && o.desktopAudioOn && o.desktopAudioOn.length) add('bad', 'Desktop Audio is on', `${o.desktopAudioOn.join(', ')} goes to the stream: Discord pings and Windows sounds can be heard.`, '<button class="b" data-fix="desktopAudio">Mute it</button>');
   const ck = o && o.connected && o.checks ? Object.fromEntries(o.checks.map(c => [c.id, c])) : {};
   if (ck.replays && !ck.replays.ok) add('warn', 'Replays won\'t save', ck.replays.title + '. See OBS → Setup check.', '<button class="b" data-gopage="obs">Setup check</button>');
-  if (ck.delay && !ck.delay.ok) add('bad', 'No stream delay', 'Impostor tags are on: players watching the stream could find the impostors.', '<button class="b" data-gopage="obs">Setup check</button>');
+  if (ck.delay && !ck.delay.ok) add('bad', 'No broadcast delay', 'Impostor tags are on and nothing holds the stream back: players watching could find the impostors.', '<button class="b" data-fix="delay">Turn on a 3 s delay</button>');
   if (d.hold && d.hold.on && d.hold.heldBack) add('warn', 'Held back', `Switching is held${d.hold.why === 'Panic' ? ' (panic)' : ''}: ${d.hold.heldBack.text} didn't switch.`, '<button class="b" data-hold="off">Release hold</button>');
   if (d.simulating && MONT && !MONT.ffmpeg) add('warn', 'No ffmpeg', 'Simulation makes its replay clips and montages with ffmpeg, which isn\'t installed: Montages → Get ffmpeg.', '<button class="b" data-gopage="replays">Montages</button>');
   if (d.problem) add('warn', 'Priority settings', d.problem);
@@ -2072,6 +2089,7 @@ function renderObs() {
   $('obs-swoosh').classList.toggle('on', !!sw.on);
   setTitle($('obs-swoosh'), sw.on ? `Swoosh on every switch${sw.stinger ? ' (OBS Stinger transition "TT Swoosh" for scene changes)' : ' (add a Stinger transition called "TT Swoosh" in OBS to use it for scene changes)'}${sw.problem ? ' · ' + sw.problem : ''}` : 'Swoosh off: straight cuts');
   $('obs-on').hidden = !o.connected; $('obs-form').hidden = o.connected; $('obs-help').hidden = o.connected;
+  if (o.broadcastDelay != null && document.activeElement !== $('obs-delay')) $('obs-delay').value = String(o.broadcastDelay);
   if (!$('obs-form').contains(document.activeElement)) { $('obs-host').value = o.host || ''; $('obs-port').value = o.port || ''; $('obs-pass').placeholder = o.hasPassword ? 'Password saved (type to change)' : 'Password (Tools → WebSocket Server Settings)'; }
 }
 $('obs-form').addEventListener('submit', async e => {
@@ -2085,6 +2103,7 @@ $('obs-form').addEventListener('submit', async e => {
 $('obs-off').addEventListener('click', () => post('/app/admin/obs', { action: 'disconnect' }));
 $('obs-swoosh').addEventListener('click', () => post('/app/admin/obs', { action: 'swoosh', on: String(!(OBS && OBS.swoosh && OBS.swoosh.on)) }));
 $('obs-build').addEventListener('click', () => post('/app/admin/obs', { action: 'build' }));
+$('obs-delay').addEventListener('change', e => { post('/app/admin/obs', { action: 'delay', value: Number(e.target.value) }); e.target.blur(); });
 // ---- Standings & storylines ---------------------------------------------------------------------
 let r_story = null, storyKey = '', notesAll = false;
 function renderStory(st) {

@@ -145,7 +145,7 @@ namespace TournamentTracker.App.Broadcast
                     switching = connected ? obs!.SwitchingTo : null,
                 },
                 preview = new { layout = preview.Layout, slots = preview.Slots.ToList() },
-                voice = new { muteAll = v?.MuteAll ?? false, heard = obs?.LoudVoice(air), listen = v is { Pin.Length: > 0 } ? v.Pin : null },
+                voice = new { muteAll = v?.MuteAll ?? false, heard = obs?.LoudVoice(air), listen = v is { Pin.Length: > 0 } ? v.Pin : null, cue = v?.HearPreview ?? false, cueLobby = obs?.CueHeard },
                 replay = new
                 {
                     onAir = air.Layout == "replay" || replays?.Now != null,
@@ -300,6 +300,7 @@ namespace TournamentTracker.App.Broadcast
                     (string Label, bool? On) t = which switch
                     {
                         "mute" => ("MUTE ALL", v?.MuteAll),
+                        "cue" => ("HEAR PVW", v?.HearPreview),
                         "hold" => ("HOLD", desk.Held),
                         "autogrid" => ("AUTO GRID", desk.AutoGrid),
                         "autointermission" => ("AUTO INTER", desk.AutoIntermission),

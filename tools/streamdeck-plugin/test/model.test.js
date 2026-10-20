@@ -109,6 +109,8 @@ test("the sabotage timer counts down from when the state arrived", () => {
 test("toggles read the state, and say nothing when it doesn't", () => {
 	const s = sampleState();
 	assert.equal(toggleOn(s, "mute"), false);
+	assert.equal(toggleOn(s, "cue"), true, "Hear Preview");
+	assert.equal(toggleOn({ voice: { muteAll: false } }, "cue"), null, "an older Red Alert doesn't say");
 	assert.equal(toggleOn(s, "hold"), true);
 	assert.equal(toggleOn(s, "autogrid"), false);
 	assert.equal(toggleOn(s, "autointermission"), true);
