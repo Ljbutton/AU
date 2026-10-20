@@ -1,7 +1,10 @@
 # Checks the installer's logic with PowerShell on any OS: pwsh installer/test/installer.tests.ps1
+# (or, on Windows, powershell -File installer\test\installer.tests.ps1: Windows PowerShell 5.1, as the .bat uses)
 $ErrorActionPreference = 'Stop'
 $env:TT_INSTALLER_TEST = '1'
-. (Join-Path $PSScriptRoot '..' 'install.ps1')
+# One child per Join-Path: Windows PowerShell 5.1 has no third argument.
+$installerDir = Split-Path -Parent $PSScriptRoot
+. (Join-Path $installerDir 'install.ps1')
 $failures = 0
 function Check([bool]$ok, [string]$what) {
     if ($ok) { Write-Host "  ok   $what" } else { Write-Host "  FAIL $what" -ForegroundColor Red; $script:failures++ }
@@ -20,7 +23,7 @@ Check ((Get-Content -LiteralPath $exe) -eq 'app v1') 'puts the app in place'
 Set-Content -LiteralPath $download -Value 'app v2'
 Install-App $download $dir | Out-Null
 Check ((Get-Content -LiteralPath $exe) -eq 'app v2') 'running it again replaces the app'
-Check ((Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '..' 'Install-TournamentTracker.header.bat')) -match 'PS-START') 'the .bat runs the PowerShell after #PS-START'
+Check ((Get-Content -Raw -LiteralPath (Join-Path $installerDir 'Install-TournamentTracker.header.bat')) -match 'PS-START') 'the .bat runs the PowerShell after #PS-START'
 
 Remove-Item -LiteralPath $root -Recurse -Force
 if ($failures -gt 0) { Write-Host "$failures check(s) failed" -ForegroundColor Red; exit 1 }
