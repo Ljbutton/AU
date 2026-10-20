@@ -291,6 +291,33 @@ What each app already does is in [features-the-button.md](features-the-button.md
 
 ---
 
+### Found in the 0.1.65 review (not fixed yet)
+
+49. **Preliminary games: only the host can change points now.**
+    - **Why:** typed `!void` / `!adjust` in the preliminary channels no longer count, and the Organiser tab only posts to the tournament's results channel. An organiser can't correct a preliminary game; its host does it in the Referee tab.
+    - **Do (if wanted):** list the preliminary channels in the administration code and let the Organiser tab post changes there too.
+    - **Size:** M.
+
+50. **Upgrading during a running tournament.**
+    - **Why:** changes typed in Discord before 0.1.65 (`!adjust`, `!void`, `!resetleaderboard`) stop counting after the update, and older mods still count them, so standings can differ between lobbies until everyone updates.
+    - **Do:** update every host, referee and the caster before an event, and redo any typed change from The Button. If a tournament is already running, count typed commands older than the release (by message time).
+    - **Size:** S.
+
+51. **Only The Button's own bot should be able to post a change.**
+    - **Why:** the mods take changes from any bot account in the channel (not webhooks, not people). A host's bot added to the private channel could post one.
+    - **Do:** put the administration bot's user ID in tournament host codes and accept changes only from it.
+    - **Size:** S–M.
+
+52. **Backup details.**
+    - "Newer" is decided by file time, so a PC clock that was wrong for a while can keep stale copies; after a reinstall the round's game count isn't rebuilt from the game files.
+    - `.corrupt-…` copies are never removed (some are copies of files holding tokens); prune them after a while.
+    - The backup holds the caster-feed link and password from `state-*.json` (same PC as The Button's own settings, never in a support bundle).
+    - **Size:** S each.
+
+53. **Auto grid small things.** Hold says "Held back: Auto grid" while the caster's own Preview is waiting, and a replay going on doesn't take auto grid's suggestion out of Preview. **Size:** S.
+
+54. **Other automatic switches still don't wait for Take:** auto intermission, auto switch away from a dropped lobby (and swapping a dead tile, Be right back coming back), the sponsor break ending, a MUST SHOW play ending a break, the player camera going back to the map, an armed camera going on, the grid resizing, a montage going back to intermission. For the Red Alert session. **Size:** M.
+
 ## Could do
 
 ### The mod
