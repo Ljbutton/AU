@@ -150,6 +150,7 @@ export function toggleOn(state, which) {
 /** Where each toggle's state is in /deck/state (alerts are on while they aren't paused). */
 const TOGGLE_STATE = {
 	mute: (s) => s.voice?.muteAll,
+	cue: (s) => s.voice?.cue,
 	hold: (s) => s.hold,
 	autogrid: (s) => s.auto?.grid,
 	autointermission: (s) => s.auto?.intermission,

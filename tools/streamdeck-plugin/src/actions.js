@@ -34,6 +34,7 @@ const TRANSITIONS = ["cut", "swoosh"];
  */
 export const TOGGLES = {
 	mute: { path: "voice/mute", label: "MUTE ALL", onText: "MUTED", onColour: "#e10600" },
+	cue: { path: "voice/cue", label: "HEAR PREVIEW", onColour: "#46c28b", onInk: "#0b0b0d" },
 	hold: { path: "hold", label: "HOLD", onText: "HELD", onColour: "#ffc15a", onInk: "#0b0b0d" },
 	autogrid: { path: "auto/grid", label: "AUTO GRID" },
 	autointermission: { path: "auto/intermission", label: "AUTO INTERMISSION" },

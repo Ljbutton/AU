@@ -35,6 +35,12 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>How hard the voice ducks (compressor ratio) and from what level of the caster's mic (dB).</summary>
         public double DuckRatio { get; set; } = 8;
         public double DuckThreshold { get; set; } = -30;
+        /// <summary>
+        /// Hear Preview: the lobby in Preview plays in the caster's headphones (OBS's monitoring device),
+        /// live and never on stream. On by default: it's only heard by the caster, and Red Alert holds it
+        /// back while Desktop Audio could carry it to the stream.
+        /// </summary>
+        public bool HearPreview { get; set; } = true;
     }
 
     /// <summary>
@@ -58,6 +64,8 @@ namespace TournamentTracker.App.Broadcast
         private readonly HashSet<string> _voiceInputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         /// <summary>Voice source → lobby (a source can have moved to a fresh name, "TT Voice LJ 2").</summary>
         private readonly Dictionary<string, string> _voiceLobby = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Voice source → the link it was last given.</summary>
+        private readonly Dictionary<string, string> _voiceUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         /// <summary>
         /// Guards the three voice collections above. The upkeep, a switch's voice change, the mute-all
         /// key and the Lobby voice page all reach them from different threads; never held across an await.
@@ -80,6 +88,7 @@ namespace TournamentTracker.App.Broadcast
                 var all = (await obs.RequestAsync("GetInputList").ConfigureAwait(false)).GetProperty("inputs").EnumerateArray()
                     .Select(i => (Name: i.GetProperty("inputName").GetString() ?? "", Kind: i.TryGetProperty("inputKind", out var k) ? k.GetString() ?? "" : "")).ToList();
                 var inputs = all.Select(i => i.Name).ToHashSet();
+                await SilenceOldCueAsync(obs, inputs).ConfigureAwait(false);
                 // For the ducking picker: OBS's own inputs (the caster's mic among them), not ours.
                 InputNames = inputs.Where(n => !n.StartsWith("TT ", StringComparison.Ordinal)).OrderBy(n => n).ToList();
                 // The first time: duck under the obvious mic (changeable; "No ducking" is remembered too).
@@ -95,13 +104,16 @@ namespace TournamentTracker.App.Broadcast
                 bool duckChanged = duck != _duckWas;
                 var inScenes = scenes.Where(have.Contains).ToList();
                 var placed = new Dictionary<string, List<int>>();          // scene → our voice items in it
-                foreach (var (lobby, url) in feeds)
+                foreach (var (lobby, feedUrl) in feeds)
                 {
                     if (!_desk.Simulating && CasterDesk.IsSimLobby(lobby)) continue;
+                    // As late as the lobby's picture (the broadcast delay).
+                    string url = WithDelay(feedUrl);
                     string root = VoicePrefix + lobby, current = Live(root);
                     bool fresh = !Usable(current, inputs);
                     bool known;
-                    lock (_voiceLock) known = _voiceInputs.Contains(current);
+                    // Known, and with this same link (the broadcast delay changes it): not looked at again.
+                    lock (_voiceLock) known = _voiceInputs.Contains(current) && _voiceUrl.TryGetValue(current, out var linked) && linked == url;
                     // Tiny and see-through: only its sound matters. Stays connected when muted, so switching is instant.
                     // In every scene, always active: a hidden source would go silent; muting decides who's heard.
                     var (name, ids, _) = await EnsureInputAsync(obs, root, current, inScenes, inputs, "browser_source",
@@ -116,7 +128,7 @@ namespace TournamentTracker.App.Broadcast
                     if (name != current)
                     {
                         Renamed(root, name);
-                        lock (_voiceLock) { _voiceInputs.Remove(current); _voiceSet.Remove(current); }
+                        lock (_voiceLock) { _voiceInputs.Remove(current); _voiceSet.Remove(current); _voiceUrl.Remove(current); }
                         fresh = true;
                     }
                     if (fresh) await obs.RequestAsync("SetInputMute", new { inputName = name, inputMuted = true }).ConfigureAwait(false);
@@ -124,7 +136,7 @@ namespace TournamentTracker.App.Broadcast
                     bool had;
                     lock (_voiceLock) had = _voiceInputs.Contains(name);
                     if (fresh || duckChanged || !had) await DuckAsync(obs, name, duck).ConfigureAwait(false);
-                    lock (_voiceLock) { _voiceInputs.Add(name); _voiceLobby[name] = lobby; }
+                    lock (_voiceLock) { _voiceInputs.Add(name); _voiceLobby[name] = lobby; _voiceUrl[name] = url; }
                 }
                 // At the bottom of each scene, out of the way of the pictures and graphics: every voice
                 // item among the lowest ones. Each scene is looked at once (not once per lobby), and only
@@ -279,6 +291,8 @@ namespace TournamentTracker.App.Broadcast
             Save();
             if (duck) _duckWas = "\u0000";
             await SetVoicesAsync(_voiceAir ?? _desk.OnAir).ConfigureAwait(false);
+            // Then the headphones (mute all silences them too).
+            await CueAsync().ConfigureAwait(false);
             if (duck || rebuild) await EnsureVoiceAsync().ConfigureAwait(false);
         }
 
@@ -297,6 +311,7 @@ namespace TournamentTracker.App.Broadcast
             Problem = VoiceProblem,
             Note = VoiceNote,
             Inputs = InputNames,
+            Cue = CueStatus(),
         };
     }
 }

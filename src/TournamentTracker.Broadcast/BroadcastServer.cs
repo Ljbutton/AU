@@ -250,7 +250,8 @@ namespace TournamentTracker.App.Broadcast
         {
             string route = path.Split('?')[0];
             if (route == "/broadcast") return ("text/html; charset=utf-8", Encoding.UTF8.GetBytes(Resource("ui/broadcast.html")));
-            if (route == "/broadcast/state") return ("application/json", JsonSerializer.SerializeToUtf8Bytes(app.State(), Json));
+            // With the broadcast delay, its game data as it was that long ago (in step with the lobbies' pictures).
+            if (route == "/broadcast/state") return ("application/json", JsonSerializer.SerializeToUtf8Bytes(app.OnStream(Json), Json));
             if (route == "/broadcast/logo") return app.Logo();
             // Players' crewmate heads, for every name on stream, and the fonts.
             return UiFiles.Asset(typeof(BroadcastServer).Assembly, route);
@@ -639,6 +640,9 @@ namespace TournamentTracker.App.Broadcast
                             _obs.SaveSettings();
                             if (_obs.Settings.Swoosh.On && _obs.Connected) await _obs.EnsureSwooshAsync().ConfigureAwait(false);
                             return Say(true, _obs.Settings.Swoosh.On ? "Swoosh on every switch." : "Swoosh off: straight cuts.");
+                        case "delay":
+                            // Red Alert's broadcast delay (seconds): every lobby source in OBS gets it now.
+                            return Say(true, await _obs.SetDelayAsync(Num("value")).ConfigureAwait(false));
                         case "check":
                             var found = await _obs.CheckSetupAsync().ConfigureAwait(false);
                             return Say(true, found.All(c => c.Ok) ? "OBS setup: all good." : $"OBS setup: {found.Count(c => !c.Ok)} to look at.");
@@ -969,6 +973,10 @@ namespace TournamentTracker.App.Broadcast
                         case "mute":
                             v.MuteAll = Arg("on").Length > 0 ? Arg("on") == "true" : !v.MuteAll;
                             said = v.MuteAll ? "Every lobby voice muted." : "Lobby voice back on: it follows the picture.";
+                            break;
+                        case "cue":
+                            v.HearPreview = Arg("on").Length > 0 ? Arg("on") == "true" : !v.HearPreview;
+                            said = v.HearPreview ? "Hear Preview on: the lobby in Preview plays in your headphones (OBS's monitoring device), not on stream." : "Hear Preview off.";
                             break;
                         case "pin":
                             v.Pin = lobby == v.Pin ? "" : lobby;

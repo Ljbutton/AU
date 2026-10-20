@@ -370,7 +370,7 @@ namespace TournamentTracker.App.Broadcast
                 if (slot.Lobby != null) box = slot.Box;
             }
             var b = box ?? new Box(0, 0, w, h);
-            return new { id = c.Key + "|" + c.At.Ticks, data, x = b.X, y = b.Y, w = b.W, h = b.H, full = box == null };
+            return new { id = c.Key + "|" + c.At.Ticks, lobby = c.Lobby, data, x = b.X, y = b.Y, w = b.W, h = b.H, full = box == null };
         }
 
         /// <summary>Close to ending: worth showing what's on the line.</summary>

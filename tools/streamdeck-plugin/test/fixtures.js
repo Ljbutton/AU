@@ -6,7 +6,7 @@ export function sampleState() {
 		obs: { connected: true, streaming: true, recording: false, problem: null },
 		program: { layout: "full", slots: ["Lobby 3"], confirmed: true, switching: null },
 		preview: { layout: "2up", slots: ["Lobby 1", "Lobby 5"], replay: null },
-		voice: { muteAll: false, heard: "Lobby 3", listen: null },
+		voice: { muteAll: false, heard: "Lobby 3", listen: null, cue: true, cueLobby: "Lobby 1" },
 		replay: {
 			onAir: false, playing: false, speed: 100, ready: 2,
 			last: { id: "r9", lobby: "Lobby 2", title: "Red kills Blue" },

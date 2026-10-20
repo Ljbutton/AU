@@ -676,7 +676,13 @@ namespace TournamentTracker.App.Broadcast
                         await _obs.VoiceChangedAsync().ConfigureAwait(false);
                         return (200, $"{lobby}'s voice stays up whatever is on screen.");
                     }
-                    return (404, "Voice: mute or listen.");
+                    if (what == "cue")
+                    {
+                        v.HearPreview = OnOff(how, v.HearPreview);
+                        await _obs.VoiceChangedAsync().ConfigureAwait(false);
+                        return (200, v.HearPreview ? "Hear Preview on: the lobby in Preview plays in your headphones." : "Hear Preview off.");
+                    }
+                    return (404, "Voice: mute, listen or cue.");
                 }
                 case "mute":
                     MuteHotkeyPressed();

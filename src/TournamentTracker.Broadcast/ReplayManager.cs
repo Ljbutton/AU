@@ -236,21 +236,24 @@ namespace TournamentTracker.App.Broadcast
                 }
                 if (!_obs.Connected) throw new InvalidOperationException("Connect OBS first: replays come from its replay buffer.");
                 var now = _clock();
-                if ((now - clip.EventAt).TotalSeconds > S.BufferSeconds - clip.Pre)
+                // With the broadcast delay, OBS's picture (and its buffer) is that far behind the live desk:
+                // the save waits for the moment to reach OBS, and the clip ends that much earlier than when it's saved.
+                double lag = _obs.DelaySeconds;
+                if ((now - clip.EventAt).TotalSeconds > S.BufferSeconds - clip.Pre + lag)
                     throw new InvalidOperationException($"Too long ago: OBS keeps the last {S.BufferSeconds}s of each lobby.");
-                var wait = clip.EventAt.AddSeconds(clip.Post + 0.3) - now;
+                var wait = clip.EventAt.AddSeconds(clip.Post + 0.3 + lag) - now;
                 if (wait > TimeSpan.Zero) await Task.Delay(wait).ConfigureAwait(false);
                 await _saveOne.WaitAsync().ConfigureAwait(false);
                 try
                 {
-                    clip.SavedAt = _clock();
+                    clip.SavedAt = _clock().AddSeconds(-lag);
                     clip.File = await _obs.SaveClipAsync(clip.Lobby).ConfigureAwait(false);
                     // The player camera's view of the same moment, when it's on: a second angle.
                     if (_obs.HasCamReplay(clip.Lobby))
                     {
                         try
                         {
-                            clip.CamSavedAt = _clock();
+                            clip.CamSavedAt = _clock().AddSeconds(-lag);
                             clip.CamFile = await _obs.SaveCamClipAsync(clip.Lobby).ConfigureAwait(false);
                             clip.CamPlayerId = CamFollowing(clip.Lobby);
                         }
