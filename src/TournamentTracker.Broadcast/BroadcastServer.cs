@@ -27,6 +27,8 @@ namespace TournamentTracker.App.Broadcast
         public string? DeckKey { get; set; }
         /// <summary>Player cameras off for every lobby (on unless turned off).</summary>
         public bool CamOff { get; set; }
+        /// <summary>Hold and the desk's automation (auto grid, auto intermission, the countdown…), as left (null: never saved: the defaults).</summary>
+        public DeskAutomation? Desk { get; set; }
 
         public static BroadcastAppSettings Load(string file) => Files.ReadJson<BroadcastAppSettings>(file) ?? new BroadcastAppSettings();
 
@@ -169,7 +171,8 @@ namespace TournamentTracker.App.Broadcast
             _panic = null;
             if (_settings.AdminCode != null && SetupCode.TryParse(_settings.AdminCode, out var code, out _) && code.IsAdmin)
             {
-                var organizer = _organizer = new Organizer(code, _http, log: Log);
+                // The lobbies and their links last known are kept on disk, so they're back at once after a restart (marked cached until the channel confirms them).
+                var organizer = _organizer = new Organizer(code, _http, log: Log, cacheFile: SideFile(Organizer.CacheFileName));
                 var caster = _caster = new CasterServer(organizer, _env.CasterPort);
                 var desk = _desk = new CasterDesk(DeskConfigPath, rosterPath: SideFile(Roster.FileName), dataFolder: SideFolder())
                 {
@@ -177,6 +180,7 @@ namespace TournamentTracker.App.Broadcast
                     Advance = () => organizer.Advance,
                     GamesPerRound = () => organizer.GamesPerRound,
                 };
+                RestoreDesk(desk);
                 // The overlay, video and multiview pages follow what's on stream (unless pinned).
                 caster.Follow = () => desk.OnAir.Slots.FirstOrDefault(x => x != null);
                 desk.AirChangedInObs += _ => caster.Refresh();
@@ -344,6 +348,8 @@ namespace TournamentTracker.App.Broadcast
                 _settings.AdminCode = null;
                 TrySave();
                 StartDesk();
+                // The remembered lobbies' links carry the hosts' VDO.Ninja passwords: not kept once locked.
+                Files.Delete(SideFile(Organizer.CacheFileName));
                 return new { ok = true, message = "Locked." };
             }
             if (!SetupCode.TryParse(text, out var code, out var error)) return new { ok = false, message = error };
@@ -405,6 +411,8 @@ namespace TournamentTracker.App.Broadcast
             {
                 return DeckReply(500, false, "That didn't work: " + e.Message);
             }
+            // Hold and the desk's automation, kept for the next start when an action changed them (DeskMemory).
+            finally { if (method == "POST" || path.StartsWith("/deck/", StringComparison.Ordinal)) KeepDesk(); }
         }
 
         private async Task<(int Status, string Type, byte[] Body)> RouteCore(string method, string path, Dictionary<string, string> headers, string body)
