@@ -127,8 +127,14 @@ namespace TournamentTracker.App
         private readonly object _voiceLock = new object();
         /// <summary>the-button.log, next to the settings (the organiser's view writes to it too).</summary>
         private readonly FileLog _log;
-        private readonly Timer _voiceIdle;
+        /// <summary>Every 10 s: the lobby sound stops when the send page went away, and the backup catches up.</summary>
+        private readonly Timer _tick;
         private readonly DiscordBridge _bridge;
+        /// <summary>The copy of the mod's games, links and rounds in The Button's own folder (null: no settings folder).</summary>
+        private readonly ModBackup? _backup;
+        /// <summary>Copies kept of damaged files lately (The Button's and the mod's), as the last look found them.</summary>
+        private volatile List<DamagedFile> _damaged = new List<DamagedFile>();
+        private string? _backupProblem;
 
         /// <summary>The send page last asked about the lobby sound this long ago (closed): capturing stops until it asks again.</summary>
         private static readonly TimeSpan VoiceIdle = TimeSpan.FromSeconds(30);
@@ -230,13 +236,72 @@ namespace TournamentTracker.App
             TrySave();
             Task.Run(() => LocalServer.Serve(_listener, _cts.Token, Route));
             StartOrganizer();
-            _voiceIdle = new Timer(_ => { try { _voice?.StopIfIdle(VoiceIdle); } catch (Exception) { } }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+            if (AppFolder is { } folder) _backup = new ModBackup(Path.Combine(folder, ModBackup.FolderName));
+            _tick = new Timer(_ => Tick(), null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
             // The bot stays online while The Button is open; the mod reaches Discord through it.
             _bridge = new DiscordBridge(() => DiscordBridge.FromSetupCode(_settings.SetupCode, _settings.HostDiscord),
                 () => GamePath == null ? null : ModInstaller.DataDir(GamePath), connect: env.Bots);
         }
 
         public string? GamePath => _settings.GamePath;
+
+        /// <summary>Where The Button keeps its settings, log and backup (%LOCALAPPDATA%\TheButton); null when it has none.</summary>
+        private string? AppFolder => string.IsNullOrEmpty(_env.SettingsFile) ? null : Path.GetDirectoryName(_env.SettingsFile);
+
+        /// <summary>Every 10 s, on the timer: the lobby sound, then the backup.</summary>
+        private void Tick()
+        {
+            try { _voice?.StopIfIdle(VoiceIdle); } catch (Exception) { }
+            try { BackupNow(); } catch (Exception) { }
+        }
+
+        // ---- The backup of the mod's data, and damaged files -----------------------------------------
+
+        /// <summary>
+        /// Brings the backup up to date with the mod's folder when anything there changed (a game saved or submitted,
+        /// links or the waiting list changed), and looks for copies kept of damaged files. On the 10-second timer.
+        /// </summary>
+        internal void BackupNow()
+        {
+            string? data = GamePath == null ? null : ModInstaller.DataDir(GamePath);
+            if (_backup != null)
+            {
+                _backup.Mirror(data);
+                string? problem = _backup.State.Problem;
+                if (problem != null && problem != _backupProblem) _log.Warn("Backup: " + problem);
+                _backupProblem = problem;
+            }
+            _damaged = ModBackup.Damaged(AppFolder, data, DateTime.UtcNow);
+        }
+
+        private object? BackupView()
+        {
+            if (_backup == null) return null;
+            var s = _backup.State;
+            return new { s.Files, s.Missing, s.CopiedAt, s.Problem };
+        }
+
+        /// <summary>Settings → Help → Restore backup (and Home's notice): puts back what's missing or older in the mod's folder, with Among Us closed.</summary>
+        private object RestoreBackup()
+        {
+            if (_backup == null) return new { ok = false, message = "There's no backup on this PC." };
+            if (GamePath == null) return new { ok = false, message = FindGameFirst };
+            if (ModInstaller.GameRunning()) return new { ok = false, message = "Close Among Us first: the mod would save over what's put back." };
+            var r = _backup.Restore(ModInstaller.DataDir(GamePath));
+            _log.Info("Restore backup: " + r.Message);
+            BackupNow();
+            return new { ok = r.Ok, message = r.Message };
+        }
+
+        /// <summary>Home's notice → Forget them: the games only the backup has were removed from the mod's folder on purpose.</summary>
+        private object ForgetBackup()
+        {
+            if (_backup == null || GamePath == null) return new { ok = false, message = "There's no backup on this PC." };
+            int gone = _backup.Forget(ModInstaller.DataDir(GamePath));
+            _log.Info($"Backup: forgot {gone} game(s) that aren't in the mod's folder.");
+            BackupNow();
+            return new { ok = true, message = gone == 1 ? "The backup no longer keeps that game." : $"The backup no longer keeps those {gone} games." };
+        }
 
         private List<GameInstall> Candidates() => GameLocator.Find(_env.SteamRoot, _env.EpicManifests, _env.Fallbacks);
 
@@ -320,6 +385,8 @@ namespace TournamentTracker.App
                 case ("POST", "/app/share"): return Ok(SetShare(Arg("mode"), Arg("low")));
                 case ("POST", "/app/conncheck"): return Ok(ConnectionCheckCommand(Arg("action")));
                 case ("POST", "/app/support"): return Ok(await SaveSupportBundleAsync().ConfigureAwait(false));
+                case ("POST", "/app/backup/restore"): return Ok(await Task.Run(RestoreBackup).ConfigureAwait(false));
+                case ("POST", "/app/backup/forget"): return Ok(await Task.Run(ForgetBackup).ConfigureAwait(false));
                 case ("GET", "/app/cam"):
                 {
                     // The player camera's next picture, for the send page (which sends it to the caster).
@@ -524,6 +591,8 @@ namespace TournamentTracker.App
                 Share = new { Mode = ShareMode, Low = _settings.LowQuality, VoiceOn = !_settings.VoiceOff, Instructions = SendPage.Instructions(ShareMode, !_settings.VoiceOff) },
                 Health = HealthView(status),
                 ConnCheck = ConnectionCheckView(),
+                Backup = BackupView(),
+                Damaged = _damaged,
             };
         }
 
@@ -685,6 +754,10 @@ namespace TournamentTracker.App
             notes.Add("Discord bot (The Button's): " + JsonSerializer.Serialize(_bridge.Status(), Json));
             notes.Add("Setup code: " + (SetupCode.TryParse(_settings.SetupCode, out var code, out _) ? code.Describe() : "none") + (_settings.AdminCode != null ? "; administration code saved" : ""));
             notes.Add($"Updates: The Button automatic {(_settings.AutoUpdateApp ? "on" : "off")}, mod automatic {(_settings.AutoUpdateMod ? "on" : "off")}; newest release seen {_latest?.Tag ?? "not checked yet"}.");
+            // Only counts: the backup's files themselves never go in the bundle.
+            if (_backup?.State is { } bk)
+                notes.Add($"Backup (The Button's copy of the mod's games, links and rounds): {bk.Files} files, last copied {(bk.CopiedAt is DateTime at ? at.ToString("yyyy-MM-dd HH:mm") + " UTC" : "not since The Button started")}; {bk.Missing} saved game(s) only in the backup{(bk.Problem != null ? "; problem: " + bk.Problem : "")}.");
+            foreach (var d in _damaged) notes.Add($"Damaged file: {d.Whose} {d.Name} couldn't be read ({d.At:yyyy-MM-dd HH:mm} UTC); a copy is kept as {d.Kept}.");
             var inputs = new ButtonSupport.Inputs
             {
                 AppVersion = _env.Version, SettingsFile = _env.SettingsFile, GamePath = GamePath, Mod = mod,
@@ -1080,9 +1153,11 @@ namespace TournamentTracker.App
                 "releases" => $"https://github.com/{ModInstaller.Repo}/releases/latest",
                 "broadcast" => $"https://github.com/{ModInstaller.Repo}/releases?q={Uri.EscapeDataString("broadcast-v")}&expanded=true",
                 "generator" => Url + "generator",
+                "backup" => _backup?.Folder,
                 _ => null,
             };
             if (target == null) return new { ok = false };
+            if (what == "backup") try { Directory.CreateDirectory(target); } catch (Exception) { }
             try { _env.Open(target); return new { ok = true }; }
             catch (Exception e) { return new { ok = false, message = e.Message }; }
         }
@@ -1093,7 +1168,7 @@ namespace TournamentTracker.App
         public void Dispose()
         {
             _cts.Cancel();
-            _voiceIdle.Dispose();
+            _tick.Dispose();
             _bridge.Dispose();
             _organizer?.Dispose();
             _voice?.Dispose();

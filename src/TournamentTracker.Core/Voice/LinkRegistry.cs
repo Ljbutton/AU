@@ -63,6 +63,25 @@ namespace TournamentTracker.Voice
             return removed;
         }
 
+        /// <summary>
+        /// Adds the links (from a backup) for players and Discord accounts it has no link for yet; the links
+        /// it has stay as they are. Saved once. Gives how many were added.
+        /// </summary>
+        public int AddMissing(IEnumerable<PlayerLink> links)
+        {
+            int added = 0;
+            foreach (var l in links)
+            {
+                if (l == null || l.PlayerKey.Trim().Length == 0 || l.DiscordUserId.Length == 0) continue;
+                string key = l.PlayerKey.Trim().ToLowerInvariant();
+                if (_byKey.ContainsKey(key) || _byKey.Values.Any(x => x.DiscordUserId == l.DiscordUserId)) continue;
+                _byKey[key] = new PlayerLink { PlayerKey = key, PlayerName = l.PlayerName, DiscordUserId = l.DiscordUserId, DiscordName = l.DiscordName };
+                added++;
+            }
+            if (added > 0) Save();
+            return added;
+        }
+
         /// <summary>Keeps the stored in-game name fresh so links.json stays readable.</summary>
         public void Touch(string playerKey, string playerName)
         {

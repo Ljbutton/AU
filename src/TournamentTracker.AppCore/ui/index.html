@@ -273,6 +273,8 @@ details.advanced summary h2{margin:0}
 
 <!-- Home: the lobby, on one screen. -->
 <section id="home" class="on">
+  <!-- The backup holds games the mod's folder doesn't; a file that couldn't be read was set aside. Shown with or without Among Us. -->
+  <div id="home-files" class="health"></div>
   <div class="stage" id="home-wait">
     <h1 id="wait-title">Waiting for Among Us</h1>
     <div class="loader" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
@@ -490,6 +492,11 @@ details.advanced summary h2{margin:0}
     <p class="muted" style="margin:0 0 8px">Something went wrong? Save a support bundle and send it to the organiser: one zip with The Button's and the mod's logs, settings and versions. Bot tokens, webhooks, codes and passwords are taken out first.</p>
     <div class="row"><button class="b primary" id="support-go">Save support bundle</button></div>
     <p id="support-result" class="note" hidden style="margin-top:8px"></p>
+    <div id="backup-box" hidden>
+      <p class="muted" style="margin:14px 0 8px">The Button keeps a copy of the mod's games, links and rounds in its own folder, so reinstalling Among Us loses nothing. Restore backup puts back what's missing or older (close Among Us first). <span id="backup-line"></span></p>
+      <div class="row"><button class="b" id="backup-restore">Restore backup</button><button class="b" data-open="backup">Backup folder</button></div>
+      <p id="backup-result" class="note" hidden style="margin-top:8px"></p>
+    </div>
   </div>
   <details class="card advanced">
     <summary><h2>Advanced</h2><span class="muted">Files, for troubleshooting</span></summary>
@@ -701,7 +708,36 @@ $('health').addEventListener('click', e => {
   cmd('safemode off');
 });
 
+// ---- Home: the backup has games Among Us's folder doesn't; a damaged file was set aside ----------------
+let dismissedDamaged = stored('damaged-dismissed') || '';
+const when = t => new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+function renderFiles() {
+  const b = S.backup, d = (S.damaged || [])[0], cards = [], one = b && b.missing === 1;
+  if (b && b.missing > 0 && S.game.found) cards.push(`<div class="hcard"><div><b>The backup has ${one ? 'a game' : b.missing + ' games'} that ${one ? 'isn\'t' : 'aren\'t'} in Among Us's folder</b><span>After reinstalling Among Us, say. Close Among Us and press Restore to put ${one ? 'it' : 'them'} back. Removed on purpose? Forget ${one ? 'it' : 'them'}.</span></div>
+    <div class="acts"><button class="b sm primary" data-backup="restore">Restore</button><button class="b sm" data-backup="forget" title="Take ${one ? 'it' : 'them'} out of the backup too">Forget</button></div></div>`);
+  if (d && d.kept !== dismissedDamaged) cards.push(`<div class="hcard"><div><b>A damaged file was set aside</b><span>${esc(d.whose)} ${esc(d.name)} couldn't be read (${esc(when(d.at))}). A copy is kept next to it as ${esc(d.kept)}, so nothing in it is lost.</span></div>
+    <div class="acts"><button class="x" data-damaged="${esc(d.kept)}" title="Dismiss">✕</button></div></div>`);
+  setHTML($('home-files'), cards.join(''));
+}
+$('home-files').addEventListener('click', async e => {
+  const x = e.target.closest('[data-damaged]');
+  if (x) { dismissedDamaged = x.dataset.damaged; store('damaged-dismissed', dismissedDamaged); renderFiles(); return; }
+  const b = e.target.closest('[data-backup]');
+  if (!b) return;
+  // Forget: a second click to be sure (the backup's copies of those games go).
+  if (b.dataset.backup === 'forget' && !b._sure) {
+    b._sure = true; b.textContent = 'Sure? Click again';
+    setTimeout(() => { b._sure = false; b.textContent = 'Forget'; }, 5000);
+    return;
+  }
+  b.disabled = true;
+  try { const r = await api('POST', '/app/backup/' + b.dataset.backup); toast(r.message); refresh(); }
+  catch (err) { toast('Couldn\'t reach The Button.'); }
+  finally { b.disabled = false; }
+});
+
 function renderHome() {
+  renderFiles();
   const st = S.status;
   $('home-wait').hidden = !!st; $('home-live').hidden = !st;
   if (!st) {
@@ -1219,7 +1255,21 @@ function renderSettings() {
   renderHostDiscord();
   renderAppUpdate();
   renderAdmin();
+  renderBackup();
 }
+// Help: the backup of the mod's games, links and rounds (in The Button's own folder).
+function renderBackup() {
+  const b = S.backup;
+  $('backup-box').hidden = !b || !S.game.found;
+  if (!b) return;
+  $('backup-line').textContent = (b.files ? `It holds ${b.files} file${b.files === 1 ? '' : 's'}${b.copiedAt ? ', last copied at ' + clock(b.copiedAt) : ''}.` : 'Nothing copied yet: it starts with the mod\'s first saved game.') + (b.problem ? ' ' + b.problem : '');
+}
+$('backup-restore').addEventListener('click', async () => {
+  const b = $('backup-restore'); b.disabled = true;
+  try { showResult('backup-result', await api('POST', '/app/backup/restore')); refresh(); }
+  catch (e) { toast('Couldn\'t restore the backup.'); }
+  finally { b.disabled = false; }
+});
 function renderAdmin() {
   const on = !!S.admin;
   $('admin-card').hidden = !on;
