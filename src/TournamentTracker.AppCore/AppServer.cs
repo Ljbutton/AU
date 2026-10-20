@@ -135,6 +135,8 @@ namespace TournamentTracker.App
         private readonly object _voiceLock = new object();
         /// <summary>the-button.log, next to the settings (the organiser's view writes to it too).</summary>
         private readonly FileLog _log;
+        /// <summary>the-button.log, for the window (its page crashing, and coming back).</summary>
+        public FileLog Log => _log;
         /// <summary>Every 10 s: the lobby sound stops when the send page went away, and the backup catches up.</summary>
         private readonly Timer _tick;
         private readonly DiscordBridge _bridge;

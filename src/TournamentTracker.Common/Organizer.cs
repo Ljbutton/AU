@@ -19,7 +19,7 @@ namespace TournamentTracker.App
     /// private results channel), the combined standings, and referee actions posted to that
     /// channel. The Button's Organiser tab and the broadcast app (Red Alert) both use it.
     /// </summary>
-    public sealed class Organizer : IDisposable
+    public sealed partial class Organizer : IDisposable
     {
         private static readonly TimeSpan LivePoll = TimeSpan.FromSeconds(3);
         /// <summary>
@@ -69,7 +69,11 @@ namespace TournamentTracker.App
         private readonly ILog _log;
         private string? _botName;
 
-        public Organizer(SetupCode code, HttpClient http, Func<DateTime>? clock = null, bool start = true, ILog? log = null)
+        /// <param name="cacheFile">
+        /// Where the lobbies last known (and their links) are kept, so they're back at once after a restart
+        /// (Red Alert's; see OrganizerCache.cs). Null: nothing kept (The Button's Organiser tab).
+        /// </param>
+        public Organizer(SetupCode code, HttpClient http, Func<DateTime>? clock = null, bool start = true, ILog? log = null, string? cacheFile = null)
         {
             _code = code;
             _clock = clock ?? (() => DateTime.UtcNow);
@@ -77,6 +81,8 @@ namespace TournamentTracker.App
             _token = code.BotTokens![0];
             _rest = new DiscordRest(http, _log) { RequestTimeout = RequestTimeout };
             _shared = new SharedResults(_rest, _token, code.ResultsChannelId!, _log);
+            _cacheFile = cacheFile;
+            LoadCache();
             if (start) Task.Run(LoopAsync);
         }
 
@@ -172,6 +178,7 @@ namespace TournamentTracker.App
                 Problem = $"The hosts' messages in the results channel come back empty: turn on Message Content Intent for {(_botName != null ? _botName : "the administration bot")} (Discord Developer Portal → your app → Bot → Privileged Gateway Intents), then restart Red Alert.";
             }
             else Problem = null;
+            SaveCache();
             LiveChanged?.Invoke();
         }
 
@@ -222,6 +229,8 @@ namespace TournamentTracker.App
                     lock (_lock)
                     {
                         if (_liveMessages.TryGetValue(lobby, out var have) && have.MessageId == id) _liveMessages.Remove(lobby);
+                        // Remembered from before a restart, and its message is gone: so is the lobby.
+                        if (_cached.Remove(lobby)) _lobbies.Remove(lobby);
                     }
                 }
             }
@@ -270,8 +279,11 @@ namespace TournamentTracker.App
             lock (_lock)
             {
                 bool known = _lobbies.TryGetValue(lobby, out var have);
+                // Remembered from before a restart: the same message, read now, confirms it (and brings its players back).
+                bool cached = _cached.Contains(lobby);
                 newest = !known || sent >= have.Sent;
-                if (known && have.Sent >= sent) return lobby;
+                if (known && (have.Sent > sent || have.Sent == sent && !cached)) return lobby;
+                if (cached) { _cached.Remove(lobby); known = false; }
                 _lobbies[lobby] = (data, _clock(), sent);
                 if (data.TryGetProperty("f", out var f) && f.ValueKind == JsonValueKind.Array && f.GetArrayLength() > 0)
                 {
@@ -315,7 +327,7 @@ namespace TournamentTracker.App
         {
             lock (_lock)
             {
-                if (!_lobbies.TryGetValue(lobby, out var l)) return null;
+                if (!_lobbies.TryGetValue(lobby, out var l) || _cached.Contains(lobby)) return null;
                 if (l.Data.TryGetProperty("phase", out var ph) && ph.GetString() == "Meeting") return "Meeting";
                 if (!_lastEvent.TryGetValue(lobby, out var e) || _clock() - e.At > HotFor) return null;
                 if (!full && !PublicEvents.Contains(e.Kind)) return null;
@@ -364,10 +376,12 @@ namespace TournamentTracker.App
             var now = _clock();
             List<(string Label, JsonElement Data, DateTime Seen, long Sent)> lobbies;
             SharedLoad? load;
+            HashSet<string> cached;
             lock (_lock)
             {
                 lobbies = _lobbies.Select(kv => (kv.Key, kv.Value.Data, kv.Value.SeenUtc, kv.Value.Sent)).ToList();
                 load = _load;
+                cached = new HashSet<string>(_cached, StringComparer.OrdinalIgnoreCase);
             }
             int adv = _code.AdvanceCount ?? 5, per = _code.GamesPerRound ?? 3;
             int round = lobbies.Select(l => l.Data.TryGetProperty("round", out var r) ? r.GetInt32() : 0).DefaultIfEmpty(0).Max();
@@ -398,6 +412,8 @@ namespace TournamentTracker.App
                             Video = VideoUrl(l.Data) != null,
                             Hot = Hot(l.Label, full: false),
                             HotFull = Hot(l.Label, full: true),
+                            // Remembered from before a restart: not confirmed by the results channel yet.
+                            Cached = cached.Contains(l.Label),
                             Data = l.Data,
                         };
                     }).ToList(),

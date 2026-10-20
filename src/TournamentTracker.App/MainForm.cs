@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -19,7 +20,10 @@ namespace TournamentTracker.App
     {
         private readonly string _url;
         private readonly string _userData;
-        private readonly WebView2 _view = new WebView2 { Dock = DockStyle.Fill };
+        /// <summary>The page; replaced by a new one when its browser closes (see <see cref="OnProcessFailed"/>).</summary>
+        private WebView2 _view = new WebView2 { Dock = DockStyle.Fill };
+        private readonly PageRecovery _recovery = new PageRecovery();
+        private bool _gaveUp;
         private DateTime _lastDrag;
         private Point _lastDragAt;
         private bool _pageReady;
@@ -29,6 +33,11 @@ namespace TournamentTracker.App
         private readonly string? _placementFile;
 
         private int Edge => Math.Max(4, (int)Math.Round(5 * DeviceDpi / 96.0));
+
+        /// <summary>Where the window writes what happened to its page (the app's log: red-alert.log, the-button.log).</summary>
+        public Action<string>? Log { get; set; }
+        /// <summary>The page went (crashed, hung, or its browser closed), before it's brought back (Red Alert holds auto switch).</summary>
+        public Action? PageFailed { get; set; }
 
         /// <param name="placementFile">
         /// Red Alert's: the window opens where and as big as it was left, kept in this file; the first time,
@@ -52,40 +61,110 @@ namespace TournamentTracker.App
             Controls.Add(_view);
             Load += async (_, __) =>
             {
-                try
-                {
-                    var environment = await CoreWebView2Environment.CreateAsync(null, _userData);
-                    await _view.EnsureCoreWebView2Async(environment);
-                    _view.CoreWebView2.Settings.AreDevToolsEnabled = false;
-                    _view.CoreWebView2.Settings.IsStatusBarEnabled = false;
-                    // Links to the web (GitHub, the overlay) open in the normal browser; the replay viewer opens in its own window.
-                    _view.CoreWebView2.NewWindowRequested += (s, e) =>
-                    {
-                        if (e.Uri.StartsWith(_url, StringComparison.OrdinalIgnoreCase)) return;
-                        e.Handled = true;
-                        AppStart.Open(e.Uri);
-                    };
-                    _view.CoreWebView2.WebMessageReceived += OnPageMessage;
-                    _view.CoreWebView2.NavigationCompleted += (s, e) => { _pageReady = true; TellPage(); };
-                    _view.Source = new Uri(_url);
-                }
+                try { await StartPageAsync(); }
                 catch (Exception)
                 {
-                    // No WebView2 runtime (rare on Windows 10/11): use the normal browser instead,
-                    // and give this window its normal frame back.
-                    _borderless = false;
-                    FormBorderStyle = FormBorderStyle.Sizable;
-                    Padding = Padding.Empty;
-                    BackColor = SystemColors.Control;
-                    Controls.Remove(_view);
-                    Controls.Add(new Label
-                    {
-                        Text = NativeMethods.Title + " is running in your web browser.\nKeep this window open while you use it; closing it quits the app.",
-                        Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 11f),
-                    });
+                    // No WebView2 runtime (rare on Windows 10/11): use the normal browser instead.
+                    ShowMessage(NativeMethods.Title + " is running in your web browser.\nKeep this window open while you use it; closing it quits the app.");
                     AppStart.Open(_url);
                 }
             };
+        }
+
+        /// <summary>The page in <see cref="_view"/>: its browser (WebView2) started, set up and pointed at the app.</summary>
+        private async Task StartPageAsync()
+        {
+            var environment = await CoreWebView2Environment.CreateAsync(null, _userData);
+            await _view.EnsureCoreWebView2Async(environment);
+            var core = _view.CoreWebView2;
+            core.Settings.AreDevToolsEnabled = false;
+            core.Settings.IsStatusBarEnabled = false;
+            // Links to the web (GitHub, the overlay) open in the normal browser; the replay viewer opens in its own window.
+            core.NewWindowRequested += (s, e) =>
+            {
+                if (e.Uri.StartsWith(_url, StringComparison.OrdinalIgnoreCase)) return;
+                e.Handled = true;
+                AppStart.Open(e.Uri);
+            };
+            core.WebMessageReceived += OnPageMessage;
+            core.NavigationCompleted += (s, e) => { _pageReady = true; TellPage(); };
+            core.ProcessFailed += OnProcessFailed;
+            _view.Source = new Uri(_url);
+        }
+
+        /// <summary>
+        /// The page's renderer crashed or hung, or the browser itself closed: written to the app's log, and
+        /// the page comes back (loaded again, or in a new browser), at most 3 times in a minute; then a plain
+        /// message instead (see <see cref="PageRecovery"/>). A frame inside the page or a helper process: only logged.
+        /// </summary>
+        private void OnProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs e)
+        {
+            if (_gaveUp) return;
+            string kind = e.ProcessFailedKind.ToString();
+            var step = _recovery.Next(kind, DateTime.UtcNow);
+            if (step == PageRecovery.Step.Same) return;          // the same hang, reported again
+            Log?.Invoke($"Window: {PageRecovery.Describe(kind)} ({kind}, {e.Reason}, exit code {e.ExitCode}).");
+            if (step == PageRecovery.Step.None) return;
+            try { PageFailed?.Invoke(); } catch (Exception) { }
+            // Not from inside WebView2's own event.
+            if (step != PageRecovery.Step.Wait) BeginInvoke(new Action(() => Recover(step)));
+        }
+
+        private async void Recover(PageRecovery.Step step)
+        {
+            if (_gaveUp || IsDisposed) return;
+            try
+            {
+                switch (step)
+                {
+                    case PageRecovery.Step.Reload:
+                        _view.CoreWebView2.Reload();
+                        Log?.Invoke("Window: the page is loading again.");
+                        break;
+                    case PageRecovery.Step.NewBrowser:
+                    {
+                        // The old control can't be used again: a new one, with a new browser.
+                        var old = _view;
+                        _pageReady = false;
+                        _view = new WebView2 { Dock = DockStyle.Fill };
+                        Controls.Remove(old);
+                        try { old.Dispose(); } catch (Exception) { }
+                        Controls.Add(_view);
+                        await StartPageAsync();
+                        Log?.Invoke("Window: started a new browser for the page.");
+                        break;
+                    }
+                    case PageRecovery.Step.GiveUp:
+                        _gaveUp = true;
+                        _pageReady = false;
+                        Log?.Invoke($"Window: the page stopped {PageRecovery.MaxPerMinute + 1} times in a minute: not loading it again.");
+                        ShowMessage(PageRecovery.GaveUpText(NativeMethods.Title));
+                        try { _view.Dispose(); } catch (Exception) { }
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log?.Invoke("Window: couldn't bring the page back: " + ex.Message);
+                // The browser may still be closing: a new one in a moment (it counts towards the 3 a minute).
+                await Task.Delay(3000);
+                if (!_gaveUp && !IsDisposed) Recover(_recovery.Next("BrowserProcessExited", DateTime.UtcNow));
+            }
+        }
+
+        /// <summary>A plain message in place of the page, and the window's normal frame back (the page drew its title bar).</summary>
+        private void ShowMessage(string text)
+        {
+            _borderless = false;
+            FormBorderStyle = FormBorderStyle.Sizable;
+            Padding = Padding.Empty;
+            BackColor = SystemColors.Control;
+            Controls.Remove(_view);
+            Controls.Add(new Label
+            {
+                Text = text,
+                Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 11f),
+            });
         }
 
         /// <summary>
