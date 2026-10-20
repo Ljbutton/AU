@@ -87,7 +87,9 @@ public class PlayerCamTests
         feed.Submit(16, 16, bottomUp: false);
         var b = feed.Take(16 * 16 * 4);
         Assert.NotNull(b);                                     // the second thread takes the next one
-        Assert.NotSame(a, b);
+        // A different buffer while the first is still being made into a JPEG; the same one only once that's done
+        // (a 16×16 picture can be finished already on a fast machine).
+        // (Not asserted: which buffer it is depends on that race.)
         Array.Copy(Picture(16, 16), b!, b!.Length);
         feed.Submit(16, 16, bottomUp: false);
         var (seq, jpeg) = await feed.NextAsync(0, TimeSpan.FromSeconds(5));

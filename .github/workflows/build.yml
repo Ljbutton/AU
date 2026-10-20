@@ -344,7 +344,7 @@ jobs:
               "==== Waiting async chains:"
               $dump = Join-Path $env:RUNNER_TEMP "hang-$($p.Id).dmp"
               & (Join-Path $tools 'dotnet-dump.exe') collect -p $p.Id -o $dump --type Heap 2>&1 | Out-Null
-              & (Join-Path $tools 'dotnet-dump.exe') analyze $dump -c "dumpasync --stacks" -c "exit" 2>&1 | Select-Object -First 400
+              & (Join-Path $tools 'dotnet-dump.exe') analyze $dump -c "dumpasync" -c "exit" 2>&1 | Select-Object -First 400
             }
           }
           dotnet test tests/TournamentTracker.Broadcast.Tests -c Release --blame-hang-timeout 5m --blame-hang-dump-type none `
