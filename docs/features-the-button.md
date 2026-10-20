@@ -5,7 +5,7 @@ and updates the host-only Tournament Tracker mod, takes the organiser's setup co
 lobby's Discord bot online, and gives the host one window to run the lobby from: automute,
 rounds, checking each game's points before Discord sees them, and sending the game to the caster.
 Referees and the organiser use the same app with an administration code, which adds the Organiser
-tab. This page describes The Button as of v0.1.66. What the mod does inside Among Us, and exactly
+tab. This page describes The Button as of v0.1.67. What the mod does inside Among Us, and exactly
 what it posts in Discord, is in [features-mod.md](features-mod.md).
 
 ## At a glance
@@ -86,6 +86,10 @@ The bar shows only what needs the host; clicking a warning goes where it's fixed
 
 ### On stream light
 
+* **Only for the referee:** the light shows only while you're in the referee ghost slot (not
+  playing): the slot is on and not held back by safe mode. A host who plays never sees it, because
+  it could tell them something happened in their game. With a mod older than v0.1.67 (no
+  `refSlotActive` in its status), The Button goes by the referee slot being on and safe mode off.
 * **ON STREAM** (red bar at the very top of Home): while the caster's Red Alert has your lobby on
   stream, it says how ("On stream (full screen)", "On stream (in the 2-up)", "On stream (in the
   quad)", "On stream (in the grid)", "On stream (player camera)", "On stream (sponsor break)") with
@@ -93,7 +97,8 @@ The bar shows only what needs the host; clicking a warning goes where it's fixed
 * **NEXT** (amber bar): "Next: the caster has your lobby in Preview."
 * **Nothing otherwise.** It comes over the send page's link to Red Alert (only your own lobby's
   state, no players or impostors) and goes 10 s after Red Alert stops sending it (link dropped, send
-  page closed, Red Alert's desk closed, or an older Red Alert). Home only; not in the game.
+  page closed, Red Alert's desk closed, or an older Red Alert), or once you're no longer the
+  referee ghost (or the mod isn't connected). Home only; not in the game.
 
 ### Notices about saved data
 
@@ -361,8 +366,8 @@ tournament lobby's bot keeps in the private results channel, so it works on a PC
 ## Settings tab
 
 * **Among Us:** the game folder (see *Installing and starting*).
-* **Mod and updates:** both versions on one line ("The Button 0.1.66, 64-bit Among Us with the mod
-  v0.1.66. Everything is up to date."; on an organiser's PC, "Organiser PC: Among Us isn't needed
+* **Mod and updates:** both versions on one line ("The Button 0.1.67, 64-bit Among Us with the mod
+  v0.1.67. Everything is up to date."; on an organiser's PC, "Organiser PC: Among Us isn't needed
   here."), one button for whatever is needed (**Install the mod**,
   **Repair the mod**, **Update the mod to vX**, **Update The Button to vX**, **Update both to vX**),
   **Restart The Button to finish**, **Reinstall the mod**, **Open log** (the mod's log), the

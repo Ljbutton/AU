@@ -71,10 +71,10 @@ straight away (see [What to send if something fails](#what-to-send-if-something-
   **Rebuild TT scenes**.
 * [ ] **OBS scenes built**: TT Full, TT 2-up, TT Quad, TT Grid, TT Player Cam, TT Intermission,
   TT Be Right Back, TT Starting Soon, TT Sponsor Break and TT Replay are all in OBS.
-* [ ] OBS → **Setup check** all green: Source Record found (replays), Desktop Audio muted, a
-  broadcast delay (OBS card → **Broadcast delay**, 3 s by default) if Impostor tags are on, and
+* [ ] OBS → **Setup check** all green: Source Record found (replays), Desktop Audio muted, and
   **Headphones (OBS monitoring device)** set to the caster's headphones (OBS → Settings → Audio →
-  Advanced → Monitoring Device). No OBS stream delay is needed.
+  Advanced → Monitoring Device). There is no broadcast delay in this version and no OBS stream
+  delay: impostors show on stream as it happens.
 * [ ] **Stream Deck plugin paired**: the plugin's **Test** finds Red Alert (Settings → Stream Deck
   has the port and the key), and no key shows SET UP, OFFLINE or WRONG KEY.
 * [ ] **Lobby keys set to Preview**: each Stream Deck lobby and player cam key's **Press** setting
@@ -119,10 +119,11 @@ bundles at the end.
   Put it in Preview**, puts it in **Preview** (green); **Take** (Enter, or the Take key) puts it on
   stream. Program turns red, OBS switches within a couple of seconds, and the status bar says PROGRAM.
   (A lobby key set to **Cut it to stream** skips Preview and puts the lobby on stream at once.)
-* [ ] The watcher sees the right lobby with the right label, and hears that lobby, about the
-  broadcast delay (3 s) behind the Live desk.
-* [ ] **Each host**: The Button's Home shows a red **ON STREAM** bar while their lobby is on stream,
-  and an amber **NEXT** bar while it's in Preview.
+* [ ] The watcher sees the right lobby with the right label, and hears that lobby, in step with
+  the Live desk (only the stream's own lag behind it).
+* [ ] **Each host in the referee slot**: The Button's Home shows a red **ON STREAM** bar while
+  their lobby is on stream, and an amber **NEXT** bar while it's in Preview. A host who is playing
+  (referee slot off, or safe mode) sees neither.
 * [ ] Two lobbies in Preview (Ctrl+click), **Take**: 2-up on stream. Four: the quad. **Back** undoes
   the last switch.
 

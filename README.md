@@ -40,7 +40,7 @@ Closing The Button unmutes anyone the bot had muted.
 
 ## Install (host only)
 
-The current release is **v0.1.66**, a beta.
+The current release is **v0.1.67**, a beta.
 
 **One click:** download **`Install-TheButton.bat`** from the
 [latest release](https://github.com/Ljbutton/AU/releases/latest) and double-click it. If
@@ -91,7 +91,9 @@ While you play, the app's pages run the lobby:
   (**Leaderboard**, **Server standings** or a fresh **Lobby message**). While the caster's Red
   Alert has your lobby on stream, a red **ON STREAM** bar at the top of Home says how ("On stream
   (full screen)", "On stream (in the quad)"…) with "You're on stream: stay in the game window, no
-  menus."; while it's in the caster's Preview, an amber **NEXT** bar.
+  menus."; while it's in the caster's Preview, an amber **NEXT** bar. Only a host in the referee
+  ghost slot (not playing) sees these bars: a playing host could learn from them that something
+  happened in their game.
 * **Referee:** every game waits here before Discord sees anything. Under **Waiting for you**
   each finished game shows every player's points (hover for where they came from). Type any
   amount with up to 3 significant figures (0.125, 1.25, 12.5, 125; empty means 1) in the box
@@ -541,8 +543,7 @@ stream.
   While it's on, Panic says **Undo panic** and **Back** (or the Stream Deck's Undo) puts it all
   back: what was on, the voice, the alerts and your own hold if you had one. Put right by hand
   instead (another lobby, the hold released, the voice back on), it's over: a BRB, hold or mute
-  you set later is yours, and Undo undoes your last switch. Panic's switch goes on at once, ahead
-  of Red Alert's broadcast delay.
+  you set later is yours, and Undo undoes your last switch. Panic's switch goes on at once.
 * **Replay that** saves the last seconds of the lobby on stream and plays them as soon as they're
   saved, no card needed; **Play last** plays the newest replay again. Ready replays show as buttons
   beside them and as a badge on their lobby's tile; the replay controls (with slow motion 100 / 50 /
@@ -636,15 +637,13 @@ stream.
 * **OBS setup check** (OBS page, when OBS connects): the scene collection and profile names
   (steps to rename them), a leftover empty "Scene" (**Delete it**), Desktop Audio reaching the
   stream (**Mute Desktop Audio**; the Live desk warns while it's on), what replays need (the
-  Source Record plugin; OBS's own Replay Buffer isn't used and can stay off), Impostor tags
-  without a broadcast delay (**Turn on a 3 s delay**), and OBS's monitoring device for Hear
-  Preview (warns when it is Disabled; Default gets a note to check it is your headphones).
-* **Broadcast delay** (OBS page, 0–4 s, 3 s by default): every lobby's picture, voice and camera
-  in OBS, and the graphics' game data, reach the stream that late, so you can cut to a play before
-  it airs; switches stay instant and the Live desk stays live. It replaces OBS's own stream delay,
-  which isn't needed; impostors still show on stream, a few seconds late. Changing it reloads every
-  lobby in OBS, so set it before going live. Your mic isn't delayed: the setup check gives the
-  Sync Offset to put on it in OBS if you want it in step with the picture.
+  Source Record plugin; OBS's own Replay Buffer isn't used and can stay off), and OBS's
+  monitoring device for Hear Preview (warns when it is Disabled; Default gets a note to check it
+  is your headphones).
+* **No broadcast delay:** it's off in this version (it may come back later). Nothing is held
+  back, whatever `obs.json` says: the lobbies and the graphics reach the stream live, and the OBS
+  page has no delay setting. OBS's own stream delay isn't used either, so impostors show on stream
+  as it happens.
 * **Ports:** its screen and the Stream Deck links are on `127.0.0.1:8768` (this PC only, with a
   private key), or 8769, 8770 or 8771 when 8768 is taken (the Stream Deck plugin finds it there by
   itself; Settings → Stream Deck warns that copied links need copying again). The OBS pages are on
@@ -675,8 +674,8 @@ stream.
   stream (the full-screen lobby, or slot 1 of a multi-view), as do the video and multiview
   pages; **Pin** (Settings → Caster overlay) keeps them on one lobby (shown as PINNED, with **Follow the stream**). It shows
   players, round standings and the latest meetings and ejections for that game.
-  `http://localhost:8767/?full=1` adds roles, kills and task bars (not held back by the
-  broadcast delay: it shows impostors as it happens).
+  `http://localhost:8767/?full=1` adds roles, kills and task bars (it shows impostors as it
+  happens).
 * **Game video, RedZone style:** each host turns on **Send my game to the caster** (Home →
   Tools) in their Button. It opens a private VDO.Ninja page in their browser; they share **the Among
   Us window** (the default; The Button sends the game sound and lobby voice), or **Entire screen**
@@ -695,8 +694,8 @@ stream.
   * Each host needs about 10 Mbps upload (4-6 for the picture, 2-3 more for the player camera;
     **Check my connection** in The Button measures it), and you download every lobby at once, so
     use a wired connection.
-  * No OBS stream delay is needed: Red Alert's own broadcast delay (OBS page, 3 s by default)
-    holds the lobbies back a few seconds. Impostors still show on stream, a few seconds late.
+  * Nothing holds the stream back: no OBS stream delay and no Red Alert broadcast delay.
+    Impostors show on stream as it happens.
 
 ### Caster tab (RedZone broadcast)
 
@@ -900,8 +899,7 @@ the caster's PC and off stream.
   Chat Detective work on any channel. Twitch allows one poll and one prediction at a time; polls
   have 2–5 choices of up to 25 characters and last 15–1800 s; predictions have 2–10 outcomes and
   a 30–1800 s window. Red Alert keeps to those. **Stream delay** (0 by default) holds every
-  action back so it matches what viewers see. It's a setting of its own, on top of Red Alert's
-  broadcast delay: the broadcast delay isn't added to it, so count it in.
+  action back that many seconds so it matches what viewers see.
   * **Predictions:** "LJ: Impostors or Crewmates?" opens when a game starts in the featured lobby
     (the one you pick, else the one on stream), locks after 90 s and resolves when the game ends;
     an interrupted game cancels it and everyone's points go back. By hand: **First to finish**

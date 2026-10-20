@@ -583,18 +583,19 @@ _Two or more lobbies playing, replays saving (Source Record)._
 - [ ] At zero the stream says "Starting now" and stays; while it's on, auto grid, auto intermission, armed cameras and the graphics queue wait, and lobby voice is silent
 - [ ] Sponsors listed for `startingsoon` in sponsors.json take turns every 10 s; with none listed, the `break` sponsors do; **Export report** has "Starting soon screen" appearances
 - [ ] Click **Starting soon** again while it's on → the cursor goes to **Starts**; nothing switches
-- [ ] **Take** a lobby with the broadcast delay on (3 s) → the lobby comes on at once and no Starting soon graphic lingers for 3 s on top of it
+- [ ] **Take** a lobby → the lobby comes on at once and no Starting soon graphic lingers on top of it
 - [ ] **End break**, **Undo** and Panic's undo come off it, or go back to it
 - [ ] Stream Deck: the Break key set to **Starting soon** shows SOON / STARTING SOON and puts it on; a Custom path `break/soon?in=10&text=Doors%20open` puts it on with that countdown and line; `soon/set?at=19:30` changes the countdown without switching
 
 ### The Button: On stream light
-_A host sending their game to Red Alert 0.3.18._
+_A host in the referee slot sending their game to Red Alert 0.3.18 (from 0.1.67 a playing host never sees the light: see New in 0.1.67)._
 - [ ] Their lobby on stream full screen → Home shows the red **ON STREAM** bar: "On stream (full screen)" and "You're on stream: stay in the game window, no menus."; in a 2-up, the quad, the grid, a player camera or a sponsor break it says "On stream (in the 2-up)", "(in the quad)", "(in the grid)", "(player camera)", "(sponsor break)"
 - [ ] Their lobby in Red Alert's Preview (not on stream) → amber **NEXT**: "Next: the caster has your lobby in Preview."; neither → no bar
 - [ ] Close Red Alert, or turn **Send my game to the caster** off → the bar goes within about 10 s
 - [ ] Another host's Home shows only their own lobby's state
 
 ### Red Alert: broadcast delay
+_Off since Red Alert 0.3.19 (see New in 0.1.67): skip these. They're kept for when the delay comes back (`BroadcastDelay.Enabled`, improvements.md item 73)._
 - [ ] After the update, every TT Lobby, TT Voice and TT Cam source in OBS reloads once (a moment of black); the OBS card's **Broadcast delay** says 3 s
 - [ ] With 3 s: a kill on the Live desk reaches the stream about 3 s later, and its impostor tags, alive counts, sabotage timer and off-screen alert arrive with the picture, not before; **Take** changes the layout on stream at once
 - [ ] Change it to 1 s → "Broadcast delay 1 s: the lobbies and the graphics reach the stream 1 s late. The Live desk stays live. Every lobby in OBS reloaded with it."; **Off** → "Broadcast delay off: the lobbies go to the stream as they come."; back to 3 s
@@ -630,3 +631,25 @@ _OBS → Settings → Audio → Advanced → Monitoring Device set to the caster
 ### Discord voice bot
 - [ ] Host with the bot in their voice channel → close Among Us → the bot leaves the voice channel and stays out (try it several times, also straight after The Button reconnects to Discord); it never comes back into the host's channel by itself
 - [ ] Host again → the bot joins once
+
+## New in 0.1.67 (Red Alert 0.3.19)
+_Red Alert 0.3.19 on the caster's PC with OBS connected; impostor tags on. Hosts on The Button and the mod 0.1.67 for the On stream light._
+
+### Red Alert: no broadcast delay
+_On a PC that ran 0.3.18 (its obs.json has `BroadcastDelay` 3), and on a fresh one._
+- [ ] After the update, every TT Lobby, TT Voice and TT Cam source in OBS reloads once (a moment of black); no source's link has `buffer=` in it
+- [ ] The OBS card has no **Broadcast delay** row
+- [ ] A kill on the Live desk reaches the stream as fast as before 0.3.18, and its impostor tags, alive counts, sabotage timer and off-screen alert arrive with it
+- [ ] Impostor tags on → the setup check has no broadcast delay line and the warnings rail no "No broadcast delay" warning (no **Turn on a 3 s delay**); the rest of the setup check is as before
+- [ ] Ask for a delay the way 0.3.18's OBS card did (`app/admin/obs`, action `delay`) → "The broadcast delay is off in this version of Red Alert."; nothing reloads and obs.json keeps what it had
+- [ ] **Replay that** and the kill clips save and play straight away, as in 0.3.17, and the zoom, crop and the play's mark line up
+- [ ] Panic → Be right back goes on at once
+- [ ] Twitch → Features and Auto → **Stream delay** still holds the Twitch actions back that many seconds (set 10: a prediction opens about 10 s after the game starts)
+
+### The Button: On stream light for the referee only
+_Their lobby on stream in Red Alert (and then in its Preview)._
+- [ ] Host in the referee slot (Home → Tools → **Referee ghost slot** on, no safe mode) → the red **ON STREAM** bar and the amber **NEXT** bar show as in 0.1.66
+- [ ] Turn the referee slot off between games and play → neither bar shows, on stream or in Preview, within about 10 s
+- [ ] Referee slot on but the mod in safe mode (the host plays as an ordinary player) → neither bar
+- [ ] The mod's status (`/api/status`) has `refSlotActive`: true with the slot on and no safe mode, false otherwise
+- [ ] The Button 0.1.67 with a mod from 0.1.66 → the bar shows with the referee slot on and no safe mode, and not otherwise

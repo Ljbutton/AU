@@ -1,6 +1,6 @@
 # What's left to do
 
-What needs doing, or could be done, to improve the tournament system, as of The Button and the mod **v0.1.66** and Red Alert **0.3.18** (20 October 2026; first written for v0.1.64). Each item says why, where the evidence is (file and line as of v0.1.64), and a rough size: **S** is under half a day, **M** is 1–2 days, **L** is 3 days or more.
+What needs doing, or could be done, to improve the tournament system, as of The Button and the mod **v0.1.67** and Red Alert **0.3.19** (20 October 2026; first written for v0.1.64). Each item says why, where the evidence is (file and line as of v0.1.64), and a rough size: **S** is under half a day, **M** is 1–2 days, **L** is 3 days or more.
 
 What each app already does is in [features-the-button.md](features-the-button.md), [features-mod.md](features-mod.md) and [features-red-alert.md](features-red-alert.md).
 
@@ -204,10 +204,9 @@ What each app already does is in [features-the-button.md](features-the-button.md
 
 *21 is done: see [Done in 0.1.66](#done-in-0166).*
 
-22. **Impostors on stream, a few seconds late.**
-    - **Decided:** there is no OBS stream delay. Red Alert's own broadcast delay (0–4 s, 3 s by default) holds the lobbies and the graphics' game data back, so the caster can cut to a play before it airs, and impostor information stays visible on stream (see [Done in 0.1.66](#done-in-0166)). The docs no longer ask for a 2–3 minute or 90 s delay.
-    - **What still shows impostors to anyone watching:** impostor tags, kill cards and alerts naming the killer, kill replays, player cams marking impostors and the referee ghost's screen (impostors' names in red), all a few seconds late.
-    - **Not held back by the delay:** the hand-added caster pages (`localhost:8767/` with `?full=1`, `/video`, `/multiview`) and the caster's mic (item 56). The delay is close rather than exact: Chromium treats VDO.Ninja's buffer as a hint.
+22. **Impostors on stream.**
+    - **Decided:** there is no OBS stream delay, and impostor information stays visible on stream. The docs no longer ask for a 2–3 minute or 90 s delay. Red Alert's own broadcast delay (0.3.18) is off since 0.3.19, so nothing is held back at all (see [Done in 0.1.67](#done-in-0167)); bringing it back is item 73.
+    - **What shows impostors to anyone watching:** impostor tags, kill cards and alerts naming the killer, kill replays, player cams marking impostors and the referee ghost's screen (impostors' names in red), as it happens.
     - **Do:** nothing unless the decision changes.
     - **Size:** none.
 
@@ -302,12 +301,12 @@ What each app already does is in [features-the-button.md](features-the-button.md
 
 ### Found in 0.1.66 (not done yet)
 
-56. **Set the caster's mic Sync Offset by itself.**
+56. **Set the caster's mic Sync Offset by itself.** (On hold: moot while the broadcast delay is off, item 73.)
     - **Why:** the broadcast delay holds the lobbies back, not the caster's mic, so commentary runs about 3 s ahead of the picture viewers see. The setup check only suggests a Sync Offset (Edit → Advanced Audio Properties).
     - **Do (if wanted):** set the Sync Offset on the duck-under mic to the broadcast delay. It changes a source that isn't one of Red Alert's own, so ask first.
     - **Size:** S.
 
-57. **Twitch's delay following the broadcast delay.**
+57. **Twitch's delay following the broadcast delay.** (On hold: moot while the broadcast delay is off, item 73. Twitch's own **Stream delay** works as it is.)
     - **Why:** the Twitch card's **Stream delay** (`twitch.json DelaySeconds`) is a setting of its own; the broadcast delay isn't added to it, so predictions, polls and chat messages can come before viewers see the play unless the caster counts it in.
     - **Do:** add the broadcast delay to Twitch's wait by itself, or show the total on the Twitch card.
     - **Size:** S.
@@ -322,15 +321,12 @@ What each app already does is in [features-the-button.md](features-the-button.md
     - **Do:** have the plugin check `/deck/state` for what's new (`preview.replay`, `voice.cue`) and fall back to Arm, or warn on the key. Until then: update Red Alert and its plugin together.
     - **Size:** S.
 
-71. **Best replay's "missed" with the broadcast delay.**
+71. **Best replay's "missed" with the broadcast delay.** (On hold: moot while the broadcast delay is off, item 73.)
     - **Why:** a play counts as seen when its lobby goes on stream at the desk, which is live; with the delay the stream is a few seconds behind, so plays just before a cut-in count as missed, and plays just before a cut-away count as seen though they never aired.
     - **Do:** shift those times by the broadcast delay (`BestReplay.cs`, `MarkShown`).
     - **Size:** S.
 
-72. **What hosts learn from the On stream light (decide).**
-    - **Why:** NEXT (in the caster's Preview) and ON STREAM reach the host's The Button before the stream shows it, and the caster often picks a lobby because of something the stream hasn't shown yet (a kill). A host who is also playing could read that.
-    - **Do (if it matters):** send NEXT only to referee hosts, or only ON STREAM, or delay the light by the broadcast delay.
-    - **Size:** S.
+*72 is done: see [Done in 0.1.67](#done-in-0167).*
 
 ### Red Alert's automatic actions (decisions pending)
 
@@ -382,7 +378,7 @@ From a read of everything Red Alert 0.3.17 does by itself (the file:lines are fr
 ### The Button
 
 38. **"Host away" for the caster.**
-    - **Why:** The tally is done (The Button's Home shows ON STREAM and NEXT, see [Done in 0.1.66](#done-in-0166)), but the caster still can't tell when a host on stream has left the game window.
+    - **Why:** The tally is done (The Button's Home shows ON STREAM and NEXT to a host in the referee slot, see [Done in 0.1.66](#done-in-0166) and [Done in 0.1.67](#done-in-0167)), but the caster still can't tell when a host on stream has left the game window.
     - **Do:** The Button warns the caster, over the data link, when Among Us isn't the foreground window while the lobby is on stream.
     - **Size:** S.
 
@@ -414,6 +410,12 @@ From a read of everything Red Alert 0.3.17 does by itself (the file:lines are fr
 44. **Remote co-caster.**
     - **Do:** VDO.Ninja guest sources in OBS, ducked under the host's mic.
     - **Size:** L.
+
+73. **The broadcast delay, brought back later.**
+    - **Why:** Red Alert 0.3.18 held every lobby's picture, voice and camera in OBS, and the graphics' game data, back a few seconds (0–4 s, 3 s by default), so the caster could cut to a play before it aired. The owner turned it off in 0.3.19 ("we'll come back to it later"; see [Done in 0.1.67](#done-in-0167)).
+    - **Where it is:** the code is kept behind `BroadcastDelay.Enabled` (`false`, `ObsDelay.cs`), read through `ObsDirector.DelayAllowed`; its tests turn that on for their own director. Turning it on brings back the OBS card's setting, the setup check's delay line and its **Turn on a 3 s delay** fix, the graphics waiting (`BroadcastStream.cs`) and replays waiting for the play to reach OBS (`ReplayManager.cs`). `obs.json` may still hold 3 s from 0.3.18.
+    - **When it comes back:** test it again ([test-list.md](test-list.md), New in 0.1.66, broadcast delay), and items 56, 57 and 71 apply again. The hand-added caster pages (`localhost:8767/` with `?full=1`, `/video`, `/multiview`) and the caster's mic aren't held back by it, and it's close rather than exact: Chromium treats VDO.Ninja's buffer as a hint.
+    - **Size:** S to turn on and test; the open items with it S each.
 
 ### Stream Deck plugin
 
@@ -488,6 +490,13 @@ These ideas from earlier audits are in the code now, so they are not on the list
 - **The Referee tab on one screen,** with one void reason, the admin lobby list filled when the tab opens, and the "Not held for Submit" subtitle (`index.html:918`).
 
 ---
+
+## Done in 0.1.67
+
+Done in The Button and the mod 0.1.67 and Red Alert 0.3.19; the numbers are the items above.
+
+- **22 (the broadcast delay off):** the owner's call, for now. Nothing is held back whatever `obs.json` says, the OBS card's **Broadcast delay** row is hidden, the setup check has no delay line (no **Turn on a 3 s delay**, no "No broadcast delay" warning), and asking for one answers "The broadcast delay is off in this version of Red Alert." The graphics and the lobby pictures are live again, and **Replay that** and the kill clips no longer wait for a delay. No OBS stream delay either: impostor information stays visible on stream. The code is kept behind `BroadcastDelay.Enabled` (`ObsDelay.cs`); bringing it back is item 73.
+- **72 (decided):** the On stream light (ON STREAM and NEXT) shows only to a host in the referee slot (the referee ghost, not playing); a playing host never sees it, since it could tell them something happened in their game (`AppServer.cs`, `RefereeHost`). The mod's status has `refSlotActive` (the slot on and not in safe mode this game, `ControlApi.cs`); with an older mod, The Button goes by the referee slot on and safe mode off.
 
 ## Done in 0.1.66
 
