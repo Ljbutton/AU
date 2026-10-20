@@ -5,7 +5,7 @@ and updates the host-only Tournament Tracker mod, takes the organiser's setup co
 lobby's Discord bot online, and gives the host one window to run the lobby from: automute,
 rounds, checking each game's points before Discord sees them, and sending the game to the caster.
 Referees and the organiser use the same app with an administration code, which adds the Organiser
-tab. This page describes The Button as of v0.1.64. What the mod does inside Among Us, and exactly
+tab. This page describes The Button as of v0.1.65. What the mod does inside Among Us, and exactly
 what it posts in Discord, is in [features-mod.md](features-mod.md).
 
 ## At a glance
@@ -346,8 +346,8 @@ tournament lobby's bot keeps in the private results channel, so it works on a PC
 ## Settings tab
 
 * **Among Us:** the game folder (see *Installing and starting*).
-* **Mod and updates:** both versions on one line ("The Button 0.1.64, 64-bit Among Us with the mod
-  v0.1.64. Everything is up to date."; on an organiser's PC, "Organiser PC: Among Us isn't needed
+* **Mod and updates:** both versions on one line ("The Button 0.1.65, 64-bit Among Us with the mod
+  v0.1.65. Everything is up to date."; on an organiser's PC, "Organiser PC: Among Us isn't needed
   here."), one button for whatever is needed (**Install the mod**,
   **Repair the mod**, **Update the mod to vX**, **Update The Button to vX**, **Update both to vX**),
   **Restart The Button to finish**, **Reinstall the mod**, **Open log** (the mod's log), the

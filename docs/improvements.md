@@ -1,6 +1,6 @@
 # What's left to do
 
-What needs doing, or could be done, to improve the tournament system, as of The Button and the mod **v0.1.64** and Red Alert **0.3.16** (15 October 2026). Each item says why, where the evidence is (file and line as of v0.1.64), and a rough size: **S** is under half a day, **M** is 1–2 days, **L** is 3 days or more.
+What needs doing, or could be done, to improve the tournament system, as of The Button and the mod **v0.1.65** and Red Alert **0.3.17** (20 October 2026; first written for v0.1.64). Each item says why, where the evidence is (file and line as of v0.1.64), and a rough size: **S** is under half a day, **M** is 1–2 days, **L** is 3 days or more.
 
 What each app already does is in [features-the-button.md](features-the-button.md), [features-mod.md](features-mod.md) and [features-red-alert.md](features-red-alert.md).
 

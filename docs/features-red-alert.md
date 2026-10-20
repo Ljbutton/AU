@@ -4,7 +4,7 @@
 the streaming PC next to OBS, receives every lobby whose host has turned on **Send my game to the
 caster** in The Button, ranks what is happening, switches OBS, and runs the replays, montages,
 on-stream graphics, lobby voice, sponsors and Twitch. Hosts, referees and the organiser don't need
-it. This page describes **Red Alert 0.3.16** (released with The Button v0.1.64). For setup steps,
+it. This page describes **Red Alert 0.3.17** (released with The Button v0.1.65). For setup steps,
 see the [README](../README.md#red-alert-the-broadcasters-app).
 
 > **Red Alert shows who the impostors are.** Kill cards name the killer, the player cams mark
