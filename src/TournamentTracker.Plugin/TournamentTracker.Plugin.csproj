@@ -4,7 +4,7 @@
     produces a single TournamentTracker.dll for BepInEx/plugins.
 
     Game references come from the BepInEx NuGet feed. Pin the game version with
-    -p:GameLibsVersion=2025.x.y to match the Among Us build you host on.
+    -p:GameLibsVersion=2026.x.y to match the Among Us build you host on.
   -->
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>

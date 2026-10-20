@@ -65,7 +65,7 @@ kbd{font:11px var(--mono);border:1px solid var(--line);border-radius:4px;padding
   <header>
     <span class="rec">REPLAY</span>
     <h1 id="title">Replay Viewer</h1>
-    <span class="meta" id="meta">Open a tt-replay file from the results channel.</span>
+    <span class="meta" id="meta">Open a tt-replay file from the host's games folder.</span>
     <span class="spacer"></span>
     <label class="btn" for="file">Open replay…</label>
     <input type="file" id="file" accept=".gz,.json,application/gzip,application/json" hidden>
@@ -77,7 +77,7 @@ kbd{font:11px var(--mono);border:1px solid var(--line);border-radius:4px;padding
       <div class="hud" id="hud"></div>
       <div class="drop" id="drop"><div>
         <strong>Drop a replay here</strong>
-        <p>Files are named <code>tt-replay-LJ-3-….json.gz</code>. They're posted with each game in the results channel and saved in the host's games folder.</p>
+        <p>Files are named <code>tt-replay-LJ-3-….json.gz</code>. They're saved with each game in the host's games folder (BepInEx/config/TournamentTracker/games), never posted to Discord.</p>
         <div class="row" style="justify-content:center"><label class="btn" for="file">Open replay…</label><button id="sample">Watch a sample</button></div>
       </div></div>
     </div>
@@ -355,7 +355,7 @@ requestAnimationFrame(loop);
 // Opened by the Tournament Tracker app with ?src=<replay file>: load it once, straight away.
 try {
   const src = new URLSearchParams(location.search).get('src');
-  if (src) fetch(src).then(r => { if (!r.ok) throw new Error(r.status === 401 ? 'The Button closed or restarted: open the replay again from it.' : 'not found'); return r.blob(); }).then(b => readFile(b)).then(load).catch(err => alertBox(err));
+  if (src) fetch(src).then(r => { if (!r.ok) throw new Error(r.status === 401 ? 'Red Alert closed or restarted: open the replay again from it.' : 'not found'); return r.blob(); }).then(b => readFile(b)).then(load).catch(err => alertBox(err));
 } catch (e) { }
 
 // ---- A made-up sample game (not a real map) --------------------------------------------------

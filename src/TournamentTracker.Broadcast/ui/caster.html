@@ -692,7 +692,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       <div class="pop keys-pop" id="keys-pop" hidden>
         <b class="pop-h">Keys on the Live desk</b>
         <div class="kl"><kbd>1</kbd>–<kbd>9</kbd><span>that lobby into Preview</span><kbd>Shift</kbd>+<kbd>1</kbd>–<kbd>9</kbd><span>that lobby on stream now</span><kbd>Enter</kbd><span>Take: Preview on stream</span><kbd>Esc</kbd><span>clear Preview (or close what's open)</span><kbd>N</kbd><span>where the action is, into Preview</span><kbd>G</kbd><span>every lobby (grid) into Preview</span><kbd>H</kbd><span>hold: nothing switches by itself</span><kbd>P</kbd> <kbd>P</kbd><span>panic: be right back, every lobby muted, held (again: undo). While a replay is up P is its other angle</span><kbd>I</kbd><span>intermission on / off</span><kbd>U</kbd><span>mute every lobby voice</span><kbd>B</kbd><span>pause off-screen alerts</span><kbd>C</kbd><span>card for the top play's player</span><kbd>M</kbd> <kbd>V</kbd> <kbd>E</kbd><span>host view of the lobby on stream: lit map, vision, sees impostor</span></div>
-        <p class="muted" style="margin:0;font-size:12px">Mouse: click a lobby = Preview, Ctrl+click = add to Preview, double-click = on stream now, right-click = its host view and players. The replay keys are under Keys while a replay is up.</p>
+        <p class="muted" style="margin:0;font-size:12px">G, I, U, B, C, M, V and E work on every page; the rest only on the Live desk. Mouse: click a lobby = Preview, Ctrl+click = add to Preview, double-click = on stream now, right-click = its host view and players. The replay keys are under Keys while a replay is up.</p>
       </div>
     </div>
     <div class="ld-sw">
@@ -704,7 +704,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
         <div class="lay-col">
           <button class="b" type="button" data-layout="full" title="Preview full screen">Full</button><button class="b" type="button" data-layout="2up" title="Preview side by side">2-Up</button>
           <button class="b" type="button" data-layout="4up" title="Preview as a quad">Quad</button><button class="b" type="button" data-layout="grid" title="Every lobby at once (key G)">Grid</button>
-          <button class="b" type="button" data-layout="cams" id="desk-cams" title="The lobbies in Preview as player cameras: one full screen (its whole map in the corner), two side by side, three or four in a quad. Back to the whole map by itself when the game ends.">Cams</button><button class="b" type="button" id="org-jump" title="The lobby worth watching into Preview (key N)">Action</button>
+          <button class="b" type="button" data-layout="cams" id="desk-cams" title="The lobbies in Preview as player cameras: one full screen (its whole map in the corner), two side by side, three or four in a quad. Back to the whole map by itself at a meeting or when the game ends.">Cams</button><button class="b" type="button" id="org-jump" title="The lobby worth watching into Preview (key N)">Action</button>
         </div>
         <div class="lay-col"><button class="b" type="button" id="stage-clear" title="Clear Preview (Esc)">Clear</button><button class="b" type="button" id="ld-back" title="Back: undo the last switch (or a panic, or an auto switch)">Back</button></div>
       </div>
@@ -778,7 +778,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       <div class="row"><label class="muted" style="font-size:13px"><input type="checkbox" id="org-roles"> Count kills (staff view)</label></div></div>
     <div class="urls" id="org-cast-url"></div>
     <div class="row" id="org-cast-list"></div>
-    <div class="muted help" style="font-size:12px">OBS Browser sources. The overlay, video and multiview follow what's on stream (the full-screen lobby, or slot 1 of a multi-view); Pin keeps them on one lobby. On the Live desk, keys 1–9 put that lobby in Preview (Shift+1–9 puts it on stream at once), Enter takes Preview on stream and N previews the lobby worth watching. Overlay 380×720, add <span class="mono">?full=1</span> on a delayed stream for roles and kills. Video (with the game sound of the lobby on air) and multiview (silent) 1920×1080: hosts turn on "Send my game to the caster" in their Button.</div>
+    <div class="muted help" style="font-size:12px">OBS Browser sources. The overlay, video and multiview follow what's on stream (the full-screen lobby, or slot 1 of a multi-view); Pin keeps them on one lobby. On the Live desk, keys 1–9 put that lobby in Preview (Shift+1–9 puts it on stream at once), Enter takes Preview on stream and N previews the lobby worth watching. Overlay 360×720, add <span class="mono">?full=1</span> on a delayed stream for roles and kills. Video (with the game sound of the lobby on air) and multiview (silent) 1920×1080: hosts turn on "Send my game to the caster" in their Button.</div>
   </div>  <p class="note bad org-prob" data-page="health" hidden></p>
   <div class="card hl-card" id="hl-card" hidden data-page="health">
     <div class="row" style="justify-content:space-between"><div><b>Lobby health</b> <span class="muted" id="hl-line"></span></div>
@@ -799,7 +799,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       <input id="obs-pass" type="password" placeholder="Password (Tools → WebSocket Server Settings)" style="flex:1;min-width:200px" autocomplete="off">
       <button class="b primary">Connect</button>
     </form>
-    <p class="muted help" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. Red Alert then builds the scenes TT Full, TT 2-up and TT Quad, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
+    <p class="muted help" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. Red Alert then builds the scenes TT Full, TT 2-up, TT Quad, TT Grid, TT Player Cam, TT Sponsor Break, TT Intermission, TT Be Right Back and TT Replay, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
   </div>
   <div class="card setup-card" id="setup-card" data-page="obs" hidden>
     <div class="row" style="justify-content:space-between"><div><b>Setup check</b> <span class="muted" id="setup-line"></span></div><button class="b" id="setup-again">Check again</button></div>
@@ -813,7 +813,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
     <summary><div><b>On-stream graphics</b> <span class="muted" id="gfx-line"></span></div><button class="b" id="gfx-theme" title="Colours, fonts and logo (broadcast.json)">Edit theme</button></summary>
     <p class="note bad" id="gfx-problem" hidden></p>
     <div class="urls" id="gfx-url" style="margin-top:6px"></div>
-    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">One transparent page with every graphic, placed on each lobby's picture in every layout. Red Alert puts it on top of the TT scenes in OBS (source "Red Alert"); to add it by hand, use the link at 1920×1080.</p>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">One transparent page with every graphic, placed on each lobby's picture in every layout. Red Alert puts it on top of the TT scenes in OBS (source "TT Broadcast"); to add it by hand, use the link at 1920×1080.</p>
     <div class="gfx-groups" id="gfx-els"></div>
     <div class="gfx-row"><span class="gh">Off-screen alerts</span><span id="gfx-alerts" class="sws"></span></div>
     <div class="gfx-row"><span class="gh">After a game</span><span class="sws" id="gfx-ag"></span></div>
@@ -912,7 +912,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
   <div class="card" id="cam-card" data-page="settings">
     <div class="row" style="justify-content:space-between"><div><b>Player camera</b> <span class="muted" id="cam-line"></span></div>
       <label class="sw" title="Each host's game sends a second picture that follows one player up close"><input type="checkbox" id="cam-on"><i></i><span>Player cameras</span></label></div>
-    <p class="muted help" style="margin:6px 0 0;font-size:12.5px">Each host's game draws a second, close-up picture that follows one player (you pick who on the Live desk or the Stream Deck, or it follows whoever is in the action) and sends it with their game, sharp at 720p. Red Alert adds it to OBS as the <b>TT Player Cam</b> scene: the camera full screen, the whole map small in the corner. Hosts can't see it or change who it follows. On by default; it costs each host about one more video stream of upload while they send their game, so turn it off if a host's internet is weak. Replays saved while it's on get a second angle (🎥 in the replay controls, key P).</p>
+    <p class="muted help" style="margin:6px 0 0;font-size:12.5px">Each host's game draws a second, close-up picture that follows one player (you pick who on the Live desk or the Stream Deck, or it follows whoever is in the action) and sends it with their game, at 960×540. Red Alert adds it to OBS as the <b>TT Player Cam</b> scene: the camera full screen, the whole map small in the corner. Hosts can't see it or change who it follows. On by default; it costs each host about one more video stream of upload while they send their game, so turn it off if a host's internet is weak. Replays saved while it's on get a second angle (🎥 in the replay controls, key P).</p>
   </div>
   <div class="card deck-card" id="deck-card" data-page="settings">
     <div class="row" style="justify-content:space-between"><div><b>Stream Deck</b> <span class="muted">a key for anything on the Live desk · port <b id="deck-port">…</b></span></div>
@@ -939,7 +939,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
   <div class="card upd-card" id="upd-card" data-page="settings">
     <div class="row" style="justify-content:space-between"><div><b>Updates</b> <span class="muted" id="upd-line"></span></div>
       <div class="row"><button class="b" id="upd-check">Check now</button><button class="b primary" id="upd-go" hidden>Update</button><button class="b primary" id="upd-restart" hidden>Restart Red Alert</button></div></div>
-    <p class="muted help" style="margin:6px 0 0;font-size:12.5px">Red Alert never updates by itself, so nothing changes mid-broadcast. Update downloads the new version; it runs from the next start (Restart, or next time you open Red Alert).</p>
+    <p class="muted help" style="margin:6px 0 0;font-size:12.5px">Red Alert never updates by itself, so nothing changes mid-broadcast. Update downloads the new version, checked against the size and SHA-256 its release lists (one that doesn't match is refused and nothing changes); it runs from the next start (Restart, or next time you open Red Alert).</p>
     <p class="note bad" id="upd-error" hidden style="margin:8px 0 0"></p>
   </div>
   <div class="card sup-card" id="sup-card" data-page="settings">
