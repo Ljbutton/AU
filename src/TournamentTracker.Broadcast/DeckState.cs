@@ -15,8 +15,8 @@ namespace TournamentTracker.App.Broadcast
     /// revision. The revision goes up whenever anything in it changes: what's on stream and in
     /// Preview, each lobby's phase, players, camera and sabotage, replays, the voice, the hold and
     /// automation, the graphics, OBS streaming and recording. Impostors are left out unless asked for
-    /// with &amp;imp=1 (the players' flags, and the newest replay's title: a kill card's text names the
-    /// killer): Stream Deck keys sit on a desk that may be filmed.
+    /// with &amp;imp=1 (the players' flags, and the titles of the newest replay, the best one and a replay in
+    /// Preview: a kill card's text names the killer): Stream Deck keys sit on a desk that may be filmed.
     /// </summary>
     public sealed partial class BroadcastServer
     {
@@ -86,6 +86,8 @@ namespace TournamentTracker.App.Broadcast
                             if (l?["players"] is JsonArray players)
                                 foreach (var p in players) (p as JsonObject)?.Remove("imp");
                     if (full["replay"]?["last"] is JsonObject last) last["title"] = last["label"]?.GetValue<string>();
+                    if (full["replay"]?["best"] is JsonObject bestOne) bestOne["title"] = bestOne["label"]?.GetValue<string>();
+                    if (full["preview"]?["replay"] is JsonObject staged) staged["title"] = staged["label"]?.GetValue<string>();
                     byte[] plain = Encoding.UTF8.GetBytes(full.ToJsonString());
                     lock (_deckLock) { _deckJson = (withImp, plain); _deckBuiltAt = DateTime.UtcNow; }
                     if (changed)
@@ -127,6 +129,7 @@ namespace TournamentTracker.App.Broadcast
             var ranking = desk.Board.Ranking();
             var replays = _replays;
             var newest = replays?.Newest();
+            var best = BestNow();
             var v = obs?.Settings.Voice;
             var big = desk.Graphics.Current();
             bool connected = obs?.Connected == true;
@@ -144,7 +147,12 @@ namespace TournamentTracker.App.Broadcast
                     confirmed = connected && air.Scene != null && obs!.SwitchingTo == null,
                     switching = connected ? obs!.SwitchingTo : null,
                 },
-                preview = new { layout = preview.Layout, slots = preview.Slots.ToList() },
+                preview = new
+                {
+                    layout = preview.Layout,
+                    slots = preview.Slots.ToList(),
+                    replay = preview.Replay is { } pr ? new { id = pr.ClipId, lobby = pr.Lobby, tier = pr.Tier, title = pr.Note, label = pr.Label } : null,
+                },
                 voice = new { muteAll = v?.MuteAll ?? false, heard = obs?.LoudVoice(air), listen = v is { Pin.Length: > 0 } ? v.Pin : null },
                 replay = new
                 {
@@ -153,6 +161,8 @@ namespace TournamentTracker.App.Broadcast
                     speed = replays?.Speed ?? 100,
                     ready = replays?.ReadyCount ?? 0,
                     last = newest == null ? null : new { id = newest.Id, lobby = newest.Lobby, title = NameTag.Plain(newest.Title), label = ReplayLabel(newest) },
+                    // What Best replay would put in Preview now.
+                    best = best == null ? null : new { id = best.Clip.Id, lobby = best.Clip.Lobby, tier = best.Tier, title = NameTag.Plain(best.Clip.Title), label = ReplayLabel(best.Clip) },
                 },
                 hold = desk.Held,
                 panic = _panic is { } inPanic && PanicInEffect(desk, inPanic),

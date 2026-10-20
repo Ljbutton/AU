@@ -362,6 +362,7 @@ namespace TournamentTracker.App.Broadcast
                 {
                     if (_now == null || _desk.OnAir.Layout != "replay") _returnTo = _desk.OnAir;
                     _now = clip;
+                    clip.PlayedAt ??= _clock();
                     _cursor = start;
                     _cursorAt = _clock();
                     _played = 0;

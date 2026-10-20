@@ -187,6 +187,8 @@ namespace TournamentTracker.App.Broadcast
         public string? Thumbnail { get; set; }
         public bool Used { get; set; }
         public string? CardId { get; set; }
+        /// <summary>When it first played as a replay (Best replay passes it over after that), or null.</summary>
+        public DateTime? PlayedAt { get; set; }
         /// <summary>When the play happened (caster's clock).</summary>
         public DateTime EventAt { get; set; }
         /// <summary>When OBS saved the clip: its last frame is about now.</summary>

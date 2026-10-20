@@ -438,6 +438,7 @@ kbd{display:inline-block;font:600 11.5px/1 var(--mono);padding:3px 6px;border:1p
 .pgm .sch .sl{border-color:rgba(225,6,0,.55);background:rgba(225,6,0,.10)}
 .sch .none{position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:6px;color:var(--muted);font-size:12.5px;text-align:center;padding:14px}
 .sch .none.big{font:700 26px/1 var(--hand);letter-spacing:.1em;color:#fff}
+.sch img.still{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.45}
 .sch .none small{font:600 12px/1.2 "Segoe UI",sans-serif;letter-spacing:0;color:var(--muted)}
 .mon-box .air-slots{position:absolute;left:5px;right:5px;bottom:5px;gap:4px}
 .mon-box .air-slots span{font-size:13px;padding:2px 7px 0;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.6)}
@@ -691,7 +692,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       <div class="pop alert-pop" id="ld-alert-pop" hidden><div class="warns" id="desk-warn"></div></div>
       <div class="pop keys-pop" id="keys-pop" hidden>
         <b class="pop-h">Keys on the Live desk</b>
-        <div class="kl"><kbd>1</kbd>–<kbd>9</kbd><span>that lobby into Preview</span><kbd>Shift</kbd>+<kbd>1</kbd>–<kbd>9</kbd><span>that lobby on stream now</span><kbd>Enter</kbd><span>Take: Preview on stream</span><kbd>Esc</kbd><span>clear Preview (or close what's open)</span><kbd>N</kbd><span>where the action is, into Preview</span><kbd>G</kbd><span>every lobby (grid) into Preview</span><kbd>H</kbd><span>hold: nothing switches by itself</span><kbd>P</kbd> <kbd>P</kbd><span>panic: be right back, every lobby muted, held (again: undo). While a replay is up P is its other angle</span><kbd>I</kbd><span>intermission on / off</span><kbd>U</kbd><span>mute every lobby voice</span><kbd>B</kbd><span>pause off-screen alerts</span><kbd>C</kbd><span>card for the top play's player</span><kbd>M</kbd> <kbd>V</kbd> <kbd>E</kbd><span>host view of the lobby on stream: lit map, vision, sees impostor</span></div>
+        <div class="kl"><kbd>1</kbd>–<kbd>9</kbd><span>that lobby into Preview</span><kbd>Shift</kbd>+<kbd>1</kbd>–<kbd>9</kbd><span>that lobby on stream now</span><kbd>Enter</kbd><span>Take: Preview on stream</span><kbd>Esc</kbd><span>clear Preview (or close what's open)</span><kbd>N</kbd><span>the best recent replay into Preview (Enter plays it; again: the next one)</span><kbd>G</kbd><span>every lobby (grid) into Preview</span><kbd>H</kbd><span>hold: nothing switches by itself</span><kbd>P</kbd> <kbd>P</kbd><span>panic: be right back, every lobby muted, held (again: undo). While a replay is up P is its other angle</span><kbd>I</kbd><span>intermission on / off</span><kbd>U</kbd><span>mute every lobby voice</span><kbd>B</kbd><span>pause off-screen alerts</span><kbd>C</kbd><span>card for the top play's player</span><kbd>M</kbd> <kbd>V</kbd> <kbd>E</kbd><span>host view of the lobby on stream: lit map, vision, sees impostor</span></div>
         <p class="muted" style="margin:0;font-size:12px">G, I, U, B, C, M, V and E work on every page; the rest only on the Live desk. Mouse: click a lobby = Preview, Ctrl+click = add to Preview, double-click = on stream now, right-click = its host view and players. The replay keys are under Keys while a replay is up.</p>
       </div>
     </div>
@@ -704,7 +705,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
         <div class="lay-col">
           <button class="b" type="button" data-layout="full" title="Preview full screen">Full</button><button class="b" type="button" data-layout="2up" title="Preview side by side">2-Up</button>
           <button class="b" type="button" data-layout="4up" title="Preview as a quad">Quad</button><button class="b" type="button" data-layout="grid" title="Every lobby at once (key G)">Grid</button>
-          <button class="b" type="button" data-layout="cams" id="desk-cams" title="The lobbies in Preview as player cameras: one full screen (its whole map in the corner), two side by side, three or four in a quad. Back to the whole map by itself at a meeting or when the game ends.">Cams</button><button class="b" type="button" id="org-jump" title="The lobby worth watching into Preview (key N)">Action</button>
+          <button class="b" type="button" data-layout="cams" id="desk-cams" title="The lobbies in Preview as player cameras: one full screen (its whole map in the corner), two side by side, three or four in a quad. Back to the whole map by itself at a meeting or when the game ends.">Cams</button><button class="b" type="button" id="org-jump" title="The best recent replay (the highest rated one not played yet) into Preview: Take plays it (key N)">Best replay</button>
         </div>
         <div class="lay-col"><button class="b" type="button" id="stage-clear" title="Clear Preview (Esc)">Clear</button><button class="b" type="button" id="ld-back" title="Back: undo the last switch (or a panic, or an auto switch)">Back</button></div>
       </div>
@@ -927,7 +928,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       <label id="db-opt-l">Which <select id="db-opt"></select></label>
       <label id="db-lobby-l">Lobby <select id="db-lobby"></select></label>
       <label id="db-who-l">Player <select id="db-who"></select></label>
-      <label id="db-how-l">Press <select id="db-how"><option value="cut">Camera on stream</option><option value="arm">Only who it follows (no cut)</option></select></label>
+      <label id="db-how-l">Press <select id="db-how"><option value="cut">Camera on stream</option><option value="pvw">Camera into Preview (Take puts it on)</option><option value="arm">Only who it follows (no cut)</option></select></label>
       <label id="db-t-l">Switch <select id="db-t"><option value="">As set on the OBS page</option><option value="cut">Straight cut</option><option value="swoosh">Swoosh</option><option value="fade">Fade</option></select></label>
     </div>
     <div class="url deck-out"><span class="muted">Link</span><span id="db-url" class="mono"></span><button type="button" id="db-copy" data-copy="">Copy</button></div>
@@ -1221,7 +1222,9 @@ setInterval(feedFlush, 200);
 // Preview lives in Red Alert (shared with the Stream Deck): a click on a lobby puts it in Preview,
 // Take puts Preview on stream. Desk actions go through the same switching code as the Stream Deck
 // (POST /app/admin/do), one at a time and in the order they were pressed.
-const STAGE_NAME = { full: 'Full screen', '2up': '2-up', '4up': 'Quad', grid: 'Grid', cams: 'Player cams', cam: 'Player cam', none: '' };
+const STAGE_NAME = { full: 'Full screen', '2up': '2-up', '4up': 'Quad', grid: 'Grid', cams: 'Player cams', cam: 'Player cam', replay: 'Replay', none: '' };
+// Something is staged: lobbies, or a replay (Best replay).
+const pvwStaged = () => Boolean(DESK && DESK.preview && (DESK.preview.slots.length || DESK.preview.replay));
 let doChain = Promise.resolve();
 function deckDo(path, query, say) {
   const run = async () => {
@@ -1251,7 +1254,7 @@ const previewAdd = l => canAir(l) && deckDo(`pvw/add/${l.no}`, null, false);
 const clearPvw = () => deckDo('pvw/clear', null, false);
 const cutLobby = l => canAir(l) && deckDo(`lobby/${l.no}`, transQuery());
 function take() {
-  if (!DESK || !DESK.preview || !DESK.preview.slots.length) return toast('Nothing in Preview: click a lobby (or press 1–9) first.');
+  if (!pvwStaged()) return toast('Nothing in Preview: click a lobby (or press 1–9) first.');
   return deckDo('take', transQuery());
 }
 const pvwLayout = lay => deckDo(`layout/${lay}`, null, false);
@@ -1284,7 +1287,7 @@ document.addEventListener('click', e => { const b = e.target.closest('button'); 
 // ---- The keys on the Live desk ----------------------------------------------------------------------
 // 1–9: that lobby into Preview · Shift+1–9: cut to it now · Enter: Take · Esc: clear Preview (or close
 // what's open) · H: hold · P twice: panic (P is the replay's other angle while a replay is up) · N:
-// where the action is into Preview. The replay keys and G, I, B, C, U, M, V, E work as before.
+// the best recent replay into Preview. The replay keys and G, I, B, C, U, M, V, E work as before.
 let panicArmed = 0;
 // While a panic is on in full (DESK.panic) Panic undoes it. Part of it put right by hand (another lobby, the
 // hold released, the voice back), Panic is Panic again: pressed, it puts it all back on (Back still undoes it).
@@ -1306,7 +1309,7 @@ document.addEventListener('keydown', e => {
   if (/INPUT|TEXTAREA|SELECT/.test(a.tagName) || a.isContentEditable) return;
   if (a.tagName === 'BUTTON' && (e.key === 'Enter' || e.key === ' ')) return;      // a button reached with Tab: the key presses it
   if (e.ctrlKey || e.altKey || e.metaKey) return;
-  if (e.key === 'Escape') { if (closePops()) { e.preventDefault(); return; } if (DESK && DESK.preview.slots.length) { e.preventDefault(); clearPvw(); } return; }
+  if (e.key === 'Escape') { if (closePops()) { e.preventDefault(); return; } if (pvwStaged()) { e.preventDefault(); clearPvw(); } return; }
   if (e.key === 'Enter') { e.preventDefault(); take(); return; }
   const hk = RP && RP.hotkeys ? RP.hotkeys : {};
   const deskKey = Object.values(hk).includes(e.code);
@@ -1321,27 +1324,12 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.code === 'KeyH') { e.preventDefault(); holdToggle(); return; }
-  if (e.code === 'KeyN') { e.preventDefault(); jumpToAction(); }
+  if (e.code === 'KeyN') { e.preventDefault(); bestReplay(); }
 });
-// The lobby worth watching now, into Preview: a meeting first, then anything that just happened, else the
-// next live lobby in turn (the organiser's view; before it has loaded, the desk's own ranking).
-function jumpToAction() {
-  if (!DESK) return;
-  if (ORG && ORG.lobbies) {
-    const live = ORG.lobbies.filter(l => !l.quiet && l.data.phase !== 'Menu');
-    if (!live.length) { toast('No live lobbies.'); return; }
-    const hotOf = l => showRoles ? l.hotFull : l.hot;
-    const hot = live.filter(l => hotOf(l) && l.label !== ORG.cast);
-    const next = live[(live.findIndex(l => l.label === ORG.cast) + 1) % live.length];
-    const pick = hot.find(l => l.data.phase === 'Meeting') || hot[0] || next;
-    const l = lobbyNamed(pick.label); if (l) { previewOnly(l); return; }
-  }
-  const on = DESK.onAir.slots.filter(Boolean);
-  const ranked = DESK.lobbies.filter(l => l.online && l.health !== 'red').sort((a, b) => b.score - a.score);
-  if (!ranked.length) { toast('No live lobbies.'); return; }
-  previewOnly(ranked.find(l => l.phase === 'meeting' && !on.includes(l.lobby)) || ranked.find(l => !on.includes(l.lobby)) || ranked[0]);
-}
-$('org-jump').addEventListener('click', jumpToAction);
+// The best recent replay into Preview, as Red Alert picks it (the same choice as the Stream Deck's Best
+// replay key): Take plays it. Pressed again, the next one down. Nothing worth it: Red Alert says so.
+const bestReplay = () => deckDo('replay/best');
+$('org-jump').addEventListener('click', bestReplay);
 
 // ---- Replay button on a card: save one now, or play it once saved ----------------------------------
 function replayButton(c) {
@@ -1521,9 +1509,9 @@ function schematic(layout, slots, emptyText) {
 const PH = { ingame: 'In game', meeting: 'Meeting', ended: 'Game over', lobby: 'Lobby', menu: 'Menu' };
 function renderTake() {
   const d = DESK, pv = d.preview || { layout: 'none', slots: [] }, air = d.onAir;
-  const lay = pv.layout;
-  $('stage-send').disabled = !pv.slots.length;
-  setHtml($('stage-send'), `TAKE${pv.slots.length ? `<small>${esc(STAGE_NAME[lay] || lay)}</small>` : ''}`);
+  const lay = pv.layout, staged = pv.slots.length > 0 || Boolean(pv.replay);
+  $('stage-send').disabled = !staged;
+  setHtml($('stage-send'), `TAKE${staged ? `<small>${esc(STAGE_NAME[lay] || lay)}</small>` : ''}`);
   document.querySelectorAll('[data-layout]').forEach(b => {
     const l = b.dataset.layout;
     b.classList.toggle('pick', pv.slots.length > 0 && l === lay);
@@ -1539,12 +1527,15 @@ function renderSwitcher() {
   // Preview: the staged lobbies in their layout (lobbies past the layout's slots stay out).
   const cap = { full: 1, '2up': 2, '4up': 4, cams: 4 }[pv.layout];
   const left = cap && pv.slots.length > cap ? pv.slots.slice(cap) : [];
-  setText($('stage-line'), pv.slots.length ? `${pv.note ? 'Auto grid · ' : ''}${STAGE_NAME[pv.layout] || pv.layout} · ${pv.slots.join(', ')}${left.length ? ` (${left.join(', ')} left out)` : ''}` : '');
+  setText($('stage-line'), pv.replay ? `Replay · ${pv.replay.lobby}` : pv.slots.length ? `${pv.note ? 'Auto grid · ' : ''}${STAGE_NAME[pv.layout] || pv.layout} · ${pv.slots.join(', ')}${left.length ? ` (${left.join(', ')} left out)` : ''}` : '');
   // Auto grid's suggestion says what it is: nothing goes on until Take.
   setText($('pvw-note'), pv.note || '');
   $('pvw-note').hidden = !pv.note;
-  $('stage-clear').disabled = !pv.slots.length;
-  setHtml($('pvw-sch'), schematic(pv.layout, pv.slots, 'Click a lobby below (or press 1–9) to preview it; Enter takes it.'));
+  $('stage-clear').disabled = !pv.slots.length && !pv.replay;
+  // A replay in Preview: its still and what it is; Take plays it.
+  setHtml($('pvw-sch'), pv.replay
+    ? `${pv.replay.thumb ? `<img class="still" alt="" src="${media('thumb', pv.replay.clipId)}">` : ''}<div class="none big">REPLAY<small>${esc(pv.replay.note)}</small></div>`
+    : schematic(pv.layout, pv.slots, 'Click a lobby below (or press 1–9) to preview it; Enter takes it.'));
   // Program: OBS's own picture when it's connected, else the same drawing in red.
   setText($('air-by'), air.since ? `since ${clock(air.since)}` : '');
   setHtml($('pgm-sch'), schematic(air.layout === 'cams' && air.slots.filter(Boolean).length === 1 ? 'cam' : air.layout, air.slots, air.scene ? `OBS is on ${air.scene}: no lobby on stream` : 'Nothing on stream yet'));
@@ -2728,7 +2719,7 @@ const DECK_ACTIONS = [
 ];
 const DECK_OPTS = {
   layout: [['full', 'Full'], ['2up', '2-up'], ['quad', 'Quad'], ['grid', 'Grid'], ['cams', 'Player cams']],
-  replay: [['last', 'Play the newest replay'], ['that', 'Replay that (last seconds of the lobby on stream)'], ['live', 'Back to live'], ['toggle', 'Play / pause'], ['slow', 'Slow motion 100/50/25%'], ['angle', 'Other angle']],
+  replay: [['best', 'Best replay into Preview (Take plays it)'], ['last', 'Play the newest replay'], ['that', 'Replay that (last seconds of the lobby on stream)'], ['live', 'Back to live'], ['toggle', 'Play / pause'], ['slow', 'Slow motion 100/50/25%'], ['angle', 'Other angle']],
   break: [['brb', 'Be right back'], ['intermission', 'Intermission'], ['sponsor', 'Sponsor break'], ['off', 'End the break']],
   auto: [['grid', 'Auto grid'], ['intermission', 'Auto intermission'], ['switch', 'Auto switch off a lobby that drops']],
   gfx: [['standings/toggle', 'Standings on stream'], ['alerts/toggle', 'Off-screen alerts'], ['skip', 'Skip the graphic on now'], ['clear', 'Clear the graphics queue'], ['card', 'Card for the top notification\'s player']],
@@ -2745,13 +2736,13 @@ function deckOptions(sel, list, keep) {
 }
 function deckBuild() {
   if (!DECK) return '';
-  const act = $('db-act').value, opt = $('db-opt').value, lob = $('db-lobby').value, who = $('db-who').value, arm = $('db-how').value === 'arm', t = $('db-t').value;
+  const act = $('db-act').value, opt = $('db-opt').value, lob = $('db-lobby').value, who = $('db-who').value, arm = $('db-how').value === 'arm', pvw = $('db-how').value === 'pvw', t = $('db-t').value;
   const path = {
     lobby: `lobby/${lob}`, pvw: `pvw/lobby/${lob}`, pvwadd: `pvw/add/${lob}`, take: 'take', layout: `layout/${opt}`, pvwclear: 'pvw/clear',
     cam: `cam/${lob}/${who}`, camcut: 'cam/cut', wide: 'wide', replay: `replay/${opt}`, break: `break/${opt}`, panic: 'panic', undo: 'undo', hold: 'hold/toggle',
     auto: `auto/${opt}/toggle`, gfx: `gfx/${opt}`, prompt: `prompt/${opt}`, voice: opt === 'listen' ? `voice/listen/${lob}` : `voice/${opt}`, spec: `spec/${opt}`,
   }[act] || '';
-  const more = (act === 'cam' && arm ? '&arm=1' : '') + (DECK_CUT.has(act) && t && !(act === 'cam' && arm) ? '&t=' + t : '');
+  const more = (act === 'cam' && arm ? '&arm=1' : act === 'cam' && pvw ? '&to=pvw' : '') + (DECK_CUT.has(act) && t && !(act === 'cam' && (arm || pvw)) ? '&t=' + t : '');
   return `http://127.0.0.1:${DECK.port}/deck/${path}?key=${DECK.key}${more}`;
 }
 function renderDeckBuilder() {
@@ -2760,7 +2751,7 @@ function renderDeckBuilder() {
   const n = Math.max(8, ...(DESK ? DESK.lobbies.map(l => l.no) : [0]));
   const names = new Map((DESK ? DESK.lobbies : []).map(l => [l.no, l.lobby]));
   const lobbies = Array.from({ length: n }, (_, i) => [String(i + 1), `${i + 1}${names.has(i + 1) ? ' · ' + names.get(i + 1) : ''}`]);
-  const lobbyList = act === 'lobby' ? lobbies.concat([['next', 'Next lobby'], ['prev', 'Previous lobby'], ['action', 'Where the action is']])
+  const lobbyList = act === 'lobby' ? lobbies.concat([['next', 'Next lobby'], ['prev', 'Previous lobby']])
     : act === 'cam' ? [['pgm', 'The lobby on stream'], ['pvw', 'The lobby in Preview']].concat(lobbies) : lobbies;
   deckOptions($('db-lobby'), lobbyList, true);
   deckOptions($('db-opt'), DECK_OPTS[act] || [], true);
@@ -2771,7 +2762,7 @@ function renderDeckBuilder() {
   $('db-opt-l').hidden = !DECK_OPTS[act];
   $('db-who-l').hidden = act !== 'cam';
   $('db-how-l').hidden = act !== 'cam';
-  $('db-t-l').hidden = !DECK_CUT.has(act) || (act === 'cam' && $('db-how').value === 'arm');
+  $('db-t-l').hidden = !DECK_CUT.has(act) || (act === 'cam' && $('db-how').value !== 'cut');
   const url = deckBuild();
   setText($('db-url'), url);
   $('db-copy').dataset.copy = url;

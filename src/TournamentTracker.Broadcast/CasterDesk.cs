@@ -1174,7 +1174,7 @@ namespace TournamentTracker.App.Broadcast
                     // Its own suggestion stays as it is: the grid follows the active lobbies, the way back doesn't move under the caster.
                     else if (ours && _autoPick!.Auto == want.Auto && (want.Auto == "back" || _autoPick.Slots.SequenceEqual(want.Slots, StringComparer.OrdinalIgnoreCase))) { }
                     // Only an empty Preview or its own: a Preview the caster chose (or just cleared) stays.
-                    else if (ours || _autoPick == null && _preview.Slots.Count == 0) { _preview = _autoPick = want; changed = true; }
+                    else if (ours || _autoPick == null && _preview.IsEmpty) { _preview = _autoPick = want; changed = true; }
                 }
             }
             if (changed) Touch();
@@ -1392,7 +1392,7 @@ namespace TournamentTracker.App.Broadcast
                 WinScope, Wins = new { Impostors = wins.Impostors, Crew = wins.Crew },
                 Break = Break is { } br ? new { Sponsor = br.Sponsor.Name, Left = Math.Max(0, (int)Math.Ceiling((br.Until - now).TotalSeconds)), br.Lobby } : null,
                 OnAir = new { air.Layout, air.Slots, air.By, air.Scene, Since = air.Since == default ? null : air.Since.ToString("o") },
-                Preview = new { Layout = preview.Layout, preview.Slots, preview.Note },
+                Preview = new { Layout = preview.Layout, preview.Slots, preview.Note, preview.Replay },
                 Hold = HoldState(),
                 Panic = PanicOn(),
                 ArmedDropped = ArmedDropped is { } dropped && (now - dropped.At).TotalSeconds < 15 ? new { dropped.Text, At = dropped.At.ToString("o") } : null,
