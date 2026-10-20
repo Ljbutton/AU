@@ -126,6 +126,7 @@ public class ReplayObsTests : IAsyncLifetime
         _desk = new CasterDesk(null, null, new PriorityConfig());
         _director = new ObsDirector(Path.Combine(_dir.Path, ObsSettings.FileName), _desk, () => _feeds.ToList()) { TagUrl = "http://127.0.0.1:8767/replaytag" };
         _director.Settings.Replay.PostSeconds = 0.2;
+        _director.Settings.BroadcastDelay = 0;     // saves at once (the delay has its own test below)
         _desk.Switch = air => _director.ApplyAsync(air).Wait();
         _replays = new ReplayManager(_desk, _director, loop: false) { TagChanged = j => _tag = j };
         await _director.ConnectAsync("127.0.0.1", _obs.Port, "secret");
@@ -241,6 +242,28 @@ public class ReplayObsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task With_the_broadcast_delay_a_save_waits_for_the_play_to_reach_OBS_and_the_clip_ends_that_much_earlier()
+    {
+        _director.Settings.BroadcastDelay = 3;
+        var now = DateTime.UtcNow;
+        using var replays = new ReplayManager(_desk, _director, clock: () => now, loop: false);
+        Send("MAL", "event", "vent", new { player = P("Red", 4, true), action = "enter", room = "MedBay" });
+        var card = _desk.Find(JsonSerializer.SerializeToElement(_desk.State(), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
+            .GetProperty("cards").EnumerateArray().Single(c => c.GetProperty("rule").GetString() == "vent").GetProperty("id").GetString()!)!;
+        card.Source = null;
+        card.At = now.AddSeconds(-5);
+        var clip = await replays.SaveAsync(card);
+        Assert.Equal("ready", clip.State);
+        // OBS's picture is 3 s behind the desk: the clip's end is the desk's moment 3 s before it was saved.
+        Assert.Equal(now.AddSeconds(-3), clip.SavedAt);
+        // And OBS's buffer still has a play 3 s older than it could without the delay (30 s kept, 8 s before it).
+        card.At = now.AddSeconds(-24);
+        Assert.Equal("ready", (await replays.SaveAsync(card)).State);
+        card.At = now.AddSeconds(-26);
+        Assert.Equal("failed", (await replays.SaveAsync(card)).State);
+    }
+
+    [Fact]
     public async Task A_stuck_replay_buffer_is_started_again_and_the_next_save_works()
     {
         int started = _obs.BufferStarts;
@@ -283,6 +306,7 @@ public class PlayerCamReplayTests : IAsyncLifetime
             CamFeeds = () => new List<(string, string)> { ("LJ", "https://vdo.ninja/?view=ac&password=x&noaudio&cleanoutput") },
         };
         _director.Settings.Replay.PostSeconds = 0.2;
+        _director.Settings.BroadcastDelay = 0;
         _desk.Switch = air => _director.ApplyAsync(air).Wait();
         _replays = new ReplayManager(_desk, _director, loop: false);
         await _director.ConnectAsync("127.0.0.1", _obs.Port, "secret");

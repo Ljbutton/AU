@@ -357,6 +357,7 @@ namespace TournamentTracker.App.Broadcast
                     if (data.ValueKind == JsonValueKind.Object)
                         foreach (var p in new[] { "inputName", "oldInputName" })
                             if (data.TryGetProperty(p, out var name) && name.ValueKind == JsonValueKind.String) ForgetMute(name.GetString());
+                    if (type != "InputCreated") CueGone(data);
                     ForgetItems();
                     break;
                 case "SceneCreated":

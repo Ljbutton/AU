@@ -20,7 +20,8 @@ namespace TournamentTracker.App.Broadcast
 
     /// <summary>
     /// The setup check, run when OBS connects: names, a leftover empty scene, Desktop Audio reaching
-    /// the stream, what replays need, and stream delay against impostor tags.
+    /// the stream, what replays need, the broadcast delay against impostor tags, and the headphones
+    /// Hear Preview plays in.
     /// </summary>
     public sealed partial class ObsDirector
     {
@@ -90,17 +91,40 @@ namespace TournamentTracker.App.Broadcast
                     : $"Each lobby's source keeps its last {Settings.Replay.BufferSeconds}s (OBS's own Replay Buffer isn't used and can stay off).",
             });
 
-            // Stream delay against impostor tags: without a delay, players can find the impostors by watching.
+            // Impostor tags against the delay: Red Alert's broadcast delay (OBS's own stream delay counts too, if it's on).
             bool tags = ImpostorTagsOn?.Invoke() == true;
             bool delayOn = await Try("GetProfileParameter", new { parameterCategory = "Output", parameterName = "DelayEnable" }) is { } de && Param(de) is "true" or "1";
             int delay = await Try("GetProfileParameter", new { parameterCategory = "Output", parameterName = "DelaySec" }) is { } ds && int.TryParse(Param(ds), out var sec) ? sec : 0;
-            int effective = delayOn ? delay : 0;
+            int obsDelay = delayOn ? delay : 0;
+            double ours = DelaySeconds;
+            bool held = ours > 0 || obsDelay > 0;
+            string also = obsDelay > 0 ? $" · OBS stream delay {obsDelay} s" : "";
             list.Add(new SetupCheck
             {
-                Id = "delay", Ok = !tags || effective >= 30,
-                Title = tags ? $"Impostor tags are on · stream delay {(effective > 0 ? effective + " s" : "off")}" : $"Stream delay {(effective > 0 ? effective + " s" : "off")} (impostor tags are off)",
-                Detail = tags && effective < 30 ? "Players watching the stream could find the impostors. In OBS: Settings → Advanced → Stream Delay, tick Enable and set at least 60 s (it takes effect the next time you start streaming), or turn Impostor tags off in Graphics." : "",
-                Fix = tags && effective < 30 ? "Set a 90 s delay" : null,
+                Id = "delay", Ok = !tags || held,
+                Title = $"Broadcast delay {BroadcastDelay.Say(ours)}{also}{(tags ? " · impostor tags are on" : "")}",
+                Detail = tags && !held ? "Players watching the stream see the impostors as it happens. Red Alert can hold the lobbies back a few seconds (OBS card → Broadcast delay), or turn Impostor tags off in Graphics."
+                    : ours > 0 ? $"Every lobby's picture, voice and camera, and the graphics, reach the stream {BroadcastDelay.Say(ours)} late; the Live desk stays live. Your mic isn't held back: to talk over the stream's picture, give it a Sync Offset of {(int)(ours * 1000)} ms in OBS (Edit → Advanced Audio Properties)."
+                    : "",
+                Fix = tags && !held ? $"Turn on a {BroadcastDelay.Say(BroadcastDelay.Default)} delay" : null,
+            });
+
+            // Hear Preview plays in OBS's monitoring device: it should be the caster's headphones.
+            string? monId = await Try("GetProfileParameter", new { parameterCategory = "Audio", parameterName = "MonitoringDeviceId" }) is { } mi ? ParamOrDefault(mi) : null;
+            string? monName = await Try("GetProfileParameter", new { parameterCategory = "Audio", parameterName = "MonitoringDeviceName" }) is { } mn ? ParamOrDefault(mn) : null;
+            bool monOff = monId is "disabled" || string.Equals(monName, "Disabled", StringComparison.OrdinalIgnoreCase);
+            bool monDefault = !monOff && (string.IsNullOrEmpty(monId) || monId == "default");
+            bool cue = Settings.Voice.HearPreview;
+            MonitoringDevice = monOff ? "Disabled" : monDefault ? "Default" : (string.IsNullOrEmpty(monName) ? monId : monName);
+            list.Add(new SetupCheck
+            {
+                Id = "monitor", Ok = !cue || !monOff && !monDefault,
+                Title = $"Headphones (OBS monitoring device): {MonitoringDevice}{(cue ? "" : " · Hear Preview is off")}",
+                Detail = !cue ? "" : monOff
+                    ? "Hear Preview plays in OBS's monitoring device, and it's off. In OBS: Settings → Audio → Advanced → Monitoring Device, pick your headphones."
+                    : monDefault
+                    ? "Hear Preview plays in OBS's monitoring device, now Default (whatever this PC plays to). To be sure it's your headphones: OBS → Settings → Audio → Advanced → Monitoring Device, pick them. Keep Desktop Audio muted."
+                    : "",
             });
 
             Checks = list;
@@ -109,6 +133,11 @@ namespace TournamentTracker.App.Broadcast
         }
 
         private static string Param(JsonElement e) => e.Str("parameterValue") ?? "";
+        /// <summary>A profile setting as OBS uses it: set, else its default.</summary>
+        private static string? ParamOrDefault(JsonElement e) => e.Str("parameterValue") ?? e.Str("defaultParameterValue");
+
+        /// <summary>OBS's monitoring device as the last setup check found it ("Default", "Disabled" or its name), or null.</summary>
+        public string? MonitoringDevice { get; private set; }
 
         private async Task ReadDesktopAudioAsync(ObsClient obs)
         {
@@ -119,6 +148,7 @@ namespace TournamentTracker.App.Broadcast
                 try { if (!(await obs.RequestAsync("GetInputMute", new { inputName = name }).ConfigureAwait(false)).GetProperty("inputMuted").GetBoolean()) on.Add(name); } catch (Exception) { }
             lock (_desktopInputs) { _desktopInputs.Clear(); _desktopInputs.UnionWith(inputs); }
             DesktopAudioOn = on;
+            _desktopRead = true;
         }
 
         /// <summary>Desktop Audio muted or unmuted in OBS: the Live desk warns while it's on.</summary>
@@ -131,6 +161,7 @@ namespace TournamentTracker.App.Broadcast
             var on = DesktopAudioOn.Where(x => x != name).ToList();
             if (!muted) on.Add(name);
             DesktopAudioOn = on;
+            QueueCue(force: true);       // Hear Preview waits while Desktop Audio is on
             var c = Checks.FirstOrDefault(x => x.Id == "desktopAudio");
             if (c != null) { c.Ok = on.Count == 0; c.Fix = on.Count == 0 ? null : "Mute Desktop Audio"; c.Title = on.Count == 0 ? "Desktop Audio is muted" : $"{string.Join(", ", on)} is capturing"; }
         }
@@ -158,10 +189,8 @@ namespace TournamentTracker.App.Broadcast
                     said = "Desktop Audio muted.";
                     break;
                 case "delay":
-                    await obs.RequestAsync("SetProfileParameter", new { parameterCategory = "Output", parameterName = "DelayEnable", parameterValue = "true" }).ConfigureAwait(false);
-                    await obs.RequestAsync("SetProfileParameter", new { parameterCategory = "Output", parameterName = "DelaySec", parameterValue = "90" }).ConfigureAwait(false);
-                    said = "Stream delay set to 90 s in OBS (it starts the next time you start streaming).";
-                    break;
+                    // Red Alert's own broadcast delay (it checks again itself).
+                    return await SetDelayAsync(BroadcastDelay.Default).ConfigureAwait(false);
                 default: return "Nothing to fix there.";
             }
             await CheckSetupAsync().ConfigureAwait(false);
