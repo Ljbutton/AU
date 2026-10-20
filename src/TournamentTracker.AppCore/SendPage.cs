@@ -279,6 +279,8 @@ addEventListener('message',e=>{
   if(got&&got.ttack){ack(got.ttack);return;}
   // Roster names for this lobby's players, for the referee's nameplates.
   if(got&&got.ttn&&typeof got.ttn==='object'){post('/app/names',{names:got.ttn}).catch(()=>{});return;}
+  // Red Alert's tally for this lobby (on stream, in Preview, or neither), for The Button's Home. Only its state and view.
+  if(got&&got.ttt&&typeof got.ttt==='object'){const t=got.ttt;if(/^(pgm|pvw|none)$/.test(t.state)&&(t.view==null||/^[a-z0-9]{1,12}$/.test(t.view)))post('/app/tally',{state:t.state,view:t.view||''}).catch(()=>{});return;}
   if(typeof cmd!=='string'||!/^spec [a-z]+( [a-z0-9.]+)?$/.test(cmd))return;
   post('/app/command',{command:cmd}).catch(()=>{});
 });

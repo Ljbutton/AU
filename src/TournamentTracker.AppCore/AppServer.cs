@@ -126,6 +126,8 @@ namespace TournamentTracker.App
         private readonly AppSettings _settings;
         private readonly ModInstaller _installer;
         private readonly ModClient _mod;
+        /// <summary>Red Alert's tally for this lobby (on stream, in Preview), as the send page passes it on.</summary>
+        private readonly StreamTally _tally = new StreamTally();
         private readonly HttpClient _http;
         private Release? _latest;
         private Organizer? _organizer;
@@ -357,7 +359,7 @@ namespace TournamentTracker.App
             string Arg(string name) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
 
             // A send page that was replaced (Open again) or switched off is told so, and closes itself down.
-            if ((route is "/app/sendinfo" or "/app/sendfeed" or "/app/cam" or "/app/voice/pcm" or "/app/voice" or "/app/names" or "/app/command" or "/app/share") && StalePage(query))
+            if ((route is "/app/sendinfo" or "/app/sendfeed" or "/app/cam" or "/app/voice/pcm" or "/app/voice" or "/app/names" or "/app/command" or "/app/share" or "/app/tally") && StalePage(query))
                 return Text(409, "application/json", "{\"error\":\"replaced\"}");
 
             switch ((method, route))
@@ -380,6 +382,9 @@ namespace TournamentTracker.App
                     bool sent = await _mod.NamesAsync(GamePath, json).ConfigureAwait(false) != null;
                     return Ok(new { ok = sent });
                 }
+                case ("POST", "/app/tally"):
+                    // From the caster, over VDO.Ninja (this host's send page): is this lobby on stream or in Preview.
+                    return Ok(new { ok = _tally.Set(Arg("state"), Arg("view").Length > 0 ? Arg("view") : null, DateTime.UtcNow) });
                 case ("GET", "/app/sendinfo"):
                 {
                     var status = GamePath == null ? null : await StatusElementAsync(GamePath).ConfigureAwait(false);
@@ -577,6 +582,7 @@ namespace TournamentTracker.App
                     Video = _sendVideo,
                     Note = _feedNote,
                 },
+                Tally = _tally.View(DateTime.UtcNow),
                 App = _env.Version,
                 Twitch = _settings.Twitch,
                 ModConsole = _settings.ShowModConsole,
@@ -1134,7 +1140,7 @@ namespace TournamentTracker.App
             _sendVideoOkAt = DateTime.MinValue;
             _sendVideo = "";
             if (on) _feedNote = null;
-            else RetireSendPages();
+            else { RetireSendPages(); _tally.Clear(); }
             if (GamePath == null) return Replies(false, FindGameFirst);
             string? answer = await _mod.CommandAsync(GamePath, on ? "feed on" : "feed off").ConfigureAwait(false);
             if (answer == null) return Replies(false, ModNotRunning);

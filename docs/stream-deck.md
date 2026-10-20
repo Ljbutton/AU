@@ -110,7 +110,7 @@ Alert (`/deck/<path>`), for reference and for Companion below.
 | **Layout** | full, 2-up, quad, grid, cameras | What's in Preview (or, with nothing there, what's on stream) in that layout, in Preview: **Take** puts it on stream, so keep a Take key next to it. Lit red while on stream, green while in Preview. | `layout/quad` |
 | **Replay** | best replay, play last, replay that, back to live, play/pause, back, forward, frame back, frame forward, restart, zoom in, zoom out, follow, angle, speed | **Best replay** puts the best recent replay into Preview (Take plays it); **Replay that** saves the last seconds of the lobby on stream and plays them; **Play last** plays the newest ready clip; **Speed** steps 100 / 50 / 25%. | `replay/best`, `replay/that`, `replay/last`, `replay/slow`… |
 | **Toggle** | mute all lobby voice, hold, auto grid, auto intermission, auto switch, standings, alerts; **Press**: switch it, always on, always off | Shows ON / OFF (MUTED, HELD, PAUSED) from Red Alert's own state. **Hold** stops all automatic switching. | `voice/mute/toggle`, `hold/on`, `auto/grid/off`, `gfx/alerts/toggle`… |
-| **Break** | be right back, intermission, sponsor, end the break | That break screen, or back from it. | `break/brb`, `break/off` |
+| **Break** | be right back, starting soon, intermission, sponsor, end the break | That break screen, or back from it. **Starting soon** keeps the countdown and line set on the Live desk (a Custom path key can set them: `break/soon?in=10`). | `break/brb`, `break/soon`, `break/off` |
 | **Panic** | | One press: fade to Be right back, mute every lobby voice, clear the graphics, pause alerts and hold switching. While that panic is on the key says **UNDO PANIC**: a press puts it all back (that panic's undo only, never another switch). | `panic`, `panic/undo` |
 | **Undo** | | Takes back the panic while there is one, else an automatic switch away from a lobby that dropped, else the last switch made by hand. Lit while a panic is on. Refused (503) while OBS isn't connected when it would switch. | `undo` |
 | **Custom path** | path (with a list of common ones), key text | Any other Red Alert Stream Deck path: skip or clear graphics, the player card, after-game prompts, listen to one lobby, the host's view modes, player cameras on/off. | `gfx/skip`, `voice/listen/2`, `spec/vision`… |
@@ -209,7 +209,9 @@ ready-made links with your key in them.
 | `cam/cut`, `wide` | The camera on stream; back to the whole map |
 | `replay/best` | The best recent replay into Preview (`take` plays it); 409 "No replay worth showing yet." when there's none |
 | `replay/last`, `replay/that`, `replay/live`, `replay/toggle`, `replay/back`, `replay/forward`, `replay/frameback`, `replay/frameforward`, `replay/restart`, `replay/zoomin`, `replay/zoomout`, `replay/follow`, `replay/angle`, `replay/slow` | Replays |
-| `break/brb`, `break/intermission`, `break/sponsor`, `break/off` (add `?t=cut`, `swoosh` or `fade`), `panic`, `panic/undo` | Breaks; panic, and that panic's undo only |
+| `break/brb`, `break/soon`, `break/intermission`, `break/sponsor`, `break/off` (add `?t=cut`, `swoosh` or `fade`), `panic`, `panic/undo` | Breaks; panic, and that panic's undo only |
+| `break/soon?in=10`, `break/soon?at=19:30`, `&text=Doors%20open` | Starting soon on stream, counting down 10 minutes (or to 19:30) with a line of text. `in=` or `at=` empty: no countdown. At zero it says "Starting now" and stays until you take a lobby |
+| `soon/set?in=10`, `soon/set?at=19:30`, `soon/set?text=…` | Starting soon's countdown and line, without switching |
 | `hold/on`, `hold/off`, `hold/toggle` | Hold: no automatic switching |
 | `auto/grid/…`, `auto/intermission/…`, `auto/switch/…` (`on`, `off`, `toggle`) | Automatic switching |
 | `undo` | The panic, else an automatic switch, else the last switch by hand |

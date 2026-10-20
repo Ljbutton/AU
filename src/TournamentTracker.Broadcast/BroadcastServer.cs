@@ -600,6 +600,7 @@ namespace TournamentTracker.App.Broadcast
                         "full" => $"{air.Slots.FirstOrDefault() ?? Arg("lobby")} is on stream.",
                         "slate" => "On stream: Be right back.",
                         "intermission" => "On stream: Intermission.",
+                        "soon" => "On stream: Starting soon.",
                         "break" => $"On stream: sponsor break with {air.Slots.FirstOrDefault()}.",
                         _ => air.Slots.Any(x => x != null) ? $"On stream: {string.Join(", ", air.Slots.Select(x => x ?? "empty"))}." : "Nothing on stream.",
                     } + _desk.DownNote(air.Slots), down = _desk.DownNote(air.Slots).Trim() });

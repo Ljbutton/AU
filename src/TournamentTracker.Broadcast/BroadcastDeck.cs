@@ -538,6 +538,14 @@ namespace TournamentTracker.App.Broadcast
                     {
                         case "brb": desk.ShowSlate("deck", t); return Switched("On stream: Be right back.");
                         case "intermission": desk.ShowIntermission("deck", t); return Switched("On stream: Intermission.");
+                        case "soon":
+                        {
+                            // Starting soon, with its countdown and line set from the link if it says (in=10, at=19:30, text=…).
+                            var (ok, said) = SoonFromQuery(desk, query);
+                            if (!ok) return (400, said);
+                            desk.ShowStartingSoon("deck", t);
+                            return Switched("On stream: Starting soon" + (desk.SoonLeft() is { } left && left > 0 ? $" ({FormatLeft(left)} to go)." : "."));
+                        }
                         case "sponsor":
                         {
                             string said = desk.StartBreak();
@@ -551,6 +559,13 @@ namespace TournamentTracker.App.Broadcast
                         }
                         default: return (404, "Unknown break.");
                     }
+                }
+                case "soon":
+                {
+                    // Starting soon's countdown and line, without switching (soon/set?in=10, ?at=19:30, ?text=…).
+                    if (what is not ("set" or "")) return (404, "Starting soon: soon/set with in=, at= or text=.");
+                    var (ok, said) = SoonFromQuery(desk, query);
+                    return (ok ? 200 : 400, said);
                 }
                 case "panic":
                 {
@@ -736,8 +751,21 @@ namespace TournamentTracker.App.Broadcast
         private static string LayoutName(string layout) => layout switch
         {
             "full" => "full screen", "2up" => "2-up", "4up" => "quad", "grid" => "grid", "cam" => "player cam", "cams" => "player cams",
-            "intermission" => "intermission", "slate" => "be right back", "break" => "sponsor break", "replay" => "replay", _ => layout,
+            "intermission" => "intermission", "slate" => "be right back", "break" => "sponsor break", "replay" => "replay", "soon" => "starting soon", _ => layout,
         };
+
+        /// <summary>Starting soon's settings from a link's query (in=, at=, text=; each only when it's there).</summary>
+        private static (bool Ok, string Message) SoonFromQuery(CasterDesk desk, string query)
+        {
+            string? Q(string name) => HasQuery(query, name) ? Control.HttpRequest.Query(query, name) : null;
+            return desk.SetSoon(Q("in"), Q("at"), Q("text"));
+        }
+
+        private static bool HasQuery(string query, string name) =>
+            query.Split('&', StringSplitOptions.RemoveEmptyEntries).Any(p => p.Split('=')[0] == name);
+
+        /// <summary>"4:59", "1:02:00".</summary>
+        private static string FormatLeft(int seconds) => seconds >= 3600 ? $"{seconds / 3600}:{seconds / 60 % 60:00}:{seconds % 60:00}" : $"{seconds / 60}:{seconds % 60:00}";
 
         /// <summary>For Settings → Stream Deck: every link, ready to copy (and the Stream Deck plugin's key and port).</summary>
         private object DeckLinks()
@@ -775,6 +803,8 @@ namespace TournamentTracker.App.Broadcast
                 L("Replays", "Slow motion (100%, 50%, 25%)", "replay/slow"),
                 L("Breaks", "Be right back", "break/brb"),
                 L("Breaks", "Intermission", "break/intermission"),
+                L("Breaks", "Starting soon (counting down 10 minutes; at=19:30 for a time, text= for a line)", "break/soon", "&in=10"),
+                L("Breaks", "Starting soon's countdown and line, without switching", "soon/set", "&in=10"),
                 L("Breaks", "Sponsor break", "break/sponsor"),
                 L("Breaks", "End the break", "break/off"),
                 L("Breaks", "Panic: fade to be right back, mute, hold", "panic"),

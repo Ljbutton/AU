@@ -62,6 +62,7 @@ const REPLAY_OPS = {
 
 const BREAKS = {
 	brb: { word: "BRB", title: "BE RIGHT BACK" },
+	soon: { word: "SOON", title: "STARTING SOON" },
 	intermission: { word: "BREAK", title: "INTERMISSION" },
 	sponsor: { word: "AD", title: "SPONSOR" },
 	off: { word: "BACK", title: "END BREAK" },
