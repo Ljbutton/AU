@@ -102,9 +102,9 @@ public class StreamDeckTests : IAsyncLifetime
         var again = await Press("pvw/lobby/3");
         Assert.Equal(HttpStatusCode.OK, again.Status);
         Assert.Equal("ignored repeat", again.Body.GetProperty("message").GetString());
-        // Switching held: where the action is waits (locked), and says why.
+        // Switching held. The old "where the action is" link is Best replay now: no clip yet, so refused.
         Assert.Equal(HttpStatusCode.OK, (await Press("hold/on")).Status);
-        Assert.Equal(HttpStatusCode.Locked, (await Press("lobby/action")).Status);
+        Assert.Equal(HttpStatusCode.Conflict, (await Press("lobby/action")).Status);
         Assert.True((await State()).GetProperty("hold").GetBoolean());
 
         // Locked (no administration code): 423 for the plugin to say so.

@@ -138,8 +138,9 @@ namespace TournamentTracker.App.Broadcast
         /// lobby isn't in play (a meeting, between games) the cut is armed and happens when play resumes
         /// (the same press again takes it back). <paramref name="arm"/>: only who it follows, no cut.
         /// <paramref name="requireObs"/>: refused (503) while OBS isn't connected, as the Stream Deck is.
+        /// <paramref name="preview"/>: who it follows is set and the camera goes into Preview (Take puts it on).
         /// </summary>
-        private (int Status, string Message) CamPress(string? lobby, string who, bool arm, bool cut, string? transition, bool requireObs = true)
+        private (int Status, string Message) CamPress(string? lobby, string who, bool arm, bool cut, string? transition, bool requireObs = true, bool preview = false)
         {
             var desk = _desk;
             if (desk == null) return (423, "Red Alert is locked.");
@@ -189,6 +190,12 @@ namespace TournamentTracker.App.Broadcast
             {
                 desk.WantCam(lobby, pick);
                 return (202, $"{lobby}'s camera follows {whom} (not on stream).{paused}");
+            }
+            if (preview)
+            {
+                desk.WantCam(lobby, pick);
+                desk.PreviewCam(lobby);
+                return (200, $"Preview: {lobby}'s player camera on {whom}. Take puts it on.{(sending ? "" : " Its host's game isn't sending the camera yet: asked again.")}{paused}");
             }
             // Not in play: armed, on stream as soon as play resumes. The same press again takes it back.
             if (live.Phase != "ingame")
@@ -403,7 +410,7 @@ namespace TournamentTracker.App.Broadcast
             if (action == "state") return await DeckStateAsync(query).ConfigureAwait(false);
             if (action == "img") return DeckImage(parts.Skip(1).ToArray());
             // The same press twice in a row within a moment counts once (another press in between doesn't).
-            string press = string.Join("/", parts).ToLowerInvariant() + "?" + Control.HttpRequest.Query(query, "t") + "&" + Control.HttpRequest.Query(query, "as") + "&" + Control.HttpRequest.Query(query, "arm");
+            string press = string.Join("/", parts).ToLowerInvariant() + "?" + Control.HttpRequest.Query(query, "t") + "&" + Control.HttpRequest.Query(query, "as") + "&" + Control.HttpRequest.Query(query, "arm") + "&" + Control.HttpRequest.Query(query, "to");
             var now = DateTime.UtcNow;
             lock (_pressLock)
             {
@@ -436,7 +443,8 @@ namespace TournamentTracker.App.Broadcast
                 case "lobby":
                 case "action":
                 {
-                    if (action == "action") what = "action";
+                    // Where the action was is now Best replay: the old links keep working and do the same.
+                    if (action == "action" || what == "action") return BestReplayToPreview();
                     if (online.Count == 0) return (404, "No live lobbies.");
                     string? pick;
                     if (what is "next" or "prev")
@@ -444,16 +452,6 @@ namespace TournamentTracker.App.Broadcast
                         int at = online.FindIndex(l => string.Equals(l, Shown(), StringComparison.OrdinalIgnoreCase));
                         int step = what == "next" ? 1 : -1;
                         pick = online[at < 0 ? 0 : ((at + step) % online.Count + online.Count) % online.Count];
-                    }
-                    else if (what == "action")
-                    {
-                        // Where the action is: chosen by itself, so it waits while switching is held.
-                        if (desk.Held) return (423, "Switching is held: Where the action is waits. Release the hold first.");
-                        var ranked = desk.Board.Ranking().Where(r => r.Online && !desk.IsDown(r.Lobby)).ToList();
-                        var hot = ranked.FirstOrDefault(r => r.Phase.Equals("meeting", StringComparison.OrdinalIgnoreCase) && !string.Equals(r.Lobby, Shown(), StringComparison.OrdinalIgnoreCase))
-                                  ?? ranked.FirstOrDefault(r => !string.Equals(r.Lobby, Shown(), StringComparison.OrdinalIgnoreCase)) ?? ranked.FirstOrDefault();
-                        pick = hot?.Lobby;
-                        if (pick == null) return (404, "No live lobby that's up.");
                     }
                     else pick = Lobby(what);
                     if (pick == null) return (404, $"No lobby {what}.");
@@ -472,6 +470,7 @@ namespace TournamentTracker.App.Broadcast
                 }
                 case "take":
                 {
+                    if (desk.Preview is { Replay: not null } stagedReplay) return await TakeReplayAsync(desk, stagedReplay).ConfigureAwait(false);
                     if (desk.Preview.Slots.Count == 0) return (409, "Nothing in Preview: pick a lobby first.");
                     string? asLayout = CasterDesk.NormLayout(Control.HttpRequest.Query(query, "as"));
                     if (Control.HttpRequest.Query(query, "as").Length > 0 && asLayout == null) return (404, "Unknown layout.");
@@ -497,10 +496,12 @@ namespace TournamentTracker.App.Broadcast
                 case "cam":
                 {
                     bool arm = Control.HttpRequest.Query(query, "arm") is "1" or "true";
+                    // ?to=pvw: the camera into Preview (who it follows set now), Take puts it on.
+                    bool pvw = !arm && Control.HttpRequest.Query(query, "to") == "pvw";
                     if (what is "on" or "off" && parts.Length == 2) return (200, CamAll(what == "on"));
-                    if (parts.Length <= 1) return CamPress(null, "auto", arm, cut: !arm, t, requireObs);
+                    if (parts.Length <= 1) return CamPress(null, "auto", arm, cut: !arm, t, requireObs, pvw);
                     if (what == "cut" && parts.Length == 2) return CamPress(null, "keep", false, cut: true, t, requireObs);
-                    if (parts.Length == 2) return CamPress(null, what, arm, cut: !arm, t, requireObs);            // cam/{who}: the lobby on stream
+                    if (parts.Length == 2) return CamPress(null, what, arm, cut: !arm, t, requireObs, pvw);            // cam/{who}: the lobby on stream
                     string target = what, who = P(2);
                     string? lobby = target switch
                     {
@@ -509,7 +510,7 @@ namespace TournamentTracker.App.Broadcast
                         _ => Lobby(target),
                     };
                     if (lobby == null) return (404, target == "pvw" ? "Nothing in Preview." : $"No lobby {target}.");
-                    return CamPress(lobby, who.Length == 0 ? "auto" : who, arm, cut: !arm, t, requireObs);
+                    return CamPress(lobby, who.Length == 0 ? "auto" : who, arm, cut: !arm, t, requireObs, pvw);
                 }
                 case "wide":
                 {
@@ -529,7 +530,7 @@ namespace TournamentTracker.App.Broadcast
                     desk.Show(lobby, "full", null, null, "deck", t);
                     return Switched($"{lobby}: the whole map.");
                 }
-                case "replay": return await DeckReplayAsync(what).ConfigureAwait(false);
+                case "replay": return what == "best" ? BestReplayToPreview() : await DeckReplayAsync(what).ConfigureAwait(false);
                 case "break":
                 {
                     if (noObs && what != "off") return (503, NoObs);
@@ -748,7 +749,6 @@ namespace TournamentTracker.App.Broadcast
                 L("Lobbies", "Lobby 1 full screen (2, 3… the same way)", "lobby/1"),
                 L("Lobbies", "Next lobby", "lobby/next"),
                 L("Lobbies", "Previous lobby", "lobby/prev"),
-                L("Lobbies", "Where the action is", "lobby/action"),
                 L("Lobbies", "Lobby 1 with a straight cut (no swoosh)", "lobby/1", "&t=cut"),
                 L("Lobbies", "Quad now", "quad"),
                 L("Lobbies", "Grid now", "grid"),
@@ -763,9 +763,11 @@ namespace TournamentTracker.App.Broadcast
                 L("Player camera", "A colour's player (red, blue, … in the link)", "cam/red"),
                 L("Player camera", "Lobby 1's camera on player slot 1 (slot1…slot15, pgm or pvw for the lobby)", "cam/1/slot1"),
                 L("Player camera", "Lobby 1's camera follows slot 1, no cut", "cam/1/slot1", "&arm=1"),
+                L("Player camera", "Lobby 1's camera on slot 1 into Preview (Take puts it on)", "cam/1/slot1", "&to=pvw"),
                 L("Player camera", "Cut to the camera of the lobby on stream", "cam/cut"),
                 L("Player camera", "Back to the whole map", "wide"),
                 L("Player camera", "Player cameras on for every lobby (off the same way)", "cam/on"),
+                L("Replays", "Best replay into Preview (Take plays it)", "replay/best"),
                 L("Replays", "Play the newest replay", "replay/last"),
                 L("Replays", "Replay that: the last seconds of the lobby on stream", "replay/that"),
                 L("Replays", "Back to live", "replay/live"),
