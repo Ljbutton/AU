@@ -96,8 +96,9 @@ public class StreamDeckTests : IAsyncLifetime
         Assert.False(_server.Obs!.Settings.Voice.HearPreview);
         r = await Post("app/admin/obs", new { action = "delay", value = 1.5 });
         Assert.True(r.GetProperty("ok").GetBoolean());
-        Assert.StartsWith("Broadcast delay 1.5 s", r.GetProperty("message").GetString());
-        Assert.Equal(1.5, (await Get("app/admin/desk")).GetProperty("obs").GetProperty("broadcastDelay").GetDouble());
+        // The broadcast delay is off in this version: asking for one changes nothing.
+        Assert.Equal("The broadcast delay is off in this version of Red Alert.", r.GetProperty("message").GetString());
+        Assert.Equal(0, (await Get("app/admin/desk")).GetProperty("obs").GetProperty("broadcastDelay").GetDouble());
     }
 
     [Fact]

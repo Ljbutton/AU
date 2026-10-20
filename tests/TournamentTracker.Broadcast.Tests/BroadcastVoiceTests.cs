@@ -50,7 +50,7 @@ public class BroadcastVoiceTests : IDisposable
         {
             await director.ConnectAsync("127.0.0.1", obs.Port, "secret");
             Assert.Contains("TT Voice LJ", obs.Inputs.Keys);
-            Assert.Equal("https://vdo.ninja/?view=av&password=x&cleanoutput&novideo&buffer=3000", obs.Inputs["TT Voice LJ"]["url"]!.ToString());
+            Assert.Equal("https://vdo.ninja/?view=av&password=x&cleanoutput&novideo", obs.Inputs["TT Voice LJ"]["url"]!.ToString());
             // In every TT scene, at the bottom, always on (muting decides who's heard).
             foreach (var scene in new[] { "TT Full", "TT Quad", "TT Replay" })
             {

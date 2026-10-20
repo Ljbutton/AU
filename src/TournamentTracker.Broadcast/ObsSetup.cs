@@ -91,23 +91,26 @@ namespace TournamentTracker.App.Broadcast
                     : $"Each lobby's source keeps its last {Settings.Replay.BufferSeconds}s (OBS's own Replay Buffer isn't used and can stay off).",
             });
 
-            // Impostor tags against the delay: Red Alert's broadcast delay (OBS's own stream delay counts too, if it's on).
-            bool tags = ImpostorTagsOn?.Invoke() == true;
-            bool delayOn = await Try("GetProfileParameter", new { parameterCategory = "Output", parameterName = "DelayEnable" }) is { } de && Param(de) is "true" or "1";
-            int delay = await Try("GetProfileParameter", new { parameterCategory = "Output", parameterName = "DelaySec" }) is { } ds && int.TryParse(Param(ds), out var sec) ? sec : 0;
-            int obsDelay = delayOn ? delay : 0;
-            double ours = DelaySeconds;
-            bool held = ours > 0 || obsDelay > 0;
-            string also = obsDelay > 0 ? $" · OBS stream delay {obsDelay} s" : "";
-            list.Add(new SetupCheck
+            if (DelayAllowed)
             {
-                Id = "delay", Ok = !tags || held,
-                Title = $"Broadcast delay {BroadcastDelay.Say(ours)}{also}{(tags ? " · impostor tags are on" : "")}",
-                Detail = tags && !held ? "Players watching the stream see the impostors as it happens. Red Alert can hold the lobbies back a few seconds (OBS card → Broadcast delay), or turn Impostor tags off in Graphics."
-                    : ours > 0 ? $"Every lobby's picture, voice and camera, and the graphics, reach the stream {BroadcastDelay.Say(ours)} late; the Live desk stays live. Your mic isn't held back: to talk over the stream's picture, give it a Sync Offset of {(int)(ours * 1000)} ms in OBS (Edit → Advanced Audio Properties)."
-                    : "",
-                Fix = tags && !held ? $"Turn on a {BroadcastDelay.Say(BroadcastDelay.Default)} delay" : null,
-            });
+                // Impostor tags against the delay: Red Alert's broadcast delay (OBS's own stream delay counts too, if it's on).
+                bool tags = ImpostorTagsOn?.Invoke() == true;
+                bool delayOn = await Try("GetProfileParameter", new { parameterCategory = "Output", parameterName = "DelayEnable" }) is { } de && Param(de) is "true" or "1";
+                int delay = await Try("GetProfileParameter", new { parameterCategory = "Output", parameterName = "DelaySec" }) is { } ds && int.TryParse(Param(ds), out var sec) ? sec : 0;
+                int obsDelay = delayOn ? delay : 0;
+                double ours = DelaySeconds;
+                bool held = ours > 0 || obsDelay > 0;
+                string also = obsDelay > 0 ? $" · OBS stream delay {obsDelay} s" : "";
+                list.Add(new SetupCheck
+                {
+                    Id = "delay", Ok = !tags || held,
+                    Title = $"Broadcast delay {BroadcastDelay.Say(ours)}{also}{(tags ? " · impostor tags are on" : "")}",
+                    Detail = tags && !held ? "Players watching the stream see the impostors as it happens. Red Alert can hold the lobbies back a few seconds (OBS card → Broadcast delay), or turn Impostor tags off in Graphics."
+                        : ours > 0 ? $"Every lobby's picture, voice and camera, and the graphics, reach the stream {BroadcastDelay.Say(ours)} late; the Live desk stays live. Your mic isn't held back: to talk over the stream's picture, give it a Sync Offset of {(int)(ours * 1000)} ms in OBS (Edit → Advanced Audio Properties)."
+                        : "",
+                    Fix = tags && !held ? $"Turn on a {BroadcastDelay.Say(BroadcastDelay.Default)} delay" : null,
+                });
+            }
 
             // Hear Preview plays in OBS's monitoring device: it should be the caster's headphones.
             string? monId = await Try("GetProfileParameter", new { parameterCategory = "Audio", parameterName = "MonitoringDeviceId" }) is { } mi ? ParamOrDefault(mi) : null;

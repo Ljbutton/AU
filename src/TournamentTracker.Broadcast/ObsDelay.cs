@@ -19,6 +19,11 @@ namespace TournamentTracker.App.Broadcast
         public const double Max = 4;
         /// <summary>A few seconds: enough to cut to a lobby before its play reaches the stream, and well inside the cap.</summary>
         public const double Default = 3;
+        /// <summary>
+        /// Off for now (the owner's call): nothing is held back, whatever obs.json says, and the desk has no
+        /// setting for it. Turning this on brings the whole of it back (the setting, the OBS card and the setup check).
+        /// </summary>
+        public static readonly bool Enabled = false;
 
         /// <summary>A delay as Red Alert keeps it: 0 to <see cref="Max"/>, in half seconds.</summary>
         public static double Clamp(double seconds) =>
@@ -68,8 +73,11 @@ namespace TournamentTracker.App.Broadcast
 
     public sealed partial class ObsDirector
     {
+        /// <summary>Whether the broadcast delay can be on at all (<see cref="BroadcastDelay.Enabled"/>; tests turn it on for their own director).</summary>
+        public bool DelayAllowed { get; set; } = BroadcastDelay.Enabled;
+
         /// <summary>Red Alert's broadcast delay now, in seconds (0: off).</summary>
-        public double DelaySeconds => BroadcastDelay.Clamp(Settings.BroadcastDelay);
+        public double DelaySeconds => DelayAllowed ? BroadcastDelay.Clamp(Settings.BroadcastDelay) : 0;
 
         /// <summary>A host's VDO.Ninja link as OBS opens it for a lobby's picture or camera: its bitrate and the broadcast delay.</summary>
         internal string ForObs(string url) => WithDelay(WithBitrate(url));
@@ -83,6 +91,7 @@ namespace TournamentTracker.App.Broadcast
         /// </summary>
         public async Task<string> SetDelayAsync(double seconds)
         {
+            if (!DelayAllowed) return "The broadcast delay is off in this version of Red Alert.";
             Settings.BroadcastDelay = BroadcastDelay.Clamp(seconds);
             Save();
             string said = DelaySeconds > 0
