@@ -83,6 +83,7 @@ public class ControlApiTests : IDisposable
         Assert.Equal("Cup", status.GetProperty("tournament").GetString());
         Assert.Equal("ABCDEF", status.GetProperty("lobbyCode").GetString());
         Assert.Equal(6, status.GetProperty("players").GetArrayLength());
+        Assert.False(status.GetProperty("refSlotActive").GetBoolean());       // the host plays (no referee slot)
 
         // The command runs on the game thread: keep "the game" pumping while the app waits.
         var post = http.PostAsync("api/command", new StringContent("{\"command\":\"r3\"}", Encoding.UTF8, "application/json"));

@@ -170,6 +170,8 @@ namespace TournamentTracker
                 Lock = new { Available = _settings.LobbySettings != null && _settings.Mode != TrackerMode.Standard, On = LockedSettings != null, Settings = _settings.LobbySettings },
                 Rotation = RotationOn,
                 RefSlot = RefSlotKey != null,
+                // New in 0.1.67: the host is the referee ghost this game (not in safe mode, where they play).
+                RefSlotActive = ActiveRefSlotKey != null,
                 HostAuthority = new { On = HostAuthority, Active = HostAuthorityActive },
                 // Both new in 0.1.63 (The Button treats them as optional, for older mods).
                 SafeMode = SafeMode?.Status(),

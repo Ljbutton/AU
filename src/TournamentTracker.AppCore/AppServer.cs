@@ -501,6 +501,22 @@ namespace TournamentTracker.App
             return e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out value) && value.ValueKind == kind;
         }
 
+        /// <summary>
+        /// The host is the referee (the referee ghost slot, not playing): only then does Home show the caster's
+        /// ON STREAM / NEXT light, which could tell a playing host something happened in their game. An older
+        /// mod that doesn't say whether the slot is active this game: the slot on and safe mode off.
+        /// </summary>
+        internal Func<JsonElement?, bool> IsRefereeHost { get; set; } = RefereeHost;
+
+        internal static bool RefereeHost(JsonElement? status)
+        {
+            if (status is not JsonElement s) return false;
+            if (Has(s, "refSlotActive", JsonValueKind.True, out _)) return true;
+            if (Has(s, "refSlotActive", JsonValueKind.False, out _)) return false;
+            bool safe = Has(s, "safeMode", JsonValueKind.Object, out var sm) && Has(sm, "on", JsonValueKind.True, out _);
+            return Has(s, "refSlot", JsonValueKind.True, out _) && !safe;
+        }
+
         /// <summary>The feed part of the mod's status (null: no status, or a mod without a feed).</summary>
         private static JsonElement? Feed(JsonElement? status) => status is JsonElement s && Has(s, "feed", JsonValueKind.Object, out var feed) ? feed : null;
 
@@ -584,7 +600,7 @@ namespace TournamentTracker.App
                     Video = _sendVideo,
                     Note = _feedNote,
                 },
-                Tally = _tally.View(DateTime.UtcNow),
+                Tally = IsRefereeHost(status) ? _tally.View(DateTime.UtcNow) : null,
                 App = _env.Version,
                 Twitch = _settings.Twitch,
                 ModConsole = _settings.ShowModConsole,

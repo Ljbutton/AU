@@ -71,6 +71,9 @@ public class StreamTallyTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, (await http.GetAsync("app/sendfeed?since=0&page=aaa")).StatusCode);
         var ok = await AppHttp.Post(http, "app/tally?page=aaa", new { state = "pgm", view = "4up" });
         Assert.True(ok.GetProperty("ok").GetBoolean());
+        // Only a host in the referee slot sees it (a playing host could learn something happened in their game).
+        Assert.Equal(JsonValueKind.Null, (await AppHttp.Get(http, "app/state")).GetProperty("tally").ValueKind);
+        app.IsRefereeHost = _ => true;
         var tally = (await AppHttp.Get(http, "app/state")).GetProperty("tally");
         Assert.Equal("On stream (in the quad)", tally.GetProperty("text").GetString());
         Assert.False((await AppHttp.Post(http, "app/tally?page=aaa", new { state = "maybe" })).GetProperty("ok").GetBoolean());
@@ -81,6 +84,19 @@ public class StreamTallyTests : IDisposable
 
         await http.PostAsync("app/feed", new StringContent("{\"on\":\"false\"}", Encoding.UTF8, "application/json"));
         Assert.Equal(JsonValueKind.Null, (await AppHttp.Get(http, "app/state")).GetProperty("tally").ValueKind);
+    }
+
+    [Theory]
+    [InlineData(null, false)]                                                           // no mod running
+    [InlineData("{\"refSlotActive\":true,\"refSlot\":true}", true)]
+    [InlineData("{\"refSlotActive\":false,\"refSlot\":true}", false)]               // safe mode this game: the host plays
+    [InlineData("{\"refSlot\":false}", false)]                                         // playing
+    [InlineData("{\"refSlot\":true,\"safeMode\":{\"on\":false}}", true)]            // an older mod: the slot on
+    [InlineData("{\"refSlot\":true,\"safeMode\":{\"on\":true}}", false)]            // an older mod in safe mode
+    public void Only_a_host_in_the_referee_slot_is_shown_the_light(string? status, bool shown)
+    {
+        JsonElement? s = status == null ? null : JsonDocument.Parse(status).RootElement.Clone();
+        Assert.Equal(shown, AppServer.RefereeHost(s));
     }
 
     [Fact]
