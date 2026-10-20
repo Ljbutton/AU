@@ -115,10 +115,10 @@ public class WordingTests : IDisposable
         var s = Session();
         s.RunCommand("overlay on");
         string reply = s.Pump().Last().Text;
-        Assert.EndsWith("Size 380×720.", reply);
+        Assert.EndsWith("Size 360×720.", reply);
         Assert.Contains("*{box-sizing:border-box}", OverlayPage.Html);                     // the panels' width includes their padding
         int width = int.Parse(Regex.Match(OverlayPage.Html, @"\.wrap\{[^}]*width:(\d+)px").Groups[1].Value);
-        Assert.InRange(width, 340, 380);
+        Assert.Equal(360, width);                                                          // the reply's width, padding included
         Assert.Contains("everything stays on a 720p screen", OverlayPage.Html);
     }
 }
