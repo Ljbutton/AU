@@ -441,6 +441,8 @@ kbd{display:inline-block;font:600 11.5px/1 var(--mono);padding:3px 6px;border:1p
 .sch .none small{font:600 12px/1.2 "Segoe UI",sans-serif;letter-spacing:0;color:var(--muted)}
 .mon-box .air-slots{position:absolute;left:5px;right:5px;bottom:5px;gap:4px}
 .mon-box .air-slots span{font-size:13px;padding:2px 7px 0;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.6)}
+/* Auto grid's suggestion in Preview: what it is and that Take puts it on. */
+.mon-box .pvw-note{position:absolute;left:5px;right:5px;bottom:5px;padding:4px 8px 3px;background:rgba(6,30,19,.92);border:1px solid var(--good);color:#dff7ea;font-size:12.5px;line-height:1.25;box-shadow:0 2px 6px rgba(0,0,0,.6)}
 .air-pick{position:absolute;left:0;right:0;top:24px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .ld-take{display:grid;grid-template-rows:minmax(40px,1fr) auto auto auto;gap:5px;min-height:0;align-self:start;height:calc(var(--pv) * 9 / 16 + 30px)}
 .ld-take .take{font:700 34px/1 var(--hand);letter-spacing:.14em;background:var(--red);border-color:var(--red);color:#fff;padding:4px 0 0;display:grid;place-items:center;align-content:center;gap:3px;min-height:0}
@@ -695,7 +697,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
     </div>
     <div class="ld-sw">
       <section class="mon pvw" id="pvw"><header><b>PREVIEW</b><span id="stage-line"></span></header>
-        <div class="mon-box"><div class="sch" id="pvw-sch"></div></div></section>
+        <div class="mon-box"><div class="sch" id="pvw-sch"></div><div class="pvw-note" id="pvw-note" hidden></div></div></section>
       <div class="ld-take">
         <button class="b take" id="stage-send" type="button" disabled title="Take: Preview on stream (Enter)">TAKE</button>
         <div class="seg trans" id="ld-trans" title="How Take, a cut and a camera switch from here: a straight cut, the swoosh, or a fade"><button type="button" data-trans="cut">Cut</button><button type="button" data-trans="swoosh">Swoosh</button><button type="button" data-trans="fade">Fade</button></div>
@@ -732,8 +734,8 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
           <div class="card inter-card" id="inter-card" hidden></div>
         </div>
         <div class="brk-bar">
-          <div class="lay-grp brk"><span class="lay-h">Breaks</span><button class="b" type="button" data-layout="slate" title="Technical difficulties: be right back (standings and storylines take turns)">BRB</button><button class="b" type="button" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" type="button" id="desk-sponsor" title="Split screen: the lobby on the left, the sponsor on the right">Sponsor</button><span style="flex:1"></span><button class="b hold" type="button" id="desk-hold" title="Hold: nothing switches by itself (auto grid, intermission, cameras going back, auto switch). Key H">Hold</button><button class="b panic" type="button" id="desk-panic" title="Panic: fade to be right back, mute every lobby voice, clear graphics, pause alerts and hold. Press twice (key P twice); again to undo">Panic</button></div>
-          <div class="lay-grp auto"><span class="lay-h">Auto</span><button class="b sw-onoff" type="button" id="desk-autogrid" title="Grid by itself whenever no lobby is mid-game">Grid</button><button class="b sw-onoff" type="button" id="desk-autointer" title="Intermission by itself when every lobby is between games, and back when one starts">Intermission</button><button class="b sw-onoff" type="button" id="desk-autosw" title="When a lobby on stream drops, switch away from it once (a lobby you put on yourself while it's down stays on)">Switch away</button></div>
+          <div class="lay-grp brk"><span class="lay-h">Breaks</span><button class="b" type="button" data-layout="slate" title="Technical difficulties: be right back (standings and storylines take turns)">BRB</button><button class="b" type="button" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" type="button" id="desk-sponsor" title="Split screen: the lobby on the left, the sponsor on the right">Sponsor</button><span style="flex:1"></span><button class="b hold" type="button" id="desk-hold" title="Hold: nothing switches by itself (intermission, cameras going back, auto switch) and auto grid puts nothing in Preview. Key H">Hold</button><button class="b panic" type="button" id="desk-panic" title="Panic: fade to be right back, mute every lobby voice, clear graphics, pause alerts and hold. Press twice (key P twice); again to undo">Panic</button></div>
+          <div class="lay-grp auto"><span class="lay-h">Auto</span><button class="b sw-onoff" type="button" id="desk-autogrid" title="When no lobby is mid-game, the grid goes into Preview; when a game starts again, the way back does. Nothing switches until you Take it">Grid</button><button class="b sw-onoff" type="button" id="desk-autointer" title="Intermission by itself when every lobby is between games, and back when one starts">Intermission</button><button class="b sw-onoff" type="button" id="desk-autosw" title="When a lobby on stream drops, switch away from it once (a lobby you put on yourself while it's down stays on)">Switch away</button></div>
         </div>
       </aside>
     </div>
@@ -1537,7 +1539,10 @@ function renderSwitcher() {
   // Preview: the staged lobbies in their layout (lobbies past the layout's slots stay out).
   const cap = { full: 1, '2up': 2, '4up': 4, cams: 4 }[pv.layout];
   const left = cap && pv.slots.length > cap ? pv.slots.slice(cap) : [];
-  setText($('stage-line'), pv.slots.length ? `${STAGE_NAME[pv.layout] || pv.layout} · ${pv.slots.join(', ')}${left.length ? ` (${left.join(', ')} left out)` : ''}` : '');
+  setText($('stage-line'), pv.slots.length ? `${pv.note ? 'Auto grid · ' : ''}${STAGE_NAME[pv.layout] || pv.layout} · ${pv.slots.join(', ')}${left.length ? ` (${left.join(', ')} left out)` : ''}` : '');
+  // Auto grid's suggestion says what it is: nothing goes on until Take.
+  setText($('pvw-note'), pv.note || '');
+  $('pvw-note').hidden = !pv.note;
   $('stage-clear').disabled = !pv.slots.length;
   setHtml($('pvw-sch'), schematic(pv.layout, pv.slots, 'Click a lobby below (or press 1–9) to preview it; Enter takes it.'));
   // Program: OBS's own picture when it's connected, else the same drawing in red.

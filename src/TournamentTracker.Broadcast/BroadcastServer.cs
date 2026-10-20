@@ -1051,7 +1051,7 @@ namespace TournamentTracker.App.Broadcast
                 case ("POST", "/app/admin/autogrid"):
                     if (_desk == null) return Say(false, Locked);
                     _desk.AutoGrid = Arg("on") == "true";
-                    return Say(true, _desk.AutoGrid ? "Auto grid on: the grid comes up whenever no lobby is mid-game." : "Auto grid off.");
+                    return Say(true, _desk.AutoGrid ? "Auto grid on: when no lobby is mid-game, the grid goes into Preview. Take shows it." : "Auto grid off.");
                 case ("POST", "/app/admin/sim"):
                     if (_desk == null) return Say(false, Locked);
                     _desk.Simulate(Arg("on") == "true");

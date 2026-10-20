@@ -351,12 +351,13 @@ public class DeskControlTests : IDisposable
         Snap(desk, "LJ", "ingame");
         Snap(desk, "MAL", "ingame");
         desk.Show("LJ");
-        // Both lobbies in a meeting: auto grid would come up, but switching is held.
+        // Both lobbies in a meeting: auto grid would put the grid in Preview, but switching is held.
         Snap(desk, "LJ", "meeting");
         Snap(desk, "MAL", "meeting");
         desk.SetHold(true);
         desk.Tick();
         Assert.Equal("full", desk.OnAir.Layout);
+        Assert.Empty(desk.Preview.Slots);
         Assert.Equal("Auto grid", desk.HeldBack?.Text);
         var hold = JsonSerializer.SerializeToElement(desk.HoldState());
         Assert.True(hold.GetProperty("On").GetBoolean());
@@ -378,8 +379,16 @@ public class DeskControlTests : IDisposable
         Snap(desk, "MAL", "meeting");
         Assert.False(desk.Held);
         desk.Tick();
-        Assert.Equal("grid", desk.OnAir.Layout);
-        Assert.Equal("auto", desk.OnAir.By);
+        // Released: the grid goes into Preview (on stream only with Take).
+        Assert.Equal("full", desk.OnAir.Layout);
+        Assert.Equal("grid", desk.Preview.Layout);
+        Assert.Equal("grid", desk.Preview.Auto);
+        // Held again: auto grid's suggestion comes out of Preview.
+        desk.SetHold(true);
+        desk.Tick();
+        Assert.Empty(desk.Preview.Slots);
+        Assert.Equal("Auto grid", desk.HeldBack?.Text);
+        desk.SetHold(false);
 
         // The camera going back to the map waits too.
         desk.AutoGrid = false;

@@ -284,20 +284,212 @@ public class GridTests : IDisposable
         Assert.Equal(new[] { "A", "B", "C", "D" }, _desk.OnAir.Slots);
     }
 
-    [Fact]
-    public void Auto_grid_comes_up_when_nobody_is_mid_game_and_goes_back_after()
+    /// <summary>A, B playing; A full screen on stream; auto grid on.</summary>
+    private void Playing()
     {
         Snap("A"); Snap("B");
         _desk.AutoGrid = true;
         _desk.Show("A");
         _desk.Tick();
-        Assert.Equal("full", _desk.OnAir.Layout);                  // still playing
-        Snap("A", "meeting"); Snap("B", "lobby");
+        Assert.Equal("full", _desk.OnAir.Layout);
+        Assert.Empty(_desk.Preview.Slots);                          // still playing: nothing suggested
+    }
+
+    private void Quiet() { Snap("A", "meeting"); Snap("B", "lobby"); }
+
+    [Fact]
+    public void Auto_grid_puts_the_grid_in_Preview_when_every_lobby_is_quiet_and_Take_puts_it_on()
+    {
+        Playing();
+        int switches = _switched.Count;
+        Quiet();
         _desk.Tick();
-        Assert.Equal("grid", _desk.OnAir.Layout);
-        Snap("A", "ingame");
-        _desk.Tick();
+        // Nothing switched: A's meeting stays on stream, the grid waits in Preview with a note.
         Assert.Equal("full", _desk.OnAir.Layout);
         Assert.Equal("A", _desk.OnAir.Slots[0]);
+        Assert.Equal(switches, _switched.Count);
+        Assert.Equal("grid", _desk.Preview.Layout);
+        Assert.Equal(new[] { "A", "B" }, _desk.Preview.Slots);
+        Assert.Equal("grid", _desk.Preview.Auto);
+        Assert.Equal("All lobbies quiet: Grid is in Preview. Take to show it.", _desk.Preview.Note);
+        var state = JsonSerializer.SerializeToElement(_desk.State());
+        Assert.Equal(CasterDesk.GridNote, state.GetProperty("Preview").GetProperty("Note").GetString());
+        Assert.Equal("pvw", state.GetProperty("Lobbies").EnumerateArray().Single(l => l.GetProperty("Lobby").GetString() == "B").GetProperty("Tally").GetString());
+        // Another second changes nothing (the same suggestion, no new switch).
+        var same = _desk.Preview;
+        _desk.Tick();
+        Assert.Same(same, _desk.Preview);
+        Assert.Equal("full", _desk.OnAir.Layout);
+
+        // Take: the caster's switch.
+        var air = _desk.Take();
+        Assert.Equal("grid", air!.Layout);
+        Assert.Equal("deck", air.By);
+        Assert.Equal(new[] { "A", "B" }, air.Slots.Where(x => x != null));
+        Assert.Empty(_desk.Preview.Slots);
+        _desk.Tick();
+        Assert.Empty(_desk.Preview.Slots);                          // the grid is on: nothing more to suggest
+        Assert.Equal("grid", _desk.OnAir.Layout);
+    }
+
+    [Fact]
+    public void Going_back_after_the_grid_is_suggested_into_Preview_too()
+    {
+        Snap("A"); Snap("B");
+        _desk.AutoGrid = true;
+        _desk.Show("", "2up", null, new[] { "B", "A" });
+        Quiet();
+        _desk.Tick();
+        _desk.Take();
+        Assert.Equal("grid", _desk.OnAir.Layout);
+        int switches = _switched.Count;
+
+        // A game starts: the grid stays on, what was on before waits in Preview.
+        Snap("B", "ingame");
+        _desk.Tick();
+        Assert.Equal("grid", _desk.OnAir.Layout);
+        Assert.Equal(switches, _switched.Count);
+        Assert.Equal("2up", _desk.Preview.Layout);
+        Assert.Equal(new[] { "B", "A" }, _desk.Preview.Slots);
+        Assert.Equal("back", _desk.Preview.Auto);
+        Assert.Equal("A game started: B, A (2-up) is in Preview. Take to go back.", _desk.Preview.Note);
+
+        var back = _desk.Take();
+        Assert.Equal("2up", back!.Layout);
+        Assert.Equal(new[] { "B", "A" }, back.Slots);
+        _desk.Tick();
+        Assert.Empty(_desk.Preview.Slots);
+        Assert.Equal("2up", _desk.OnAir.Layout);
+    }
+
+    [Fact]
+    public void Going_back_from_a_grid_put_on_by_hand_while_it_waited_in_Preview_is_suggested_too()
+    {
+        Playing();
+        Quiet();
+        _desk.Tick();
+        Assert.Equal("grid", _desk.Preview.Auto);
+        // The caster puts the grid on another way (the Grid key straight to stream): the suggestion has done its job.
+        _desk.Show("", "grid", null, null, "deck");
+        _desk.Tick();
+        Assert.Empty(_desk.Preview.Slots);
+        Snap("A", "ingame");
+        _desk.Tick();
+        Assert.Equal("grid", _desk.OnAir.Layout);
+        Assert.Equal(new[] { "A" }, _desk.Preview.Slots);
+        Assert.Equal("full", _desk.Preview.Layout);
+        Assert.Equal("A game started: A (full screen) is in Preview. Take to go back.", _desk.Preview.Note);
+    }
+
+    [Fact]
+    public void Without_a_view_to_go_back_to_the_top_lobby_is_suggested()
+    {
+        Playing();
+        Quiet();
+        _desk.Tick();
+        _desk.ReplayOn("A");                                        // a replay is on when the caster takes the grid
+        _desk.Take();
+        Assert.Equal("grid", _desk.OnAir.Layout);
+        Snap("B", "ingame");
+        _desk.Tick();
+        // A replay isn't a view to go back to: the top lobby that's up, full screen.
+        Assert.Equal("back", _desk.Preview.Auto);
+        Assert.Equal("full", _desk.Preview.Layout);
+        Assert.Single(_desk.Preview.Slots);
+        Assert.Equal("grid", _desk.OnAir.Layout);
+    }
+
+    [Fact]
+    public void Auto_grid_never_changes_a_Preview_the_caster_chose()
+    {
+        Playing();
+        _desk.PreviewOnly("B");
+        Quiet();
+        _desk.Tick();
+        Assert.Equal(new[] { "B" }, _desk.Preview.Slots);
+        Assert.Null(_desk.Preview.Auto);
+        Assert.Null(_desk.Preview.Note);
+        Assert.Equal("full", _desk.OnAir.Layout);
+        // Its own suggestion becomes the caster's once they change it (a layout picked on it, a lobby added).
+        _desk.PreviewClear();
+        _desk.Tick();
+        Assert.Equal("grid", _desk.Preview.Auto);                   // an empty Preview is filled
+        _desk.PreviewLayout("quad");
+        _desk.Tick();
+        Assert.Equal("4up", _desk.Preview.Layout);
+        Assert.Null(_desk.Preview.Auto);
+        Snap("A", "ingame");
+        _desk.Tick();
+        Assert.Equal(new[] { "A", "B" }, _desk.Preview.Slots);     // not auto grid's to take back
+        Assert.Equal("full", _desk.OnAir.Layout);
+    }
+
+    [Fact]
+    public void Auto_grid_takes_its_suggestion_back_once_it_no_longer_applies()
+    {
+        Playing();
+        Quiet();
+        _desk.Tick();
+        Assert.Equal("grid", _desk.Preview.Auto);
+        // A game starts before the caster took the grid.
+        Snap("A", "ingame");
+        _desk.Tick();
+        Assert.Empty(_desk.Preview.Slots);
+        Assert.Equal("full", _desk.OnAir.Layout);
+
+        // Auto grid turned off.
+        Quiet();
+        _desk.Tick();
+        Assert.Equal("grid", _desk.Preview.Auto);
+        _desk.AutoGrid = false;
+        _desk.Tick();
+        Assert.Empty(_desk.Preview.Slots);
+
+        // The way back, once every lobby is quiet again before it was taken.
+        _desk.AutoGrid = true;
+        _desk.Tick();
+        _desk.Take();
+        Snap("A", "ingame");
+        _desk.Tick();
+        Assert.Equal("back", _desk.Preview.Auto);
+        Snap("A", "meeting");
+        _desk.Tick();
+        Assert.Empty(_desk.Preview.Slots);
+        Assert.Equal("grid", _desk.OnAir.Layout);
+        // And once the caster has left the grid by hand.
+        Snap("A", "ingame");
+        _desk.Tick();
+        Assert.Equal("back", _desk.Preview.Auto);
+        _desk.Show("B");
+        _desk.Tick();
+        Assert.Empty(_desk.Preview.Slots);
+
+        // A break on stream (intermission here).
+        Quiet();
+        _desk.Tick();
+        Assert.Equal("grid", _desk.Preview.Auto);
+        _desk.ShowIntermission();
+        _desk.Tick();
+        Assert.Empty(_desk.Preview.Slots);
+        Assert.Equal("intermission", _desk.OnAir.Layout);
+    }
+
+    [Fact]
+    public void A_suggestion_the_caster_cleared_waits_until_things_change()
+    {
+        Playing();
+        Quiet();
+        _desk.Tick();
+        Assert.Equal("grid", _desk.Preview.Auto);
+        _desk.PreviewClear();
+        _desk.Tick();
+        _desk.Tick();
+        Assert.Empty(_desk.Preview.Slots);                          // not put straight back
+        // A game, then quiet again: suggested again.
+        Snap("A", "ingame");
+        _desk.Tick();
+        Quiet();
+        _desk.Tick();
+        Assert.Equal("grid", _desk.Preview.Auto);
     }
 }
