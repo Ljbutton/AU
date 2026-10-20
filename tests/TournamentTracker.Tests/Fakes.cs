@@ -194,7 +194,7 @@ public static class TestSettings
 /// <summary>A small fake of Discord: channels with messages and files, webhooks, reactions and the CDN.</summary>
 public sealed class FakeDiscord
 {
-    public sealed record Msg(string Id, string Channel, string Content, string? File, string? Json, bool Bot, JsonElement? Embeds);
+    public sealed record Msg(string Id, string Channel, string Content, string? File, string? Json, bool Bot, JsonElement? Embeds, bool Webhook = false);
     public readonly List<Msg> Messages = new();                    // oldest first
     public readonly List<(string Url, JsonElement Payload, string? File)> Webhooks = new();
     public readonly List<string> WebhookDeletes = new();
@@ -217,6 +217,8 @@ public sealed class FakeDiscord
     public void Say(string channel, string text, DateTime at) => Messages.Add(new Msg(NextId(at), channel, text, null, null, false, null));
     /// <summary>A message from a bot, e.g. The Button posting a referee's change as the administration bot.</summary>
     public void BotSays(string channel, string text, DateTime at) => Messages.Add(new Msg(NextId(at), channel, text, null, null, true, null));
+    /// <summary>Posted through a webhook: Discord marks it as a bot, with a webhook_id.</summary>
+    public void WebhookSays(string channel, string text, DateTime at) => Messages.Add(new Msg(NextId(at), channel, text, null, null, true, null, Webhook: true));
     public void AddGame(string channel, GameRecord g) =>
         Messages.Add(new Msg(NextId(g.EndedUtc), channel, $"Game {g.Name}", SharedResults.FileNameFor(g), JsonSerializer.Serialize(g), true, null));
 
@@ -261,6 +263,7 @@ public sealed class FakeDiscord
                 ["id"] = x.Id,
                 ["content"] = x.Content,
                 ["author"] = new { id = x.Bot ? "bot" : "ref", bot = x.Bot },
+                ["webhook_id"] = x.Webhook ? "777" : null,
                 ["embeds"] = x.Embeds.HasValue ? x.Embeds.Value : (object)Array.Empty<object>(),
                 ["attachments"] = x.File == null ? Array.Empty<object>() : new object[] { new { filename = x.File, url = $"https://cdn.test/{x.Id}/{x.File}" } },
             });

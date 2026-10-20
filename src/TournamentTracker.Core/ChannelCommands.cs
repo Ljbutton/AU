@@ -50,7 +50,7 @@ namespace TournamentTracker
         {
             // Changes are made in The Button, which posts them as the administration bot: a command
             // typed by a person in the channel is ignored.
-            if (!m.AuthorIsBot) return;
+            if (!m.FromBotAccount) return;
             string text = m.Content.Trim();
             // Another lobby took over answering.
             if (text.StartsWith(LeadNotePrefix, StringComparison.Ordinal))

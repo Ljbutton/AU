@@ -69,7 +69,7 @@ public class MontageTests : IDisposable
         Assert.Contains(cmd, a => a.EndsWith(Path.Combine("tt-crew", "4.png")));   // Jake's orange crewmate head
         Assert.Contains(cmd, a => a.EndsWith(Path.Combine("tt-crew", "1.png")));
         Assert.True(File.Exists(MontageBuilder.HeadFile(4)));
-        Assert.Matches(@"overlay=x=11\d", graph);                // the first head, in the room left for it
+        Assert.Matches(@"overlay=x='?1[01]\d", graph);          // the first head, in the room left for it (about 110: it depends on the font found)
         Assert.Contains("text='PRESENTED BY'", graph);
         Assert.Equal(2, graph.Split("xfade=transition=wiperight").Length - 1);
         Assert.Equal(13.2, MontageBuilder.Length(segs), 3);

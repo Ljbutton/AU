@@ -155,19 +155,20 @@ namespace TournamentTracker.Stats
                 {
                     // Resets and referee changes count only when an app posted them (The Button, Red Alert
                     // or a mod, all as bots): the same command typed by a person in the channel does nothing.
-                    if (m.AuthorIsBot && IsReset(m.Content))
+                    if (m.FromBotAccount && IsReset(m.Content))
                     {
                         data.SinceReset = true;
                         goto done;
                     }
-                    if (m.AuthorIsBot)
+                    if (m.FromBotAccount)
                     {
                         var adjustment = RefereeAdjustment.TryParse(m.Content, m.Id, RefereeAdjustment.TimeOfSnowflake(m.Id));
                         if (adjustment != null) data.Adjustments.Add(adjustment);
                         var voiding = RefereeVoid.TryParse(m.Content, m.Id, RefereeAdjustment.TimeOfSnowflake(m.Id));
                         if (voiding != null) data.Voids.Add(voiding);
-                        if (m.Content.Length > 0 && m.Attachments.Count == 0) data.Notes.Add(m.Content);
                     }
+                    // Notes the lobbies posted (a webhook's too), so the same note isn't posted twice.
+                    if (m.AuthorIsBot && m.Content.Length > 0 && m.Attachments.Count == 0) data.Notes.Add(m.Content);
                     foreach (var (name, url) in m.Attachments)
                         if (name.StartsWith(FilePrefix, StringComparison.Ordinal) && name.EndsWith(".json", StringComparison.Ordinal))
                             files.Add((m.Id + "/" + name, url));

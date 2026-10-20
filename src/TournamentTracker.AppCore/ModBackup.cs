@@ -173,8 +173,10 @@ namespace TournamentTracker.App
             return games;
         }
 
-        /// <summary>A copy of the file, with its time (so newer and older can be told apart later).</summary>
-        /// <summary>A JSON file that can't be read is never copied, so a good copy is never replaced by a broken one.</summary>
+        /// <summary>
+        /// A copy of the file, with its time (so newer and older can be told apart later). A JSON file that
+        /// can't be read is never copied, so a good copy is never replaced by a broken one.
+        /// </summary>
         private static void Copy(FileInfo from, string to)
         {
             var time = from.LastWriteTimeUtc;
@@ -235,9 +237,10 @@ namespace TournamentTracker.App
                     try { Copy(kv.Value, Path.Combine(Folder, kv.Key)); copied++; }
                     catch (Exception e) { problem ??= $"Couldn't copy {kv.Key} ({e.Message})."; }
                 }
-                // A game now saved under another name (voided, back again, put away by Reset all points): its old name goes.
+                // A game now saved under another name (voided, back again, put away by Reset all points): its old
+                // name goes, but only once the backup has it under the new one (so it never loses its only copy).
                 foreach (var kv in inBackup)
-                    if (inSource.TryGetValue(kv.Key, out var names))
+                    if (inSource.TryGetValue(kv.Key, out var names) && names.All(n => File.Exists(Path.Combine(Folder, n))))
                         foreach (var old in kv.Value.Where(r => !names.Contains(r, StringComparer.OrdinalIgnoreCase)))
                             TryDelete(Path.Combine(Folder, old));
                 PruneReplays();

@@ -65,16 +65,18 @@ public class SafeFileTests : IDisposable
     }
 
     [Fact]
-    public async Task A_busy_side_file_is_tried_again()
+    public void A_busy_side_file_is_tried_again()
     {
         string path = PathOf("state-cup.json");
         SafeFile.WriteAllText(path, "old");
         // Another program has the side file open for a moment (a second copy of the app saving, antivirus).
         var holder = new FileStream(path + SafeFile.TempSuffix, FileMode.Create, FileAccess.Write, FileShare.None);
-        var release = Task.Run(async () => { await Task.Delay(40); holder.Dispose(); });
+        // Its own thread, not the thread pool: a busy test run can start a pool task too late for the retries.
+        var release = new Thread(() => { Thread.Sleep(40); holder.Dispose(); }) { IsBackground = true };
+        release.Start();
         var took = System.Diagnostics.Stopwatch.StartNew();
         SafeFile.WriteAllText(path, "new");
-        await release;
+        release.Join();
         Assert.True(took.ElapsedMilliseconds >= 30, "waited " + took.ElapsedMilliseconds);
         Assert.Equal("new", File.ReadAllText(path));
     }

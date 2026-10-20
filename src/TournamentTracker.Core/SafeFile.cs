@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -30,9 +31,9 @@ namespace TournamentTracker
         private const int Tries = 5;
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false);
 
-        // Saves of the same file in this program take turns (several threads save some files).
-        private static readonly object[] Locks = Enumerable.Range(0, 32).Select(_ => new object()).ToArray();
-        private static object LockFor(string fullPath) => Locks[(StringComparer.OrdinalIgnoreCase.GetHashCode(fullPath) & 0x7fffffff) % Locks.Length];
+        // Saves of the same file in this program take turns (several threads save some files); different files never wait on each other.
+        private static readonly ConcurrentDictionary<string, object> Locks = new ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        private static object LockFor(string fullPath) => Locks.GetOrAdd(fullPath, _ => new object());
 
         /// <summary>The first wait before trying a busy file again (doubling each time; five tries in all).</summary>
         internal static int RetryMs = 15;
@@ -107,9 +108,14 @@ namespace TournamentTracker
             }
         }
 
+        // Only a file another program has open is worth waiting for (a sharing or lock violation; antivirus can
+        // also briefly deny access). A full disk, a missing drive or a read-only file fails at once.
+        private const int SharingViolation = 32, LockViolation = 33;
+
         private static bool Busy(Exception e) =>
-            (e is IOException && !(e is FileNotFoundException) && !(e is DirectoryNotFoundException) && !(e is PathTooLongException))
-            || e is UnauthorizedAccessException;
+            e is UnauthorizedAccessException
+            || e is IOException && !(e is FileNotFoundException) && !(e is DirectoryNotFoundException) && !(e is PathTooLongException)
+               && (!OperatingSystem.IsWindows() || (e.HResult & 0xFFFF) is SharingViolation or LockViolation);   // elsewhere (tests) the codes differ
 
         /// <summary>The file's text, read without stopping another program from saving it meanwhile (tried again while it's busy).</summary>
         public static string ReadAllText(string path) => Retry(_ =>
@@ -216,8 +222,10 @@ namespace TournamentTracker
             {
                 var dir = new DirectoryInfo(folder);
                 if (!dir.Exists) return;
+                // The pattern also matches longer extensions on Windows (".tmpl"): only exact side files go.
                 foreach (var f in dir.EnumerateFiles("*" + TempSuffix))
-                    if (DateTime.UtcNow - f.LastWriteTimeUtc > LeftoverAge) try { f.Delete(); } catch (Exception) { }
+                    if (f.Name.EndsWith(TempSuffix, StringComparison.OrdinalIgnoreCase) && DateTime.UtcNow - f.LastWriteTimeUtc > LeftoverAge)
+                        try { f.Delete(); } catch (Exception) { }
             }
             catch (Exception) { }
         }

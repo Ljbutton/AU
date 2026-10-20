@@ -895,6 +895,24 @@ public class PrelimLeaderboardTests
         Assert.DoesNotContain(_discord.Messages, m => m.Content.StartsWith("Game Soggy-1 is void"));
     }
 
+    [Fact]
+    public async Task Commands_posted_through_a_webhook_do_nothing_either()
+    {
+        // Whoever holds a webhook's link can post through it, and Discord marks that as a bot: not The Button.
+        var one = Prelim("oct-sus", "October: Sus Squad", "Sus Squad", "Soggy", 1, "HumansByTask");
+        var two = Prelim("oct-sus", "October: Sus Squad", "Sus Squad", "Soggy", 2, "HumansByTask");
+        _discord.AddGame("prelims", one);
+        _discord.AddGame("prelims", two);
+        _discord.WebhookSays("prelims", "!void Soggy-1 restarted", _clock.Now);
+        _discord.WebhookSays("prelims", "!adjust Soggy-2 red +50 meta", _clock.Now);
+        _discord.WebhookSays("prelims", "!resetleaderboard", _clock.Now);
+
+        await Job().UpdateAsync(new[] { "prelims" });
+        var board = _discord.Messages.Single(m => m.Embeds.HasValue && FakeDiscord.Title(Payload(m)).EndsWith(PrelimLeaderboards.TitleSuffix)).Embeds!.Value[0];
+        Assert.StartsWith("2 games ·", board.GetProperty("footer").GetProperty("text").GetString());
+        Assert.Equal(PrelimLeaderboards.Board("October: Sus Squad", new[] { one, two }, 15).Embeds![0].Description, board.GetProperty("description").GetString());
+    }
+
     private static JsonElement Payload(FakeDiscord.Msg m) => JsonDocument.Parse("{\"embeds\":" + m.Embeds!.Value.GetRawText() + "}").RootElement;
 }
 

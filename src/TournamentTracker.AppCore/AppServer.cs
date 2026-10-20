@@ -72,7 +72,13 @@ namespace TournamentTracker.App
         public static AppSettings Load(string file, Action<string>? warn = null)
         {
             try { return SafeFile.ReadOrRecover(file, text => JsonSerializer.Deserialize<AppSettings>(text), warn) ?? new AppSettings(); }
-            catch (Exception) { return new AppSettings(); }
+            catch (Exception e)
+            {
+                // Couldn't even be read (in use too long, no permission): keep a copy before the defaults are saved over it.
+                string? kept = File.Exists(file) ? SafeFile.KeepCorrupt(file) : null;
+                warn?.Invoke($"{Path.GetFileName(file)} couldn't be read ({e.Message}). " + (kept != null ? $"A copy is kept as {Path.GetFileName(kept)}." : "It couldn't be copied aside."));
+                return new AppSettings();
+            }
         }
 
         public void Save(string file) => SafeFile.WriteAllText(file, JsonSerializer.Serialize(this));
@@ -217,7 +223,7 @@ namespace TournamentTracker.App
             _env = env;
             _http = http;
             _log = new FileLog(string.IsNullOrEmpty(env.SettingsFile) ? null : Path.GetDirectoryName(env.SettingsFile), "the-button.log");
-            _settings = AppSettings.Load(env.SettingsFile, m => _log.Warn(m + " The Button started with its default settings (the setup code comes back from the Among Us folder)."));
+            _settings = AppSettings.Load(env.SettingsFile, m => _log.Warn(m + " The Button started with its default settings: a host's setup code comes back from the Among Us folder; an administration code has to be pasted again."));
             _installer = new ModInstaller(http, _log);
             _mod = new ModClient(http);
             if (!GameLocator.IsGameFolder(_settings.GamePath))
@@ -302,7 +308,8 @@ namespace TournamentTracker.App
         /// <summary>Home's notice → Forget them: the games only the backup has were removed from the mod's folder on purpose.</summary>
         private object ForgetBackup()
         {
-            if (_backup == null || GameFolder == null) return new { ok = false, message = "There's no backup on this PC." };
+            if (_backup == null) return new { ok = false, message = "There's no backup on this PC." };
+            if (GameFolder == null) return new { ok = false, message = FindGameFirst };
             int gone = _backup.Forget(ModInstaller.DataDir(GameFolder));
             _log.Info($"Backup: forgot {gone} game(s) that aren't in the mod's folder.");
             BackupNow();
@@ -433,8 +440,8 @@ namespace TournamentTracker.App
                 case ("POST", "/app/admin/command"):
                 {
                     // One change from the Referee or Organiser tab's fields ({kind, game, player…}); never free text.
-                    if (_organizer == null) return Ok(new { ok = false, message = "Administration is locked." });
-                    var (ok, message) = await _organizer.PostChangeAsync(Arg("kind"), Arg).ConfigureAwait(false);
+                    if (_organizer is not { } org) return Ok(new { ok = false, message = "Administration is locked." });
+                    var (ok, message) = await org.PostChangeAsync(Arg("kind"), Arg).ConfigureAwait(false);
                     return Ok(new { ok, message });
                 }
                 case ("POST", "/app/update"):

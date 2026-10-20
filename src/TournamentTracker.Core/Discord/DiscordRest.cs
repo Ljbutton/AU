@@ -574,6 +574,13 @@ namespace TournamentTracker.Discord
         public string Content { get; set; } = "";
         public string AuthorId { get; set; } = "";
         public bool AuthorIsBot { get; set; }
+        /// <summary>Posted through a webhook (Discord marks those as bots too).</summary>
+        public bool FromWebhook { get; set; }
+        /// <summary>
+        /// Posted by a bot account, as The Button posts organiser changes: the only messages the mods take
+        /// changes from. Not a person, and not a webhook (anyone holding a webhook's link can post through it).
+        /// </summary>
+        public bool FromBotAccount => AuthorIsBot && !FromWebhook;
         public int Embeds { get; set; }
         public string? EmbedTitle { get; set; }
         public string? EmbedDescription { get; set; }
@@ -596,6 +603,7 @@ namespace TournamentTracker.Discord
                 m.EmbedDescription = first.TryGetProperty("description", out var d) ? d.GetString() : null;
                 m.EmbedFooter = first.TryGetProperty("footer", out var f) && f.TryGetProperty("text", out var ft) ? ft.GetString() : null;
             }
+            m.FromWebhook = e.TryGetProperty("webhook_id", out var wh) && wh.ValueKind == JsonValueKind.String && wh.GetString()!.Length > 0;
             if (e.TryGetProperty("author", out var a))
             {
                 m.AuthorId = a.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "";

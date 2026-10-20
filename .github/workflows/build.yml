@@ -330,9 +330,24 @@ jobs:
       - name: Test Red Alert
         if: ${{ !cancelled() }}
         timeout-minutes: 20
-        run: >
-          dotnet test tests/TournamentTracker.Broadcast.Tests -c Release --blame-hang-timeout 5m --blame-hang-dump-type none
-          --logger "trx;LogFileName=red-alert.trx" --results-directory "$env:RUNNER_TEMP/windows-checks/tests"
+        run: |
+          # A watchdog: if the tests are still running after 4 minutes (they take about 2), every thread's stack
+          # goes into this log, so a hang can be found without downloading anything.
+          dotnet tool install --global dotnet-stack 2>&1 | Out-Null
+          $watch = Start-Job -ScriptBlock {
+            Start-Sleep -Seconds 240
+            $tool = Join-Path $env:USERPROFILE '.dotnet\tools\dotnet-stack.exe'
+            foreach ($p in Get-Process testhost -ErrorAction SilentlyContinue) {
+              "==== Still running after 4 minutes: testhost $($p.Id). Every thread's stack:"
+              if (Test-Path $tool) { & $tool report -p $p.Id 2>&1 } else { '(dotnet-stack isn''t installed)' }
+            }
+          }
+          dotnet test tests/TournamentTracker.Broadcast.Tests -c Release --blame-hang-timeout 5m --blame-hang-dump-type none `
+            --logger "trx;LogFileName=red-alert.trx" --results-directory "$env:RUNNER_TEMP/windows-checks/tests"
+          $code = $LASTEXITCODE
+          if ($watch.State -eq 'Running') { Stop-Job $watch } else { Receive-Job $watch }
+          Remove-Job $watch -Force
+          exit $code
 
       - name: Test and validate the Stream Deck plugin
         if: ${{ !cancelled() }}
