@@ -70,7 +70,9 @@ public class BroadcastServerTests : IDisposable
               { "tag_name": "broadcast-v0.1.3", "draft": true, "assets": [ { "name": "RedAlert.exe", "browser_download_url": "https://x/draft" } ] },
               { "tag_name": "broadcast-v0.1.2", "draft": false, "assets": [ { "name": "RedAlert.exe", "browser_download_url": "https://x/012" } ] } ]
             """).RootElement;
-        Assert.Equal(("broadcast-v0.1.2", "https://x/012"), BroadcastServer.PickRelease(releases));
+        var picked = BroadcastServer.PickRelease(releases);
+        Assert.Equal("broadcast-v0.1.2", picked!.Value.Tag);
+        Assert.Equal("https://x/012", picked.Value.Exe.Url);
         Assert.True(AppUpdater.Newer("broadcast-v0.1.2", "0.1.0", BroadcastServer.TagPrefix));
         Assert.False(AppUpdater.Newer("broadcast-v0.1.0", "0.1.0", BroadcastServer.TagPrefix));
     }

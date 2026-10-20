@@ -16,15 +16,18 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Its releases on GitHub are tagged broadcast-v0.1.0 and so on (The Button's are v0.1.23…).</summary>
         public const string TagPrefix = "broadcast-v";
 
-        private (string Tag, string Url)? _latestRelease;
+        private (string Tag, ReleaseAsset Exe)? _latestRelease;
         private DateTime _releaseChecked = DateTime.MinValue;
         private volatile bool _checking, _updating;
         private volatile string? _updateReady, _updateError;
 
         private bool UpdateAvailable => _env.ExePath != null && _latestRelease is { } l && _updateReady == null && AppUpdater.Newer(l.Tag, _env.Version, TagPrefix);
 
-        /// <summary>The newest broadcast release with a RedAlert.exe, from the repository's release list.</summary>
-        public static (string Tag, string Url)? PickRelease(JsonElement releases)
+        /// <summary>
+        /// The newest broadcast release with a RedAlert.exe, from the repository's release list, with
+        /// the size and SHA-256 it lists for it (the download is checked against them).
+        /// </summary>
+        public static (string Tag, ReleaseAsset Exe)? PickRelease(JsonElement releases)
         {
             foreach (var r in releases.EnumerateArray())
             {
@@ -32,8 +35,7 @@ namespace TournamentTracker.App.Broadcast
                 if (!tag.StartsWith(TagPrefix, StringComparison.Ordinal) || (r.TryGetProperty("draft", out var d) && d.GetBoolean())) continue;
                 if (!r.TryGetProperty("assets", out var assets)) continue;
                 foreach (var a in assets.EnumerateArray())
-                    if (a.TryGetProperty("name", out var n) && n.GetString() == ExeName && a.TryGetProperty("browser_download_url", out var u))
-                        return (tag, u.GetString()!);
+                    if (ReleaseAsset.From(a) is { Name: ExeName } exe) return (tag, exe);
             }
             return null;
         }
@@ -65,7 +67,7 @@ namespace TournamentTracker.App.Broadcast
             _updateError = null;
             try
             {
-                string error = await AppUpdater.InstallAsync(_http, release.Value.Url, exe, "Red Alert").ConfigureAwait(false);
+                string error = await AppUpdater.InstallAsync(_http, release.Value.Exe, exe, "Red Alert", Log).ConfigureAwait(false);
                 if (error.Length > 0) _updateError = error;
                 else _updateReady = release.Value.Tag;
             }

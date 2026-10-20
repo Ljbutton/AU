@@ -185,18 +185,18 @@ namespace TournamentTracker.App
         private volatile string? _appUpdateError;
 
         private bool AppUpdateAvailable =>
-            _env.ExePath != null && _latest?.AppUrl != null && _appReady == null && AppUpdater.Newer(_latest.Tag, _env.Version);
+            _env.ExePath != null && _latest?.App != null && _appReady == null && AppUpdater.Newer(_latest.Tag, _env.Version);
 
         private async Task UpdateAppAsync()
         {
             var release = _latest;
             string? exe = _env.ExePath;
-            if (_appUpdating || release?.AppUrl == null || exe == null) return;
+            if (_appUpdating || release?.App == null || exe == null) return;
             _appUpdating = true;
             _appUpdateError = null;
             try
             {
-                string error = await AppUpdater.InstallAsync(_http, release.AppUrl, exe).ConfigureAwait(false);
+                string error = await AppUpdater.InstallAsync(_http, release.App, exe, log: _log).ConfigureAwait(false);
                 if (error.Length > 0) _appUpdateError = error;
                 else _appReady = release.Tag;
             }
@@ -216,7 +216,7 @@ namespace TournamentTracker.App
             _http = http;
             _log = new FileLog(string.IsNullOrEmpty(env.SettingsFile) ? null : Path.GetDirectoryName(env.SettingsFile), "the-button.log");
             _settings = AppSettings.Load(env.SettingsFile);
-            _installer = new ModInstaller(http);
+            _installer = new ModInstaller(http, _log);
             _mod = new ModClient(http);
             if (!GameLocator.IsGameFolder(_settings.GamePath))
             {
