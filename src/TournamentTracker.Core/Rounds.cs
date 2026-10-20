@@ -121,7 +121,7 @@ namespace TournamentTracker
             return true;
         }
 
-        /// <param name="started">How it was started, for the host: "started", "was started from Discord".</param>
+        /// <param name="started">How it was started, for the host: "started", "was started by the organiser".</param>
         /// <param name="sayRotation">Also tell the lobby the impostor rotation is on (when it is).</param>
         private void StartRound(int round, string started, bool sayRotation)
         {

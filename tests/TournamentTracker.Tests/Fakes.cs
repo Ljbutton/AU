@@ -213,6 +213,8 @@ public sealed class FakeDiscord
     }
 
     public void Say(string channel, string text, DateTime at) => Messages.Add(new Msg(NextId(at), channel, text, null, null, false, null));
+    /// <summary>A message from a bot, e.g. The Button posting a referee's change as the administration bot.</summary>
+    public void BotSays(string channel, string text, DateTime at) => Messages.Add(new Msg(NextId(at), channel, text, null, null, true, null));
     public void AddGame(string channel, GameRecord g) =>
         Messages.Add(new Msg(NextId(g.EndedUtc), channel, $"Game {g.Name}", SharedResults.FileNameFor(g), JsonSerializer.Serialize(g), true, null));
 

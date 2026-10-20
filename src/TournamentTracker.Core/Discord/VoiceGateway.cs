@@ -666,8 +666,8 @@ namespace TournamentTracker.Discord
                         // The Message Content intent isn't turned on: keep voice working without channel commands.
                         _intents = BaseIntents;
                         ForgetSession();
-                        _log.Warn("The bot's Message Content Intent is off, so results-channel commands (!lobbies, !start…) won't be heard. Voice features carry on.");
-                        State.Warning = "The bot's Message Content Intent is off, so referee commands in the results channel (!adjust, !void, !start…) aren't heard. The organiser turns it on in the Discord Developer Portal.";
+                        _log.Warn("The bot's Message Content Intent is off, so round starts and lobby changes from The Button's Organiser tab won't be heard. Voice features carry on.");
+                        State.Warning = "The bot's Message Content Intent is off, so round starts and lobby changes from The Button's Organiser tab aren't heard. The organiser turns it on in the Discord Developer Portal.";
                         throw new IOException("reconnecting without message intents");
                     }
                     if (IsFatal(code))

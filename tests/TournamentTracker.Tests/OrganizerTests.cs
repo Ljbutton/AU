@@ -130,19 +130,114 @@ public class OrganizerTests : IDisposable
     }
 
     [Fact]
-    public async Task Referee_commands_from_the_organiser_are_posted_and_the_hosts_act_on_them()
+    public async Task Changes_from_the_organiser_are_posted_as_the_bot_and_the_hosts_act_on_them()
     {
         var lj = Host("LJ");
         var org = Organiser();
-        Assert.StartsWith("Commands start with !", await org.CommandAsync("hello"));
-        Assert.Equal("Posted: !start 2", await org.CommandAsync("!start 2"));
+        var (ok, message) = await org.PostChangeAsync("start", F(("round", "2")));
+        Assert.True(ok);
+        Assert.Equal("Posted: !start 2", message);
         var posted = _discord.Messages.ToList().Last(m => m.Content == "!start 2");
         Assert.True(posted.Bot);
         lj.HandleChannelMessage(new ChannelMessage { Id = posted.Id, ChannelId = "results", Content = posted.Content, AuthorIsBot = true });
         Assert.Equal(2, lj.Round);                                                             // a bot's !start counts
+        lj.HandleChannelMessage(new ChannelMessage { Id = "4", ChannelId = "results", Content = "!start 3", AuthorIsBot = false });
+        Assert.Equal(2, lj.Round);                                                             // the same, typed by a person: nothing
         lj.HandleChannelMessage(new ChannelMessage { Id = "5", ChannelId = "results", Content = "!resetleaderboard\n(reset)", AuthorIsBot = true });
         Assert.Equal(2, lj.Round);
     }
+
+    [Fact]
+    public async Task Only_the_changes_the_button_builds_are_posted_never_free_text()
+    {
+        var org = Organiser();
+        int before = _discord.Messages.Count;
+        Assert.StartsWith("That isn't a change The Button makes", await org.CommandAsync("hello"));
+        Assert.StartsWith("That isn't a change The Button makes", await org.CommandAsync("!start 2\n!lobbies 3"));
+        Assert.StartsWith("That isn't a change The Button makes", await org.CommandAsync("!lead"));
+        Assert.False((await org.PostChangeAsync("text", F(("text", "!start 2")))).Ok);          // the old "any command" box
+        Assert.False((await org.PostChangeAsync("swap", F(("player", "Soggy Dingus"), ("other", "Fred")))).Ok);
+        Assert.Equal(before, _discord.Messages.Count);                                           // nothing reached Discord
+
+        // Red Alert's void of an interrupted game is one of them.
+        Assert.Equal("Posted: !void B-2 interrupted, to be replayed", await org.CommandAsync("!void B-2 interrupted, to be replayed"));
+
+        // The organiser's reset: as the bot, so it counts; the standings reload.
+        var (ok, message) = await org.PostChangeAsync("reset", F());
+        Assert.True(ok);
+        Assert.StartsWith("The standings start over from now.", message);
+        var reset = _discord.Messages.ToList().Last();
+        Assert.True(reset.Bot);
+        Assert.True(TournamentTracker.Stats.SharedResults.IsReset(reset.Content));
+        Assert.Equal("!resetleaderboard\n(Leaderboard reset by the organiser. Delete this message to undo it.)", reset.Content);
+    }
+
+    private static Func<string, string> F(params (string Name, string Value)[] fields) =>
+        name => fields.FirstOrDefault(f => f.Name == name).Value ?? "";
+
+    [Theory]
+    [InlineData("adjust", "game=LJ|player=red|points=-2|reason=meta call", "!adjust LJ red -2 meta call")]
+    [InlineData("adjust", "game=LJ-3|player=Soggy Dingus|points=+0.125", "!adjust LJ-3 Soggy Dingus +0.125")]
+    [InlineData("adjust", "game=LJ|player=red|points=1,5|reason=  left \n early ", "!adjust LJ red +1.5 left early")]
+    [InlineData("void", "game=LJ-3|reason=lobby restarted", "!void LJ-3 lobby restarted")]
+    [InlineData("void", "game=LJ", "!void LJ")]
+    [InlineData("unvoid", "game=LJ-3|reason=ignored", "!unvoid LJ-3")]
+    [InlineData("start", "round=3", "!start 3")]
+    [InlineData("start", "round=3|minutes=0", "!start 3")]
+    [InlineData("start", "round=3|minutes=10", "!start 3 in 10")]
+    [InlineData("lobbies", "round=2", "!lobbies 2")]
+    [InlineData("move", "player=Soggy Dingus|lobby=B", "!move Soggy Dingus B")]
+    [InlineData("move", "player=Soggy|lobby=Lobby B", "!move Soggy B")]
+    [InlineData("add", "player=Fred|lobby=Final", "!add Fred Final")]
+    [InlineData("swap", "player=Soggy|other=Fred", "!swap Soggy Fred")]
+    [InlineData("drop", "player=Soggy Dingus", "!drop Soggy Dingus")]
+    [InlineData("host", "lobby=A|host=LJ", "!host A LJ")]
+    public void Each_change_is_built_from_its_fields(string kind, string fields, string command)
+    {
+        var map = fields.Split('|').Select(f => f.Split('=', 2)).ToDictionary(f => f[0], f => f[1]);
+        Assert.Equal(command, Organizer.BuildChange(kind, n => map.TryGetValue(n, out var v) ? v : "", out var problem));
+        Assert.Equal("", problem);
+        Assert.True(Organizer.IsChange(command));
+    }
+
+    [Theory]
+    [InlineData("adjust", "game=LJ|player=red", "Use a number of points")]
+    [InlineData("adjust", "game=LJ|player=red|points=1.234", "Use a number of points")]         // 4 significant figures
+    [InlineData("adjust", "game=LJ|player=red|points=0", "Use a number of points")]
+    [InlineData("adjust", "game=LJ|points=2", "Pick the player")]
+    [InlineData("adjust", "game=L J|player=red|points=2", "Pick the lobby")]
+    [InlineData("adjust", "game=LJ|player=Red 2|points=+1", "can't be told apart from the points")]   // would be read as 2 points
+    [InlineData("void", "reason=x", "Pick the game")]
+    [InlineData("start", "round=x", "Which round?")]
+    [InlineData("start", "round=3|minutes=500", "1 to 120 minutes")]
+    [InlineData("lobbies", "round=1", "round 2 or later")]
+    [InlineData("move", "player=Soggy", "Which lobby?")]
+    [InlineData("swap", "player=Soggy Dingus|other=Fred", "one word for each player")]
+    [InlineData("host", "lobby=A", "Who hosts it?")]
+    [InlineData("lead", "", "doesn't make that change")]
+    public void A_change_that_doesnt_fit_says_why_and_builds_nothing(string kind, string fields, string says)
+    {
+        var map = fields.Split('|', StringSplitOptions.RemoveEmptyEntries).Select(f => f.Split('=', 2)).ToDictionary(f => f[0], f => f[1]);
+        Assert.Null(Organizer.BuildChange(kind, n => map.TryGetValue(n, out var v) ? v : "", out var problem));
+        Assert.Contains(says, problem);
+    }
+
+    [Fact]
+    public void A_long_reason_is_refused()
+    {
+        Assert.Null(Organizer.BuildChange("void", n => n == "game" ? "LJ-3" : n == "reason" ? new string('x', 101) : "", out var problem));
+        Assert.Contains("under 100 characters", problem);
+    }
+
+    [Theory]
+    [InlineData("!resetleaderboard")]                 // only the organiser's two-line reset
+    [InlineData("!adjust LJ red")]
+    [InlineData("!start")]
+    [InlineData("!lobbies 3 now")]
+    [InlineData("!swap a b c")]
+    [InlineData("please !start 2")]
+    [InlineData("!START 2")]
+    public void Anything_else_is_not_a_change(string text) => Assert.False(Organizer.IsChange(text));
 
     [Fact]
     public void Admin_codes_unlock_the_organiser_and_are_not_host_codes()

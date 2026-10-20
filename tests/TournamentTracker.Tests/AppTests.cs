@@ -374,6 +374,54 @@ public class AppTests : IDisposable
     }
 
     [Fact]
+    public async Task The_organisers_changes_are_sent_as_fields_and_posted_as_the_bot_never_as_free_text()
+    {
+        string game = Game(Path.Combine(_dir.Path, "Steam", "steamapps", "common", "Among Us"));
+        var posted = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var net = new LocalOrFake
+        {
+            Internet = r =>
+            {
+                if (!r.RequestUri!.AbsolutePath.EndsWith("/channels/1/messages")) return new HttpResponseMessage(HttpStatusCode.NotFound);
+                if (r.Method != HttpMethod.Post) return FakeHttp.Json(HttpStatusCode.OK, "[]");
+                posted.Enqueue(JsonDocument.Parse(r.Content!.ReadAsStringAsync().Result).RootElement.GetProperty("content").GetString()!);
+                return FakeHttp.Json(HttpStatusCode.OK, "{\"id\":\"7\"}");
+            },
+        };
+        using var app = new AppServer(ButtonApp.Env(_dir.Path, Path.Combine(_dir.Path, "Steam")), new HttpClient(net));
+        var http = ButtonApp.Client(app);
+        var admin = new SetupCode { Mode = "admin", TournamentId = "oct", TournamentName = "October", BotTokens = new() { "a.b.c" }, ResultsChannelId = "1" };
+        Assert.True((await Post(http, "app/setup", new { code = admin.Encode() })).GetProperty("admin").GetBoolean());
+
+        var start = await Post(http, "app/admin/command", new { kind = "start", round = "3", minutes = "10" });
+        Assert.True(start.GetProperty("ok").GetBoolean());
+        Assert.Equal("Posted: !start 3 in 10", start.GetProperty("message").GetString());
+        var adjust = await Post(http, "app/admin/command", new { kind = "adjust", game = "LJ-2", player = "red", points = "-2", reason = "meta call" });
+        Assert.True(adjust.GetProperty("ok").GetBoolean());
+
+        var free = await Post(http, "app/admin/command", new { text = "!start 3" });            // the old "any command" box
+        Assert.False(free.GetProperty("ok").GetBoolean());
+        var bad = await Post(http, "app/admin/command", new { kind = "move", player = "Soggy", lobby = "B\n!start 9" });
+        Assert.False(bad.GetProperty("ok").GetBoolean());
+        Assert.Equal(new[] { "!start 3 in 10", "!adjust LJ-2 red -2 meta call" }, posted.ToArray());
+    }
+
+    [Fact]
+    public void The_page_has_no_command_box_and_no_one_is_told_to_type_a_command()
+    {
+        string page = UiFiles.Text(typeof(AppServer).Assembly, "ui/index.html");
+        Assert.DoesNotContain("id=\"org-cmd\"", page);
+        Assert.DoesNotContain("Any command", page);
+        Assert.DoesNotContain("typed in the private results channel", page);
+        Assert.DoesNotContain("like typing it there", page);
+        foreach (var id in new[] { "rd-round", "rd-build", "rd-in", "rd-start", "pl-player", "pl-lobby", "pl-a", "pl-b", "pl-hlobby", "pl-host", "org-reset-go", "adj-game" })
+            Assert.Contains($"id=\"{id}\"", page);
+        foreach (var kind in new[] { "move", "add", "drop", "swap", "host" })
+            Assert.Contains($"data-plan=\"{kind}\"", page);
+        Assert.Contains("api('POST', '/app/admin/command', change)", page);
+    }
+
+    [Fact]
     public async Task Commands_from_the_app_reach_the_mod_in_the_game()
     {
         var (app, http, game) = App();

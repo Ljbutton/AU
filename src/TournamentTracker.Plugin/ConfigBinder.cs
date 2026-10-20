@@ -36,7 +36,7 @@ namespace TournamentTracker.Plugin
             s.StatusWebhookUrl = config.Bind("Discord", "StatusWebhookUrl", "",
                 "Webhook for the live status message. Leave empty to use the StatsWebhookUrl channel.").Value.Trim();
             s.ResultsChannelId = config.Bind("Discord", "ResultsChannelId", "",
-                "For several hosts: the ID of a private channel where every host's mod posts its games, so one combined leaderboard covers all lobbies. Type !resetleaderboard in that channel to start it over. Needs a bot token and the Message Content Intent.").Value.Trim();
+                "For several hosts: the ID of a private channel where every host's mod posts its games, so one combined leaderboard covers all lobbies. Start it over from The Button (Settings, Tournament, Reset). Needs a bot token and the Message Content Intent.").Value.Trim();
             s.PostLeaderboardAfterEachGame = config.Bind("Discord", "PostLeaderboardAfterEachGame", d.PostLeaderboardAfterEachGame,
                 "Post the updated leaderboard after every game.").Value;
             s.LeaderboardSize = config.Bind("Discord", "LeaderboardSize", d.LeaderboardSize,

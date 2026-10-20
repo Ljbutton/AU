@@ -11,10 +11,12 @@ namespace TournamentTracker
 {
     /// <summary>
     /// Void games: a game that had to be stopped and restarted is kept for the record but
-    /// scores nothing and doesn't count toward any leaderboard or round. The host types !void
-    /// in-game (during the game, or after it for the last one); a referee types
-    /// !void LJ-3 reason in the private results channel. Only !unvoid brings a game back:
-    /// once seen, the void is reposted with the game, so deleting the message changes nothing.
+    /// scores nothing and doesn't count toward any leaderboard or round. The host presses Void in
+    /// The Button's Referee tab (during the game, or after it for the last one); a referee with the
+    /// administration code voids LJ-3 from the same tab, which posts !void LJ-3 reason in the private
+    /// results channel as the administration bot (typed by a person it does nothing). Only !unvoid
+    /// brings a game back: once seen, the void is reposted with the game, so deleting the message
+    /// changes nothing.
     /// </summary>
     public sealed partial class TournamentSession
     {
@@ -41,7 +43,7 @@ namespace TournamentTracker
             var game = LastGame;
             if (game == null)
             {
-                Reply($"No game to {(makeVoid ? "void" : "unvoid")} since the mod started. A referee can type !{(makeVoid ? "void" : "unvoid")} <game> in the results channel.", false);
+                Reply($"No game to {(makeVoid ? "void" : "unvoid")} since the mod started: pick the game in The Button's Referee tab, under Games.", false);
                 return;
             }
             VoidFinished(game, makeVoid, reason, true);
