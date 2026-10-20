@@ -254,8 +254,8 @@ jobs:
             echo
             echo "Download **Install-RedAlert.bat** below and double-click it. The first time it opens it"
             echo "takes your caster setup (OBS, priorities, keys, roster, administration code) from The Button"
-            echo "on the same PC. It never updates itself: for a new version, download it again from the"
-            echo "newest Red Alert release when you choose (nothing changes in the middle of a stream)."
+            echo "on the same PC. It never updates by itself, so nothing changes in the middle of a stream:"
+            echo "Settings → Updates says when a new version is out, and Update installs it when you choose."
             echo
             echo "TTBroadcast.exe is the same app, for copies from before the rename (v0.1, v0.2 updated themselves by name)."
             echo
