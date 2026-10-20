@@ -49,8 +49,8 @@ namespace TournamentTracker.App.Broadcast
             (TwitchSettings.FileName, "Twitch settings. The Twitch sign-in itself (twitch-token.json) is never included."),
         };
 
-        /// <summary>Files that never go in a bundle, whatever happens: the Twitch sign-in.</summary>
-        public static readonly string[] NeverIncluded = { "twitch-token.json" };
+        /// <summary>Files that never go in a bundle, whatever happens: the Twitch sign-in, and the lobbies kept for a restart (their VDO.Ninja links carry passwords).</summary>
+        public static readonly string[] NeverIncluded = { "twitch-token.json", Organizer.CacheFileName };
 
         private readonly List<(string Name, string Text, string About)> _entries = new List<(string, string, string)>();
         private readonly List<string> _notes = new List<string>();
@@ -75,7 +75,7 @@ namespace TournamentTracker.App.Broadcast
                 b.AddLog(Path.Combine(appFolder, LogName), LogName, "Red Alert's log: what it did, and anything that went wrong (this PC's time).");
                 b.AddLog(Path.Combine(appFolder, LogName + ".1"), LogName + ".1", "The log before that one (Red Alert moves it there past 1 MB).", optional: true);
                 b.AddJson(Path.Combine(appFolder, "settings.json"), "settings.json",
-                    "Red Alert's own settings: player cameras on or off, the mute-all key (also in summary.txt). The administration code and the Stream Deck key are removed.",
+                    "Red Alert's own settings: player cameras on or off, the mute-all key (also in summary.txt), Hold and the desk's automation. The administration code and the Stream Deck key are removed.",
                     "adminCode", "deckKey");
                 b.AddJson(Path.Combine(appFolder, ObsSettings.FileName), ObsSettings.FileName,
                     "OBS: where Red Alert connects (the password is removed), the TT scenes and lobby sources, replays, the swoosh and lobby voice.",
@@ -308,6 +308,8 @@ namespace TournamentTracker.App.Broadcast
             }
             catch (Exception) { }
             try { AddSecret(ObsSettings.Load(Path.Combine(folder, ObsSettings.FileName)).Password); } catch (Exception) { }
+            // The lobbies kept for a restart: their VDO.Ninja passwords, even while Red Alert is locked.
+            foreach (var link in Organizer.CachedLinks(Path.Combine(folder, Organizer.CacheFileName))) AddSecretsFromLink(link);
             try
             {
                 var token = TwitchToken.Load(Path.Combine(folder, "twitch-token.json"));

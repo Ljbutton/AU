@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { ACTIONS, settingsOf } from "../src/actions.js";
-import { C, camKey, crewmate, dataUrl, esc, labelKey, lobbyKey, render, shade, statusStrip, toggleKey } from "../src/svg.js";
+import { C, camKey, camStepKey, crewmate, dataUrl, esc, labelKey, lobbyKey, render, shade, statusStrip, toggleKey } from "../src/svg.js";
 import { sampleState } from "./fixtures.js";
 
 /** Checks the markup is well-formed XML: every tag closed in order, attributes quoted, entities known. */
@@ -36,7 +36,7 @@ test("every action's key art, in every status, is well-formed SVG Qt can draw", 
 	const s = sampleState();
 	for (const status of ["ok", "offline", "badkey", "nokey", "old", "locked"]) {
 		for (const a of ACTIONS) {
-			for (const settings of [{}, { lobby: "3" }, { lobby: "next" }, { who: "next" }, { which: "alerts" }, { op: "slow" }, { target: "lobby", lobbyNo: "3" }, { path: "a/b", label: "<Hi & bye>" }]) {
+			for (const settings of [{}, { lobby: "3" }, { lobby: "next" }, { lobby: "action" }, { op: "best" }, { who: "next" }, { who: "next", mode: "preview" }, { which: "alerts" }, { op: "slow" }, { target: "lobby", lobbyNo: "3" }, { path: "a/b", label: "<Hi & bye>" }]) {
 				for (const state of [s, null]) {
 					const markup = render(a.view(settingsOf(a, settings), state, ctx({ status }), a.dial ? 3 : null));
 					assertWellFormed(markup);
@@ -106,6 +106,23 @@ test("a camera key: crewmate in colour, ring when followed (red on stream), ARME
 	assert.ok(dead.includes('opacity="0.3"') && dead.includes(">DEAD<"));
 	assert.ok(camKey({ lobbyNo: 3, player: null }).includes(">EMPTY<"));
 	assert.ok(camKey({ lobbyNo: 3, player, noCam: true }).includes(">NO CAM<"));
+});
+
+test("a camera step key: green into Preview (the default), amber armed, plain for a cut", () => {
+	const v = { lobbyNo: 3, label: "NEXT", current: { name: "Ann", hex: "#c51111", dead: false } };
+	assert.ok(camStepKey({ ...v, mode: "preview" }).includes(`stroke="${C.green}" stroke-width="4"`));
+	assert.ok(camStepKey({ ...v, mode: "arm" }).includes(`stroke="${C.amber}" stroke-width="4"`));
+	const cut = camStepKey({ ...v, mode: "cut" });
+	assert.ok(!cut.includes(`stroke="${C.green}"`) && !cut.includes(`stroke="${C.amber}"`));
+});
+
+test("the Best replay key and the Take key with a replay in Preview", () => {
+	const best = labelKey({ icon: "replay", title: "BEST REPLAY", sub: "Lobby 2: kill", accent: "green" });
+	assert.ok(best.includes(">BEST REPLAY<") && best.includes(">Lobby 2: kill<"));
+	assertWellFormed(best);
+	const take = labelKey({ icon: "take", title: "TAKE", sub: "REPLAY L3", accent: "green", lit: true });
+	assert.ok(take.includes(">TAKE<") && take.includes(">REPLAY L3<") && take.includes(`stroke="${C.green}" stroke-width="8"`));
+	assertQtSafe(take);
 });
 
 test("a toggle shows its state in words and colour, and ? when unknown", () => {

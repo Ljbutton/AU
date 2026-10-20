@@ -74,6 +74,11 @@ public sealed class FakeObs : IAsyncDisposable
     public int Screenshots;
     /// <summary>Every SetInputMute, by source name, in the order they came.</summary>
     public readonly List<string> MuteLog = new();
+    /// <summary>Audio monitoring per input (SetInputAudioMonitorType), and OBS's monitoring device (null: OBS's default).</summary>
+    public readonly Dictionary<string, string> MonitorType = new();
+    public string? MonitorDeviceId, MonitorDeviceName;
+    /// <summary>Mutes and monitoring changes in the order they came: "mute NAME true", "monitor NAME TYPE".</summary>
+    public readonly List<string> AudioLog = new();
 
     /// <summary>The stream starting or stopping in OBS, with its event.</summary>
     public Task SetStreaming(bool on, string? state = null) { lock (this) Streaming = on; return Event("StreamStateChanged", new { outputActive = on, outputState = state ?? (on ? "OBS_WEBSOCKET_OUTPUT_STARTED" : "OBS_WEBSOCKET_OUTPUT_STOPPED") }); }
@@ -275,7 +280,8 @@ public sealed class FakeObs : IAsyncDisposable
             case "SetSceneItemEnabled":
                 Scenes[S(d, "sceneName")].Single(i => i.Id == d.GetProperty("sceneItemId").GetInt32()).Enabled = d.GetProperty("sceneItemEnabled").GetBoolean();
                 return null;
-            case "SetInputMute": Muted[S(d, "inputName")] = d.GetProperty("inputMuted").GetBoolean(); MuteLog.Add(S(d, "inputName")); return null;
+            case "SetInputMute": Muted[S(d, "inputName")] = d.GetProperty("inputMuted").GetBoolean(); MuteLog.Add(S(d, "inputName")); AudioLog.Add($"mute {S(d, "inputName")} {Muted[S(d, "inputName")].ToString().ToLowerInvariant()}"); return null;
+            case "SetInputAudioMonitorType": MonitorType[S(d, "inputName")] = S(d, "monitorType"); AudioLog.Add($"monitor {S(d, "inputName")} {S(d, "monitorType")}"); return null;
             case "GetSourceFilterList":
                 return new { filters = Filters.Keys.Where(k => k.StartsWith(S(d, "sourceName") + "|")).Select(k => new { filterName = k.Split('|')[1], filterKind = "source_record_filter" }).ToList() };
             case "CreateSourceFilter":
@@ -319,7 +325,12 @@ public sealed class FakeObs : IAsyncDisposable
             case "GetProfileList": return new { currentProfileName = Profile, profiles = new[] { Profile } };
             case "GetSourceFilterKindList": return new { sourceFilterKinds = SourceRecordInstalled ? FilterKinds.ToList() : FilterKinds.Where(k => k != "source_record_filter").ToList() };
             case "GetProfileParameter":
-                return S(d, "parameterName") switch { "DelayEnable" => new { parameterValue = (string?)(DelayEnable ? "true" : "false") }, "DelaySec" => new { parameterValue = (string?)DelaySec.ToString() }, _ => new { parameterValue = (string?)null } };
+                return S(d, "parameterName") switch
+                {
+                    "DelayEnable" => new { parameterValue = (string?)(DelayEnable ? "true" : "false") }, "DelaySec" => new { parameterValue = (string?)DelaySec.ToString() },
+                    "MonitoringDeviceId" => new { parameterValue = MonitorDeviceId }, "MonitoringDeviceName" => new { parameterValue = MonitorDeviceName },
+                    _ => new { parameterValue = (string?)null },
+                };
             case "SetProfileParameter":
                 if (S(d, "parameterName") == "DelayEnable") DelayEnable = S(d, "parameterValue") == "true";
                 if (S(d, "parameterName") == "DelaySec") DelaySec = int.Parse(S(d, "parameterValue"));
@@ -366,10 +377,18 @@ public sealed class FakeObs : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _cts.Cancel();
-        // With a time limit: on Windows (HttpListener) a close can wait forever for a client that has already gone.
-        try { if (_ws?.State == WebSocketState.Open) await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", new CancellationTokenSource(1000).Token); } catch { }
-        _listener.Stop();
-        _listener.Close();
+        var ws = _ws;
+        // On Windows, HttpListener's WebSocket can block inside CloseAsync (and the listener's Close)
+        // on a lock a cancelled receive still holds, before any time limit applies: shut down on
+        // another thread and stop waiting after a moment. The fake is done with either way.
+        var shut = Task.Run(async () =>
+        {
+            try { if (ws?.State == WebSocketState.Open) await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", new CancellationTokenSource(1000).Token); } catch { }
+            try { _listener.Stop(); } catch { }
+            // On Linux, Close after Stop looks the port up again and can find another test's listener on it.
+            try { _listener.Close(); } catch { }
+        });
+        await Task.WhenAny(shut, Task.Delay(3000));
     }
 }
 
@@ -434,7 +453,7 @@ public class ObsTests : IAsyncLifetime
             Assert.Equal(new[] { "TT Lobby LJ", "TT Lobby MAL", "TT Lobby Soggy" }, _obs.Scenes[scene].Select(i => i.Source).Where(x => x.StartsWith("TT Lobby ")).OrderBy(x => x));
         Assert.Equal("TT Swoosh", _obs.Scenes["TT Full"].Last().Source);        // the swoosh plays on top
         Assert.Empty(_obs.Scenes["Starting soon"]);
-        Assert.Equal("https://vdo.ninja/?view=a&password=x&cleanoutput&videobitrate=8000", _obs.Inputs["TT Lobby LJ"]["url"]!.ToString());
+        Assert.Equal("https://vdo.ninja/?view=a&password=x&cleanoutput&videobitrate=8000&buffer=3000", _obs.Inputs["TT Lobby LJ"]["url"]!.ToString());
         Assert.Equal("True", _obs.Inputs["TT Lobby LJ"]["reroute_audio"]!.ToString());
         Assert.All(_obs.Scenes["TT Full"].Where(i => i.Source.StartsWith("TT Lobby ")), i => Assert.False(i.Enabled));     // hidden until put on
 
@@ -606,6 +625,7 @@ public class ObsTests : IAsyncLifetime
     {
         lock (_obs) { _obs.Scenes["Scene"] = new(); _obs.Inputs["Desktop Audio"] = new(); _obs.Kinds["Desktop Audio"] = "wasapi_output_capture"; _obs.Muted["Desktop Audio"] = false; _obs.SourceRecordInstalled = false; }
         _director.ImpostorTagsOn = () => true;
+        _director.Settings.BroadcastDelay = 0;
         await Connect();
         var checks = _director.Checks.ToDictionary(c => c.Id);
         Assert.False(checks["collection"].Ok);
@@ -621,9 +641,16 @@ public class ObsTests : IAsyncLifetime
         await _director.FixAsync("desktopAudio");
         Assert.True(_obs.Muted["Desktop Audio"]);
         Assert.Empty(_director.DesktopAudioOn);
-        await _director.FixAsync("delay");
-        Assert.True(_obs.DelayEnable);
-        Assert.True(_director.Checks.Single(c => c.Id == "delay").Ok);
+        // The fix is Red Alert's own broadcast delay, not OBS's stream delay.
+        Assert.Equal("Turn on a 3 s delay", checks["delay"].Fix);
+        Assert.Contains("Broadcast delay 3 s", await _director.FixAsync("delay"));
+        Assert.Equal(3, _director.DelaySeconds);
+        Assert.False(_obs.DelayEnable);
+        var delay = _director.Checks.Single(c => c.Id == "delay");
+        Assert.True(delay.Ok);
+        Assert.Equal("Broadcast delay 3 s · impostor tags are on", delay.Title);
+        Assert.Contains("Sync Offset of 3000 ms", delay.Detail);
+        Assert.Contains("buffer=3000", _obs.Inputs["TT Lobby LJ"]["url"]!.ToString());
         // Unmuted by hand in OBS: the desk hears about it.
         await _obs.Event("InputMuteStateChanged", new { inputName = "Desktop Audio", inputMuted = false });
         await Until(() => _director.DesktopAudioOn.Count == 1);

@@ -66,7 +66,7 @@ namespace TournamentTracker.App.Broadcast
                 twitch = _twitch?.State(),
                 broadcast = _broadcast == null ? null : new { url = _caster?.Url == null ? null : _caster.Url + "broadcast", elements = _broadcast.Settings.Refresh().Elements, names = BroadcastSettings.ElementNames, problem = _broadcast.Settings.Problem, alerts = desk.Alerts.Settings, alertsWaiting = desk.Alerts.Waiting, queue = desk.Graphics.State(), afterGame = desk.PromptState(), afterGameAuto = _broadcast.Settings.Current.AfterGameAuto, hold = _broadcast.Settings.Current.GraphicSeconds },
                 names = links.ToDictionary(d => d.Lobby, d => desk.NamesFor(d.Lobby)), receivers = links.Select(d => new { lobby = d.Lobby, url = d.Url }).ToList(),
-                previews = Previews(), gameReplays = desk.Replays.List(), twitchHandles = ranking.ToDictionary(r => r.Lobby, r => desk.TwitchOf(r.Lobby)),
+                previews = Previews(), cached = links.Where(d => _organizer?.IsCached(d.Lobby) == true).Select(d => d.Lobby).ToList(), gameReplays = desk.Replays.List(), twitchHandles = ranking.ToDictionary(r => r.Lobby, r => desk.TwitchOf(r.Lobby)),
                 deck = DeckPort(),
             };
         }

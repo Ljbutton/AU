@@ -50,8 +50,8 @@
 // The settings every action starts with: the same as `defaults` in src/actions.js (a test checks).
 /* DEFAULTS-START */
 const DEFAULTS = {
-  "lobby": { "lobby": "1", "mode": "cut", "t": "" },
-  "cam": { "target": "pgm", "lobbyNo": "1", "who": "slot", "slot": "1", "colour": "red", "mode": "cut" },
+  "lobby": { "lobby": "1", "mode": "preview", "t": "" },
+  "cam": { "target": "pgm", "lobbyNo": "1", "who": "slot", "slot": "1", "colour": "red", "mode": "preview" },
   "take": { "as": "", "t": "" },
   "wide": {},
   "camcut": { "target": "pgm", "lobbyNo": "1" },
@@ -67,6 +67,15 @@ const DEFAULTS = {
   "dial.replay": {}
 };
 /* DEFAULTS-END */
+
+// A Lobby or Player cam key saved before Preview became the default (settings of its own, no "mode")
+// keeps cutting, as the plugin does (keepCut in src/actions.js).
+function keepCut(k, saved) {
+  return (k === "lobby" || k === "cam") && saved && Object.keys(saved).length > 0 && !("mode" in saved) ? { mode: "cut" } : {};
+}
+function settingsFor(k, saved) {
+  return Object.assign({}, DEFAULTS[k] || {}, keepCut(k, saved), saved || {});
+}
 
 const COLOURS = ["red", "blue", "green", "pink", "orange", "yellow", "black", "white", "purple", "brown", "cyan", "lime", "maroon", "rose", "banana", "gray", "tan", "coral"];
 const TRANSITION = [["", "Red Alert's usual"], ["cut", "Cut"], ["swoosh", "Swoosh"]];
@@ -119,9 +128,9 @@ function fieldsFor(k) {
   switch (k) {
     case "lobby":
       return [
-        ["lobby", "Lobby", () => lobbyNumbers().concat([["next", "Next lobby"], ["prev", "Previous lobby"], ["action", "Where the action is"]])],
-        ["mode", "Press", [["cut", "Cut it to stream"], ["preview", "Put it in Preview"], ["add", "Add it to Preview (2-up, quad)"]]],
-        ["t", "Transition", TRANSITION, (s) => s.mode !== "preview" && s.mode !== "add"],
+        ["lobby", "Lobby", () => lobbyNumbers().concat([["next", "Next lobby"], ["prev", "Previous lobby"], ["action", "Best replay (into Preview)"]])],
+        ["mode", "Press", [["preview", "Put it in Preview (Take puts it on)"], ["cut", "Cut it to stream"], ["add", "Add it to Preview (2-up, quad)"]], (s) => s.lobby !== "action"],
+        ["t", "Transition", TRANSITION, (s) => s.mode === "cut" && s.lobby !== "action"],
       ];
     case "cam":
       return [
@@ -129,7 +138,7 @@ function fieldsFor(k) {
         ["who", "Player", [["slot", "By slot"], ["colour", "By colour"], ["next", "Next player"], ["prev", "Previous player"], ["auto", "Auto (it picks)"]]],
         ["slot", "Slot", slotNames, (s) => s.who === "slot"],
         ["colour", "Colour", COLOURS.map((c) => [c, c[0].toUpperCase() + c.slice(1)]), (s) => s.who === "colour"],
-        ["mode", "Press", [["cut", "Cut to the camera"], ["arm", "Arm (set who it follows, no cut)"]]],
+        ["mode", "Press", [["preview", "Camera into Preview (Take puts it on)"], ["cut", "Cut to the camera"], ["arm", "Arm (set who it follows, no cut)"]]],
       ];
     case "take":
     case "dial.preview":
@@ -140,17 +149,17 @@ function fieldsFor(k) {
     case "layout":
       return [["layout", "Layout", LAYOUTS]];
     case "replay":
-      return [["op", "Replay", [["last", "Play the last clip"], ["that", "Replay that (the last seconds on stream)"], ["live", "Back to live"], ["toggle", "Play / pause"], ["back", "Back"], ["forward", "Forward"], ["frameback", "Frame back"], ["frameforward", "Frame forward"], ["restart", "Restart"], ["zoomin", "Zoom in"], ["zoomout", "Zoom out"], ["follow", "Follow the player"], ["angle", "Other angle"], ["slow", "Speed 100 / 50 / 25%"]]]];
+      return [["op", "Replay", [["best", "Best replay into Preview (Take plays it)"], ["last", "Play the last clip"], ["that", "Replay that (the last seconds on stream)"], ["live", "Back to live"], ["toggle", "Play / pause"], ["back", "Back"], ["forward", "Forward"], ["frameback", "Frame back"], ["frameforward", "Frame forward"], ["restart", "Restart"], ["zoomin", "Zoom in"], ["zoomout", "Zoom out"], ["follow", "Follow the player"], ["angle", "Other angle"], ["slow", "Speed 100 / 50 / 25%"]]]];
     case "toggle":
       return [
-        ["which", "Toggle", [["mute", "Mute all lobby voice"], ["hold", "Hold (no automatic switching)"], ["autogrid", "Auto grid"], ["autointermission", "Auto intermission"], ["autoswitch", "Auto switch"], ["standings", "Standings on stream"], ["alerts", "Alerts (on or paused)"]]],
+        ["which", "Toggle", [["mute", "Mute all lobby voice"], ["cue", "Hear Preview in headphones"], ["hold", "Hold (no automatic switching)"], ["autogrid", "Auto grid"], ["autointermission", "Auto intermission"], ["autoswitch", "Auto switch"], ["standings", "Standings on stream"], ["alerts", "Alerts (on or paused)"]]],
         ["press", "Press", [["toggle", "Switch it"], ["on", "Always on"], ["off", "Always off"]]],
       ];
     case "break":
-      return [["kind", "Break", [["brb", "Be right back"], ["intermission", "Intermission"], ["sponsor", "Sponsor break"], ["off", "End the break"]]]];
+      return [["kind", "Break", [["brb", "Be right back"], ["soon", "Starting soon"], ["intermission", "Intermission"], ["sponsor", "Sponsor break"], ["off", "End the break"]]]];
     case "custom":
       return [
-        ["preset", "Common", [["", "Pick one to fill the path…"], ["gfx/skip", "Skip the graphic on screen"], ["gfx/clear", "Clear the graphics queue"], ["gfx/card", "Top player card"], ["prompt/show", "Show the after-game prompt"], ["prompt/skip", "Skip the after-game prompt"], ["undo", "Undo (the panic, an auto switch, or the last switch)"], ["voice/listen/1", "Listen to lobby 1"], ["voice/listen/off", "Stop listening"], ["spec/lit", "Host view: lights"], ["spec/vision", "Host view: vision"], ["spec/eye", "Host view: eye"], ["lobby/action", "Where the action is"], ["cam/on", "Player cameras on"], ["cam/off", "Player cameras off"]]],
+        ["preset", "Common", [["", "Pick one to fill the path…"], ["gfx/skip", "Skip the graphic on screen"], ["gfx/clear", "Clear the graphics queue"], ["gfx/card", "Top player card"], ["prompt/show", "Show the after-game prompt"], ["prompt/skip", "Skip the after-game prompt"], ["undo", "Undo (the panic, an auto switch, or the last switch)"], ["voice/listen/1", "Listen to lobby 1"], ["voice/listen/off", "Stop listening"], ["spec/lit", "Host view: lights"], ["spec/vision", "Host view: vision"], ["spec/eye", "Host view: eye"], ["replay/best", "Best replay into Preview"], ["cam/on", "Player cameras on"], ["cam/off", "Player cameras off"]]],
         ["path", "Path", "text"],
         ["label", "Key text", "text"],
       ];
@@ -160,13 +169,16 @@ function fieldsFor(k) {
 }
 
 const HINTS = {
+  lobby: "Select, then submit: a press puts the lobby in Preview and the Take key puts it on stream. Set Press to Cut to go straight to stream. Best replay puts the best recent replay in Preview (the same pick as the desk's N key); Take plays it.",
+  take: "The submit key: puts what's in Preview on stream (the lobbies, a player camera, or a replay, which plays). The key shows what's in Preview.",
+  replay: "Best replay puts the best recent replay (the highest rated one not played yet) in Preview; Take plays it. Play the last clip plays the newest at once.",
   wide: "Back to the whole map from a player camera.",
   panic: "One press: fades to Be right back, mutes lobby voice and holds switching. While that panic is on the key says UNDO PANIC: press it again to put it all back.",
   undo: "Takes back the panic while there is one, else an automatic switch away from a lobby that dropped, else the last switch made by hand. Lit while a panic is on.",
   "dial.replay": "Turn to scrub: slowly by frames, quickly by seconds. Push to play or pause, tap the strip for the speed.",
   "dial.preview": "Turn to pick the Preview lobby, push to Take, tap the strip to clear Preview.",
   "dial.player": "Turn to pick who the camera follows (no cut), push to cut to the camera, tap the strip to go back wide.",
-  cam: "Slots are the players in colour order, living and dead, and stay the same all game. Arm sets who the camera follows without cutting; in a meeting a cut waits and goes on when play resumes.",
+  cam: "Slots are the players in colour order, living and dead, and stay the same all game. Into Preview sets who the camera follows and puts the camera in Preview: Take puts it on. Arm sets who it follows without cutting; in a meeting a cut waits and goes on when play resumes.",
   custom: "Any Red Alert Stream Deck link, by the part after /deck/ (for example gfx/skip). The key and port come from the connection below.",
 };
 
@@ -251,7 +263,7 @@ function onMessage(msg) {
     $("key").value = g.key || "";
     if (!g.key) $("connection").open = true;
   } else if (msg.event === "didReceiveSettings") {
-    settings = Object.assign({}, DEFAULTS[kind] || {}, (msg.payload && msg.payload.settings) || {});
+    settings = settingsFor(kind, msg.payload && msg.payload.settings);
     render();
   } else if (msg.event === "sendToPropertyInspector") {
     const p = msg.payload || {};
@@ -271,7 +283,7 @@ window.connectElgatoStreamDeckSocket = function (port, inUUID, registerEvent, in
   try { action = JSON.parse(actionInfo || "{}"); } catch (e) { action = {}; }
   actionId = action.action || "";
   kind = actionId.replace(/^com\.ljbutton\.redalert\./, "");
-  settings = Object.assign({}, DEFAULTS[kind] || {}, (action.payload && action.payload.settings) || {});
+  settings = settingsFor(kind, action.payload && action.payload.settings);
   render();
   socket = new WebSocket("ws://127.0.0.1:" + port);
   socket.onopen = () => {

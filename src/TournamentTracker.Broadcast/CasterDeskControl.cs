@@ -24,8 +24,17 @@ namespace TournamentTracker.App.Broadcast
         public string? Auto { get; init; }
         /// <summary>What the desk says about auto grid's suggestion ("All lobbies quiet: Grid is in Preview…"), or null.</summary>
         public string? Note { get; init; }
-        /// <summary>The layout it goes on in: the one picked, else 1 full screen, 2 side by side, 3–4 the quad, more the grid.</summary>
-        public string Layout => Slots.Count == 0 ? "none" : Chosen ?? CasterDesk.LayoutFor(Slots.Count);
+        /// <summary>A replay staged instead of lobbies (Best replay): Take plays it. Null: none.</summary>
+        public PreviewReplay? Replay { get; init; }
+        /// <summary>
+        /// A player camera staged while that lobby's camera is on stream: who it should follow, sent to the
+        /// host only on Take (sending it at once would change the shot on stream). Null: none to send.
+        /// </summary>
+        public (string Lobby, int? Pick)? CamPick { get; init; }
+        /// <summary>Nothing staged: no lobby and no replay.</summary>
+        public bool IsEmpty => Slots.Count == 0 && Replay == null;
+        /// <summary>The layout it goes on in: "replay" for a staged replay, else the one picked, else 1 full screen, 2 side by side, 3–4 the quad, more the grid.</summary>
+        public string Layout => Replay != null ? "replay" : Slots.Count == 0 ? "none" : Chosen ?? CasterDesk.LayoutFor(Slots.Count);
         public bool Has(string lobby) => Slots.Contains(lobby, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -118,6 +127,7 @@ namespace TournamentTracker.App.Broadcast
             OnAir before;
             lock (_lock) { staged = _preview; before = _onAir; }
             if (staged.Slots.Count == 0) return null;
+            if (staged.CamPick is { } cp) WantCam(cp.Lobby, cp.Pick);
             var air = ShowPicked(staged.Slots.ToList(), by, NormLayout(asLayout) ?? staged.Chosen, transition);
             lock (_lock)
             {
@@ -144,7 +154,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>
         /// Automatic switching paused: auto intermission, the camera going back to the map, auto switch
         /// off a lobby that dropped, the grid closing up, a MUST SHOW play ending a sponsor break, the
-        /// break timer, armed cameras and where-the-action-is all wait, and auto grid puts nothing in
+        /// break timer and armed cameras all wait, and auto grid puts nothing in
         /// Preview (its suggestion comes out). The caster's own switches still go through.
         /// </summary>
         public bool Held

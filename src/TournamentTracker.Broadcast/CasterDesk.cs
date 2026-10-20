@@ -47,7 +47,7 @@ namespace TournamentTracker.App.Broadcast
     /// <summary>What's on stream: one lobby full screen, two side by side, or four.</summary>
     public sealed class OnAir
     {
-        /// <summary>"full", "2up", "4up", "grid", "break", "cam" (a lobby's player camera), "cams" (2–4 lobbies' player cameras at once), "intermission", "slate" (be right back), "replay" or "none".</summary>
+        /// <summary>"full", "2up", "4up", "grid", "break", "cam" (a lobby's player camera), "cams" (2–4 lobbies' player cameras at once), "intermission", "slate" (be right back), "soon" (starting soon), "replay" or "none".</summary>
         public string Layout { get; set; } = "none";
         public List<string?> Slots { get; set; } = new List<string?>();
         /// <summary>Who set it: "button" (a click here) or "obs" (switched in OBS).</summary>
@@ -639,6 +639,7 @@ namespace TournamentTracker.App.Broadcast
             if (layout == "grid") return ShowGrid(by, null, transition);
             if (layout == "intermission") return ShowIntermission(by, transition);
             if (layout == "slate") return ShowSlate(by, transition);
+            if (layout == "soon") return ShowStartingSoon(by, transition);
             layout = OnAir.SlotsFor(layout) > 0 && layout != "break" ? layout : "full";
             int n = OnAir.SlotsFor(layout);
             var ranked = Board.Ranking().Where(r => r.Online && !IsDown(r.Lobby)).Select(r => r.Lobby).ToList();
@@ -1174,7 +1175,7 @@ namespace TournamentTracker.App.Broadcast
                     // Its own suggestion stays as it is: the grid follows the active lobbies, the way back doesn't move under the caster.
                     else if (ours && _autoPick!.Auto == want.Auto && (want.Auto == "back" || _autoPick.Slots.SequenceEqual(want.Slots, StringComparer.OrdinalIgnoreCase))) { }
                     // Only an empty Preview or its own: a Preview the caster chose (or just cleared) stays.
-                    else if (ours || _autoPick == null && _preview.Slots.Count == 0) { _preview = _autoPick = want; changed = true; }
+                    else if (ours || _autoPick == null && _preview.IsEmpty) { _preview = _autoPick = want; changed = true; }
                 }
             }
             if (changed) Touch();
@@ -1247,8 +1248,9 @@ namespace TournamentTracker.App.Broadcast
             CamAudioTick(air);
             CamFollowTick();
             // A break on stream (be right back, intermission, sponsor): auto grid's suggestion no longer applies.
-            if (air.Layout is "slate" or "intermission" or "break") AutoGridOff();
-            if (air.Layout is "replay" or "slate") return;
+            if (air.Layout is "slate" or "intermission" or "break" or "soon") AutoGridOff();
+            // Starting soon too: nothing switches by itself before the show (the caster Takes a lobby).
+            if (air.Layout is "replay" or "slate" or "soon") return;
             // An armed camera waits out intermission and a sponsor break too: it goes on once they're over.
             if (air.Layout is not ("intermission" or "break") && ArmedTick(air)) return;
             if (CamTick(air)) return;
@@ -1388,11 +1390,12 @@ namespace TournamentTracker.App.Broadcast
                 AutoGrid,
                 Health = HealthState(),
                 AutoSwitched = AutoSwitched is { } asw ? new { asw.Lobby, asw.Text, At = asw.At.ToString("o") } : null,
+                Soon = SoonState(),
                 Intermission = new { On = air.Layout == "intermission", Offer = IntermissionOffer, Auto = AutoIntermission, Live = LiveDuringIntermission, NextRoundAt = NextRoundAt?.ToString("o"), Montage = QueuedMontage?.Title },
                 WinScope, Wins = new { Impostors = wins.Impostors, Crew = wins.Crew },
                 Break = Break is { } br ? new { Sponsor = br.Sponsor.Name, Left = Math.Max(0, (int)Math.Ceiling((br.Until - now).TotalSeconds)), br.Lobby } : null,
                 OnAir = new { air.Layout, air.Slots, air.By, air.Scene, Since = air.Since == default ? null : air.Since.ToString("o") },
-                Preview = new { Layout = preview.Layout, preview.Slots, preview.Note },
+                Preview = new { Layout = preview.Layout, preview.Slots, preview.Note, preview.Replay },
                 Hold = HoldState(),
                 Panic = PanicOn(),
                 ArmedDropped = ArmedDropped is { } dropped && (now - dropped.At).TotalSeconds < 15 ? new { dropped.Text, At = dropped.At.ToString("o") } : null,
@@ -1416,6 +1419,7 @@ namespace TournamentTracker.App.Broadcast
                         }).ToList(),
                         OnAir = air.Label(r.Lobby),
                         Tally = Tally(r.Lobby, air, preview),
+                        HostTally = HostTally.For(r.Lobby, air, preview),
                         Cam = CamView(r.Lobby, r.Spec),
                         Health = Health.Status(r.Lobby).Level,
                     };

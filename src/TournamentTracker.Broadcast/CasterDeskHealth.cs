@@ -193,7 +193,7 @@ namespace TournamentTracker.App.Broadcast
             }).ToList();
             List<object> interrupted;
             lock (_lock) interrupted = _interruptions.OrderByDescending(i => i.At).Take(20).Select(i => (object)new { i.Id, i.Lobby, i.Game, i.Round, i.Why, i.Decision, At = i.At.ToString("o") }).ToList();
-            return new { Lobbies = lobbies, Interrupted = interrupted, Settings = HealthConfig };
+            return new { Lobbies = lobbies, Interrupted = interrupted, Settings = HealthConfig, PageWait };
         }
 
         // ---- Cards from the desk ---------------------------------------------------------------
@@ -352,9 +352,12 @@ namespace TournamentTracker.App.Broadcast
             var s = HealthConfig;
             var wentDown = new List<string>();
             var cameBack = new List<string>();
+            // The desk page (every lobby's data link) is gone or just back: no lobby counts as newly down yet (CasterDeskPage).
+            bool pageWait = PageWait;
             foreach (var lobby in Health.Lobbies)
             {
                 var st = Health.Status(lobby);
+                if (pageWait && st.Level == "red") continue;
                 string was;
                 lock (_lock) { was = _levels.TryGetValue(lobby, out var w) ? w : "green"; _levels[lobby] = st.Level; }
                 if (st.Level == "red" && was != "red") wentDown.Add(lobby);
@@ -368,7 +371,7 @@ namespace TournamentTracker.App.Broadcast
             }
             if (AutoSwitched is { } note && (now - note.At).TotalMinutes > 10) AutoSwitched = null;
 
-            CheckSilentGames();
+            if (!pageWait) CheckSilentGames();
             var air = OnAir;
             // The caster (or anything but auto switch) put a lobby on while it's down: their choice wins
             // for this outage.
@@ -381,8 +384,10 @@ namespace TournamentTracker.App.Broadcast
             bool changed = false;
             string? moved = null;
             string? from = null;
+            // The desk page is gone or just back: its lobbies aren't down, their data is on its way again.
+            if (pageWait) { }
             // Held: a lobby that drops stays on stream until the caster moves (its card still comes up).
-            if (s.AutoSwitch && WouldMoveOffDown(air) && HoldBack("Auto switch off a lobby that dropped")) { }
+            else if (s.AutoSwitch && WouldMoveOffDown(air) && HoldBack("Auto switch off a lobby that dropped")) { }
             else if (s.AutoSwitch)
             {
                 switch (air.Layout)
@@ -482,7 +487,7 @@ namespace TournamentTracker.App.Broadcast
         private OnAir? _beforeSlate;
 
         /// <summary>
-        /// Off the be-right-back screen, a sponsor break or intermission (the Stream Deck's "end break"):
+        /// Off the be-right-back screen, a sponsor break, intermission or starting soon (the Stream Deck's "end break"):
         /// back to what was on before, else the top lobby. Null when none of them is on.
         /// </summary>
         public OnAir? EndBreak(string by = "deck", string? transition = null)
@@ -491,6 +496,7 @@ namespace TournamentTracker.App.Broadcast
             switch (air.Layout)
             {
                 case "intermission": return EndIntermission(by, transition);
+                case "soon": return EndStartingSoon(by, transition);
                 case "break": return Show(Break?.Lobby ?? air.Slots.FirstOrDefault() ?? "", "full", null, null, by, transition);
                 case "slate":
                 {
@@ -512,6 +518,7 @@ namespace TournamentTracker.App.Broadcast
                 "2up" or "4up" or "cams" => Show("", back.Layout, null, back.Slots.Select(x => x ?? "").ToList(), by, transition),
                 "full" or "cam" or "break" when lobbies.Count > 0 => Show(lobbies[0], back.Layout == "cam" ? "cam" : "full", null, null, by, transition),
                 "intermission" => ShowIntermission(by, transition),
+                "soon" => ShowStartingSoon(by, transition),
                 _ => Show(Board.Ranking().FirstOrDefault(r => r.Online && !IsDown(r.Lobby))?.Lobby ?? "", "full", null, null, by, transition),
             };
         }

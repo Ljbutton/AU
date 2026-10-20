@@ -33,7 +33,8 @@ namespace TournamentTracker.App
             };
             AppUpdater.CleanUp(exe);
             using var server = new AppServer(env, new HttpClient { Timeout = TimeSpan.FromMinutes(10) });
-            Application.Run(new MainForm(server.Url, Path.Combine(appData, "WebView2")));
+            // The page crashing or hanging (and the window bringing it back) is written to the-button.log.
+            Application.Run(new MainForm(server.Url, Path.Combine(appData, "WebView2")) { Log = m => server.Log.Warn(m) });
         }
 
         /// <summary>Where Among Us (a Unity game) writes Player.log: …\AppData\LocalLow\Innersloth\Among Us.</summary>

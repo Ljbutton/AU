@@ -5,9 +5,14 @@ export function sampleState() {
 		rev: 7,
 		obs: { connected: true, streaming: true, recording: false, problem: null },
 		program: { layout: "full", slots: ["Lobby 3"], confirmed: true, switching: null },
-		preview: { layout: "2up", slots: ["Lobby 1", "Lobby 5"] },
-		voice: { muteAll: false, heard: "Lobby 3", listen: null },
-		replay: { onAir: false, playing: false, speed: 100, ready: 2, last: { id: "r9", lobby: "Lobby 2", title: "Red kills Blue" } },
+		preview: { layout: "2up", slots: ["Lobby 1", "Lobby 5"], replay: null },
+		voice: { muteAll: false, heard: "Lobby 3", listen: null, cue: true, cueLobby: "Lobby 1" },
+		replay: {
+			onAir: false, playing: false, speed: 100, ready: 2,
+			last: { id: "r9", lobby: "Lobby 2", title: "Red kills Blue" },
+			// What Best replay would put in Preview (named by its lobby and play: no impostor flags asked for).
+			best: { id: "r8", lobby: "Lobby 2", tier: "must", title: "Lobby 2: kill", label: "Lobby 2: kill" },
+		},
 		hold: true,
 		auto: { grid: false, intermission: true, switch: false },
 		graphics: { standings: true, alertsPaused: false, now: null, waiting: 0, prompts: 0 },

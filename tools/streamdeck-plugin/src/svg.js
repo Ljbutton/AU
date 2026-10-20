@@ -165,12 +165,11 @@ export function lobbyKey(v) {
 	return frame(parts.join(""), { status: v.status, bg: dim ? C.bgDim : C.bg, border: tally ?? C.line, borderWidth: tally ? 8 : 2 });
 }
 
-/** A Lobby key set to next, prev or "where the action is": the word, an arrow and where it goes. */
+/** A Lobby key set to next or prev: the word, an arrow and where it goes (Best replay is a label key). */
 export function lobbyStepKey(v) {
 	const parts = [];
-	if (v.label === "NEXT") parts.push(`<path d="M52 30 L92 52 L52 74 Z" fill="${C.fg}"/>`);
-	else if (v.label === "PREV") parts.push(`<path d="M92 30 L52 52 L92 74 Z" fill="${C.fg}"/>`);
-	else parts.push(`<path d="M72 20 L80 44 L104 44 L84 58 L92 82 L72 67 L52 82 L60 58 L40 44 L64 44 Z" fill="${C.amber}"/>`);
+	if (v.label === "PREV") parts.push(`<path d="M92 30 L52 52 L92 74 Z" fill="${C.fg}"/>`);
+	else parts.push(`<path d="M52 30 L92 52 L52 74 Z" fill="${C.fg}"/>`);
 	parts.push(text(72, 108, v.label, { size: 22, anchor: "middle" }));
 	if (v.target) parts.push(text(72, 132, fit(`${v.target.no} ${v.target.name ?? ""}`, 13), { size: 15, weight: "normal", fill: C.muted, anchor: "middle" }));
 	return frame(parts.join(""), { status: v.status, border: v.mode === "preview" ? C.green : C.line, borderWidth: v.mode === "preview" ? 4 : 2 });
@@ -221,7 +220,9 @@ export function camStepKey(v) {
 	if (v.label === "NEXT") parts.push(`<path d="M112 58 L132 72 L112 86 Z" fill="${C.fg}"/>`);
 	if (v.label === "PREV") parts.push(`<path d="M32 58 L12 72 L32 86 Z" fill="${C.fg}"/>`);
 	parts.push(noCamTag(v));
-	return frame(parts.join(""), { status: v.status, border: v.mode === "arm" ? C.amber : C.line, borderWidth: v.mode === "arm" ? 4 : 2 });
+	// Arm: amber; into Preview (the default): green, as a Lobby key set to Preview; a cut: plain.
+	const border = v.mode === "arm" ? C.amber : v.mode === "preview" ? C.green : C.line;
+	return frame(parts.join(""), { status: v.status, border, borderWidth: border === C.line ? 2 : 4 });
 }
 
 // ---- Toggles and labelled keys --------------------------------------------------------------

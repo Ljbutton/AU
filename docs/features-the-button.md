@@ -5,7 +5,7 @@ and updates the host-only Tournament Tracker mod, takes the organiser's setup co
 lobby's Discord bot online, and gives the host one window to run the lobby from: automute,
 rounds, checking each game's points before Discord sees them, and sending the game to the caster.
 Referees and the organiser use the same app with an administration code, which adds the Organiser
-tab. This page describes The Button as of v0.1.65. What the mod does inside Among Us, and exactly
+tab. This page describes The Button as of v0.1.66. What the mod does inside Among Us, and exactly
 what it posts in Discord, is in [features-mod.md](features-mod.md).
 
 ## At a glance
@@ -54,6 +54,10 @@ what it posts in Discord, is in [features-mod.md](features-mod.md).
 * **Size:** opens at 1180 × 780, centred; it can be made as small as 760 × 520. Home and the Referee
   tab are laid out to fit one screen; a narrow window falls back to one scrolling column.
 * **One copy at a time:** starting The Button again brings the open one to the front.
+* **Page crash:** if the window's page crashes or stops responding (for 10 s), The Button loads it
+  again by itself (with a new browser if WebView2's own closed), at most 3 times a minute, and writes
+  it in `the-button.log`; past that the window says "The Button's page stopped working 4 times in a
+  minute, so it isn't being loaded again." and asks for a restart (settings are kept).
 * **No WebView2:** on the rare PC without Windows' WebView2, The Button opens its screens in the
   normal browser and keeps a small window open (closing it quits the app).
 * **Links open in the normal browser** (GitHub, the send page, the code maker).
@@ -79,6 +83,17 @@ The bar shows only what needs the host; clicking a warning goes where it's fixed
   warnings are left out.
 
 ## Home
+
+### On stream light
+
+* **ON STREAM** (red bar at the very top of Home): while the caster's Red Alert has your lobby on
+  stream, it says how ("On stream (full screen)", "On stream (in the 2-up)", "On stream (in the
+  quad)", "On stream (in the grid)", "On stream (player camera)", "On stream (sponsor break)") with
+  "You're on stream: stay in the game window, no menus."
+* **NEXT** (amber bar): "Next: the caster has your lobby in Preview."
+* **Nothing otherwise.** It comes over the send page's link to Red Alert (only your own lobby's
+  state, no players or impostors) and goes 10 s after Red Alert stops sending it (link dropped, send
+  page closed, Red Alert's desk closed, or an older Red Alert). Home only; not in the game.
 
 ### Notices about saved data
 
@@ -346,8 +361,8 @@ tournament lobby's bot keeps in the private results channel, so it works on a PC
 ## Settings tab
 
 * **Among Us:** the game folder (see *Installing and starting*).
-* **Mod and updates:** both versions on one line ("The Button 0.1.65, 64-bit Among Us with the mod
-  v0.1.65. Everything is up to date."; on an organiser's PC, "Organiser PC: Among Us isn't needed
+* **Mod and updates:** both versions on one line ("The Button 0.1.66, 64-bit Among Us with the mod
+  v0.1.66. Everything is up to date."; on an organiser's PC, "Organiser PC: Among Us isn't needed
   here."), one button for whatever is needed (**Install the mod**,
   **Repair the mod**, **Update the mod to vX**, **Update The Button to vX**, **Update both to vX**),
   **Restart The Button to finish**, **Reinstall the mod**, **Open log** (the mod's log), the
@@ -504,7 +519,8 @@ The Button carries the mod's Discord traffic; the mod decides what to post (see
   it, and only to Discord addresses. Without The Button open nothing reaches Discord, and the mod
   says so when a game starts.
 * **Follows the host's voice channel:** while Among Us is hosting, the bot sits muted in the host's
-  voice channel (for who's talking) and leaves when Among Us closes.
+  voice channel (for who's talking) and leaves when Among Us closes. Its joins and leaves go to
+  Discord one at a time, newest last, so a late rejoin can't put it back in the channel after it left.
 * **Never leaves people muted:** The Button keeps a list of who it has muted (server and user IDs
   only). If Among Us closes or crashes, they're unmuted after about half a minute; when The Button
   closes it unmutes them on the way out; after a crash of The Button, the next start unmutes anyone

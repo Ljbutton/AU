@@ -134,6 +134,19 @@ img.sw{display:inline-block;height:1.1em;width:auto;margin-right:.25em;vertical-
 .inter .nx{margin-top:1.2em;display:inline-flex;gap:.5em;align-items:center;padding:.3em .7em;border-radius:.3em;background:rgba(255,193,90,.16);border-left:.2em solid var(--accent);font-size:.9em}
 .inter .side{display:grid;gap:30px;align-content:start}
 @keyframes fadein{from{opacity:0}}
+/* Starting soon: the whole screen before the show */
+.soon{box-sizing:border-box;display:grid;place-items:center;text-align:center;padding:90px 110px;background:radial-gradient(ellipse at 50% 0%,rgba(31,161,67,.32),transparent 62%),linear-gradient(160deg,rgba(6,9,13,.97),rgba(12,16,22,.97))}
+.soon .in{display:grid;justify-items:center;gap:.25em;max-width:100%}
+.soon .lg{max-height:230px;max-width:640px;object-fit:contain;margin-bottom:.4em;filter:drop-shadow(0 .2em .6em rgba(0,0,0,.5))}
+.soon .tn{font:700 1.15em/1 var(--font),sans-serif;letter-spacing:.22em;text-transform:uppercase;color:var(--primary)}
+.soon h1{margin:.05em 0 0;font:700 4.4em/.9 var(--head),sans-serif;letter-spacing:.05em;text-transform:uppercase}
+.soon.now h1{color:var(--accent);animation:soonpulse 1.6s ease-in-out infinite}
+@keyframes soonpulse{50%{opacity:.7}}
+.soon .cd{font:700 6.6em/.9 var(--head),sans-serif;font-variant-numeric:tabular-nums}
+.soon .tx{margin-top:.5em;max-width:1300px;font-size:1.15em;line-height:1.3}
+.soon .by{margin-top:1.4em;display:inline-flex;align-items:center;gap:.6em;padding:.35em .9em;border-radius:.35em;background:var(--panel);font:700 .8em/1 var(--font),sans-serif;letter-spacing:.18em;color:#cfd3da;animation:fadein .6s}
+.soon .by img{max-height:2.6em;max-width:320px;object-fit:contain}
+.soon .by b{font:700 1.5em/1 var(--head),sans-serif;letter-spacing:.04em;color:var(--text)}
 /* Win counter */
 .wins{display:flex;align-items:center;gap:.6em;padding:.3em .8em;border-radius:.3em;background:var(--panel);font:700 .9em/1 var(--head),sans-serif;letter-spacing:.08em;white-space:nowrap}
 .wins .i{color:var(--danger)}.wins .c{color:#7fd3ff}
@@ -410,6 +423,20 @@ function intermission() {
   if (ns && ns._note !== (it.note || '')) { ns._note = it.note || ''; ns.innerHTML = it.note ? `<div class="nt"><b>Storyline</b><span>${rich(it.note)}</span></div>` : ''; }
   const cd = document.getElementById('inter-cd'); if (cd && it.nextRoundIn != null) setT(el, '#inter-cd', mmss(it.nextRoundIn));
 }
+// Starting soon: the whole screen before the show. The countdown ticks in place; at zero it says "Starting now"
+// and stays (the caster takes a lobby). The sponsors take turns; only the sponsor's own line is replaced.
+function startingSoon() {
+  const so = S.soon; if (!so || S.layout !== 'soon') return;
+  const now = !!so.now;
+  const el = put('soon-bg', `<div class="soon${now ? ' now' : ''}" style="width:${S.canvas.w}px;height:${S.canvas.h}px"><div class="in">
+      ${S.logo ? `<img class="lg" src="${esc(S.logo)}" alt="">` : ''}<div class="tn">${esc(so.title || '')}</div>
+      <h1>${now ? 'Starting now' : 'Starting soon'}</h1>${so.left > 0 ? '<div class="cd" id="soon-cd"></div>' : ''}
+      ${so.text ? `<div class="tx">${esc(so.text)}</div>` : ''}<div class="spslot"></div></div></div>`,
+    { left: '0px', top: '0px', fontSize: '34px', zIndex: '-1' });
+  if (so.left > 0) setT(el, '#soon-cd', mmss(so.left));
+  const sp = so.sponsor, slot = el.querySelector('.spslot'), key = sp ? sp.name : '';
+  if (slot && slot._sp !== key) { slot._sp = key; slot.innerHTML = sp ? `<div class="by">PRESENTED BY ${sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : ''}<b>${esc(sp.name)}</b></div>` : ''; }
+}
 // Impostor wins v crewmate wins (today or this round), in the corner and in intermission; the number that changed jumps.
 const winsSeen = { i: null, c: null, at: { i: 0, c: 0 } };
 function winCounter() {
@@ -497,7 +524,9 @@ function render() {
     for (const [name, fn] of Object.entries(ELEMENTS)) if (S.elements[name]) draw(name, () => fn(slot, l, k));
     draw('reconnecting', () => reconnecting(slot, l, k));
   }
-  for (const [name, fn] of Object.entries(GLOBAL)) if (S.elements[name] || ALWAYS.has(name)) draw(name, fn);
+  // Starting soon is the whole screen before the show: nothing else goes over it.
+  if (S.layout === 'soon') draw('startingSoon', startingSoon);
+  else for (const [name, fn] of Object.entries(GLOBAL)) if (S.elements[name] || ALWAYS.has(name)) draw(name, fn);
   // Pieces not drawn this time fade out, and are removed once faded (alerts and player cards used to pile up
   // hidden, their animations still running). The break's video goes at once: that stops it and its sound,
   // and the next break plays it from the start.

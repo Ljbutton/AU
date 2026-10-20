@@ -23,7 +23,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Connect when The Button starts (after the first successful connect).</summary>
         public bool AutoConnect { get; set; }
         /// <summary>The scenes The Button builds and switches between: full screen, 2-up, quad.</summary>
-        public Dictionary<string, string> Scenes { get; set; } = new Dictionary<string, string> { ["full"] = "TT Full", ["2up"] = "TT 2-up", ["4up"] = "TT Quad", ["grid"] = "TT Grid", ["break"] = "TT Sponsor Break", ["intermission"] = "TT Intermission", ["slate"] = "TT Be Right Back", ["cam"] = "TT Player Cam" };
+        public Dictionary<string, string> Scenes { get; set; } = new Dictionary<string, string> { ["full"] = "TT Full", ["2up"] = "TT 2-up", ["4up"] = "TT Quad", ["grid"] = "TT Grid", ["break"] = "TT Sponsor Break", ["intermission"] = "TT Intermission", ["slate"] = "TT Be Right Back", ["cam"] = "TT Player Cam", ["soon"] = "TT Starting Soon" };
         /// <summary>Each lobby's VDO.Ninja source is called this plus the lobby name.</summary>
         public string SourcePrefix { get; set; } = "TT Lobby ";
         /// <summary>Each lobby's player camera source (only in the TT Player Cam scene) is called this plus the lobby name.</summary>
@@ -46,6 +46,12 @@ namespace TournamentTracker.App.Broadcast
         public SwooshSettings Swoosh { get; set; } = new SwooshSettings();
         /// <summary>The lobbies' voice (Part 11).</summary>
         public VoiceSettings Voice { get; set; } = new VoiceSettings();
+        /// <summary>
+        /// Red Alert's broadcast delay, in seconds (0 to <see cref="BroadcastDelay.Max"/>): every lobby picture,
+        /// voice and camera in OBS plays this late (VDO.Ninja's playout buffer), and the on-stream graphics
+        /// wait the same. The Live desk stays live.
+        /// </summary>
+        public double BroadcastDelay { get; set; } = TournamentTracker.App.Broadcast.BroadcastDelay.Default;
         /// <summary>Lobby → OBS source, as built. The Button keeps this up to date.</summary>
         public Dictionary<string, string> Sources { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         /// <summary>Red Alert's own sources that had to move to a fresh name ("TT Broadcast" → "TT Broadcast 2") because OBS kept a removed one.</summary>
@@ -164,6 +170,8 @@ namespace TournamentTracker.App.Broadcast
             _connect = connect ?? ObsClient.ConnectAsync;
             Settings = ObsSettings.Load(settingsPath);
             _wantConnected = Settings.AutoConnect;
+            // Hear Preview: the headphones follow Preview.
+            desk.Changed += QueueCue;
         }
 
         /// <summary>Starts the background upkeep: reconnecting, and adding sources for new lobbies.</summary>
@@ -204,6 +212,7 @@ namespace TournamentTracker.App.Broadcast
                 await EnsureBroadcastAsync().ConfigureAwait(false);
                 await EnsureSwooshAsync().ConfigureAwait(false);
                 lock (_voiceLock) { _voiceInputs.Clear(); _voiceSet.Clear(); }
+                ForgetCue();
                 _duckWas = "\u0000";
                 await EnsureVoiceAsync().ConfigureAwait(false);
                 await ReadBackAsync(force: true).ConfigureAwait(false);
@@ -256,6 +265,7 @@ namespace TournamentTracker.App.Broadcast
                     await AddSourcesAsync().ConfigureAwait(false);
                     await EnsureVoiceAsync().ConfigureAwait(false);
                     await VoiceHealAsync().ConfigureAwait(false);
+                    await CueAsync().ConfigureAwait(false);
                 }
             }
             catch (Exception e) { Problem = e.Message; }
@@ -365,7 +375,7 @@ namespace TournamentTracker.App.Broadcast
                 bool changed = false;
                 foreach (var (lobby, feedUrl) in _feeds())
                 {
-                    string url = WithBitrate(feedUrl);
+                    string url = ForObs(feedUrl);
                     // Simulation's lobbies only while it runs (a late tick mustn't build them again after it stopped).
                     if (!_desk.Simulating && CasterDesk.IsSimLobby(lobby)) continue;
                     if (!now && _sourceProblems.TryGetValue(lobby, out var failed) && DateTime.UtcNow < failed.RetryAt) continue;
@@ -444,7 +454,7 @@ namespace TournamentTracker.App.Broadcast
                 if (!_desk.Simulating && CasterDesk.IsSimLobby(lobby)) continue;
                 try
                 {
-                    string url = WithBitrate(feedUrl), root = Settings.CamPrefix + lobby;
+                    string url = ForObs(feedUrl), root = Settings.CamPrefix + lobby;
                     string current = Settings.CamSources.TryGetValue(lobby, out var m) && m.Length > 0 ? m : root;
                     var (name, ids, added) = await EnsureInputAsync(obs, root, current, new[] { scene }, inputs, "browser_source",
                         new { url, width = 1920, height = 1080, reroute_audio = true, shutdown = false, restart_when_active = false, fps_custom = false },
@@ -525,6 +535,7 @@ namespace TournamentTracker.App.Broadcast
             if (type == "VendorEvent") { OnVendorEvent(data); return; }
             if (type == "InputMuteStateChanged") { OnMuteKnown(data); OnMuteChanged(data); return; }
             if (type is "StreamStateChanged" or "RecordStateChanged") { OnOutputEvent(type, data); return; }
+            if (type == "InputAudioMonitorTypeChanged") { OnCueMonitor(data); return; }
             OnItemsEvent(type, data);
             if (type == "CurrentProgramSceneChanged")
             {
@@ -626,6 +637,7 @@ namespace TournamentTracker.App.Broadcast
             Scenes = Settings.Scenes,
             Sources = Settings.Sources,
             Canvas = $"{Width}×{Height}",
+            BroadcastDelay = DelaySeconds,
             Voice = VoiceStatus(),
             Swoosh = new { Settings.Swoosh.On, Stinger = _stinger, Problem = SwooshProblem, File = SwooshFile, Count = Swooshes },
             SwitchingTo, SwitchProblem,
@@ -645,6 +657,7 @@ namespace TournamentTracker.App.Broadcast
 
         public async ValueTask DisposeAsync()
         {
+            _desk.Changed -= QueueCue;
             _timer?.Dispose();
             _timer = null;
             await DropAsync().ConfigureAwait(false);

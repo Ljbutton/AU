@@ -27,6 +27,8 @@ namespace TournamentTracker.App.Broadcast
         public string? DeckKey { get; set; }
         /// <summary>Player cameras off for every lobby (on unless turned off).</summary>
         public bool CamOff { get; set; }
+        /// <summary>Hold and the desk's automation (auto grid, auto intermission, the countdown…), as left (null: never saved: the defaults).</summary>
+        public DeskAutomation? Desk { get; set; }
 
         public static BroadcastAppSettings Load(string file) => Files.ReadJson<BroadcastAppSettings>(file) ?? new BroadcastAppSettings();
 
@@ -169,7 +171,8 @@ namespace TournamentTracker.App.Broadcast
             _panic = null;
             if (_settings.AdminCode != null && SetupCode.TryParse(_settings.AdminCode, out var code, out _) && code.IsAdmin)
             {
-                var organizer = _organizer = new Organizer(code, _http, log: Log);
+                // The lobbies and their links last known are kept on disk, so they're back at once after a restart (marked cached until the channel confirms them).
+                var organizer = _organizer = new Organizer(code, _http, log: Log, cacheFile: SideFile(Organizer.CacheFileName));
                 var caster = _caster = new CasterServer(organizer, _env.CasterPort);
                 var desk = _desk = new CasterDesk(DeskConfigPath, rosterPath: SideFile(Roster.FileName), dataFolder: SideFolder())
                 {
@@ -177,6 +180,7 @@ namespace TournamentTracker.App.Broadcast
                     Advance = () => organizer.Advance,
                     GamesPerRound = () => organizer.GamesPerRound,
                 };
+                RestoreDesk(desk);
                 // The overlay, video and multiview pages follow what's on stream (unless pinned).
                 caster.Follow = () => desk.OnAir.Slots.FirstOrDefault(x => x != null);
                 desk.AirChangedInObs += _ => caster.Refresh();
@@ -246,7 +250,8 @@ namespace TournamentTracker.App.Broadcast
         {
             string route = path.Split('?')[0];
             if (route == "/broadcast") return ("text/html; charset=utf-8", Encoding.UTF8.GetBytes(Resource("ui/broadcast.html")));
-            if (route == "/broadcast/state") return ("application/json", JsonSerializer.SerializeToUtf8Bytes(app.State(), Json));
+            // With the broadcast delay, its game data as it was that long ago (in step with the lobbies' pictures).
+            if (route == "/broadcast/state") return ("application/json", JsonSerializer.SerializeToUtf8Bytes(app.OnStream(Json), Json));
             if (route == "/broadcast/logo") return app.Logo();
             // Players' crewmate heads, for every name on stream, and the fonts.
             return UiFiles.Asset(typeof(BroadcastServer).Assembly, route);
@@ -344,6 +349,8 @@ namespace TournamentTracker.App.Broadcast
                 _settings.AdminCode = null;
                 TrySave();
                 StartDesk();
+                // The remembered lobbies' links carry the hosts' VDO.Ninja passwords: not kept once locked.
+                Files.Delete(SideFile(Organizer.CacheFileName));
                 return new { ok = true, message = "Locked." };
             }
             if (!SetupCode.TryParse(text, out var code, out var error)) return new { ok = false, message = error };
@@ -405,6 +412,8 @@ namespace TournamentTracker.App.Broadcast
             {
                 return DeckReply(500, false, "That didn't work: " + e.Message);
             }
+            // Hold and the desk's automation, kept for the next start when an action changed them (DeskMemory).
+            finally { if (method == "POST" || path.StartsWith("/deck/", StringComparison.Ordinal)) KeepDesk(); }
         }
 
         private async Task<(int Status, string Type, byte[] Body)> RouteCore(string method, string path, Dictionary<string, string> headers, string body)
@@ -416,7 +425,10 @@ namespace TournamentTracker.App.Broadcast
             string route = path.Split('?')[0];
             string query = path.Contains('?') ? path.Substring(path.IndexOf('?') + 1) : "";
             if (method == "GET" && (route == "/" || route == "/index.html"))
+            {
+                PageOpened();
                 return Text(200, "text/html; charset=utf-8", Resource("ui/caster.html").Replace("__APP_TOKEN__", Token));
+            }
             // The replay viewer (the same as The Button's): it loads a kept game with ?src=.
             if (method == "GET" && route == "/viewer")
                 return Text(200, "text/html; charset=utf-8",
@@ -430,6 +442,7 @@ namespace TournamentTracker.App.Broadcast
 
             headers.TryGetValue("x-app-token", out var token);
             if (token != Token && HttpRequest.Query(query, "token") != Token) return Text(401, "application/json", "{\"error\":\"bad token\"}");
+            PageAsked();
             // An action: the desk's next answer is new (it shows what the click did).
             if (method == "POST") Interlocked.Increment(ref _postVersion);
 
@@ -600,6 +613,7 @@ namespace TournamentTracker.App.Broadcast
                         "full" => $"{air.Slots.FirstOrDefault() ?? Arg("lobby")} is on stream.",
                         "slate" => "On stream: Be right back.",
                         "intermission" => "On stream: Intermission.",
+                        "soon" => "On stream: Starting soon.",
                         "break" => $"On stream: sponsor break with {air.Slots.FirstOrDefault()}.",
                         _ => air.Slots.Any(x => x != null) ? $"On stream: {string.Join(", ", air.Slots.Select(x => x ?? "empty"))}." : "Nothing on stream.",
                     } + _desk.DownNote(air.Slots), down = _desk.DownNote(air.Slots).Trim() });
@@ -626,6 +640,9 @@ namespace TournamentTracker.App.Broadcast
                             _obs.SaveSettings();
                             if (_obs.Settings.Swoosh.On && _obs.Connected) await _obs.EnsureSwooshAsync().ConfigureAwait(false);
                             return Say(true, _obs.Settings.Swoosh.On ? "Swoosh on every switch." : "Swoosh off: straight cuts.");
+                        case "delay":
+                            // Red Alert's broadcast delay (seconds): every lobby source in OBS gets it now.
+                            return Say(true, await _obs.SetDelayAsync(Num("value")).ConfigureAwait(false));
                         case "check":
                             var found = await _obs.CheckSetupAsync().ConfigureAwait(false);
                             return Say(true, found.All(c => c.Ok) ? "OBS setup: all good." : $"OBS setup: {found.Count(c => !c.Ok)} to look at.");
@@ -956,6 +973,10 @@ namespace TournamentTracker.App.Broadcast
                         case "mute":
                             v.MuteAll = Arg("on").Length > 0 ? Arg("on") == "true" : !v.MuteAll;
                             said = v.MuteAll ? "Every lobby voice muted." : "Lobby voice back on: it follows the picture.";
+                            break;
+                        case "cue":
+                            v.HearPreview = Arg("on").Length > 0 ? Arg("on") == "true" : !v.HearPreview;
+                            said = v.HearPreview ? "Hear Preview on: the lobby in Preview plays in your headphones (OBS's monitoring device), not on stream." : "Hear Preview off.";
                             break;
                         case "pin":
                             v.Pin = lobby == v.Pin ? "" : lobby;

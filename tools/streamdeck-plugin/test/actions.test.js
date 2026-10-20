@@ -37,31 +37,73 @@ test("the Property Inspector starts each action from the same defaults as the pl
 	assert.equal(Object.keys(defaults).length, ACTIONS.length);
 });
 
-test("Lobby: cut by number, next, prev and the action, with a transition", () => {
+test("the Property Inspector keeps a key saved before Preview was the default on Cut, as the plugin does", () => {
+	const html = readFileSync(new URL("../com.ljbutton.redalert.sdPlugin/ui/inspector.html", import.meta.url), "utf8");
+	const src = html.match(/function keepCut\(k, saved\) \{[\s\S]*?\n\}\n/)[0];
+	const keepCut = new Function(`${src}; return keepCut;`)();
+	for (const [kind, saved] of [["lobby", {}], ["lobby", { lobby: "3" }], ["lobby", { lobby: "3", mode: "preview" }], ["lobby", { mode: "add" }], ["cam", { slot: "2" }], ["cam", {}], ["take", { as: "quad" }], ["replay", { op: "that" }]]) {
+		const def = BY_UUID[P + kind];
+		assert.deepEqual({ ...def.defaults, ...keepCut(kind, saved), ...saved }, settingsOf(def, saved), `${kind} ${JSON.stringify(saved)}`);
+	}
+});
+
+test("Lobby set to Cut: cut by number, next and prev, with a transition", () => {
+	assert.deepEqual(req("lobby", { lobby: "3", mode: "cut" }), { path: "lobby/3", query: {} });
+	assert.deepEqual(req("lobby", { lobby: " 12 ", mode: "cut" }), { path: "lobby/12", query: {} });
+	assert.deepEqual(req("lobby", { lobby: "next", mode: "cut", t: "swoosh" }), { path: "lobby/next", query: { t: "swoosh" } });
+	assert.deepEqual(req("lobby", { lobby: "prev", mode: "cut", t: "cut" }), { path: "lobby/prev", query: { t: "cut" } });
+	assert.ok(req("lobby", { lobby: "zero", mode: "cut" }).error);
+});
+
+test("a new Lobby key selects into Preview; a key saved before keeps cutting", () => {
+	assert.equal(BY_UUID[P + "lobby"].defaults.mode, "preview");
+	assert.deepEqual(req("lobby", {}), { path: "pvw/lobby/1", query: {} }, "a new key: lobby 1 into Preview");
+	assert.deepEqual(req("lobby", undefined), { path: "pvw/lobby/1", query: {} });
+	assert.deepEqual(req("lobby", { lobby: "3", mode: "preview", t: "" }), { path: "pvw/lobby/3", query: {} }, "set up now: its mode is saved");
+	// Saved with settings of its own but no mode (from before Preview was the default): it cut then, so it still does.
 	assert.deepEqual(req("lobby", { lobby: "3" }), { path: "lobby/3", query: {} });
-	assert.deepEqual(req("lobby", { lobby: " 12 " }), { path: "lobby/12", query: {} });
 	assert.deepEqual(req("lobby", { lobby: "next", t: "swoosh" }), { path: "lobby/next", query: { t: "swoosh" } });
-	assert.deepEqual(req("lobby", { lobby: "prev", t: "cut" }), { path: "lobby/prev", query: { t: "cut" } });
-	assert.deepEqual(req("lobby", { lobby: "action", t: "bogus" }), { path: "lobby/action", query: {} });
-	assert.ok(req("lobby", { lobby: "zero" }).error);
+	assert.equal(view("lobby", { lobby: "next" }).mode, "cut");
+	assert.equal(view("lobby", { lobby: "next", mode: "preview" }).mode, "preview");
+});
+
+test("Lobby set to the action is Best replay: into Preview, whatever the press", () => {
+	for (const mode of ["cut", "preview", "add", undefined]) assert.deepEqual(req("lobby", { lobby: "action", mode, t: "swoosh" }), { path: "replay/best", query: {} }, String(mode));
+	const v = view("lobby", { lobby: "action" });
+	assert.equal(v.type, "label");
+	assert.equal(v.title, "BEST REPLAY");
+	assert.equal(v.sub, "Lobby 2: kill");
+	assert.equal(v.lit, false);
+	const staged = { ...sampleState(), preview: { layout: "replay", slots: [], replay: { id: "r9", lobby: "Lobby 2", tier: "must", title: "Replay: Lobby 2: kill (MUST SHOW)" } } };
+	assert.equal(view("lobby", { lobby: "action" }, staged).sub, "in Preview");
+	assert.equal(view("lobby", { lobby: "action" }, staged).lit, true);
+	const none = { ...sampleState(), replay: { onAir: false, ready: 0 } };
+	assert.equal(view("lobby", { lobby: "action" }, none).sub, "nothing yet");
+	assert.equal(view("lobby", { lobby: "action" }, none).dim, true);
+	assert.deepEqual(view("replay", { op: "best" }), view("lobby", { lobby: "action" }), "the Replay key's Best replay is the same key");
 });
 
 test("Lobby in preview mode stages it, stepping next/prev from Preview", () => {
 	assert.deepEqual(req("lobby", { lobby: "4", mode: "preview" }), { path: "pvw/lobby/4", query: {} });
 	assert.deepEqual(req("lobby", { lobby: "next", mode: "preview" }), { path: "pvw/lobby/3", query: {} }, "Preview is lobby 1; 4 is offline");
 	assert.deepEqual(req("lobby", { lobby: "prev", mode: "preview" }), { path: "pvw/lobby/5", query: {} });
-	assert.ok(req("lobby", { lobby: "action", mode: "preview" }).error);
 	assert.ok(req("lobby", { lobby: "next", mode: "preview" }, { lobbies: [] }).error);
 	assert.deepEqual(req("lobby", { lobby: "5", mode: "add" }), { path: "pvw/add/5", query: {} }, "add builds a 2-up or quad in Preview");
 	assert.ok(req("lobby", { lobby: "next", mode: "add" }).error);
 	assert.equal(view("lobby", { lobby: "prev", mode: "add" }).mode, "preview");
 });
 
-test("Player cam: every target and who, cut or arm", () => {
-	assert.deepEqual(req("cam", {}), { path: "cam/pgm/slot1", query: {} });
-	assert.deepEqual(req("cam", { target: "pvw", who: "slot", slot: "15" }), { path: "cam/pvw/slot15", query: {} });
+test("Player cam: every target and who, into Preview, cut or arm", () => {
+	assert.equal(BY_UUID[P + "cam"].defaults.mode, "preview");
+	assert.deepEqual(req("cam", {}), { path: "cam/pgm/slot1", query: { to: "pvw" } }, "a new key: the camera into Preview");
+	assert.deepEqual(req("cam", { target: "pvw", who: "slot", slot: "15", mode: "cut" }), { path: "cam/pvw/slot15", query: {} });
 	assert.deepEqual(req("cam", { target: "lobby", lobbyNo: "3", who: "colour", colour: "Lime", mode: "arm" }), { path: "cam/3/lime", query: { arm: "1" } });
-	for (const who of ["next", "prev", "auto"]) assert.deepEqual(req("cam", { target: "lobby", lobbyNo: "2", who }), { path: `cam/2/${who}`, query: {} });
+	assert.deepEqual(req("cam", { target: "lobby", lobbyNo: "3", who: "colour", colour: "Lime", mode: "preview" }), { path: "cam/3/lime", query: { to: "pvw" } });
+	for (const who of ["next", "prev", "auto"]) assert.deepEqual(req("cam", { target: "lobby", lobbyNo: "2", who, mode: "cut" }), { path: `cam/2/${who}`, query: {} });
+	// Saved before Preview was the default (no mode): it keeps cutting.
+	assert.deepEqual(req("cam", { target: "lobby", lobbyNo: "2", who: "slot", slot: "2" }), { path: "cam/2/slot2", query: {} });
+	assert.equal(view("cam", { target: "lobby", lobbyNo: "5", who: "next", mode: "preview" }).mode, "preview");
+	assert.equal(view("cam", { target: "lobby", lobbyNo: "5", who: "next", mode: "cut" }).mode, "cut");
 	assert.ok(req("cam", { who: "slot", slot: "16" }).error);
 	assert.ok(req("cam", { who: "colour", colour: "mauve" }).error);
 	assert.ok(req("cam", { target: "lobby", lobbyNo: "" }).error);
@@ -82,9 +124,11 @@ test("Take, Wide, Layout, Replay, Break and Panic paths", () => {
 	assert.deepEqual(req("take", { as: "nonsense" }), { path: "take", query: {} });
 	assert.deepEqual(req("wide", {}), { path: "wide", query: {} });
 	for (const layout of ["full", "2up", "quad", "grid", "cams"]) assert.deepEqual(req("layout", { layout }), { path: `layout/${layout}`, query: {} });
-	for (const op of ["last", "that", "live", "toggle", "back", "forward", "frameback", "frameforward", "restart", "zoomin", "zoomout", "follow", "angle", "slow"])
+	for (const op of ["best", "last", "that", "live", "toggle", "back", "forward", "frameback", "frameforward", "restart", "zoomin", "zoomout", "follow", "angle", "slow"])
 		assert.deepEqual(req("replay", { op }), { path: `replay/${op}`, query: {} });
-	for (const kind of ["brb", "intermission", "sponsor", "off"]) assert.deepEqual(req("break", { kind }), { path: `break/${kind}`, query: {} });
+	for (const kind of ["brb", "soon", "intermission", "sponsor", "off"]) assert.deepEqual(req("break", { kind }), { path: `break/${kind}`, query: {} });
+	assert.equal(view("break", { kind: "soon" }).word, "SOON");
+	assert.equal(view("break", { kind: "soon" }).title, "STARTING SOON");
 	assert.deepEqual(req("panic", {}), { path: "panic", query: {} });
 	assert.deepEqual(req("undo", {}), { path: "undo", query: {} });
 });
@@ -104,7 +148,7 @@ test("Panic shows a panic that is on and undoes only that; Undo is lit while it 
 });
 
 test("Toggles go to their own paths: toggle by default, or always on or off", () => {
-	const paths = { mute: "voice/mute", hold: "hold", autogrid: "auto/grid", autointermission: "auto/intermission", autoswitch: "auto/switch", standings: "gfx/standings", alerts: "gfx/alerts" };
+	const paths = { mute: "voice/mute", cue: "voice/cue", hold: "hold", autogrid: "auto/grid", autointermission: "auto/intermission", autoswitch: "auto/switch", standings: "gfx/standings", alerts: "gfx/alerts" };
 	assert.deepEqual(Object.keys(TOGGLES).sort(), Object.keys(paths).sort());
 	for (const [which, path] of Object.entries(paths)) {
 		assert.deepEqual(req("toggle", { which }), { path: `${path}/toggle`, query: {} });
@@ -188,7 +232,12 @@ test("Toggle, Take, Layout and Replay keys show the real state", () => {
 	const take = view("take", {});
 	assert.equal(take.lit, true);
 	assert.match(take.sub, /L1 L5/);
+	assert.equal(take.title, "TAKE");
 	assert.equal(view("take", {}, { ...sampleState(), preview: { layout: "full", slots: [] } }).dim, true);
+	assert.equal(view("take", {}, { ...sampleState(), preview: { layout: "full", slots: [] } }).sub, "nothing staged");
+	// A replay in Preview: Take plays it, and says so.
+	const replay = view("take", {}, { ...sampleState(), preview: { layout: "replay", slots: [], replay: { id: "r9", lobby: "Lobby 3", tier: "must", title: "Replay: Lobby 3: kill (MUST SHOW)" } } });
+	assert.deepEqual([replay.title, replay.sub, replay.lit], ["TAKE", "REPLAY L3", true]);
 	assert.equal(view("layout", { layout: "full" }).lit, true);
 	assert.equal(view("layout", { layout: "full" }).accent, "red");
 	assert.equal(view("layout", { layout: "2up" }).accent, "green");

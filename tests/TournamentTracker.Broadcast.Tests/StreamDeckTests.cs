@@ -84,6 +84,23 @@ public class StreamDeckTests : IAsyncLifetime
     private static Task Until(Func<bool> done, int ms = 5000) => Wait.For(done, ms);
 
     [Fact]
+    public async Task Hear_Preview_and_the_broadcast_delay_are_set_from_the_Stream_Deck_and_the_desk()
+    {
+        Assert.True((await State()).GetProperty("voice").GetProperty("cue").GetBoolean());
+        Assert.Equal(HttpStatusCode.OK, (await Press("voice/cue/off")).Status);
+        Assert.False((await State()).GetProperty("voice").GetProperty("cue").GetBoolean());
+        Assert.Equal(HttpStatusCode.OK, (await Press("voice/cue/on")).Status);
+        Assert.True((await State()).GetProperty("voice").GetProperty("cue").GetBoolean());
+        var r = await Post("app/admin/voice", new { action = "cue", on = "false" });
+        Assert.StartsWith("Hear Preview off", r.GetProperty("message").GetString());
+        Assert.False(_server.Obs!.Settings.Voice.HearPreview);
+        r = await Post("app/admin/obs", new { action = "delay", value = 1.5 });
+        Assert.True(r.GetProperty("ok").GetBoolean());
+        Assert.StartsWith("Broadcast delay 1.5 s", r.GetProperty("message").GetString());
+        Assert.Equal(1.5, (await Get("app/admin/desk")).GetProperty("obs").GetProperty("broadcastDelay").GetDouble());
+    }
+
+    [Fact]
     public async Task Every_answer_says_with_its_status_whether_it_happened()
     {
         Assert.Equal(HttpStatusCode.Unauthorized, (await _deck.PostAsync("deck/lobby/1?key=wrong", new StringContent(""))).StatusCode);
@@ -102,9 +119,9 @@ public class StreamDeckTests : IAsyncLifetime
         var again = await Press("pvw/lobby/3");
         Assert.Equal(HttpStatusCode.OK, again.Status);
         Assert.Equal("ignored repeat", again.Body.GetProperty("message").GetString());
-        // Switching held: where the action is waits (locked), and says why.
+        // Switching held. The old "where the action is" link is Best replay now: no clip yet, so refused.
         Assert.Equal(HttpStatusCode.OK, (await Press("hold/on")).Status);
-        Assert.Equal(HttpStatusCode.Locked, (await Press("lobby/action")).Status);
+        Assert.Equal(HttpStatusCode.Conflict, (await Press("lobby/action")).Status);
         Assert.True((await State()).GetProperty("hold").GetBoolean());
 
         // Locked (no administration code): 423 for the plugin to say so.

@@ -7,7 +7,7 @@ and scores each game there, keeps the tournament's rounds and standings, runs au
 everything the tournament does in Discord (reports, standings, the live lobby message, linking, the
 private results channel) through The Button open on the same PC. Players use the normal game on any
 platform. Hosts run it; organisers, referees and casters use what it posts and sends. This page
-describes the mod as of v0.1.65 (released with Red Alert 0.3.17). For setup steps, see the
+describes the mod as of v0.1.66 (released with Red Alert 0.3.18). For setup steps, see the
 [README](../README.md).
 
 ## At a glance
@@ -187,7 +187,7 @@ The full sheet, with examples, is in the README's [Scoring](../README.md#scoring
 
 * **Stream overlay** (Home → Tools → **Stream overlay**, remembered) — an OBS Browser source at `http://localhost:8765/` (360 × 720, this PC only; `OverlayPort` changes the port): the tournament, round, lobby and game number, the phase, the players as crewmate heads (two columns past 8 players), the round standings with the cut line (the leaderboard outside a tournament), and the latest meetings and ejections.
 * **Spoiler-free by default** — it only shows what the players already know: a death appears once a meeting reveals it.
-* **`?full=1`** — adds roles, kills and task bars; only for a stream on a delay, since anyone watching live could see the impostors.
+* **`?full=1`** — adds roles, kills and task bars; it shows who the impostors are as it happens, so anyone watching a stream with it could see them.
 * **`?show=`** — `players`, `standings` or `feed` (comma separated) shows those panels only, e.g. the players on one side of the screen and the standings on the other; the standings and feed stay hidden until there's something in them.
 
 ## Caster feed to Red Alert

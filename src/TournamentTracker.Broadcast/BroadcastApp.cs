@@ -165,7 +165,7 @@ namespace TournamentTracker.App.Broadcast
     /// every TT scene in OBS): this builds what it draws from, including where each lobby's picture
     /// is on screen right now, so per-lobby graphics land on the right feed in every layout.
     /// </summary>
-    public sealed class BroadcastApp
+    public sealed partial class BroadcastApp
     {
         private readonly CasterDesk _desk;
         private readonly Func<ObsDirector?> _obs;
@@ -218,7 +218,8 @@ namespace TournamentTracker.App.Broadcast
         public bool CanShow(Graphic g)
         {
             var air = _desk.OnAir;
-            if (air.Layout is "replay" or "none") return false;
+            // Starting soon is the whole screen before the show: tables and cards wait until a lobby is on.
+            if (air.Layout is "replay" or "none" or "soon") return false;
             bool brk = air.Layout is "intermission" or "slate";
             if (g.Kind == "standings") return !brk;
             if (g.Lobby == null) return !brk || g.Kind == "playerCard";
@@ -245,7 +246,7 @@ namespace TournamentTracker.App.Broadcast
             double w = obs?.Connected == true ? obs.Width : 1920, h = obs?.Connected == true ? obs.Height : 1080;
             double gap = obs?.Settings.Gap ?? 8;
             var layout = air.Layout;
-            if (layout is "none" or "replay" or "intermission" or "slate") return (w, h, new List<(string?, Box)>());
+            if (layout is "none" or "replay" or "intermission" or "slate" or "soon") return (w, h, new List<(string?, Box)>());
             var boxes = air.Boxes ?? ObsDirector.Slots(layout, w, h, layout == "full" ? 0 : gap, air.Slots.Count);
             var slots = new List<(string?, Box)>();
             for (int i = 0; i < boxes.Count; i++) slots.Add((i < air.Slots.Count ? air.Slots[i] : null, boxes[i]));
@@ -323,6 +324,7 @@ namespace TournamentTracker.App.Broadcast
                 standingsChange = big?.Kind == "afterGame" ? new { change = big.Data, at = Place(big.Lobby, w, h, slots) } : null,
                 storyline = big?.Kind == "storyline" ? big.Data as string : null,
                 intermission = air.Layout is "intermission" or "slate" ? Intermission(round, air.Layout == "slate") : null,
+                soon = StartingSoon(air),
                 wins = s.Elements.GetValueOrDefault("winCounter") || air.Layout is "intermission" or "slate" ? Wins() : null,
                 playerCard = s.Elements.GetValueOrDefault("playerCards") || air.Layout == "replay" ? PlayerCard(air, w, h, slots) : null,
                 alerts = s.Elements.GetValueOrDefault("alerts") ? _desk.Alerts.Active().Select(a => new { a.Id, a.Lobby, number = numbers.GetValueOrDefault(a.Lobby), a.Kind, a.Text, a.Count }).ToList() : null,
@@ -368,7 +370,7 @@ namespace TournamentTracker.App.Broadcast
                 if (slot.Lobby != null) box = slot.Box;
             }
             var b = box ?? new Box(0, 0, w, h);
-            return new { id = c.Key + "|" + c.At.Ticks, data, x = b.X, y = b.Y, w = b.W, h = b.H, full = box == null };
+            return new { id = c.Key + "|" + c.At.Ticks, lobby = c.Lobby, data, x = b.X, y = b.Y, w = b.W, h = b.H, full = box == null };
         }
 
         /// <summary>Close to ending: worth showing what's on the line.</summary>

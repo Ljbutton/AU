@@ -29,7 +29,7 @@
 			"Name": "Lobby",
 			"UUID": "com.ljbutton.redalert.lobby",
 			"Icon": "imgs/actions/lobby",
-			"Tooltip": "A lobby full screen now, or into Preview. Shows its number, phase, crew v impostors, the red/green tally and sabotages.",
+			"Tooltip": "A lobby into Preview (Take puts it on stream), or cut to stream now. Or the best recent replay into Preview. Shows its number, phase, crew v impostors, the red/green tally and sabotages.",
 			"Controllers": [
 				"Keypad"
 			],
@@ -44,7 +44,7 @@
 			"Name": "Player cam",
 			"UUID": "com.ljbutton.redalert.cam",
 			"Icon": "imgs/actions/cam",
-			"Tooltip": "A player's camera in a lobby: cut to it, or arm it to go on when play resumes. Shows the crewmate, name and who the camera follows.",
+			"Tooltip": "A player's camera in a lobby: into Preview (Take puts it on), cut to it, or arm it to go on when play resumes. Shows the crewmate, name and who the camera follows.",
 			"Controllers": [
 				"Keypad"
 			],
@@ -59,7 +59,7 @@
 			"Name": "Take",
 			"UUID": "com.ljbutton.redalert.take",
 			"Icon": "imgs/actions/take",
-			"Tooltip": "Preview to stream (Program).",
+			"Tooltip": "TAKE (submit): what's in Preview goes on stream (Program): lobbies, a player camera, or a replay, which plays. Shows what's in Preview.",
 			"Controllers": [
 				"Keypad"
 			],
@@ -119,7 +119,7 @@
 			"Name": "Replay",
 			"UUID": "com.ljbutton.redalert.replay",
 			"Icon": "imgs/actions/replay",
-			"Tooltip": "Play the last clip, replay that, back to live, and the replay transport.",
+			"Tooltip": "Best replay into Preview, play the last clip, replay that, back to live, and the replay transport.",
 			"Controllers": [
 				"Keypad"
 			],
@@ -149,7 +149,7 @@
 			"Name": "Break",
 			"UUID": "com.ljbutton.redalert.break",
 			"Icon": "imgs/actions/break",
-			"Tooltip": "Be right back, intermission, sponsor break, or end the break.",
+			"Tooltip": "Be right back, starting soon, intermission, sponsor break, or end the break.",
 			"Controllers": [
 				"Keypad"
 			],

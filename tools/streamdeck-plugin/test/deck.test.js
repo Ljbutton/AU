@@ -93,8 +93,8 @@ test("a press sends the key's request: a tick when done, the alert when refused"
 	deck.setState(sampleState(), 0);
 	const good = fakeKey();
 	const bad = fakeKey();
-	deck.appear("a", good, P + "lobby", { lobby: "3", t: "swoosh" });
-	deck.appear("b", bad, P + "lobby", { lobby: "9" });
+	deck.appear("a", good, P + "lobby", { lobby: "3", mode: "cut", t: "swoosh" });
+	deck.appear("b", bad, P + "lobby", { lobby: "9", mode: "cut" });
 	await deck.keyDown("a");
 	await deck.keyDown("b");
 	assert.deepEqual(sent, [
@@ -108,6 +108,22 @@ test("a press sends the key's request: a tick when done, the alert when refused"
 	await deck.keyDown("c");
 	assert.equal(sent.length, 2, "a key with nothing to send sends nothing");
 	assert.deepEqual(unset.calls.at(-1), ["alert"]);
+});
+
+test("select, then submit: a new Lobby key puts its lobby in Preview and the Take key puts it on", async () => {
+	const { deck, sent } = makeDeck();
+	deck.setState(sampleState(), 0);
+	deck.appear("l", fakeKey(), P + "lobby", {});
+	deck.appear("c", fakeKey(), P + "cam", {});
+	deck.appear("t", fakeKey(), P + "take", {});
+	await deck.keyDown("l");
+	await deck.keyDown("t");
+	await deck.keyDown("c");
+	assert.deepEqual(sent, [
+		{ path: "pvw/lobby/1", query: {} },
+		{ path: "take", query: {} },
+		{ path: "cam/pgm/slot1", query: { to: "pvw" } },
+	]);
 });
 
 test("presses on a key are ignored while its last request is on its way", async () => {
