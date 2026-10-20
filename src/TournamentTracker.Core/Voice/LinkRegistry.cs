@@ -63,6 +63,25 @@ namespace TournamentTracker.Voice
             return removed;
         }
 
+        /// <summary>
+        /// Adds the links (from a backup) for players and Discord accounts it has no link for yet; the links
+        /// it has stay as they are. Saved once. Gives how many were added.
+        /// </summary>
+        public int AddMissing(IEnumerable<PlayerLink> links)
+        {
+            int added = 0;
+            foreach (var l in links)
+            {
+                if (l == null || l.PlayerKey.Trim().Length == 0 || l.DiscordUserId.Length == 0) continue;
+                string key = l.PlayerKey.Trim().ToLowerInvariant();
+                if (_byKey.ContainsKey(key) || _byKey.Values.Any(x => x.DiscordUserId == l.DiscordUserId)) continue;
+                _byKey[key] = new PlayerLink { PlayerKey = key, PlayerName = l.PlayerName, DiscordUserId = l.DiscordUserId, DiscordName = l.DiscordName };
+                added++;
+            }
+            if (added > 0) Save();
+            return added;
+        }
+
         /// <summary>Keeps the stored in-game name fresh so links.json stays readable.</summary>
         public void Touch(string playerKey, string playerName)
         {
@@ -78,14 +97,13 @@ namespace TournamentTracker.Voice
             var registry = new LinkRegistry(path);
             try
             {
-                if (File.Exists(path))
+                // A broken file is kept as links.json.corrupt-… before the first new link writes over it.
+                var links = SafeFile.ReadOrRecover(path, text => JsonSerializer.Deserialize<List<PlayerLink>>(text, Json),
+                    m => log.Error(m + " Starting with no links.")) ?? new List<PlayerLink>();
+                foreach (var l in links.Where(l => l != null && l.PlayerKey.Length > 0 && l.DiscordUserId.Length > 0))
                 {
-                    var links = JsonSerializer.Deserialize<List<PlayerLink>>(File.ReadAllText(path), Json) ?? new List<PlayerLink>();
-                    foreach (var l in links.Where(l => l.PlayerKey.Length > 0 && l.DiscordUserId.Length > 0))
-                    {
-                        l.PlayerKey = l.PlayerKey.Trim().ToLowerInvariant();
-                        registry._byKey[l.PlayerKey] = l;
-                    }
+                    l.PlayerKey = l.PlayerKey.Trim().ToLowerInvariant();
+                    registry._byKey[l.PlayerKey] = l;
                 }
             }
             catch (Exception e)
@@ -99,8 +117,7 @@ namespace TournamentTracker.Voice
         {
             Version++;
             if (_path == null) return;
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.WriteAllText(_path, JsonSerializer.Serialize(_byKey.Values.OrderBy(l => l.PlayerName).ToList(), Json));
+            SafeFile.WriteAllText(_path, JsonSerializer.Serialize(_byKey.Values.OrderBy(l => l.PlayerName).ToList(), Json));
         }
     }
 }

@@ -49,8 +49,7 @@ namespace TournamentTracker.Control
             Token = LocalServer.NewToken();
             try
             {
-                Directory.CreateDirectory(dataDir);
-                File.WriteAllText(Path.Combine(dataDir, FileName), JsonSerializer.Serialize(new { port = Port, token = Token, pid = Environment.ProcessId }));
+                SafeFile.WriteAllText(Path.Combine(dataDir, FileName), JsonSerializer.Serialize(new { port = Port, token = Token, pid = Environment.ProcessId }));
             }
             catch (Exception e) { log.Warn("Could not write control.json: " + e.Message); }
             Task.Run(() => LocalServer.Serve(_listener, _cts.Token, Route, e => _log.Warn("Control request failed: " + e.Message)));

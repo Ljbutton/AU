@@ -124,7 +124,7 @@ namespace TournamentTracker.App
                 var r = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
                 if (r.Width < MinimumSize.Width || r.Height < MinimumSize.Height) return;
                 Directory.CreateDirectory(Path.GetDirectoryName(_placementFile)!);
-                File.WriteAllText(_placementFile, $"{r.X},{r.Y},{r.Width},{r.Height},{(WindowState == FormWindowState.Maximized ? "max" : "normal")}");
+                SafeFile.WriteAllText(_placementFile, $"{r.X},{r.Y},{r.Width},{r.Height},{(WindowState == FormWindowState.Maximized ? "max" : "normal")}");
             }
             catch (Exception) { }
         }

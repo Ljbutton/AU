@@ -62,9 +62,11 @@ namespace TournamentTracker
         {
             try
             {
-                if (File.Exists(StatePath))
+                // A broken file is kept as state-….json.corrupt-… before the next save writes over it.
+                var state = SafeFile.ReadOrRecover(StatePath, text => JsonSerializer.Deserialize<SavedState>(text),
+                    m => _log.Warn(m + " The round and switches start again from their defaults."));
+                if (state != null)
                 {
-                    var state = JsonSerializer.Deserialize<SavedState>(File.ReadAllText(StatePath));
                     Round = state?.Round ?? 0;
                     RefSlotKey = state?.RefSlotKey;
                     _roundGames = state?.RoundGames ?? new Dictionary<int, int>();
@@ -94,8 +96,7 @@ namespace TournamentTracker
 
         private void SaveState() => TrySave(() =>
         {
-            Directory.CreateDirectory(_dataDir);
-            File.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames, LastImpostors = _lastImpostors, Plan = Plan, OverlayOn = _overlayOn, StatusChannel = _statusChosen, AutoMuteOff = _autoMuteOff, FeedId = _feedId, FeedKey = _feedKey, FeedOn = _feedOn, Spectator = Spectator, HostAuthorityOff = _hostAuthorityOff }));
+            SafeFile.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Round = Round, RefSlotKey = RefSlotKey, RoundGames = _roundGames, LastImpostors = _lastImpostors, Plan = Plan, OverlayOn = _overlayOn, StatusChannel = _statusChosen, AutoMuteOff = _autoMuteOff, FeedId = _feedId, FeedKey = _feedKey, FeedOn = _feedOn, Spectator = Spectator, HostAuthorityOff = _hostAuthorityOff }));
         }, "state");
 
         /// <summary>!r3 or !round 3 sets the round; !round on its own says which it is.</summary>

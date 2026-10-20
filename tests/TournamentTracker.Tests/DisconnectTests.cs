@@ -154,6 +154,8 @@ public class DisconnectTests : IDisposable
         Assert.Contains(log.All, l => l.Contains("starting a new one"));
         history.Record("Error", 17, null, false, null, false, false, false);
         Assert.Single(History().All);
+        // The broken one is kept, not just written over.
+        Assert.Equal("[{oops", File.ReadAllText(Assert.Single(Directory.GetFiles(_dir.Path, DisconnectHistory.FileName + ".corrupt-*"))));
     }
 
     [Fact]

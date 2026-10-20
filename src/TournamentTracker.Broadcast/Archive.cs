@@ -272,11 +272,7 @@ namespace TournamentTracker.App.Broadcast
         private void Save(ArchivedGame g)
         {
             if (_folder == null) return;
-            try
-            {
-                Directory.CreateDirectory(_folder);
-                File.WriteAllText(Path.Combine(_folder, g.Id + ".json"), JsonSerializer.Serialize(g, Json));
-            }
+            try { SafeFile.WriteAllText(Path.Combine(_folder, g.Id + ".json"), JsonSerializer.Serialize(g, Json)); }
             catch (Exception) { }
         }
 

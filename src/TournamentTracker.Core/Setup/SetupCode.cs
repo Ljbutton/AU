@@ -236,8 +236,7 @@ namespace TournamentTracker.Setup
 
         public static void Save(string dataDir, string text)
         {
-            Directory.CreateDirectory(dataDir);
-            File.WriteAllText(Path.Combine(dataDir, FileName), text.Trim());
+            SafeFile.WriteAllText(Path.Combine(dataDir, FileName), text.Trim());
         }
 
         public static void Clear(string dataDir)

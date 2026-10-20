@@ -57,11 +57,7 @@ namespace TournamentTracker
         {
             byte[] file = replay.Build(game);
             string name = ReplayRecorder.FileNameFor(game);
-            TrySave(() =>
-            {
-                Directory.CreateDirectory(_gamesDir);
-                File.WriteAllBytes(Path.Combine(_gamesDir, name), file);
-            }, "replay");
+            TrySave(() => SafeFile.WriteAllBytes(Path.Combine(_gamesDir, name), file), "replay");
 
             TrySave(PruneReplays, "old replays");
         }
