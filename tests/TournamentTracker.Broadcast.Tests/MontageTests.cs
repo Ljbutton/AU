@@ -142,7 +142,7 @@ public class MontageTests : IDisposable
         var builder = new MontageBuilder(() => director.Settings.Replay, () => director.ClipFolder, null);
         var replays = new ReplayManager(desk, director, () => _clock.Now, loop: false) { Builder = builder, Sponsors = desk.Sponsors };
         var montages = new MontageManager(desk, replays, builder, desk.Sponsors, () => director.Settings.Replay, () => _clock.Now);
-        File.WriteAllText(Path.Combine(_dir.Path, SponsorBook.FileName), "{\"sponsors\":[{\"name\":\"Acme\",\"tagline\":\"Snacks\",\"placements\":[\"montage\",\"killcam\"]}]}");
+        EditSponsors("{\"sponsors\":[{\"name\":\"Acme\",\"tagline\":\"Snacks\",\"placements\":[\"montage\",\"killcam\"]}]}");
         desk.Sponsors.Refresh(force: true);
         try
         {
@@ -227,6 +227,17 @@ public class MontageTests : IDisposable
         return new SponsorBook(_dir.Path, () => _clock.Now);
     }
 
+    /// <summary>
+    /// sponsors.json edited by hand after the example was written. Its time is moved on, as an edit's would
+    /// be: written straight after, Windows can give it the same time to the tick, and it looks unchanged.
+    /// </summary>
+    private void EditSponsors(string json)
+    {
+        string path = Path.Combine(_dir.Path, SponsorBook.FileName);
+        File.WriteAllText(path, json);
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1));
+    }
+
     [Fact]
     public void Sponsor_reads_come_due_by_time_or_games_snooze_and_are_logged_when_done()
     {
@@ -285,7 +296,7 @@ public class MontageTests : IDisposable
     public void A_sponsor_break_splits_the_screen_ends_by_itself_and_a_must_show_play_cuts_back()
     {
         var desk = new CasterDesk(null, () => _clock.Now, new PriorityConfig(), null, _dir.Path);
-        File.WriteAllText(Path.Combine(_dir.Path, SponsorBook.FileName), "{\"sponsors\":[{\"name\":\"Acme\",\"placements\":[\"break\",\"grid\",\"standings\"],\"breakSeconds\":20}]}");
+        EditSponsors("{\"sponsors\":[{\"name\":\"Acme\",\"placements\":[\"break\",\"grid\",\"standings\"],\"breakSeconds\":20}]}");
         desk.Sponsors.Refresh(force: true);
         try
         {
