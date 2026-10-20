@@ -151,14 +151,15 @@ namespace TournamentTracker
 
         private void SaveGameFile(GameRecord game)
         {
-            Directory.CreateDirectory(_gamesDir);
+            // The new copy is saved whole first; only then does a copy under another name (before a void, say) go.
+            string tag = game.Voided ? "-void" : game.Counted ? "" : "-abandoned";
+            string path = Path.Combine(_gamesDir, $"game-{game.Id}{tag}.json");
+            SafeFile.WriteAllText(path, JsonSerializer.Serialize(game, GameJson));
             foreach (var suffix in GameFileSuffixes)
             {
                 string old = Path.Combine(_gamesDir, $"game-{game.Id}{suffix}.json");
-                if (File.Exists(old)) File.Delete(old);
+                if (suffix != tag && File.Exists(old)) File.Delete(old);
             }
-            string tag = game.Voided ? "-void" : game.Counted ? "" : "-abandoned";
-            File.WriteAllText(Path.Combine(_gamesDir, $"game-{game.Id}{tag}.json"), JsonSerializer.Serialize(game, GameJson));
         }
 
         private GameRecord? LoadGameFile(string id)

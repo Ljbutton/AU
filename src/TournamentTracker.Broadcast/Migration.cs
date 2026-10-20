@@ -68,7 +68,7 @@ namespace TournamentTracker.App.Broadcast
                 }
                 catch (Exception) { }
             }
-            File.WriteAllText(marker, DateTime.UtcNow.ToString("o") + "\n" + string.Join("\n", copied));
+            SafeFile.WriteAllText(marker, DateTime.UtcNow.ToString("o") + "\n" + string.Join("\n", copied));
             return copied;
         }
 

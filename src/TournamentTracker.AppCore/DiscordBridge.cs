@@ -666,10 +666,7 @@ namespace TournamentTracker.App
                     }
                     else
                     {
-                        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-                        string temp = file + ".tmp";
-                        File.WriteAllText(temp, json);
-                        File.Move(temp, file, overwrite: true);
+                        SafeFile.WriteAllText(file, json);
                     }
                     _savedMuted = json;
                 }

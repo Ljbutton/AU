@@ -269,8 +269,9 @@ namespace TournamentTracker
         {
             try
             {
-                if (!File.Exists(_path)) return new List<DisconnectRecord>();
-                var list = JsonSerializer.Deserialize<List<DisconnectRecord>>(File.ReadAllText(_path), FileJson) ?? new List<DisconnectRecord>();
+                // A broken file is kept as disconnects.json.corrupt-… before the next disconnect writes a new one.
+                var list = SafeFile.ReadOrRecover(_path, text => JsonSerializer.Deserialize<List<DisconnectRecord>>(text, FileJson),
+                    m => _log.Warn(m.TrimEnd('.') + "; starting a new one.")) ?? new List<DisconnectRecord>();
                 list.RemoveAll(r => r == null);
                 return list.Count > Keep ? list.GetRange(list.Count - Keep, Keep) : list;
             }
@@ -285,11 +286,8 @@ namespace TournamentTracker
         {
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
                 // Written whole to a side file first, so a game closing mid-write never leaves half a file.
-                string temp = _path + ".tmp";
-                File.WriteAllText(temp, JsonSerializer.Serialize(records, FileJson));
-                File.Move(temp, _path, true);
+                SafeFile.WriteAllText(_path, JsonSerializer.Serialize(records, FileJson));
             }
             catch (Exception e)
             {

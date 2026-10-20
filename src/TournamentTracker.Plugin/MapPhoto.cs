@@ -40,7 +40,7 @@ namespace TournamentTracker.Plugin
             try
             {
                 Directory.CreateDirectory(dir);
-                File.WriteAllText(meta, JsonSerializer.Serialize(background));
+                SafeFile.WriteAllText(meta, JsonSerializer.Serialize(background));
             }
             catch (Exception e) { TournamentPlugin.Logger.Warn("Map picture not saved: " + e.Message); }
             return background;

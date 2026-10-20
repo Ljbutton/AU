@@ -78,14 +78,13 @@ namespace TournamentTracker.Voice
             var registry = new LinkRegistry(path);
             try
             {
-                if (File.Exists(path))
+                // A broken file is kept as links.json.corrupt-… before the first new link writes over it.
+                var links = SafeFile.ReadOrRecover(path, text => JsonSerializer.Deserialize<List<PlayerLink>>(text, Json),
+                    m => log.Error(m + " Starting with no links.")) ?? new List<PlayerLink>();
+                foreach (var l in links.Where(l => l != null && l.PlayerKey.Length > 0 && l.DiscordUserId.Length > 0))
                 {
-                    var links = JsonSerializer.Deserialize<List<PlayerLink>>(File.ReadAllText(path), Json) ?? new List<PlayerLink>();
-                    foreach (var l in links.Where(l => l.PlayerKey.Length > 0 && l.DiscordUserId.Length > 0))
-                    {
-                        l.PlayerKey = l.PlayerKey.Trim().ToLowerInvariant();
-                        registry._byKey[l.PlayerKey] = l;
-                    }
+                    l.PlayerKey = l.PlayerKey.Trim().ToLowerInvariant();
+                    registry._byKey[l.PlayerKey] = l;
                 }
             }
             catch (Exception e)
@@ -99,8 +98,7 @@ namespace TournamentTracker.Voice
         {
             Version++;
             if (_path == null) return;
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.WriteAllText(_path, JsonSerializer.Serialize(_byKey.Values.OrderBy(l => l.PlayerName).ToList(), Json));
+            SafeFile.WriteAllText(_path, JsonSerializer.Serialize(_byKey.Values.OrderBy(l => l.PlayerName).ToList(), Json));
         }
     }
 }

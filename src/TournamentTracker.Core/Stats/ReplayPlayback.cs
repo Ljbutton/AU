@@ -217,7 +217,8 @@ namespace TournamentTracker.Stats
                 try
                 {
                     if (!Directory.Exists(folder)) continue;
-                    files.AddRange(new DirectoryInfo(folder).EnumerateFiles("tt-replay-*.json*", SearchOption.AllDirectories));
+                    // Not a save's side file (…json.gz.tmp) or a kept broken copy: only whole replays.
+                    files.AddRange(new DirectoryInfo(folder).EnumerateFiles("tt-replay-*.json*", SearchOption.AllDirectories).Where(f => !SafeFile.IsSideFile(f.Name)));
                 }
                 catch (Exception) { /* a folder we can't read */ }
             }

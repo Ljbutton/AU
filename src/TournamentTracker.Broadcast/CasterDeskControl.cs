@@ -380,8 +380,9 @@ namespace TournamentTracker.App.Broadcast
         {
             try
             {
-                if (_numbersPath != null && File.Exists(_numbersPath) && JsonSerializer.Deserialize<Dictionary<string, Numbered>>(File.ReadAllText(_numbersPath), NumbersJson) is { } map)
-                    _numbered = new Dictionary<string, Numbered>(map.Where(kv => kv.Value.No > 0), StringComparer.OrdinalIgnoreCase);
+                // A broken file is kept as lobby-numbers.json.corrupt-… before the next number saved writes over it.
+                if (Files.ReadJson<Dictionary<string, Numbered>>(_numbersPath, NumbersJson) is { } map)
+                    _numbered = new Dictionary<string, Numbered>(map.Where(kv => kv.Value != null && kv.Value.No > 0), StringComparer.OrdinalIgnoreCase);
             }
             catch (Exception) { }
         }

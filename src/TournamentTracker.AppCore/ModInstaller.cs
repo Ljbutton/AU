@@ -194,8 +194,7 @@ namespace TournamentTracker.App
                 string bundle = Path.Combine(temp, "bundle");
                 ZipFile.ExtractToDirectory(zip, bundle);
                 CopyOver(bundle, gameDir);
-                Directory.CreateDirectory(DataDir(gameDir));
-                File.WriteAllText(Path.Combine(DataDir(gameDir), Marker), JsonSerializer.Serialize(new { tag = release.Tag, at = DateTime.UtcNow }));
+                SafeFile.WriteAllText(Path.Combine(DataDir(gameDir), Marker), JsonSerializer.Serialize(new { tag = release.Tag, at = DateTime.UtcNow }));
                 var state = State(gameDir);
                 if (!state.Installed || state.LoaderArch == null) return "The files didn't all land. Try again, or run the app as administrator if the game is in Program Files.";
                 if (!state.LoaderMatchesGame)
@@ -265,8 +264,8 @@ namespace TournamentTracker.App
                 if (at >= 0) lines[at] = "Enabled = " + value;
                 else lines.Insert(section + 1, "Enabled = " + value);
             }
-            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            File.WriteAllLines(file, lines);
+            // As File.WriteAllLines writes it, but never half a file.
+            SafeFile.WriteAllText(file, string.Concat(lines.Select(l => l + Environment.NewLine)));
         }
 
         /// <summary>What a file in use is renamed to so the new one can go in its place.</summary>

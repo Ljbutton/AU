@@ -68,18 +68,14 @@ namespace TournamentTracker.App
         public string? AppToken { get; set; }
         public int AppPort { get; set; }
 
-        public static AppSettings Load(string file)
+        /// <summary>The saved settings, or the defaults. A file that can't be read is kept as app.json.corrupt-… (and <paramref name="warn"/> told) before the defaults are saved over it.</summary>
+        public static AppSettings Load(string file, Action<string>? warn = null)
         {
-            try { if (File.Exists(file)) return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(file)) ?? new AppSettings(); }
-            catch (Exception) { }
-            return new AppSettings();
+            try { return SafeFile.ReadOrRecover(file, text => JsonSerializer.Deserialize<AppSettings>(text), warn) ?? new AppSettings(); }
+            catch (Exception) { return new AppSettings(); }
         }
 
-        public void Save(string file)
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            File.WriteAllText(file, JsonSerializer.Serialize(this));
-        }
+        public void Save(string file) => SafeFile.WriteAllText(file, JsonSerializer.Serialize(this));
     }
 
     /// <summary>What the Windows window needs to give the app: where things are, and how to open files and links.</summary>
@@ -215,7 +211,7 @@ namespace TournamentTracker.App
             _env = env;
             _http = http;
             _log = new FileLog(string.IsNullOrEmpty(env.SettingsFile) ? null : Path.GetDirectoryName(env.SettingsFile), "the-button.log");
-            _settings = AppSettings.Load(env.SettingsFile);
+            _settings = AppSettings.Load(env.SettingsFile, m => _log.Warn(m + " The Button started with its default settings (the setup code comes back from the Among Us folder)."));
             _installer = new ModInstaller(http);
             _mod = new ModClient(http);
             if (!GameLocator.IsGameFolder(_settings.GamePath))

@@ -110,6 +110,8 @@ namespace TournamentTracker.App.Broadcast
         {
             _env = env;
             _http = http;
+            // A file of Red Alert's that couldn't be read (and was kept as name.corrupt-…) is said in its log.
+            if (!string.IsNullOrEmpty(env.SettingsFile)) Files.Warn = m => Log.Warn(m);
             _settings = BroadcastAppSettings.Load(env.SettingsFile);
             Token = LocalServer.NewToken();
             _listener = Listen(env.Port);
@@ -773,9 +775,8 @@ namespace TournamentTracker.App.Broadcast
                             var (csv, summary) = _desk.Sponsors.Export();
                             string stamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm");
                             string dir = Path.Combine(folder, "Sponsor reports");
-                            Directory.CreateDirectory(dir);
-                            File.WriteAllText(Path.Combine(dir, $"sponsor appearances {stamp}.csv"), csv);
-                            File.WriteAllText(Path.Combine(dir, $"sponsor summary {stamp}.txt"), summary);
+                            SafeFile.WriteAllText(Path.Combine(dir, $"sponsor appearances {stamp}.csv"), csv);
+                            SafeFile.WriteAllText(Path.Combine(dir, $"sponsor summary {stamp}.txt"), summary);
                             Open(dir);
                             return Ok(new { ok = true, message = "Saved the appearance log (CSV) and summary in \"Sponsor reports\".", summary });
                         }

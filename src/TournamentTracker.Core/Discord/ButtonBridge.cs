@@ -80,8 +80,7 @@ namespace TournamentTracker.Discord
 
         public static void Write(string dataDir, int port, string token)
         {
-            Directory.CreateDirectory(dataDir);
-            File.WriteAllText(Path.Combine(dataDir, FileName), JsonSerializer.Serialize(new { port, token }));
+            SafeFile.WriteAllText(Path.Combine(dataDir, FileName), JsonSerializer.Serialize(new { port, token }));
             Forget(dataDir);
         }
 

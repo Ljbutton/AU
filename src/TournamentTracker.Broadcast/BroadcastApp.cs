@@ -134,7 +134,12 @@ namespace TournamentTracker.App.Broadcast
                 Current = BroadcastSettings.Parse(text);
                 Problem = null;
             }
-            catch (Exception e) { Problem = $"{BroadcastSettings.FileName} couldn't be read ({e.Message}); using the last good settings."; }
+            catch (Exception e)
+            {
+                Problem = $"{BroadcastSettings.FileName} couldn't be read ({e.Message}); using the last good settings.";
+                // Read but not usable: a copy is kept before a switch saves the good settings over it.
+                if (!(e is IOException)) _file?.Broken();
+            }
             return Current;
         }
 

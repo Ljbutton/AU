@@ -169,16 +169,19 @@ namespace TournamentTracker.App.Broadcast
         /// </summary>
         public void Save(string zipPath, string version, DateTime now)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(zipPath))!);
-            using var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create);
-            void Put(string name, string text)
+            // Whole or not at all (a side file first): never half a zip on the Desktop.
+            SafeFile.Write(zipPath, file =>
             {
-                var entry = zip.CreateEntry(name, CompressionLevel.Optimal);
-                using var w = new StreamWriter(entry.Open(), new UTF8Encoding(false));
-                w.Write(text);
-            }
-            Put("README.txt", SupportBundle.Redact(Mask(Readme(version, now))));
-            foreach (var e in _entries) Put(e.Name, SupportBundle.RedactFile(e.Name, Mask(e.Text)));
+                using var zip = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: true);
+                void Put(string name, string text)
+                {
+                    var entry = zip.CreateEntry(name, CompressionLevel.Optimal);
+                    using var w = new StreamWriter(entry.Open(), new UTF8Encoding(false));
+                    w.Write(text);
+                }
+                Put("README.txt", SupportBundle.Redact(Mask(Readme(version, now))));
+                foreach (var e in _entries) Put(e.Name, SupportBundle.RedactFile(e.Name, Mask(e.Text)));
+            });
         }
 
         /// <summary>RedAlert-support-2026-10-12-1530.zip in <paramref name="folder"/>, or -2, -3… when that's taken.</summary>

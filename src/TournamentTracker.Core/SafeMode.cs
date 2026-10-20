@@ -238,8 +238,7 @@ namespace TournamentTracker
         {
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-                if (yes) File.WriteAllText(_path, JsonSerializer.Serialize(new Saved { RunNormallyOn = VersionKey }));
+                if (yes) SafeFile.WriteAllText(_path, JsonSerializer.Serialize(new Saved { RunNormallyOn = VersionKey }));
                 else if (File.Exists(_path)) File.Delete(_path);
             }
             catch (Exception e)
