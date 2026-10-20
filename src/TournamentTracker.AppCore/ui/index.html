@@ -838,7 +838,7 @@ function renderAutomute(st) {
   $('mute-problem').hidden = !a.voiceProblem && !a.voiceWarning && !a.liveProblem;
   $('mute-problem').className = 'note ' + (a.voiceProblem ? 'bad' : 'warn');
   $('mute-problem').textContent = a.voiceProblem || a.liveProblem || a.voiceWarning || '';
-  $('mute-say').textContent = !a.configured ? 'Off: it needs a bot, which comes with a tournament host code.'
+  $('mute-say').textContent = !a.configured ? 'Off: it needs a Discord bot. Add one in Settings → Your Discord, or use a setup code with a bot in it.'
     : a.voiceProblem ? 'Not working: see below.'
     : !a.enabled ? 'Off: the bot won\'t touch anyone\'s voice (players can use AutoMuteUs). Stays off until you turn it on.'
     : !a.voiceConnected ? 'Connecting to Discord voice…'
@@ -967,7 +967,7 @@ document.addEventListener('click', e => {
     if (n === null) { box.classList.add('bad'); box.focus(); return toast(BAD_AMOUNT); }
     delete amounts[name + '|' + key];
     box.value = '';
-    cmd(`adjust ${name} ${key} ${step.dataset.step < 0 ? '-' : ''}${n} referee`);
+    cmd(`adjust ${name} ${key} ${step.dataset.step < 0 ? '-' : ''}${n}`);
   }
 });
 document.addEventListener('input', e => {
