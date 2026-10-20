@@ -732,9 +732,10 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
           <div class="prompts" id="ag-prompts"></div>
           <div class="reads" id="reads"></div>
           <div class="card inter-card" id="inter-card" hidden></div>
+          <div class="card inter-card soon-card" id="soon-card" hidden></div>
         </div>
         <div class="brk-bar">
-          <div class="lay-grp brk"><span class="lay-h">Breaks</span><button class="b" type="button" data-layout="slate" title="Technical difficulties: be right back (standings and storylines take turns)">BRB</button><button class="b" type="button" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" type="button" id="desk-sponsor" title="Split screen: the lobby on the left, the sponsor on the right">Sponsor</button><span style="flex:1"></span><button class="b hold" type="button" id="desk-hold" title="Hold: nothing switches by itself (intermission, cameras going back, auto switch) and auto grid puts nothing in Preview. Key H">Hold</button><button class="b panic" type="button" id="desk-panic" title="Panic: fade to be right back, mute every lobby voice, clear graphics, pause alerts and hold. Press twice (key P twice); again to undo">Panic</button></div>
+          <div class="lay-grp brk"><span class="lay-h">Breaks</span><button class="b" type="button" id="desk-soon" title="Before the show: a countdown to the start, the tournament's name and logo, the sponsors and a line of your own. On at once; at zero it says Starting now and stays until you Take a lobby">Starting soon</button><button class="b" type="button" data-layout="slate" title="Technical difficulties: be right back (standings and storylines take turns)">BRB</button><button class="b" type="button" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" type="button" id="desk-sponsor" title="Split screen: the lobby on the left, the sponsor on the right">Sponsor</button><span style="flex:1"></span><button class="b hold" type="button" id="desk-hold" title="Hold: nothing switches by itself (intermission, cameras going back, auto switch) and auto grid puts nothing in Preview. Key H">Hold</button><button class="b panic" type="button" id="desk-panic" title="Panic: fade to be right back, mute every lobby voice, clear graphics, pause alerts and hold. Press twice (key P twice); again to undo">Panic</button></div>
           <div class="lay-grp auto"><span class="lay-h">Auto</span><button class="b sw-onoff" type="button" id="desk-autogrid" title="When no lobby is mid-game, the grid goes into Preview; when a game starts again, the way back does. Nothing switches until you Take it">Grid</button><button class="b sw-onoff" type="button" id="desk-autointer" title="Intermission by itself when every lobby is between games, and back when one starts">Intermission</button><button class="b sw-onoff" type="button" id="desk-autosw" title="When a lobby on stream drops, switch away from it once (a lobby you put on yourself while it's down stays on)">Switch away</button></div>
         </div>
       </aside>
@@ -799,7 +800,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       <input id="obs-pass" type="password" placeholder="Password (Tools → WebSocket Server Settings)" style="flex:1;min-width:200px" autocomplete="off">
       <button class="b primary">Connect</button>
     </form>
-    <p class="muted help" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. Red Alert then builds the scenes TT Full, TT 2-up, TT Quad, TT Grid, TT Player Cam, TT Sponsor Break, TT Intermission, TT Be Right Back and TT Replay, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
+    <p class="muted help" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. Red Alert then builds the scenes TT Full, TT 2-up, TT Quad, TT Grid, TT Player Cam, TT Sponsor Break, TT Intermission, TT Be Right Back, TT Starting Soon and TT Replay, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
   </div>
   <div class="card setup-card" id="setup-card" data-page="obs" hidden>
     <div class="row" style="justify-content:space-between"><div><b>Setup check</b> <span class="muted" id="setup-line"></span></div><button class="b" id="setup-again">Check again</button></div>
@@ -1352,13 +1353,13 @@ function replayButton(c) {
   return `<button class="rpb${st === 'failed' ? ' failed' : ''}" data-rsave="${c.id}" title="${esc(plain(fail) || 'Save a replay of this play')}">${st === 'failed' ? `Replay failed: ${esc(failWhy(fail))} · retry` : 'Save replay'}</button>`;
 }
 // ---- The status bar: what's on stream, the stream itself, sound, OBS, lobbies, replays, automation --
-const LAYOUT_NAME = { full: 'Full', '2up': '2-Up', '4up': 'Quad', grid: 'Grid', cam: 'Player cam', cams: 'Player cams', break: 'Sponsor break', intermission: 'Intermission', slate: 'Be right back', replay: 'Replay', none: 'Nothing on stream' };
+const LAYOUT_NAME = { full: 'Full', '2up': '2-Up', '4up': 'Quad', grid: 'Grid', cam: 'Player cam', cams: 'Player cams', break: 'Sponsor break', intermission: 'Intermission', slate: 'Be right back', soon: 'Starting soon', replay: 'Replay', none: 'Nothing on stream' };
 const fmtShot = s => s >= 3600 ? `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 function renderBar() {
   const d = DESK, air = d.onAir, lobbies = air.slots.filter(Boolean);
   // A lobby layout with no lobby in it is an empty screen, not LIVE.
   const empty = ['full', '2up', '4up', 'grid'].includes(air.layout) && lobbies.length === 0;
-  const kind = air.layout === 'none' || empty ? 'none' : ['intermission', 'slate', 'break'].includes(air.layout) ? 'brk' : 'live';
+  const kind = air.layout === 'none' || empty ? 'none' : ['intermission', 'slate', 'break', 'soon'].includes(air.layout) ? 'brk' : 'live';
   const waiting = OBS && OBS.connected && OBS.switchingTo;
   setClass($('onair'), 'onair ' + (waiting ? 'wait' : kind));
   setText($('oa-tag'), waiting ? 'SWITCHING' : empty ? 'EMPTY' : kind === 'live' ? (air.layout === 'replay' ? 'REPLAY' : 'PROGRAM') : kind === 'brk' ? 'BREAK' : 'OFF AIR');
@@ -1510,8 +1511,8 @@ function boxesFor(layout, n) {
 // A layout drawn as boxes, each with its lobby's number and name (a player camera: 🎥 and its map in the corner).
 function schematic(layout, slots, emptyText) {
   const named = slots.filter(Boolean);
-  if (layout === 'none' || (!named.length && !['intermission', 'slate', 'break', 'replay'].includes(layout))) return `<div class="none">${esc(emptyText)}</div>`;
-  if (['intermission', 'slate', 'replay'].includes(layout)) return `<div class="none big">${esc((LAYOUT_NAME[layout] || layout).toUpperCase())}${named.length ? `<small>${esc(named.join(' · '))}</small>` : ''}</div>`;
+  if (layout === 'none' || (!named.length && !['intermission', 'slate', 'break', 'replay', 'soon'].includes(layout))) return `<div class="none">${esc(emptyText)}</div>`;
+  if (['intermission', 'slate', 'replay', 'soon'].includes(layout)) return `<div class="none big">${esc((LAYOUT_NAME[layout] || layout).toUpperCase())}${named.length ? `<small>${esc(named.join(' · '))}</small>` : ''}</div>`;
   const lab = (l, i, cam) => { const x = lobbyNamed(l); return `<b>${cam ? '🎥 ' : ''}${x ? x.no + ' · ' : ''}${esc(l)}</b>${x && x.phase ? `<small>${esc(PH[x.phase] || x.phase)}</small>` : ''}`; };
   if (layout === 'cam') return `<div class="sl" style="left:0;top:0;width:100%;height:100%">${lab(named[0], 0, true)}</div><div class="sl map" style="right:1.5%;bottom:2.7%;width:27%;height:27%"><small>map</small></div>`;
   const n = layout === 'cams' ? Math.min(named.length, 4) : slots.length;
@@ -1738,6 +1739,7 @@ function renderAction() {
   renderQueue();
   renderReads();
   renderInter(DESK);
+  renderSoon(DESK);
   renderBreaks();
 }
 $('rp-ready').addEventListener('click', e => {
@@ -1749,6 +1751,7 @@ function renderBreaks() {
   const d = DESK; if (!d) return;
   const air = d.onAir, h = d.hold || {}, panic = !!d.panic;
   $('desk-inter').classList.toggle('on', air.layout === 'intermission');
+  $('desk-soon').classList.toggle('on', air.layout === 'soon');
   $('desk-autointer').classList.toggle('on', !!(d.intermission && d.intermission.auto));
   $('desk-autogrid').classList.toggle('on', !!d.autoGrid);
   $('desk-autosw').classList.toggle('on', !!(d.health && d.health.settings && d.health.settings.autoSwitch));
@@ -2315,6 +2318,44 @@ $('inter-card').addEventListener('click', async e => {
   await post('/app/admin/intermission', body); document.activeElement.blur(); interKey = '';
 });
 $('desk-inter').addEventListener('click', intermissionToggle);
+
+// ---- Starting soon ------------------------------------------------------------------------------
+// Before the show, on at once like the other breaks: a countdown to the start (in so many minutes, or at a
+// time), the tournament's name and logo, the sponsors and a line of the caster's own. At zero the screen says
+// "Starting now" and stays: nothing switches by itself, the caster Takes a lobby to start the show.
+let soonKey = '';
+function renderSoon(d) {
+  const so = d.soon || {}, card = $('soon-card');
+  card.hidden = !so.on;
+  if (!so.on) { soonKey = ''; return; }
+  const key = JSON.stringify([so.at, so.text]);
+  if (key !== soonKey && !card.contains(document.activeElement) && !(ptrDown && card.contains(ptrDown))) {
+    soonKey = key;
+    card.innerHTML = `<span class="tag">STARTING SOON</span>
+      <span class="muted" style="font-size:13px">Starts</span><input id="soon-at" placeholder="10 (min) or 19:30" style="width:130px" title="Minutes from now (10) or a time (19:30). Empty: no countdown.">
+      <button class="b" type="button" data-soon="time">Set</button><span class="muted" id="soon-when" style="font-size:13px"></span>
+      <input id="soon-text" placeholder="A line on screen (optional)" maxlength="120" style="flex:1;min-width:150px" value="${esc(so.text || '')}"><button class="b" type="button" data-soon="text">Set</button>
+      <span class="muted" style="font-size:12px">Take a lobby to start the show.</span>`;
+  }
+  const at = so.at ? new Date(so.at) : null;
+  setText($('soon-when'), !at ? 'No countdown' : so.left > 0 ? `at ${at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${fmtShot(so.left)} to go` : 'Starting now');
+}
+function soonSet(what) {
+  const q = what === 'time' ? { at: ($('soon-at') || {}).value || '' } : { text: ($('soon-text') || {}).value || '' };
+  soonKey = '';
+  if (document.activeElement) document.activeElement.blur();
+  return deckDo('soon/set', q);
+}
+$('soon-card').addEventListener('click', e => { const b = e.target.closest('[data-soon]'); if (b) soonSet(b.dataset.soon); });
+$('soon-card').addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || !e.target.matches('input')) return;
+  e.preventDefault(); soonSet(e.target.id === 'soon-at' ? 'time' : 'text');
+});
+// On stream already: the button goes to the start time (Take a lobby to start the show).
+$('desk-soon').addEventListener('click', () => {
+  if (DESK && DESK.onAir.layout === 'soon') { const i = $('soon-at'); if (i) i.focus(); return; }
+  deckDo('break/soon', transQuery());
+});
 
 // ---- Montages, moments, sponsors ----------------------------------------------------------------
 let MONT = null, MOMENTS = [], SPON = null, momKey = '', spKey = '', momPick = [], momPlayed = null;

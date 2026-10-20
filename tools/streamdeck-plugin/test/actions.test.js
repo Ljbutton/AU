@@ -84,7 +84,9 @@ test("Take, Wide, Layout, Replay, Break and Panic paths", () => {
 	for (const layout of ["full", "2up", "quad", "grid", "cams"]) assert.deepEqual(req("layout", { layout }), { path: `layout/${layout}`, query: {} });
 	for (const op of ["last", "that", "live", "toggle", "back", "forward", "frameback", "frameforward", "restart", "zoomin", "zoomout", "follow", "angle", "slow"])
 		assert.deepEqual(req("replay", { op }), { path: `replay/${op}`, query: {} });
-	for (const kind of ["brb", "intermission", "sponsor", "off"]) assert.deepEqual(req("break", { kind }), { path: `break/${kind}`, query: {} });
+	for (const kind of ["brb", "soon", "intermission", "sponsor", "off"]) assert.deepEqual(req("break", { kind }), { path: `break/${kind}`, query: {} });
+	assert.equal(view("break", { kind: "soon" }).word, "SOON");
+	assert.equal(view("break", { kind: "soon" }).title, "STARTING SOON");
 	assert.deepEqual(req("panic", {}), { path: "panic", query: {} });
 	assert.deepEqual(req("undo", {}), { path: "undo", query: {} });
 });

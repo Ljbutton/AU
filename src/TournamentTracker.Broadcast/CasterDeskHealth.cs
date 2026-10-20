@@ -482,7 +482,7 @@ namespace TournamentTracker.App.Broadcast
         private OnAir? _beforeSlate;
 
         /// <summary>
-        /// Off the be-right-back screen, a sponsor break or intermission (the Stream Deck's "end break"):
+        /// Off the be-right-back screen, a sponsor break, intermission or starting soon (the Stream Deck's "end break"):
         /// back to what was on before, else the top lobby. Null when none of them is on.
         /// </summary>
         public OnAir? EndBreak(string by = "deck", string? transition = null)
@@ -491,6 +491,7 @@ namespace TournamentTracker.App.Broadcast
             switch (air.Layout)
             {
                 case "intermission": return EndIntermission(by, transition);
+                case "soon": return EndStartingSoon(by, transition);
                 case "break": return Show(Break?.Lobby ?? air.Slots.FirstOrDefault() ?? "", "full", null, null, by, transition);
                 case "slate":
                 {
@@ -512,6 +513,7 @@ namespace TournamentTracker.App.Broadcast
                 "2up" or "4up" or "cams" => Show("", back.Layout, null, back.Slots.Select(x => x ?? "").ToList(), by, transition),
                 "full" or "cam" or "break" when lobbies.Count > 0 => Show(lobbies[0], back.Layout == "cam" ? "cam" : "full", null, null, by, transition),
                 "intermission" => ShowIntermission(by, transition),
+                "soon" => ShowStartingSoon(by, transition),
                 _ => Show(Board.Ranking().FirstOrDefault(r => r.Online && !IsDown(r.Lobby))?.Lobby ?? "", "full", null, null, by, transition),
             };
         }

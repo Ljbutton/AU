@@ -335,6 +335,7 @@ namespace TournamentTracker.App.Broadcast
             "standings" => "Standings graphic",
             "grid" => "Grid tile",
             "break" => "Split-screen break",
+            "startingsoon" => "Starting soon screen",
             "read" => "Verbal read (said by the caster)",
             _ => p,
         };

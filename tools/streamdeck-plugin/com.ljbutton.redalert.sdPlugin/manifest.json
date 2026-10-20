@@ -149,7 +149,7 @@
 			"Name": "Break",
 			"UUID": "com.ljbutton.redalert.break",
 			"Icon": "imgs/actions/break",
-			"Tooltip": "Be right back, intermission, sponsor break, or end the break.",
+			"Tooltip": "Be right back, starting soon, intermission, sponsor break, or end the break.",
 			"Controllers": [
 				"Keypad"
 			],
