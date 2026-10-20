@@ -638,7 +638,7 @@ stream.
   stream (**Mute Desktop Audio**; the Live desk warns while it's on), what replays need (the
   Source Record plugin; OBS's own Replay Buffer isn't used and can stay off), Impostor tags
   without a broadcast delay (**Turn on a 3 s delay**), and OBS's monitoring device for Hear
-  Preview (warns on Default or Disabled).
+  Preview (warns when it is Disabled; Default gets a note to check it is your headphones).
 * **Broadcast delay** (OBS page, 0–4 s, 3 s by default): every lobby's picture, voice and camera
   in OBS, and the graphics' game data, reach the stream that late, so you can cut to a play before
   it airs; switches stay instant and the Live desk stays live. It replaces OBS's own stream delay,

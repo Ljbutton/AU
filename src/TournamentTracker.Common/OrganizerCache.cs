@@ -88,6 +88,15 @@ namespace TournamentTracker.App
                     .Select(kv => $"{kv.Key}|{VideoUrl(kv.Value.Data)}|{(_liveMessages.TryGetValue(kv.Key, out var m) ? m.MessageId : "")}"));
         }
 
+        private readonly object _cacheWriteLock = new object();
+
+        /// <summary>Stops the poll and waits for a write of the kept lobbies already under way.</summary>
+        public void Dispose()
+        {
+            _cts.Cancel();
+            lock (_cacheWriteLock) { }
+        }
+
         /// <summary>After each read of the channel: the file written when a lobby or its link changed, and every 5 minutes.</summary>
         private void SaveCache()
         {
@@ -103,8 +112,11 @@ namespace TournamentTracker.App
                         Lobby = kv.Key, Sent = kv.Value.Sent, Seen = kv.Value.SeenUtc, Data = Trimmed(kv.Value.Data),
                         MessageId = _liveMessages.TryGetValue(kv.Key, out var m) ? m.MessageId : null,
                     });
+            // Under the write lock, checked again: once Dispose has returned, nothing writes the file (Lock deletes it then).
+            lock (_cacheWriteLock)
             try
             {
+                if (_cts.IsCancellationRequested) return;
                 if (data.Lobbies.Count == 0 && !File.Exists(_cacheFile)) return;
                 SafeFile.WriteAllText(_cacheFile, JsonSerializer.Serialize(data, CacheJson));
                 _cacheKey = key;

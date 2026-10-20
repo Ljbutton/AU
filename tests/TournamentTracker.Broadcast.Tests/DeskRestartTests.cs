@@ -105,6 +105,23 @@ public class DeskRestartTests : IDisposable
     }
 
     [Fact]
+    public void Starting_soon_keeps_its_countdown_and_line_across_a_restart()
+    {
+        var clock = new FakeClock();
+        using var before = new CasterDesk(null, () => clock.Now, new PriorityConfig());
+        before.SetSoonAt(clock.Now.AddMinutes(10));
+        before.SetSoonText("Grand final tonight");
+        var kept = DeskAutomation.From(before);
+        using var after = new CasterDesk(null, () => clock.Now, new PriorityConfig());
+        kept.ApplyTo(after, clock.Now);
+        Assert.Equal((clock.Now.AddMinutes(10), "Grand final tonight"), (after.SoonAt!.Value, after.SoonText));
+        // A start time that went by while Red Alert was closed isn't brought back (the line is).
+        using var late = new CasterDesk(null, () => clock.Now, new PriorityConfig());
+        kept.ApplyTo(late, clock.Now.AddMinutes(11));
+        Assert.Equal(((DateTime?)null, "Grand final tonight"), (late.SoonAt, late.SoonText));
+    }
+
+    [Fact]
     public void A_countdown_or_timed_hold_that_ran_out_while_Red_Alert_was_closed_isnt_brought_back()
     {
         var clock = new FakeClock();

@@ -92,6 +92,30 @@ namespace TournamentTracker.App.Broadcast
                 if (data.TryGetProperty(p, out var n) && n.ValueKind == JsonValueKind.String && n.GetString() == name) { _cueName = null; _cueUrl = null; CueHeard = null; QueueCue(force: true); return; }
         }
 
+        /// <summary>
+        /// TT Cue's monitoring changed in OBS by hand ("Monitor and Output" would put it on stream): muted at
+        /// once, then Monitor Only again, and the lobby back in the headphones.
+        /// </summary>
+        private void OnCueMonitor(JsonElement data)
+        {
+            var obs = _obs;
+            string? name = _cueName;
+            if (obs == null || name == null || data.Str("inputName") != name || data.Str("monitorType") == MonitorOnly) return;
+            _ = Task.Run(async () =>
+            {
+                await _cueGate.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    await obs.RequestAsync("SetInputMute", new { inputName = name, inputMuted = true }).ConfigureAwait(false);
+                    await obs.RequestAsync("SetInputAudioMonitorType", new { inputName = name, monitorType = MonitorOnly }).ConfigureAwait(false);
+                    _cueUrl = null;         // the next look puts the lobby back the safe way (Monitor Only, link, unmuted)
+                }
+                catch (Exception) { _cueName = null; _cueUrl = null; CueHeard = null; }
+                finally { _cueGate.Release(); }
+                QueueCue(true);
+            });
+        }
+
         /// <summary>The desk changed (Preview among it): the headphones follow, when what they should play changed.</summary>
         private void QueueCue() => QueueCue(false);
 

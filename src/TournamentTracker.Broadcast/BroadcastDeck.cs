@@ -193,8 +193,7 @@ namespace TournamentTracker.App.Broadcast
             }
             if (preview)
             {
-                desk.WantCam(lobby, pick);
-                desk.PreviewCam(lobby);
+                desk.PreviewCam(lobby, pick);
                 return (200, $"Preview: {lobby}'s player camera on {whom}. Take puts it on.{(sending ? "" : " Its host's game isn't sending the camera yet: asked again.")}{paused}");
             }
             // Not in play: armed, on stream as soon as play resumes. The same press again takes it back.
@@ -444,7 +443,7 @@ namespace TournamentTracker.App.Broadcast
                 case "action":
                 {
                     // Where the action was is now Best replay: the old links keep working and do the same.
-                    if (action == "action" || what == "action") return BestReplayToPreview();
+                    if (action == "action" || what == "action") return BestReplayToPreview(named: !requireObs || Control.HttpRequest.Query(query, "imp") == "1");
                     if (online.Count == 0) return (404, "No live lobbies.");
                     string? pick;
                     if (what is "next" or "prev")
@@ -530,7 +529,7 @@ namespace TournamentTracker.App.Broadcast
                     desk.Show(lobby, "full", null, null, "deck", t);
                     return Switched($"{lobby}: the whole map.");
                 }
-                case "replay": return what == "best" ? BestReplayToPreview() : await DeckReplayAsync(what).ConfigureAwait(false);
+                case "replay": return what == "best" ? BestReplayToPreview(named: !requireObs || Control.HttpRequest.Query(query, "imp") == "1") : await DeckReplayAsync(what).ConfigureAwait(false);
                 case "break":
                 {
                     if (noObs && what != "off") return (503, NoObs);

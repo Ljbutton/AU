@@ -569,6 +569,8 @@ _Two or more lobbies playing, replays saving (Source Record)._
 ### Stream Deck: select, then submit
 - [ ] A new Lobby key: its **Press** is **Put it in Preview (Take puts it on)**; a press puts the lobby in Preview (green border) and nothing on stream; the Take key reads TAKE with the lobby under it; Take puts it on stream
 - [ ] A new Player cam key: a press answers "Preview: Lobby 3's player camera on Bob. Take puts it on." and sets who it follows; the camera's next, previous and auto keys have a green border; Take puts TT Player Cam on stream
+- [ ] With Lobby 3's player camera on stream, press a Player cam key set to Preview for another player → the stream keeps the same player until Take; Take switches to the new one
+- [ ] Best replay from the Stream Deck: the answer (and the plugin's log) gives the play ("LJ: kill"), no player names
 - [ ] A key set up with the older plugin (its Press or any other setting changed before) still cuts straight to stream after the plugin update
 - [ ] A key whose settings were never opened (Lobby 1 as it came) now puts its lobby in Preview: set **Press** to **Cut it to stream** if it should cut
 - [ ] A replay in Preview → the Take key reads TAKE with REPLAY L<n> under it
@@ -605,7 +607,7 @@ _A host sending their game to Red Alert 0.3.18._
 
 ### Red Alert: Hear Preview
 _OBS → Settings → Audio → Advanced → Monitoring Device set to the caster's headphones; Desktop Audio muted._
-- [ ] Setup check: "Headphones (OBS monitoring device): <your headphones>" is OK; set the device to Default → a warning; Disabled → a warning
+- [ ] Setup check: "Headphones (OBS monitoring device): <your headphones>" is OK; set the device to Default → OK with a note to check it is your headphones; Disabled → a warning
 - [ ] A lobby in Preview → **HEAR** turns green "🎧 LJ" and you hear LJ live in your headphones; the stream and the recording don't have it (OBS's **TT Cue** source is Monitor Only)
 - [ ] **Take** it → the headphones go quiet (Preview is empty); another lobby in Preview → that one is heard
 - [ ] Mute all, Panic, an empty Preview and auto grid's own suggestion → silent
@@ -613,6 +615,7 @@ _OBS → Settings → Audio → Advanced → Monitoring Device set to the caster
 - [ ] Click **HEAR** → **HEAR: OFF** ("Hear Preview off."); again → on ("Hear Preview on: the lobby in Preview plays in your headphones (OBS's monitoring device), not on stream.")
 - [ ] Stream Deck Toggle → **Hear Preview in headphones** shows HEAR PREVIEW on or off and switches it
 - [ ] Delete TT Cue in OBS → Red Alert makes it again; close Red Alert while TT Cue is playing and open it → TT Cue is muted when it connects
+- [ ] While HEAR plays, set TT Cue to **Monitor and Output** in OBS (Advanced Audio Properties) → it's muted at once and goes back to Monitor Only, then plays again in your headphones only
 
 ### Red Alert: restarts and crashes
 - [ ] Turn on Hold, Auto grid, Auto intermission, set a countdown, Win counter: this round, Standings: whole tournament → close and reopen Red Alert → all still set (a countdown or timed hold that ran out meanwhile isn't)

@@ -244,8 +244,12 @@ public class BestReplayDeckTests : IAsyncLifetime
         // Pressed again (the old link, from the Stream Deck): the next one down.
         var (status, message) = await Press("lobby/action");
         Assert.Equal(HttpStatusCode.OK, status);
-        Assert.StartsWith("Replay: Lobby 3 · Ann killed Bob in Admin (MEDIUM)", message);
+        // The Stream Deck keeps its answers in its log: it gets the label, which names nobody …
+        Assert.StartsWith("Replay: Lobby 3: kill (MEDIUM). In Preview: Take plays it.", message);
         Assert.Equal("r1", Desk.Preview.Replay!.ClipId);
+        // … unless it asked with &imp=1 (and again: back to the best).
+        Assert.StartsWith("Replay: Lobby 3 · Ann killed Bob in Electrical (MUST SHOW)", (await Press("replay/best", "&imp=1")).Message);
+        Assert.Equal("r2", Desk.Preview.Replay!.ClipId);
         // A lobby picked after replaces it.
         Assert.Equal(HttpStatusCode.OK, (await Press($"pvw/lobby/{Desk.NumberOf("Lobby 3")}")).Status);
         Assert.Null(Desk.Preview.Replay);
@@ -304,6 +308,12 @@ public class BestReplayDeckTests : IAsyncLifetime
         Assert.True((int)(await Press($"cam/{no}/slot1")).Status is >= 200 and < 300);
         Assert.Equal(1, Desk.CamPick("Lobby 3"));
         Assert.True(Desk.Preview.IsEmpty);
+
+        // With that camera on stream, a Preview press doesn't change the shot on stream: the new pick waits for Take.
+        Assert.Equal(HttpStatusCode.OK, (await Press($"cam/{no}/slot2", "&to=pvw")).Status);
+        Assert.Equal(1, Desk.CamPick("Lobby 3"));
+        Assert.Equal(HttpStatusCode.OK, (await Press("take")).Status);
+        Assert.Equal(2, Desk.CamPick("Lobby 3"));
     }
 
     [Fact]

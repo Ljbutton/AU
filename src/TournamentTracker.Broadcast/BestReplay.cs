@@ -110,10 +110,22 @@ namespace TournamentTracker.App.Broadcast
             return Preview;
         }
 
-        /// <summary>Preview is this lobby's player camera (who it follows is set apart): Take puts it on stream.</summary>
-        public PreviewState PreviewCam(string lobby)
+        /// <summary>
+        /// Preview is this lobby's player camera following <paramref name="pick"/> (null: whoever it picks):
+        /// Take puts it on stream. While that camera is on stream, the new pick waits for Take, so the shot
+        /// on stream doesn't change before then; otherwise the host gets it now, so the camera is ready.
+        /// An armed camera for the lobby is taken back: it's in Preview now.
+        /// </summary>
+        public PreviewState PreviewCam(string lobby, int? pick)
         {
-            lock (_lock) _preview = new PreviewState { Slots = new[] { lobby }, Chosen = "cams" };
+            bool onAir;
+            lock (_lock)
+            {
+                onAir = _onAir.Layout is "cam" or "cams" && _onAir.Has(lobby);
+                _preview = new PreviewState { Slots = new[] { lobby }, Chosen = "cams", CamPick = onAir ? (lobby, pick) : null };
+            }
+            Disarm(lobby);
+            if (!onAir) WantCam(lobby, pick);
             Touch();
             return Preview;
         }
@@ -140,9 +152,10 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>
         /// Best replay (/deck/replay/best, and its old links /deck/lobby/action and /deck/action): the best
         /// recent clip into Preview, named; Take plays it. Nothing worth it: said, and nothing changes.
-        /// Needs no OBS (only playing it does) and isn't held: it switches nothing.
+        /// Needs no OBS (only playing it does) and isn't held: it switches nothing. The Stream Deck (which keeps
+        /// its answers in its log) gets the play's label, which names nobody, unless it asked with &amp;imp=1.
         /// </summary>
-        private (int Status, string Message) BestReplayToPreview()
+        private (int Status, string Message) BestReplayToPreview(bool named)
         {
             var desk = _desk;
             var replays = _replays;
@@ -154,7 +167,7 @@ namespace TournamentTracker.App.Broadcast
                 return (409, BestReplay.Saving(clips, desk.Find, desk.Priority, now) ? "No replay worth showing yet: one is still being saved." : BestReplay.NothingYet);
             var staged = BestReplay.ForPreview(pick);
             desk.StageReplay(staged);
-            return (200, $"{staged.Note}. In Preview: Take plays it.");
+            return (200, $"{(named ? staged.Note : staged.Label)}. In Preview: Take plays it.");
         }
 
         /// <summary>Take with a replay in Preview: it plays, as Play last does, and leaves Preview.</summary>

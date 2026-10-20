@@ -317,6 +317,21 @@ What each app already does is in [features-the-button.md](features-the-button.md
     - **Do (if wanted):** cue old-way hosts from their screen share's sound; fall back to the lobby on stream when Preview is empty.
     - **Size:** S–M.
 
+70. **A new Stream Deck plugin with an older Red Alert.**
+    - **Why:** a new Player cam key set to Preview sends `?to=pvw`, which an older Red Alert ignores, so it cuts straight to stream while its border is green; Best replay answers 404.
+    - **Do:** have the plugin check `/deck/state` for what's new (`preview.replay`, `voice.cue`) and fall back to Arm, or warn on the key. Until then: update Red Alert and its plugin together.
+    - **Size:** S.
+
+71. **Best replay's "missed" with the broadcast delay.**
+    - **Why:** a play counts as seen when its lobby goes on stream at the desk, which is live; with the delay the stream is a few seconds behind, so plays just before a cut-in count as missed, and plays just before a cut-away count as seen though they never aired.
+    - **Do:** shift those times by the broadcast delay (`BestReplay.cs`, `MarkShown`).
+    - **Size:** S.
+
+72. **What hosts learn from the On stream light (decide).**
+    - **Why:** NEXT (in the caster's Preview) and ON STREAM reach the host's The Button before the stream shows it, and the caster often picks a lobby because of something the stream hasn't shown yet (a kill). A host who is also playing could read that.
+    - **Do (if it matters):** send NEXT only to referee hosts, or only ON STREAM, or delay the light by the broadcast delay.
+    - **Size:** S.
+
 ### Red Alert's automatic actions (decisions pending)
 
 From a read of everything Red Alert 0.3.17 does by itself (the file:lines are from that version). None of these has been changed yet.
@@ -482,11 +497,12 @@ Done in The Button and the mod 0.1.66 and Red Alert 0.3.18; the numbers are the 
 - **21:** Red Alert keeps the lobbies and their links in `lobbies-cache.json` (no players or impostors; same results channel; lobbies seen in the last 18 hours; deleted on Lock; never in a support bundle, and its VDO.Ninja passwords are taken out of every file), so they're back at once after a restart; their tiles say CACHED until the results channel confirms them (`Common/OrganizerCache.cs`).
 - **22 (decided):** no OBS stream delay; Red Alert's own broadcast delay (0–4 s, 3 s by default, `ObsDelay.cs`, `BroadcastStream.cs`) holds every lobby's picture, voice and camera in OBS and the graphics' game data back; switches, intermission, Be right back, Starting soon and replays stay live. The setup check's fix is **Turn on a 3 s delay**, and the docs no longer ask for an OBS delay. Impostor information stays visible on stream.
 - **24:** "Jump to action" is now **Best replay**, one pick made by Red Alert for the desk's N, its button and the Stream Deck (`BestReplay.cs`): the highest rated replay from the last 3 minutes not played yet goes into Preview, and Take plays it. The old `lobby/action` and `action` links do the same.
-- **25:** Hold, auto grid, auto intermission, the next-round countdown and the win counter's and standings' scope are kept across a restart (`settings.json` `Desk`, `DeskMemory.cs`).
+- **25:** Hold, auto grid, auto intermission, the next-round countdown, Starting soon's countdown and line, and the win counter's and standings' scope are kept across a restart (`settings.json` `Desk`, `DeskMemory.cs`).
 - **38 (the tally):** each host's The Button shows ON STREAM (and how) or NEXT on Home, sent by Red Alert over the lobby's own data link (`HostTally.cs`, `AppCore/StreamTally.cs`, `ttt` in broadcast-protocol.md). The "host away" warning is still item 38.
 - **40:** Hear Preview: **HEAR** on the Live desk's Preview plays the lobby in Preview live in the caster's headphones through one Monitor Only **TT Cue** source, never on stream, held back while Desktop Audio captures; the setup check looks at OBS's monitoring device (`ObsCue.cs`).
 - **42 (Starting soon):** the **TT Starting Soon** screen with a countdown, the tournament's name and logo, a line of the caster's own and sponsor turns; nothing switches by itself while it's on (`CasterDeskSoon.cs`, `BroadcastSoon.cs`).
 - **45 (Lobby keys):** new Lobby and Player cam keys select into Preview and the Take key puts them on stream; keys set up with an older plugin keep cutting.
+- **Found in review and fixed:** a Player cam key set to Preview no longer changes the shot on stream before Take when that camera is already on stream (and an armed camera for the lobby is taken back); TT Cue set to "Monitor and Output" by hand in OBS is muted at once and put back to Monitor Only; the Stream Deck's Best replay answer names no players (its plugin keeps a log) unless `&imp=1`; Lock waits for a write of `lobbies-cache.json` already under way before deleting it; Starting soon's countdown and line are kept across a restart; the setup check counts a Default monitoring device as OK (with a note).
 - **Also fixed:** The Button's voice bot sends its join and leave messages to Discord one at a time, so a rejoin can no longer arrive after a leave and put the bot back in a host's voice channel (`VoiceGateway.cs`).
 
 ## Done in 0.1.65

@@ -535,6 +535,7 @@ namespace TournamentTracker.App.Broadcast
             if (type == "VendorEvent") { OnVendorEvent(data); return; }
             if (type == "InputMuteStateChanged") { OnMuteKnown(data); OnMuteChanged(data); return; }
             if (type is "StreamStateChanged" or "RecordStateChanged") { OnOutputEvent(type, data); return; }
+            if (type == "InputAudioMonitorTypeChanged") { OnCueMonitor(data); return; }
             OnItemsEvent(type, data);
             if (type == "CurrentProgramSceneChanged")
             {

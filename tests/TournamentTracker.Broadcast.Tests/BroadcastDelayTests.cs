@@ -253,6 +253,17 @@ public class HearPreviewTests : IAsyncLifetime
         await Until(() => _director.CueHeard == "LJ");
         Assert.Equal("https://vdo.ninja/?view=av&password=x&cleanoutput&novideo", Url("TT Cue"));
 
+        // Set to "Monitor and Output" by hand in OBS (that's the stream too): muted at once, Monitor Only again, then back on.
+        int mark;
+        lock (_obs) { _obs.MonitorType["TT Cue"] = "OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT"; mark = _obs.AudioLog.Count; }
+        await _obs.Event("InputAudioMonitorTypeChanged", new { inputName = "TT Cue", monitorType = "OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT" });
+        await Until(() => { lock (_obs) return _obs.AudioLog.Skip(mark).Contains("mute TT Cue false"); });
+        lock (_obs) log = _obs.AudioLog.Skip(mark).ToList();
+        Assert.Equal("mute TT Cue true", log[0]);
+        Assert.True(log.IndexOf("monitor TT Cue " + ObsDirector.MonitorOnly) < log.LastIndexOf("mute TT Cue false"), string.Join(" | ", log));
+        Assert.Equal(ObsDirector.MonitorOnly, _obs.MonitorType["TT Cue"]);
+        Assert.Equal("LJ", _director.CueHeard);
+
         // Mute all (the panic button) silences the headphones too.
         _director.Settings.Voice.MuteAll = true;
         await _director.VoiceChangedAsync();
@@ -305,7 +316,7 @@ public class HearPreviewTests : IAsyncLifetime
     public async Task The_setup_check_says_which_headphones_OBS_plays_Hear_Preview_in()
     {
         var check = _director.Checks.Single(c => c.Id == "monitor");
-        Assert.False(check.Ok);
+        Assert.True(check.Ok);                                          // Default: said, but most PCs play to the headphones
         Assert.Equal("Headphones (OBS monitoring device): Default", check.Title);
         Assert.Contains("Settings → Audio → Advanced → Monitoring Device", check.Detail);
         lock (_obs) { _obs.MonitorDeviceId = "{0.0.0.00000000}.{5d2c}"; _obs.MonitorDeviceName = "Headphones (USB Audio)"; }
@@ -316,6 +327,7 @@ public class HearPreviewTests : IAsyncLifetime
         lock (_obs) { _obs.MonitorDeviceId = "disabled"; _obs.MonitorDeviceName = "Disabled"; }
         await _director.CheckSetupAsync();
         Assert.Contains("it's off", _director.Checks.Single(c => c.Id == "monitor").Detail);
+        Assert.False(_director.Checks.Single(c => c.Id == "monitor").Ok);
         _director.Settings.Voice.HearPreview = false;
         await _director.CheckSetupAsync();
         Assert.True(_director.Checks.Single(c => c.Id == "monitor").Ok);

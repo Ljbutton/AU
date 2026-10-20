@@ -26,6 +26,11 @@ namespace TournamentTracker.App.Broadcast
         public string? Note { get; init; }
         /// <summary>A replay staged instead of lobbies (Best replay): Take plays it. Null: none.</summary>
         public PreviewReplay? Replay { get; init; }
+        /// <summary>
+        /// A player camera staged while that lobby's camera is on stream: who it should follow, sent to the
+        /// host only on Take (sending it at once would change the shot on stream). Null: none to send.
+        /// </summary>
+        public (string Lobby, int? Pick)? CamPick { get; init; }
         /// <summary>Nothing staged: no lobby and no replay.</summary>
         public bool IsEmpty => Slots.Count == 0 && Replay == null;
         /// <summary>The layout it goes on in: "replay" for a staged replay, else the one picked, else 1 full screen, 2 side by side, 3–4 the quad, more the grid.</summary>
@@ -122,6 +127,7 @@ namespace TournamentTracker.App.Broadcast
             OnAir before;
             lock (_lock) { staged = _preview; before = _onAir; }
             if (staged.Slots.Count == 0) return null;
+            if (staged.CamPick is { } cp) WantCam(cp.Lobby, cp.Pick);
             var air = ShowPicked(staged.Slots.ToList(), by, NormLayout(asLayout) ?? staged.Chosen, transition);
             lock (_lock)
             {

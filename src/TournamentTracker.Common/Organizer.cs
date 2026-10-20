@@ -614,7 +614,5 @@ namespace TournamentTracker.App
             _ = Task.Run(async () => { await Task.Delay(4000).ConfigureAwait(false); await LoadStandingsAsync().ConfigureAwait(false); });
             return (true, text == OrganiserReset ? "The standings start over from now. Deleting the reset message in the results channel undoes it." : $"Posted: {text}");
         }
-
-        public void Dispose() => _cts.Cancel();
     }
 }

@@ -118,7 +118,8 @@ namespace TournamentTracker.App.Broadcast
             MonitoringDevice = monOff ? "Disabled" : monDefault ? "Default" : (string.IsNullOrEmpty(monName) ? monId : monName);
             list.Add(new SetupCheck
             {
-                Id = "monitor", Ok = !cue || !monOff && !monDefault,
+                // Default is fine for most (the PC plays to the headphones): said, not counted as a problem.
+                Id = "monitor", Ok = !cue || !monOff,
                 Title = $"Headphones (OBS monitoring device): {MonitoringDevice}{(cue ? "" : " · Hear Preview is off")}",
                 Detail = !cue ? "" : monOff
                     ? "Hear Preview plays in OBS's monitoring device, and it's off. In OBS: Settings → Audio → Advanced → Monitoring Device, pick your headphones."
