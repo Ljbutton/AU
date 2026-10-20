@@ -318,6 +318,11 @@ What each app already does is in [features-the-button.md](features-the-button.md
 
 54. **Other automatic switches still don't wait for Take:** auto intermission, auto switch away from a dropped lobby (and swapping a dead tile, Be right back coming back), the sponsor break ending, a MUST SHOW play ending a break, the player camera going back to the map, an armed camera going on, the grid resizing, a montage going back to intermission. For the Red Alert session. **Size:** M.
 
+55. **Windows CI: an occasional stall in Red Alert's OBS tests.**
+    - **Why:** on the Windows runner, a test using the fake OBS (HttpListener) sometimes waited forever, a different test each time; Linux never did. Limits were added to the fake's sends and closes, and to Red Alert's own sends to OBS (10 s), and the runs since are green.
+    - **Do:** if it comes back, the CI step's watchdog prints every thread's stack and the waiting async chains (`dumpasync`) after 2 minutes: read them in the job log.
+    - **Size:** S–M.
+
 ## Could do
 
 ### The mod
