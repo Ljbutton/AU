@@ -31,8 +31,13 @@ namespace TournamentTracker.App.Broadcast
         public DeskAutomation? Desk { get; set; }
         /// <summary>Team watch: the Watch page listens on the network (off unless turned on in Settings).</summary>
         public bool TeamWatch { get; set; }
-        /// <summary>The Watch page's code (a secret: taken out of support bundles, never logged).</summary>
+        /// <summary>The Watch page's code (a secret: taken out of support bundles, never logged). A new one each time Team watch is turned on.</summary>
         public string? WatchCode { get; set; }
+        /// <summary>
+        /// Without OBS, the Watch page shows each host's own video (off unless turned on): everyone watching
+        /// then gets each host's view link, which signing out doesn't take back. Never with OBS connected.
+        /// </summary>
+        public bool WatchHostVideo { get; set; }
 
         public static BroadcastAppSettings Load(string file) => Files.ReadJson<BroadcastAppSettings>(file) ?? new BroadcastAppSettings();
 
@@ -63,6 +68,8 @@ namespace TournamentTracker.App.Broadcast
         public int WatchPort { get; set; } = WatchServer.DefaultPort;
         /// <summary>The Watch page's pictures are taken by their own loop (false: tests step it themselves).</summary>
         public bool WatchCapture { get; set; } = true;
+        /// <summary>The address the Watch page listens on: null for every network (Red Alert), loopback for tests.</summary>
+        public System.Net.IPAddress? WatchBind { get; set; }
     }
 
     /// <summary>
@@ -933,7 +940,7 @@ namespace TournamentTracker.App.Broadcast
                     }
                 }
                 case ("GET", "/app/admin/teamwatch"): return Ok(TeamWatchState());
-                case ("POST", "/app/admin/teamwatch"): return Ok(TeamWatchAction(Arg("action"), Arg("id")));
+                case ("POST", "/app/admin/teamwatch"): return Ok(TeamWatchAction(Arg("action"), Arg("id"), Arg("on")));
                 case ("POST", "/app/admin/suggestion"): return SuggestionAction(Arg("id"), Arg("action"), Arg("t"));
                 case ("POST", "/app/admin/dismiss"):
                     _desk?.Dismiss(Arg("id"));

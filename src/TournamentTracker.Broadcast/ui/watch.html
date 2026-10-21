@@ -247,7 +247,8 @@ async function poll() {
   clearTimeout(polling);
   if (!TOKEN) return;
   try {
-    const r = await call('GET', '/watch/state');
+    // A hidden tab says so (bg=1): it doesn't count as watching, so Red Alert stops taking the pictures.
+    const r = await call('GET', '/watch/state' + (document.hidden ? '?bg=1' : ''));
     if (r.status === 401) return showSignin(r.body.message || 'Sign in again.');
     if (r.status === 200) { STATE = r.body; FPS = Math.max(1, Math.min(5, STATE.fps || 4)); render(); }
   } catch (e) { }
@@ -316,8 +317,10 @@ function render() {
 }
 function drawCard(c, l, sugg, s) {
   const tally = l.tally === 'pgm' ? ' pgm' : l.tally === 'pvw' ? ' pvw' : '';
+  // With OBS: its pictures only (a lobby without one says "No picture"). Without OBS: the host's own video
+  // only when the caster turned that on in Red Alert (then video is sent), else no picture.
   const useFrame = s.obs && l.frame;
-  const iframe = !useFrame && !!l.video;
+  const iframe = !s.obs && !!l.video;
   setCls(c, 'wc' + tally + (l.online ? '' : ' off') + (useFrame ? '' : ' nopic') + (iframe ? ' iframe' : ''));
   const q = sel => c.querySelector(sel);
   setText(q('.no'), String(l.no));
@@ -331,7 +334,8 @@ function drawCard(c, l, sugg, s) {
   if (useFrame) { dropFrame(c); pump(c, l.lobby); }
   else if (iframe) { setFrame(c, l.video); if (!c.style.getPropertyValue('--sc')) scaleFrames(); }
   else dropFrame(c);
-  setText(q('.wvnote'), s.obs ? "No picture from OBS for this lobby: video straight from the host" : "OBS isn't connected: video straight from the host");
+  setText(q('.nopic'), s.obs ? 'No picture' : "No picture: OBS isn't connected.");
+  setText(q('.wvnote'), "OBS isn't connected: video straight from the host");
   const down = q('.wdown');
   setCls(down, 'wdown' + (l.health === 'yellow' ? ' warn' : ''));
   setHtml(down, !l.online ? '<span>Offline</span>' : l.health === 'red' ? '<span>Down</span>' : '');
@@ -358,7 +362,7 @@ function drawCard(c, l, sugg, s) {
   setHtml(q('.wsug'), sugg.map(x => `<span class="${x.previewed ? 'pv' : ''}" title="${x.previewed ? 'The caster has it in Preview' : 'Sent to the caster'}">${esc(x.who)}${x.also && x.also.length ? ' +' + x.also.length : ''}: ${x.cam ? 'Cam on ' + sw(x.cam.color) + esc(x.cam.name || '') : esc(x.label)}${x.text ? ' “' + esc(x.text) + '”' : ''} · ${ago(x.ago)}${x.previewed ? ' · IN PREVIEW' : ''}</span>`).join(''));
   const btn = q('.wshow');
   btn.disabled = !l.online;
-  btn.title = l.tally === 'pgm' ? `${l.lobby} is on stream: you can still suggest its camera on a player` : `Suggest ${l.lobby} to the caster`;
+  btn.title = l.onAir === 'LIVE (full)' ? `${l.lobby} is on stream: you can still suggest its camera on a player` : `Suggest ${l.lobby} to the caster`;
 }
 
 // ---- Pictures: OBS's, one lobby at a time, a few times a second -----------------------------------
@@ -464,7 +468,8 @@ function drawChooser() {
   if (!CH || !STATE) return;
   const l = (STATE.lobbies || []).find(x => x.lobby === CH.lobby);
   if (!l) return closeChooser();
-  const onStream = l.tally === 'pgm';
+  // On stream already: full screen (a quad tile or the grid can still be suggested).
+  const onStream = l.onAir === 'LIVE (full)';
   setHtml($('ch-reasons'), onStream ? `<span class="muted" style="font-size:13px">${esc(l.lobby)} is on stream already: suggest its camera on a player.</span>`
     : REASONS.map(([k, n]) => `<button type="button" class="chip${CH.reason === k ? ' on' : ''}" data-reason="${k}">${n}</button>`).join(''));
   const living = (l.players || []).filter(p => !p.dead);

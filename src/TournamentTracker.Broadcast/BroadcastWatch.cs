@@ -27,9 +27,9 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>Made once with the app: listening only when Team watch was left on.</summary>
         private void StartWatch()
         {
-            _watch = new WatchServer(_env.WatchPort, _settings.WatchCode)
+            _watch = new WatchServer(_env.WatchPort, _settings.WatchCode, bind: _env.WatchBind)
             {
-                State = () => _watchAnswer.GetAsync(() => JsonSerializer.SerializeToUtf8Bytes(WatchPayload(), Json), WatchFresh, 0).GetAwaiter().GetResult(),
+                State = () => _watchAnswer.GetAsync(() => JsonSerializer.SerializeToUtf8Bytes(WatchPayload(), Json), WatchFresh, 0),
                 Frame = lobby => _capture?.Latest(lobby),
                 Suggest = WatchSuggest,
                 Log = m => Log.Info(m),
@@ -76,9 +76,11 @@ namespace TournamentTracker.App.Broadcast
             var pv = desk.Preview;
             bool obsOn = _obs?.Connected == true;
             var fresh = _capture?.Fresh() ?? new HashSet<string>();
-            // Without OBS: each lobby's own video (VDO.Ninja, small and muted, like the desk's tiles); the simulation's stand-in from here.
+            // Only without OBS, and only when the caster turned it on (Settings → Team watch): each lobby's own video
+            // (VDO.Ninja, small and muted, like the desk's tiles; the simulation's stand-in from here). The link
+            // carries the host's password, and signing out doesn't take it back, so with OBS it's never sent.
             var video = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (_caster != null)
+            if (_caster != null && !obsOn && _settings.WatchHostVideo)
                 foreach (var (lobby, url) in ObsFeeds(_caster, desk))
                     video[lobby] = ObsDirector.IsStandIn(url) ? "/watch/sim?lobby=" + Uri.EscapeDataString(lobby)
                         : url.Contains("vdo.ninja", StringComparison.OrdinalIgnoreCase) ? url + "&scale=25&noaudio" : url;
@@ -242,6 +244,7 @@ namespace TournamentTracker.App.Broadcast
             return new
             {
                 on = _settings.TeamWatch,
+                hostVideo = _settings.WatchHostVideo,
                 listening = w.Listening,
                 port,
                 problem = w.Problem,
@@ -251,19 +254,21 @@ namespace TournamentTracker.App.Broadcast
                 {
                     id = x.Id, name = x.Name, ip = x.Ip,
                     seen = Math.Max(0, (int)(now - x.LastSeen).TotalSeconds),
-                    watching = now - x.LastSeen < WatchServer.WatchingFor,
+                    watching = now - x.LastWatched < WatchServer.WatchingFor,
                 }).ToList(),
                 pictures = new { running = _capture?.Running == true, obs = _obs?.Connected == true, fps = _capture?.Fps ?? WatchCapture.MaxFps },
             };
         }
 
-        /// <summary>POST /app/admin/teamwatch: on, off, a new code, or sign one person out.</summary>
-        private object TeamWatchAction(string action, string id)
+        /// <summary>POST /app/admin/teamwatch: on (with a new code), off, a new code, the hosts' own video without OBS, or sign one person out.</summary>
+        private object TeamWatchAction(string action, string id, string on = "")
         {
             switch (action)
             {
                 case "on":
                 {
+                    // A new code each time it's turned on: whoever saw the last one (another day, a screen share) can't sign in with it.
+                    if (!_watch.Listening) _settings.WatchCode = _watch.NewCode();
                     _settings.TeamWatch = true;
                     TrySave();
                     if (!_watch.Start()) return new { ok = false, message = _watch.Problem };
@@ -282,6 +287,14 @@ namespace TournamentTracker.App.Broadcast
                     TrySave();
                     Log.Info("Team watch: a new code (everyone signed out).");
                     return new { ok = true, message = "New code: everyone watching was signed out and types the new one." };
+                case "hostvideo":
+                    _settings.WatchHostVideo = on == "true";
+                    TrySave();
+                    return new
+                    {
+                        ok = true,
+                        message = _settings.WatchHostVideo ? "Without OBS, the Watch page shows each host's own video." : "The Watch page shows no host video: without OBS, there's no picture.",
+                    };
                 case "signout":
                     return _watch.SignOut(id) ? new { ok = true, message = "Signed out." } : new { ok = false, message = "They'd already gone." };
                 default:

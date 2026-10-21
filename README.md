@@ -958,14 +958,16 @@ the Live desk's **Suggestions**, and the caster decides. It's off by default.
   link and the code to the production team, keep their screens off stream, and away from players.
 * **Set it up (the caster):**
   1. Red Alert → Settings → **Team watch**: switch it on. The toast says the link ("Team watch on:
-     your team opens http://192.168.1.20:8780/ and types the code.").
+     your team opens http://192.168.1.20:8780/ and types the code."). Each time you switch it on,
+     it makes a new code.
   2. The first time, Windows Firewall asks whether Red Alert may use the network: allow it on
      **private networks** only. Declined, nobody can connect.
-  3. Give the team the link shown on the card (with **Copy**) and the code, by word of mouth or in
-     a private message. Never post the code in a public channel.
+  3. Give the team the link shown on the card (with **Copy**) and the code (**Show code**, then
+     **Copy**), by word of mouth or in a private message. Never post the code in a public channel.
 * **Signing in (the team):** open the link, type your name (so the caster knows who's suggesting)
   and the watch code. A wrong code says "That code isn't right. It's in Red Alert: Settings → Team
-  watch."; after too many it says "Too many wrong codes. Wait a minute, then try again."
+  watch."; after too many from one address it says "Too many wrong codes. Wait a minute, then try
+  again." Someone not seen for 30 minutes is signed out and types the code again.
 * **What the team sees:** the tournament and round, what's ON STREAM and in PREVIEW, and a card
   per lobby: its picture with the red or green tally, the excitement badge (MUST SHOW, VERY HIGH,
   HIGH), the phase, map and health, crew v impostors, the task bar, a sabotage countdown, the
@@ -973,24 +975,32 @@ the Live desk's **Suggestions**, and the caster decides. It's off by default.
   as it is, and what the team has already suggested.
 * **Show this:** a reason (Kill coming, Clutch, Meeting, Sabotage, Funny), or the player camera on
   a living player, and a few words if wanted (up to 60 characters). The same suggestion from
-  someone else adds their name to it. One every few seconds per person. A lobby already on stream
-  can only be suggested for its camera.
+  someone else adds their name to it. One every few seconds per person. A lobby already full screen
+  on stream can only be suggested for its camera (a quad tile or the grid can still be suggested).
 * **On the Live desk:** each suggestion shows the lobby, the reason, who sent it and how long ago,
-  with **Into Preview** (Take puts it on), **Cut** and **×**. It clears when its lobby (or its
-  camera) goes on stream, after 2 minutes, or when dismissed, and moves to **Earlier**. The
-  Stream Deck's `suggest/next` puts the newest one into Preview.
+  with **Into Preview** (Take puts it on), **Cut** and **×**. It clears when it's on stream as
+  suggested (its lobby full screen; a camera suggestion: that lobby's camera following that
+  player), after 2 minutes, or when dismissed, and moves to **Earlier**. The Stream Deck's
+  `suggest/next` puts the newest one into Preview.
 * **The pictures:** with OBS connected, Red Alert takes a small picture of each lobby from OBS a
-  few times a second, only while someone is watching, so the hosts upload nothing more however many
-  watch. Without OBS each card shows the host's own video, small and muted ("OBS isn't connected:
-  video straight from the host"), which costs each host a little more upload per person watching.
-* **The code:** the card shows it, with **New code**: a new code signs everyone out, and they type
-  the new one. Switching Team watch off signs everyone out too, and the page can't be reached at
-  all. The card lists who's watching (name, address, last seen) with **Sign out** for each. The
-  code is kept across a restart, but sign-ins aren't: after Red Alert restarts, the team signs in
-  again.
+  few times a second, only while someone has the page in front (a tab in the background doesn't
+  count), so the hosts upload nothing more however many watch. A lobby with no picture from OBS
+  says "No picture". Without OBS there's no picture by default ("No picture: OBS isn't
+  connected."), only each game's state and events. **Without OBS, show the host's own video** on
+  the card (off by default) shows each host's own video instead, small and muted ("OBS isn't
+  connected: video straight from the host"). Each person watching then gets every host's own video
+  link, which signing out doesn't take back, and it costs each host upload per person watching.
+  With OBS connected the hosts' video is never sent, even with this on.
+* **The code:** the card hides it until you click **Show code** (then it shows the code and
+  **Copy**), with **New code**: a new code signs everyone out, and they type the new one. Switching
+  Team watch off signs everyone out too, closes every connection still open, and the page can't be
+  reached at all; switching it on again makes a new code. The card lists who's watching (name,
+  address, last seen) with **Sign out** for each. If Red Alert restarts with Team watch still on, it
+  keeps its code, but sign-ins aren't kept: the team signs in again.
 * **Safety:** it's plain HTTP on your own network, so use it on a network you trust (the venue's
   or your home network, not public Wi-Fi), and don't forward its port on the router. The watch code
-  is never written in the log and is taken out of support bundles.
+  is never written in the log and is taken out of support bundles. One machine can't take every
+  connection, and a connection that sends nothing is dropped after a few seconds.
 
 ## Discord setup (without a setup code)
 
