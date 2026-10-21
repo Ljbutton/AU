@@ -72,6 +72,16 @@ public class BroadcastTests : IDisposable
     }
 
     [Fact]
+    public void An_old_broadcast_json_with_the_win_counter_switch_still_reads_and_drops_it()
+    {
+        var s = BroadcastSettings.Parse("""{ "elementsVersion": 2, "elements": { "winCounter": true, "top3": false, "hideRoomCode": true } }""");
+        Assert.False(s.Elements.ContainsKey("winCounter"));
+        Assert.False(s.Elements["top3"]);
+        Assert.True(s.Elements["hideRoomCode"]);
+        Assert.DoesNotContain("winCounter", s.ToJson());
+    }
+
+    [Fact]
     public void Theme_and_switches_come_from_broadcast_json()
     {
         var s = State();

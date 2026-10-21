@@ -87,7 +87,7 @@ public class BroadcastDelayTests : IDisposable
             big = new { kind = "afterGame", lobby = "LJ", id = "g1" },
             standingsChange = new { change = new { lobby = "LJ" }, at = new { x = 0, y = 0, w = 1920, h = 1080, full = true } },
             playerCard = new { id = "ann|1", lobby = "LJ", data = new { name = "Ann" }, x = 0, y = 0, w = 1920, h = 1080, full = true },
-            wins = new { impostors = 3, crew = 4 },
+            ticker = new[] { new { title = "Kills", top = 3 } },
         });
         var live = Obj(new
         {
@@ -101,7 +101,7 @@ public class BroadcastDelayTests : IDisposable
                 ["NEW"] = new { number = 3, order = 3, onScreen = false, imps = 2 },
             },
             alerts = Array.Empty<object>(),
-            wins = new { impostors = 4, crew = 4 },
+            ticker = new[] { new { title = "Kills", top = 4 } },
         });
         string pastWas = past.ToJsonString(), liveWas = live.ToJsonString();
         var o = BroadcastApp.Delayed(live, past, (_, _) => true);
@@ -109,10 +109,10 @@ public class BroadcastDelayTests : IDisposable
         Assert.Equal("2up", o["layout"]!.GetValue<string>());
         Assert.Equal(2, o["slots"]!.AsArray().Count);
         Assert.False(o["elements"]!["impostorTags"]!.GetValue<bool>());
-        // … the games as they were: impostors alive, the wins before the last one, the alert.
+        // … the games as they were: impostors alive, the ticker before the last kill, the alert.
         Assert.False(o["lobbies"]!["LJ"]!["impostors"]![0]!["dead"]!.GetValue<bool>());
         Assert.Equal(2, o["lobbies"]!["MAL"]!["imps"]!.GetValue<int>());
-        Assert.Equal(3, o["wins"]!["impostors"]!.GetValue<int>());
+        Assert.Equal(3, o["ticker"]![0]!["top"]!.GetValue<int>());
         Assert.Single(o["alerts"]!.AsArray());
         // A lobby that wasn't there then isn't drawn yet (its live data would be early).
         Assert.Null(o["lobbies"]!["NEW"]);

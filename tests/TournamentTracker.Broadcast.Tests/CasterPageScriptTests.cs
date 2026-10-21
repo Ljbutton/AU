@@ -97,6 +97,67 @@ public class CasterPageScriptTests
         Assert.True(esc < replay.IndexOf("map[keyWait] = e.code"), "Esc is checked before the key is saved");
     }
 
+    [Fact]
+    public void The_action_panel_keeps_Replays_and_Breaks_in_view_and_only_its_cards_scroll()
+    {
+        string page = Page();
+        string css = page.Substring(0, page.IndexOf("</style>", StringComparison.Ordinal));
+        // The Replays row and the Breaks rows sit outside the scrolling part, one under the other.
+        int panel = page.IndexOf("<aside class=\"ld-act\">", StringComparison.Ordinal), scroll = page.IndexOf("<div class=\"act-scroll\">", StringComparison.Ordinal);
+        int replays = page.IndexOf("<div class=\"rp-ready\" id=\"rp-ready\">", StringComparison.Ordinal), soon = page.IndexOf("id=\"soon-card\"", StringComparison.Ordinal);
+        Assert.True(panel < replays && replays < scroll && scroll < soon, "Replays before the cards, the cards inside the scrolling part");
+        Assert.Contains(".ld-act>.rp-ready{order:1}", css);
+        Assert.Contains(".ld-act>.brk-bar{order:2;flex:none}", css);
+        Assert.Contains(".act-scroll{order:3;flex:1 1 auto;min-height:0;overflow:auto;", css);
+        Assert.Contains(".act-scroll>#inter-card,.act-scroll>#soon-card{order:-1}", css);   // the break's own card first
+        // Replay buttons: whole ones only, on one line (one that doesn't fit wraps out of sight), the title in "…".
+        Assert.Contains(".rp-ready{display:flex;flex-wrap:wrap;gap:20px 4px;align-items:center;overflow:hidden;flex:none;height:28px}", css);
+        Assert.Matches(@"\.rpc\{[^}]*min-width:0;[^}]*text-overflow:ellipsis", css);
+        // Starting soon: the start time on one line, the on-screen line and its Set on the next.
+        string soonCard = Block(page, "function renderSoon(d)");
+        Assert.Equal(2, Regex.Matches(soonCard, "<div class=\"r\">").Count);
+        Assert.Contains(".soon-card .r{display:flex;gap:8px;align-items:center;min-width:0}", css);
+    }
+
+    [Fact]
+    public void The_win_counter_is_gone_from_the_desk_and_the_graphics()
+    {
+        string page = Page();
+        foreach (var gone in new[] { "data-wins", "/app/admin/wins", "gfx-wins", "winScope", "'winCounter'", "Win counter" })
+            Assert.DoesNotContain(gone, page);
+        using var s = typeof(BroadcastServer).Assembly.GetManifestResourceStream("ui/broadcast.html")!;
+        string graphics = new StreamReader(s).ReadToEnd();
+        foreach (var gone in new[] { "winCounter", "S.wins", "IMPOSTOR WINS", ".wins{" })
+            Assert.DoesNotContain(gone, graphics);
+    }
+
+    /// <summary>
+    /// The grid's tiles (frame and status line) end above the stats ticker, run in Node (skipped where it isn't installed).
+    /// </summary>
+    [Fact]
+    public void Grid_tiles_and_their_status_lines_stop_above_the_stats_ticker()
+    {
+        using var s = typeof(BroadcastServer).Assembly.GetManifestResourceStream("ui/broadcast.html")!;
+        string graphics = new StreamReader(s).ReadToEnd();
+        var bottom = Regex.Match(graphics, @"^const BOTTOM = .*$", RegexOptions.Multiline);
+        var tile = Regex.Match(graphics, @"^const tileBottom = .*$", RegexOptions.Multiline);
+        Assert.True(bottom.Success && tile.Success);
+        Assert.Contains("top: bottom - 52 * k + 'px'", graphics);
+        Assert.Contains("height:${bottom - slot.y}px", graphics);
+        string script = "let S;\n" + bottom.Value + "\n" + tile.Value + "\n" + """
+            const assert = (ok, what) => { if (!ok) { console.error(what); process.exit(1); } };
+            const lower = { x: 964, y: 541, w: 948, h: 533 }, upper = { x: 8, y: 8, w: 948, h: 533 };
+            S = { canvas: { w: 1920, h: 1080 }, layout: 'grid', ticker: [{ title: 'Kills' }] };
+            assert(tileBottom(lower) === 1080 - 66 - 8, 'a lower tile ends above the ticker: ' + tileBottom(lower));
+            assert(tileBottom(upper) === 541, 'an upper tile keeps its own bottom: ' + tileBottom(upper));
+            S.ticker = [];
+            assert(tileBottom(lower) === 1074, 'no ticker: the whole tile: ' + tileBottom(lower));
+            console.log('ok');
+            """;
+        string? output = RunNode(script);
+        if (output != null) Assert.Contains("ok", output);
+    }
+
     /// <summary>
     /// syncList itself, run in Node with a small stand-in for the DOM (skipped where Node isn't installed).
     /// </summary>

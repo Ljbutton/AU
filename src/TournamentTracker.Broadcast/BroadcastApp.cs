@@ -62,7 +62,6 @@ namespace TournamentTracker.App.Broadcast
             ["standingsChange"] = true,   // Part 14: arrows after each game
             ["storyline"] = false,        // Part 13: a note as a lower third
             ["alerts"] = true,            // Part 18: banners for plays in lobbies that aren't on screen
-            ["winCounter"] = true,        // Part 20: impostor wins v crewmate wins, in the corner
             ["playerCards"] = true,       // Part 21: a player's card as a lower third
             ["hideRoomCode"] = false,     // a "Room code hidden" box over the room code in the lobby (off: hosts use streamer mode)
         };
@@ -80,7 +79,6 @@ namespace TournamentTracker.App.Broadcast
             ["standingsChange"] = "After-game table",
             ["storyline"] = "Storyline note",
             ["alerts"] = "Off-screen alerts",
-            ["winCounter"] = "Win counter",
             ["playerCards"] = "Player cards",
             ["hideRoomCode"] = "Hide room code",
         };
@@ -106,6 +104,8 @@ namespace TournamentTracker.App.Broadcast
                 el["hideRoomCode"] = false;
                 s.ElementsVersion = 2;
             }
+            // The win counter is gone: a file written before still has its switch, which is dropped.
+            el.Remove("winCounter");
             foreach (var kv in DefaultElements()) if (!el.ContainsKey(kv.Key)) el[kv.Key] = kv.Value;
             s.Elements = el;
             return s;
@@ -325,17 +325,10 @@ namespace TournamentTracker.App.Broadcast
                 storyline = big?.Kind == "storyline" ? big.Data as string : null,
                 intermission = air.Layout is "intermission" or "slate" ? Intermission(round, air.Layout == "slate") : null,
                 soon = StartingSoon(air),
-                wins = s.Elements.GetValueOrDefault("winCounter") || air.Layout is "intermission" or "slate" ? Wins() : null,
                 playerCard = s.Elements.GetValueOrDefault("playerCards") || air.Layout == "replay" ? PlayerCard(air, w, h, slots) : null,
                 alerts = s.Elements.GetValueOrDefault("alerts") ? _desk.Alerts.Active().Select(a => new { a.Id, a.Lobby, number = numbers.GetValueOrDefault(a.Lobby), a.Kind, a.Text, a.Count }).ToList() : null,
                 extras = Extras.ToDictionary(kv => kv.Key, kv => { try { return kv.Value(); } catch (Exception) { return null; } }),
             };
-        }
-
-        private object Wins()
-        {
-            var (impostors, crew) = _desk.Wins();
-            return new { impostors, crew, scope = _desk.WinScope };
         }
 
         /// <summary>The intermission screen: countdown to the next round, standings, notes taking turns, the montage up next.</summary>

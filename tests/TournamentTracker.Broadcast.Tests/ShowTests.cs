@@ -4,7 +4,7 @@ using Xunit;
 
 namespace TournamentTracker.Tests;
 
-/// <summary>Off-screen alerts (Part 18), intermission (19A), the win counter (20) and player cards (21).</summary>
+/// <summary>Off-screen alerts (Part 18), intermission (19A), the win counter's removal (20) and player cards (21).</summary>
 public class ShowTests : IDisposable
 {
     private readonly TempDir _dir = new();
@@ -114,7 +114,7 @@ public class ShowTests : IDisposable
         _desk.QueuedMontage = ("m1", "Round 1");
         var it = Broadcast().GetProperty("intermission");
         Assert.Equal("Round 1", it.GetProperty("montage").GetString());
-        Assert.Equal(JsonValueKind.Object, Broadcast().GetProperty("wins").ValueKind);   // the win counter is part of it
+        Assert.False(Broadcast().TryGetProperty("wins", out _));   // the win counter is gone, here too
         Assert.Empty(Broadcast().GetProperty("slots").EnumerateArray());
 
         // A lobby starts: intermission stays, and the desk says which lobby went live.
@@ -139,17 +139,22 @@ public class ShowTests : IDisposable
     }
 
     [Fact]
-    public void The_win_counter_counts_today_or_this_round()
+    public void The_win_counter_is_gone_from_the_stream_in_every_layout_and_from_the_switches()
     {
         Game("LJ", 1, "Impostors");
         Game("LJ", 2, "Crewmates");
-        Game("MAL", 1, "Impostors");
-        Assert.Equal((2, 1), _desk.Wins());
-        var w = Broadcast().GetProperty("wins");
-        Assert.Equal(2, w.GetProperty("impostors").GetInt32());
-        Assert.Equal("today", w.GetProperty("scope").GetString());
-        _desk.WinScope = "round";
-        Assert.Equal((2, 1), _desk.Wins());
+        Snap("LJ"); Snap("MAL");
+        _desk.Show("LJ");
+        Assert.False(Broadcast().TryGetProperty("wins", out _));
+        _desk.ShowIntermission();
+        Assert.Equal("intermission", _desk.OnAir.Layout);
+        Assert.False(Broadcast().TryGetProperty("wins", out _));
+        _desk.ShowSlate();
+        Assert.Equal("slate", _desk.OnAir.Layout);
+        Assert.False(Broadcast().TryGetProperty("wins", out _));
+        Assert.False(Broadcast().GetProperty("elements").TryGetProperty("winCounter", out _));
+        Assert.DoesNotContain("winCounter", BroadcastSettings.DefaultElements().Keys);
+        Assert.DoesNotContain("winCounter", BroadcastSettings.ElementNames.Keys);
     }
 
     [Fact]

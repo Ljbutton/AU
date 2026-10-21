@@ -1078,10 +1078,6 @@ namespace TournamentTracker.App.Broadcast
                     string said = _desk.ShowPlayerCard(Arg("key"), Arg("lobby").Length > 0 ? Arg("lobby") : null);
                     return Say(!said.StartsWith("Skipped", StringComparison.Ordinal), said);
                 }
-                case ("POST", "/app/admin/wins"):
-                    if (_desk == null) return Say(false, Locked);
-                    _desk.WinScope = Arg("scope") == "round" ? "round" : "today";
-                    return Say(true, _desk.WinScope == "round" ? "Win counter: this round." : "Win counter: today.");
                 case ("POST", "/app/admin/autogrid"):
                     if (_desk == null) return Say(false, Locked);
                     _desk.AutoGrid = Arg("on") == "true";
