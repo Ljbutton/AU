@@ -102,6 +102,23 @@ img.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 .05em;vert
 .hl-int .it{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 10px;border-radius:10px;border:1.5px solid var(--danger);font-size:13px}
 .hl-int .it .tag{font:700 10.5px/1 var(--round);letter-spacing:.1em;color:var(--danger)}
 .dcard .acts{display:flex;gap:6px;flex-wrap:wrap}
+/* Team suggestions (from the Watch page): green edge, who and how long ago, Into Preview / Cut / Dismiss. */
+.dcard.sugg{--tier:var(--good);cursor:default}
+.dcard.sugg.pv{--tier:var(--warn)}
+.dcard.sugg .t1 .team{font:700 11px/1 "Segoe UI",sans-serif;letter-spacing:.12em;text-transform:uppercase;background:var(--good);color:#03140a;padding:3px 6px 2px}
+.dcard.sugg .t1 .inpv{font:700 11px/1 "Segoe UI",sans-serif;letter-spacing:.1em;background:var(--warn);color:#111;padding:3px 6px 2px}
+.dcard.sugg .txt{color:var(--muted);font-size:13px}
+.dcard.sugg .acts .b{font-size:15px;padding:4px 9px 2px}
+.sugg-empty{font-size:13px;color:var(--muted);padding:6px 2px}
+.sugg-earlier .hrow{grid-template-columns:auto minmax(0,1fr) auto}
+.hrow .why{color:var(--muted);font-size:11.5px;white-space:nowrap}
+.hrow.now{background:#16161a;border-left:3px solid var(--tier,var(--line))}
+.team-urls{display:grid;gap:6px;margin-top:8px}
+.team-code{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px;padding:8px 10px;background:var(--sunk)}
+.team-code .code{font:700 28px/1 var(--mono);letter-spacing:.2em;color:#fff}
+.team-who{margin-top:8px;font-size:13px}
+.team-who td{padding:4px 6px}
+.team-who .on{color:var(--good)}
 .dcard.sys .play{font-size:16px}
 .vo{display:grid;grid-template-columns:minmax(90px,.7fr) minmax(0,1.6fr) auto;gap:10px;align-items:center;padding:7px 10px;border-radius:10px;background:var(--sunk);font-size:13px}
 .vo.heard{box-shadow:inset 3px 0 0 var(--good)}
@@ -765,8 +782,11 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
     </div>
     <div class="ld-in" id="mv-grid"></div>
     <div class="ld-low">
-      <div class="ld-col"><div class="ld-h"><h2>Happening now</h2><span class="muted" id="desk-sub"></span></div>
-        <div class="desk-cards" id="desk-cards"></div></div>
+      <div class="ld-col"><div class="ld-h"><h2>Suggestions</h2><span class="muted" id="desk-sub"></span></div>
+        <div class="desk-cards" id="desk-cards"></div>
+        <div class="desk-cards sugg-list" id="sugg-list"></div>
+        <details class="card hist-card sugg-earlier" id="sugg-earlier"><summary><b>Earlier</b> <span class="muted" id="sugg-n"></span></summary>
+          <div class="desk-history" id="sugg-history"></div></details></div>
       <div class="ld-col">
         <div class="card cams-card" id="cams-card">
           <div class="row" style="justify-content:space-between"><b>Player cams</b><span class="muted" id="cam-sub" style="font-size:12px"></span></div>
@@ -790,7 +810,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
           <div class="row" style="justify-content:space-between"><b>Talking points</b><button class="b" type="button" id="talk-next" title="The next note">Next</button></div>
           <div class="talk-list" id="talk-list"></div>
         </div>
-        <details class="card hist-card" id="hist-card"><summary><b>Earlier</b> <span class="muted" id="hist-n"></span></summary>
+        <details class="card hist-card" id="hist-card"><summary><b>Plays</b> <span class="muted" id="hist-n"></span></summary>
           <div class="desk-history" id="desk-history"></div></details>
       </div>
     </div>
@@ -938,6 +958,18 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
     <div class="row" style="justify-content:space-between"><div><b>Player camera</b> <span class="muted" id="cam-line"></span></div>
       <label class="sw" title="Each host's game sends a second picture that follows one player up close"><input type="checkbox" id="cam-on"><i></i><span>Player cameras</span></label></div>
     <p class="muted help" style="margin:6px 0 0;font-size:12.5px">Each host's game draws a second, close-up picture that follows one player (you pick who on the Live desk or the Stream Deck, or it follows whoever is in the action) and sends it with their game, at 960×540. Red Alert adds it to OBS as the <b>TT Player Cam</b> scene: the camera full screen, the whole map small in the corner. Hosts can't see it or change who it follows. On by default; it costs each host about one more video stream of upload while they send their game, so turn it off if a host's internet is weak. Replays saved while it's on get a second angle (🎥 in the replay controls, key P).</p>
+  </div>
+  <div class="card team-card" id="team-card" data-page="settings">
+    <div class="row" style="justify-content:space-between"><div><b>Team watch</b> <span class="muted" id="team-line">off</span></div>
+      <label class="sw" title="The Watch page for your production team, on this network"><input type="checkbox" id="team-on"><i></i><span>Team watch</span></label></div>
+    <p class="muted help" style="margin:6px 0 0;font-size:12.5px">Your production team watches every game at once on their own PC or tablet, on the same network as this PC: the pictures, each game's state and events, how exciting it is, and who the impostors are. They send you suggestions with <b>Show this</b> (they show on the Live desk); they can't switch the stream. The page needs the code below. Off by default. The first time you turn it on, Windows Firewall asks whether Red Alert may use the network: allow it on private networks only.</p>
+    <p class="note bad" id="team-problem" hidden></p>
+    <div id="team-body" hidden>
+      <div class="team-urls" id="team-urls"></div>
+      <div class="team-code"><span class="muted">Code</span><span class="code" id="team-code"></span><button class="b" type="button" id="team-new" title="A new code signs everyone out: they type the new one">New code</button><span class="muted" style="font-size:12.5px">A new code signs everyone out.</span></div>
+      <div class="team-who" id="team-who"></div>
+      <p class="muted help" id="team-pics" style="margin:6px 0 0;font-size:12.5px"></p>
+    </div>
   </div>
   <div class="card deck-card" id="deck-card" data-page="settings">
     <div class="row" style="justify-content:space-between"><div><b>Stream Deck</b> <span class="muted">a key for anything on the Live desk · port <b id="deck-port">…</b></span></div>
@@ -1799,7 +1831,10 @@ $('desk-sponsor').addEventListener('click', () => post('/app/admin/sponsor', { a
 $('desk-autogrid').addEventListener('click', () => deckDo('auto/grid/toggle'));
 $('desk-autosw').addEventListener('click', () => deckDo('auto/switch/toggle'));
 
-// ---- Happening now, player cameras and the drawer of earlier plays ----------------------------------
+// ---- Suggestions (the desk's own items, then the team's), player cameras and the drawer of plays --------
+// Play cards (what used to be Happening now) are on the Watch page's feed and excitement now, and in the
+// Plays drawer here; the desk's own items (a lobby down or back, an interrupted game, a replay decision,
+// chat's pick) stay at the top of the Suggestions column, with their buttons.
 // A play's card. Its counts, age and "updated" time change all the time and are written in place
 // (renderCards), so the card itself is only made again when the play or its buttons change.
 function cardHtml(c) {
@@ -1814,10 +1849,12 @@ function cardHtml(c) {
 }
 function renderCards() {
   const d = DESK, box = $('desk-cards');
+  const items = d.cards.filter(c => c.system);
   setText($('desk-sub'), `${d.lobbies.filter(l => l.online).length} sending${d.simulating ? ' · simulation' : ''} · keep this screen off stream`);
-  syncList(box, d.cards, c => c.id, cardHtml, `<div class="card"><p class="empty">${d.lobbies.length ? 'Quiet right now.' : 'No lobbies yet. Hosts appear here when they turn on "Send my game to the caster" (or turn on Simulation under OBS → Test).'}</p></div>`);
-  // Counts and ages tick on the cards as they are.
-  for (const c of d.cards) {
+  syncList(box, items, c => c.id, cardHtml, d.lobbies.length ? '' : '<div class="card"><p class="empty">No lobbies yet. Hosts appear here when they turn on "Send my game to the caster" (or turn on Simulation under OBS → Test).</p></div>');
+  renderSuggestions();
+  // Ages tick on the cards as they are.
+  for (const c of items) {
     const el = box.querySelector(`[data-k="${CSS.escape(c.id)}"]`); if (!el) continue;
     if (!c.system) {
       setText(el.querySelector('.cnt'), c.crew != null ? `${c.crew} crew v ${c.imps} imp` : '');
@@ -1827,16 +1864,54 @@ function renderCards() {
     setText(el.querySelector('.upd'), !c.system && c.updatedAgo < c.ago - 1 ? `updated ${ago(c.updatedAgo)}` : '');
   }
 }
+// The drawer of plays: the ones going on now (into Preview, save or play its replay, a player's card), then
+// the ones that have calmed down (Watch again).
 function renderHistory() {
   const d = DESK;
-  setText($('hist-n'), d.history.length ? `(${d.history.length})` : '');
+  const now = d.cards.filter(c => !c.system);
+  const n = now.length + d.history.length;
+  setText($('hist-n'), n ? `(${now.length ? now.length + ' now · ' : ''}${d.history.length} earlier)` : '');
   if (!$('hist-card').open) return;
-  syncList($('desk-history'), d.history, c => c.id, c => `<div class="hrow tier-${c.tier}">
+  const rows = now.map(c => ({ c, now: true })).concat(d.history.map(c => ({ c, now: false })));
+  syncList($('desk-history'), rows, x => (x.now ? 'n' : 'h') + x.c.id, ({ c, now }) => now ? `<div class="hrow now tier-${c.tier}">
+      <span class="tm">${clock(c.at)}</span>
+      <span class="tx"><b>${esc(c.lobby)}</b> · <span class="why">${esc(TIER_NAME[c.tier] || c.tier)}</span> ${rich(c.text)}${c.onAir ? ' <span class="live">' + esc(c.onAir) + '</span>' : ''}</span>
+      <span class="row" style="gap:4px;flex-wrap:nowrap">${replayButton(c)}<button data-cardshow="${esc(c.lobby)}" title="${esc(c.lobby)} into Preview">Preview</button>${c.people && c.people.length ? `<button data-pcard="${esc(c.people[0].key)}" data-plobby="${esc(c.lobby)}" title="${esc(c.people[0].name)}'s player card on stream">Card</button>` : ''}</span>
+    </div>` : `<div class="hrow tier-${c.tier}">
       <span class="tm">${clock(c.at)}</span>
       <span class="tx"><b>${esc(c.lobby)}</b> · ${rich(c.text)}${c.shown ? ' <span class="shown">SHOWN</span>' : ''}</span>
       <button data-watch="${c.id}" title="Plays its replay when one is saved, else brings this lobby back up">Watch again</button>
-    </div>`, '<p class="empty" style="font-size:13px">Plays that have calmed down move here.</p>');
+    </div>`, '<p class="empty" style="font-size:13px">Plays show here as they happen; the team sees them on the Watch page.</p>');
 }
+// The team's suggestions from the Watch page, newest first: Into Preview, Cut (straight on stream) and Dismiss.
+// Each clears itself when its lobby goes on stream, after 2 minutes, or when dismissed (then it's under Earlier).
+const SUGG_WHY = { program: 'went on stream', expired: 'timed out', dismissed: 'dismissed' };
+function suggWhat(x) { return x.cam ? `Cam on ${sw(x.cam.color)}${esc(x.cam.name || '')}` : esc(x.label); }
+function renderSuggestions() {
+  const d = DESK, sg = d.suggestions || { live: [], earlier: [] };
+  syncList($('sugg-list'), sg.live, x => x.id, x => `<div class="dcard sugg${x.previewed ? ' pv' : ''}" data-sugg="${esc(x.id)}">
+      <button class="x" data-sgdo="dismiss" data-sgid="${esc(x.id)}" title="Dismiss">×</button>
+      <div class="t1"><span class="team">Team</span><b>${esc(x.lobby)}</b>${x.previewed ? '<span class="inpv">IN PREVIEW</span>' : ''}<span>${esc(x.who)}${x.also && x.also.length ? ' + ' + esc(x.also.join(', ')) : ''}</span><span class="ago"></span></div>
+      <div class="play">${suggWhat(x)}${x.text ? ` <span class="txt">“${esc(x.text)}”</span>` : ''}</div>
+      <div class="acts"><button class="b primary" data-sgdo="preview" data-sgid="${esc(x.id)}" title="${x.cam ? 'Its camera, following that player, into Preview' : 'This lobby into Preview'} (Take puts it on)">Into Preview</button><button class="b" data-sgdo="cut" data-sgid="${esc(x.id)}" title="${x.cam ? 'Its camera on stream now' : 'This lobby on stream now'}">Cut</button></div>
+    </div>`, `<p class="sugg-empty">${S && S.team && S.team.on ? 'No suggestions right now. Your team sends them from the Watch page.' : 'No suggestions. Turn on Team watch (Settings) and your team suggests what to show from the Watch page.'}</p>`);
+  for (const x of sg.live) setText($('sugg-list').querySelector(`[data-k="${CSS.escape(x.id)}"] .ago`), ago(x.ago));
+  $('sugg-earlier').hidden = !sg.earlier.length;
+  setText($('sugg-n'), sg.earlier.length ? `(${sg.earlier.length})` : '');
+  if (!$('sugg-earlier').open) return;
+  syncList($('sugg-history'), sg.earlier, x => x.id + '|' + x.cleared, x => `<div class="hrow">
+      <span class="tm">${clock(x.at)}</span>
+      <span class="tx"><b>${esc(x.lobby)}</b> · ${suggWhat(x)}${x.text ? ' “' + esc(x.text) + '”' : ''} · ${esc(x.who)}</span>
+      <span class="why">${SUGG_WHY[x.cleared] || ''}</span>
+    </div>`, '');
+}
+$('sugg-earlier').addEventListener('toggle', () => { if ($('sugg-earlier').open) renderSuggestions(); });
+$('sugg-list').addEventListener('click', async e => {
+  const b = e.target.closest('[data-sgdo]'); if (!b) return;
+  const r = await api('POST', '/app/admin/suggestion', Object.assign({ id: b.dataset.sgid, action: b.dataset.sgdo }, b.dataset.sgdo === 'cut' ? transQuery() : {}));
+  if (r && r.ok && r.message && b.dataset.sgdo !== 'dismiss') toast(r.message);
+  loadLive();
+});
 $('hist-card').addEventListener('toggle', () => { if ($('hist-card').open) renderHistory(); });
 // Player cams: the target lobby's players (the lobby in Preview, else the one on stream; tabs change
 // it). A click puts that lobby's camera on stream on them (armed until play resumes in a meeting);
@@ -2092,7 +2167,12 @@ function specRow(l) {
   </div>`;
 }
 const keyName = k => ((RP && RP.hotkeys && RP.hotkeys[k]) || '').replace(/^Key|^Digit/, '');
-$('desk-history').addEventListener('click', e => { const w = e.target.closest('[data-watch]'); if (w) post('/app/admin/watch', { id: w.dataset.watch }); });
+$('desk-history').addEventListener('click', e => {
+  const w = e.target.closest('[data-watch]'); if (w) { post('/app/admin/watch', { id: w.dataset.watch }); return; }
+  // A play going on now: save or play its replay.
+  const rp = e.target.closest('[data-rplay]'); if (rp) { post('/app/admin/replay', { action: 'play', id: rp.dataset.rplay }); return; }
+  const rs = e.target.closest('[data-rsave]'); if (rs) post('/app/admin/replay', { action: 'save', id: rs.dataset.rsave });
+});
 let OBS = null;
 function renderObs() {
   const o = OBS; if (!o) return;
@@ -2763,12 +2843,12 @@ function renderSide() {
   const h = d && d.health, lob = h ? h.lobbies : [];
   const red = lob.filter(x => x.level === 'red').length, yellow = lob.filter(x => x.level === 'yellow').length;
   set('st-health', 'dot ' + (!lob.length ? '' : red ? 'bad' : yellow ? 'warn' : 'good'), lob.length ? '•' : '', !lob.length ? 'No lobbies yet' : red || yellow ? `${red ? red + ' down' : ''}${red && yellow ? ' · ' : ''}${yellow ? yellow + ' degraded' : ''}` : 'All good');
-  // New plays (Happening now) since you last looked at the Live desk; opening it clears the count.
-  const plays = d && d.cards ? d.cards.filter(c => !c.system) : [];
-  if (PAGE === 'live') plays.forEach(c => SEEN_CARDS.add(c.id));
-  const fresh = plays.filter(c => !SEEN_CARDS.has(c.id));
-  set('st-live', 'count' + (fresh.some(c => c.tier === 'must' || c.tier === 'veryHigh') ? ' hot' : ''), fresh.length ? String(fresh.length) : '',
-    fresh.length ? `${fresh.length} new play${fresh.length === 1 ? '' : 's'} on the Live desk since you last looked${fresh.some(c => c.tier === 'must') ? ' (one is MUST SHOW)' : ''}` : 'Live desk');
+  // New team suggestions since you last looked at the Live desk; opening it clears the count.
+  const sugg = d && d.suggestions ? d.suggestions.live : [];
+  if (PAGE === 'live') sugg.forEach(x => SEEN_CARDS.add(x.id));
+  const fresh = sugg.filter(x => !SEEN_CARDS.has(x.id));
+  set('st-live', 'count' + (fresh.length ? ' hot' : ''), fresh.length ? String(fresh.length) : '',
+    fresh.length ? `${fresh.length} new suggestion${fresh.length === 1 ? '' : 's'} from your team on the Live desk since you last looked` : 'Live desk');
   const ready = MONT && MONT.list ? MONT.list.filter(x => x.state === 'ready').length : 0;
   set('st-replays', 'count', ready ? String(ready) : '');
   set('st-obs', 'dot ' + (OBS && OBS.connected ? 'good' : OBS && (obsSeen || OBS.problem) ? 'bad' : ''), OBS && (OBS.connected || obsSeen || OBS.problem) ? '•' : '', OBS ? (OBS.connected ? 'Connected' : OBS.problem || 'Not connected') : '');
@@ -2791,7 +2871,37 @@ async function refresh() {
   setText($('app-ver'), S.app ? 'v' + S.app : '');
   renderUpdate();
   if (PAGE === 'settings') { renderCam(); renderDeck(); }
+  loadTeam();
 }
+// Settings → Team watch: on or off, the links for the team, the code (New code signs everyone out), who's watching.
+let TEAM = null, teamBusy = false;
+async function loadTeam() {
+  if (teamBusy) return;
+  teamBusy = true;
+  try { TEAM = await api('GET', '/app/admin/teamwatch'); if (S) S.team = TEAM; } catch (e) { } finally { teamBusy = false; }
+  renderTeam();
+}
+function renderTeam() {
+  const t = TEAM; if (!t) return;
+  if (document.activeElement !== $('team-on')) $('team-on').checked = !!t.on;
+  const watching = t.watchers.filter(w => w.watching).length;
+  setText($('team-line'), !t.on ? 'off' : t.listening ? `on · port ${t.port} · ${watching} watching` : 'on, but not listening');
+  $('team-problem').hidden = !t.problem; setText($('team-problem'), t.problem || '');
+  $('team-body').hidden = !(t.on && t.listening);
+  if (!t.on || !t.listening) return;
+  setHtml($('team-urls'), t.urls.length ? t.urls.map(u => `<div class="url"><span class="muted">Watch page</span><span class="mono">${esc(u)}</span><button type="button" data-copy="${esc(u)}">Copy</button></div>`).join('')
+    : `<p class="muted" style="margin:0;font-size:13px">This PC isn't on a network: the team can't reach it. (Port ${t.port}.)</p>`);
+  setText($('team-code'), t.code.slice(0, 4) + ' ' + t.code.slice(4));
+  setHtml($('team-who'), t.watchers.length ? `<table><tr><td class="muted">Who</td><td class="muted">From</td><td class="muted">Last seen</td><td></td></tr>${t.watchers.map(w => `<tr><td><b>${esc(w.name)}</b></td><td class="mono">${esc(w.ip)}</td><td class="${w.watching ? 'on' : 'muted'}">${w.watching ? 'watching now' : ago(w.seen)}</td><td><button class="b" type="button" data-teamout="${esc(w.id)}" style="font-size:13px;padding:3px 7px 1px">Sign out</button></td></tr>`).join('')}</table>`
+    : '<span class="muted">Nobody is watching yet.</span>');
+  const p = t.pictures;
+  setText($('team-pics'), !p.obs ? "OBS isn't connected, so the Watch page shows each host's own video (small, from VDO.Ninja). Connect OBS and Red Alert sends the pictures itself, so the hosts upload nothing more however many watch."
+    : p.running ? `Pictures from OBS: about ${p.fps} a second per lobby, while someone watches.` : 'Pictures from OBS while someone watches (none now).');
+}
+$('team-on').addEventListener('change', async e => { const r = await api('POST', '/app/admin/teamwatch', { action: e.target.checked ? 'on' : 'off' }); toast(r.message); loadTeam(); });
+$('team-new').addEventListener('click', async () => { const r = await api('POST', '/app/admin/teamwatch', { action: 'code' }); toast(r.message); loadTeam(); });
+$('team-who').addEventListener('click', async e => { const b = e.target.closest('[data-teamout]'); if (!b) return; const r = await api('POST', '/app/admin/teamwatch', { action: 'signout', id: b.dataset.teamout }); toast(r.message); loadTeam(); });
+setInterval(() => { if (PAGE === 'settings' && !document.hidden) loadTeam(); }, 2000);
 // Settings → Player camera.
 function renderCam() {
   const c = S && S.cam; $('cam-card').hidden = !c; if (!c) return;
