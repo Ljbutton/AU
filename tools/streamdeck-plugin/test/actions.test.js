@@ -84,6 +84,22 @@ test("Lobby set to the action is Best replay: into Preview, whatever the press",
 	assert.deepEqual(view("replay", { op: "best" }), view("lobby", { lobby: "action" }), "the Replay key's Best replay is the same key");
 });
 
+test("Lobby set to suggest is the newest team suggestion: into Preview, whatever the press", () => {
+	for (const mode of ["cut", "preview", "add", undefined]) assert.deepEqual(req("lobby", { lobby: "suggest", mode, t: "swoosh" }), { path: "suggest/next", query: {} }, String(mode));
+	const none = view("lobby", { lobby: "suggest" });
+	assert.equal(none.type, "label");
+	assert.equal(none.title, "SUGGESTED");
+	assert.equal(none.sub, "none yet");
+	assert.equal(none.lit, false);
+	assert.equal(none.dim, true);
+	const waiting = { ...sampleState(), suggestions: { count: 2, next: { id: "s4", lobby: "Lobby 3", label: "Kill coming", who: "Sam" } } };
+	const v = view("lobby", { lobby: "suggest" }, waiting);
+	assert.equal(v.word, "2");
+	assert.equal(v.sub, "L3 Kill coming");
+	assert.equal(v.lit, true);
+	assert.equal(v.dim, false);
+});
+
 test("Lobby in preview mode stages it, stepping next/prev from Preview", () => {
 	assert.deepEqual(req("lobby", { lobby: "4", mode: "preview" }), { path: "pvw/lobby/4", query: {} });
 	assert.deepEqual(req("lobby", { lobby: "next", mode: "preview" }), { path: "pvw/lobby/3", query: {} }, "Preview is lobby 1; 4 is offline");
