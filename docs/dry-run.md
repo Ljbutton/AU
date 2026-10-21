@@ -161,7 +161,9 @@ bundles at the end.
 * [ ] **Intermission** (I): the intermission screen with the standings. Type 5 in **Next round**
   and press **Set**: the countdown shows on stream. Lobby voice is silent. I again: back to the
   lobbies.
-* [ ] **Sponsor break**: the lobby on one side, the sponsor on the other; it ends by itself.
+* [ ] **Sponsor break**: the lobby on one side, the sponsor on the other; it ends by itself. While
+  it's on, cut to another lobby: it goes into the break's picture and the break carries on. Press
+  Be right back: refused ("A sponsor break is on: … End break first.").
 * [ ] **Starting soon** (Live desk, Breaks): type 2 in **Starts** and press **Set**: the stream shows
   the countdown, the tournament's name and logo; at zero it says "Starting now" and stays. Take a
   lobby: the lobby comes straight on, with no Starting soon left over.
@@ -206,7 +208,7 @@ switch on (Lobby health).
   OBS), the on-stream graphics may freeze or go, and the Stream Deck keys say OFFLINE.
 * [ ] It opens unlocked, reconnects to OBS by itself, and every lobby comes back at once with the
   **same lobby number** (its tile may say **CACHED** for a few seconds until Discord confirms it).
-  Hold, Auto grid and Auto intermission are as they were. The graphics come back, and the Stream Deck keys come back by themselves and
+  Hold and Auto grid are as they were. The graphics come back, and the Stream Deck keys come back by themselves and
   still mean the same lobbies.
 * [ ] Mute all, volumes and Listen are as they were.
 

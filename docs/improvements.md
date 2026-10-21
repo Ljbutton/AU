@@ -292,7 +292,7 @@ What each app already does is in [features-the-button.md](features-the-button.md
 
 53. **Auto grid small things.** Hold says "Held back: Auto grid" while the caster's own Preview is waiting, and a replay going on doesn't take auto grid's suggestion out of Preview. **Size:** S.
 
-54. **Other automatic switches still don't wait for Take:** auto intermission, auto switch away from a dropped lobby (and swapping a dead tile, Be right back coming back), the sponsor break ending, a MUST SHOW play ending a break, the player camera going back to the map, an armed camera going on, the grid resizing, a montage going back to intermission. Which of them go through Preview is waiting for a decision: item 59. **Size:** M.
+54. **Other automatic switches still don't wait for Take:** auto switch away from a dropped lobby (and swapping a dead tile, Be right back coming back), the sponsor break ending, the player camera going back to the map, an armed camera going on, the grid closing up after a drop, a montage going back to intermission. Which of them go through Preview is waiting for a decision: item 59. (Auto intermission, a MUST SHOW play ending a break and the grid changing for any other reason were removed: see [Done in 0.1.67](#done-in-0167).) **Size:** M.
 
 55. **Windows CI: an occasional stall in Red Alert's OBS tests.**
     - **Why:** on the Windows runner, a test using the fake OBS (HttpListener) sometimes waited forever, a different test each time; Linux never did. Limits were added to the fake's sends and closes, and to Red Alert's own sends to OBS (10 s), and the runs since are green.
@@ -330,27 +330,23 @@ What each app already does is in [features-the-button.md](features-the-button.md
 
 ### Red Alert's automatic actions (decisions pending)
 
-From a read of everything Red Alert 0.3.17 does by itself (the file:lines are from that version). None of these has been changed yet.
+From a read of everything Red Alert 0.3.17 does by itself (the file:lines are from that version). 60, 61, 62 and 68 were settled in 0.3.19 (see [Done in 0.1.67](#done-in-0167)); the rest haven't been changed yet.
 
-59. **Which automatic switches go through Preview.** Auto switch and every other automatic switch go straight to Program; only auto grid uses Preview. Candidates for "into Preview, press Take": auto switch's destination, the auto intermission return, the camera going back to the map, the break ending, MUST SHOW, the grid closing up, the armed camera (see item 54). **Size:** M, once decided.
+59. **Which automatic switches go through Preview.** Auto switch and every other automatic switch go straight to Program; only auto grid uses Preview. Candidates for "into Preview, press Take": auto switch's destination, the camera going back to the map, the break ending, the grid closing up after a drop, the armed camera, a montage going back to intermission (see item 54). (Auto intermission and a MUST SHOW play ending a break are gone: see [Done in 0.1.67](#done-in-0167).) **Size:** M, once decided.
 
-60. **The grid closing up replaces a hand-picked grid** with every active lobby within a second, with a swoosh (`CasterDesk.cs:1265-1270`). It has no switch apart from Hold. **Size:** S.
+*60, 61 and 62 are done: see [Done in 0.1.67](#done-in-0167).*
 
-61. **Auto intermission's "back to the game" always goes full screen on the top-scoring live lobby**, never to what was on before (2-up, grid, camera), because `LiveDuringIntermission` is set before `EndIntermission` (`CasterDesk.cs:740-741, 724`). **Size:** S.
-
-62. **A montage returning to intermission puts intermission back as if by hand** (`by=button`), so auto intermission no longer ends that intermission when play resumes (`ReplayManager.cs:528`). The same goes for an intermission put on by auto switch (`by=health`). **Size:** S.
-
-63. **Graphics switches not obeyed:** player cards on replays ignore the **Player cards** switch, and the win counter shows in Intermission and Be right back even when it's switched off (`BroadcastApp.cs:326-327`). **Size:** S.
+63. **Graphics switches not obeyed:** player cards on replays ignore the **Player cards** switch (`BroadcastApp.cs:326-327`). (The win counter half no longer applies: the win counter was removed in 0.3.19.) **Size:** S.
 
 64. **Swoosh off doesn't fully stop it.** Automatic switches carry no transition, and Red Alert sets OBS's transition to the TT Swoosh stinger whenever it exists, without checking Swoosh on or off, so scene changes from automatic switches can still swoosh. It also resets OBS's transition mid-show when a new lobby source is added (`ObsSwoosh.cs:66-77`; `ObsDirector.cs:397-401`). **Size:** S.
 
-65. **The intermission delay (45 s) has no UI.** (Auto intermission and auto grid are now kept across a restart: see [Done in 0.1.66](#done-in-0166).) **Size:** S.
+65. **The intermission offer's delay (45 s) has no UI.** (Auto grid is now kept across a restart: see [Done in 0.1.66](#done-in-0166).) **Size:** S.
 
 66. **Auto clip saving and auto montages have no switch on screen** (obs.json only). **Size:** S.
 
 67. **Hold doesn't stop the automatic actions that aren't switches:** Twitch polls, predictions and chat messages, auto clips, montage building, graphics, alerts, the after-game queue and audio. Decide which of them Hold should cover. **Size:** S–M.
 
-68. **A MUST SHOW play from any lobby ends a sponsor break on that lobby**, not on the break's lobby (`CasterDesk.cs:404`). **Size:** S.
+*68 is done: see [Done in 0.1.67](#done-in-0167).*
 
 69. **alerts.json's `max: 3` is unused:** banners show one at a time (the docs now say so). Use it or remove it. **Size:** S.
 
@@ -496,6 +492,9 @@ These ideas from earlier audits are in the code now, so they are not on the list
 Done in The Button and the mod 0.1.67 and Red Alert 0.3.19; the numbers are the items above.
 
 - **22 (the broadcast delay off):** the owner's call, for now. Nothing is held back whatever `obs.json` says, the OBS card's **Broadcast delay** row is hidden, the setup check has no delay line (no **Turn on a 3 s delay**, no "No broadcast delay" warning), and asking for one answers "The broadcast delay is off in this version of Red Alert." The graphics and the lobby pictures are live again, and **Replay that** and the kill clips no longer wait for a delay. No OBS stream delay either: impostor information stays visible on stream. The code is kept behind `BroadcastDelay.Enabled` (`ObsDelay.cs`); bringing it back is item 73.
+- **60, 61, 62 and 68 (no automatic screen changes for breaks or other reasons):** the owner's call. Auto intermission is gone, start and end: when every lobby has been out of a game for 45 s the desk only offers intermission (**Intermission** / **Not now**), and a lobby going live during it is only said ("LJ IS LIVE"); a person goes back (61 and 62 no longer apply). A MUST SHOW play no longer ends a sponsor break (68). The grid only changes by itself when a lobby on it drops (down 45 s, or gone quiet): the rest close up in their order, and a lobby joining or going to its menu, or a grid you picked, is left alone (60). The Live desk's **Auto → Intermission** button and its Stream Deck link are gone; `auto/intermission/…` answers 410 "Automatic switching was removed: people switch the stream." and `/app/admin/intermission` `action=auto` answers the same with ok false; an old Toggle key set to it reads AUTO INTER, *removed*, and sends nothing; an old `settings.json` with `AutoIntermission` still loads and it's ignored (`DeskMemory.cs`, `DeckState.cs`). Kept: auto switch off a dropped lobby (with Be right back and the dead-tile swap), the camera going back to the map, the grid closing up after a drop, a montage going back to intermission, armed cameras and the break's own timer, all still stopped by Hold.
+- **Sponsor breaks can't be interrupted** (`CasterDeskBreak.cs`): a lobby picked during a break (a cut, Take, a tile, the multiview pick, Stream Deck lobby, Take and camera keys, Undo to a lobby) goes into the break's picture and the break carries on with its sponsor, its time and its sponsor appearance. BRB, Intermission, Starting soon, another break, a replay or montage (`ReplayManager.PlayAsync`), **Replay that** and an Undo back to one of those are refused with "A sponsor break is on: N s left. End break first." (409 on the Stream Deck). It ends only when its time is up, with **End break** (`break/off`, `/app/admin/sponsor` `end`) or with Panic, and then goes full screen on the break's lobby as it is then. If the break's lobby drops, auto switch puts a healthy lobby (a hot one, else the top one) in the break; with none, the break stays with RECONNECTING. Switching scenes in OBS itself still ends a break.
+- **Red Alert's visual fixes and the win counter removed:** the win counter is gone from the stream (the corner, Intermission, Be right back), the Graphics page and the intermission card's Today / Round; `/broadcast/state` has no `wins`, `POST /app/admin/wins` is gone (404), and an old `broadcast.json` with `winCounter` still loads and drops it (`BroadcastApp.cs`). The desk still keeps `WinScope` in `settings.json`, unused. Grid tiles and their status lines stop above the stats ticker while it shows (`broadcast.html`). The Live desk's action panel is the Replays row, then the Breaks rows, then the cards, and only the cards scroll (the break that's on has its card first); a sponsor read and the Starting soon or Intermission card fit at 1600×900 and 1920×1080. The Replays row shows only whole buttons (long titles end in "…"); the Best replay button reads **▶ Best**; the Starting soon card has two rows with a **Line** label; the Program line says "by hand" and "scene TT Full"; up to four lobbies get four wide tiles; the Twitch log says "Nothing yet." when empty; the Stream Deck + replay dial's hint is clear of its border (`svg.js`).
 - **72 (decided):** the On stream light (ON STREAM and NEXT) shows only to a host in the referee slot (the referee ghost, not playing); a playing host never sees it, since it could tell them something happened in their game (`AppServer.cs`, `RefereeHost`). The mod's status has `refSlotActive` (the slot on and not in safe mode this game, `ControlApi.cs`); with an older mod, The Button goes by the referee slot on and safe mode off.
 
 ## Done in 0.1.66

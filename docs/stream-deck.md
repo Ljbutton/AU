@@ -75,6 +75,11 @@ thing it knew:
   before. Keys set up with an older plugin keep the press they had: a key with settings of its own
   but no Press saved still cuts. A key you never opened the settings of (Lobby 1, everything as it
   came) has nothing saved, so it now selects into Preview: set it to Cut if you want it to cut.
+* **Sponsor breaks can't be interrupted.** During a sponsor break a Lobby key set to Cut, Take or a
+  Player cam key puts its lobby into the break's picture and the break carries on. Be right back,
+  Starting soon, Intermission, Sponsor, Replay that, Play last and an Undo back to one of those
+  screens answer 409 ("A sponsor break is on: 18 s left. End break first.") until **End break**.
+  Panic still works at once.
 * **Best replay.** The Lobby key set to **Best replay** (it used to say *where the action is*) and
   the Replay key's **Best replay** put the best recent replay into Preview, and Take plays it, as
   **Play last** does. Red Alert makes the pick, the same one as the desk's **N** key and **Best
@@ -109,8 +114,8 @@ Alert (`/deck/<path>`), for reference and for Companion below.
 | **Cut to cam** | lobby: on stream, in Preview, or a number | That lobby's camera on stream, still following whoever it follows. | `cam/cut`, `cam/3/slot2` |
 | **Layout** | full, 2-up, quad, grid, cameras | What's in Preview (or, with nothing there, what's on stream) in that layout, in Preview: **Take** puts it on stream, so keep a Take key next to it. Lit red while on stream, green while in Preview. | `layout/quad` |
 | **Replay** | best replay, play last, replay that, back to live, play/pause, back, forward, frame back, frame forward, restart, zoom in, zoom out, follow, angle, speed | **Best replay** puts the best recent replay into Preview (Take plays it); **Replay that** saves the last seconds of the lobby on stream and plays them; **Play last** plays the newest ready clip; **Speed** steps 100 / 50 / 25%. | `replay/best`, `replay/that`, `replay/last`, `replay/slow`… |
-| **Toggle** | mute all lobby voice, Hear Preview (HEAR PREVIEW: the lobby in Preview in your headphones), hold, auto grid, auto intermission, auto switch, standings, alerts; **Press**: switch it, always on, always off | Shows ON / OFF (MUTED, HELD, PAUSED) from Red Alert's own state. **Hold** stops all automatic switching. | `voice/mute/toggle`, `voice/cue/toggle`, `hold/on`, `auto/grid/off`, `gfx/alerts/toggle`… |
-| **Break** | be right back, starting soon, intermission, sponsor, end the break | That break screen, or back from it. **Starting soon** keeps the countdown and line set on the Live desk (a Custom path key can set them: `break/soon?in=10`). | `break/brb`, `break/soon`, `break/off` |
+| **Toggle** | mute all lobby voice, Hear Preview (HEAR PREVIEW: the lobby in Preview in your headphones), hold, auto grid, auto switch, standings, alerts; **Press**: switch it, always on, always off | Shows ON / OFF (MUTED, HELD, PAUSED) from Red Alert's own state. **Hold** stops all automatic switching. Auto intermission is gone: a key still set to it shows AUTO INTER, *removed*, dimmed, and a press sends nothing and shows the alert triangle. | `voice/mute/toggle`, `voice/cue/toggle`, `hold/on`, `auto/grid/off`, `gfx/alerts/toggle`… |
+| **Break** | be right back, starting soon, intermission, sponsor, end the break | That break screen, or back from it. **Starting soon** keeps the countdown and line set on the Live desk (a Custom path key can set them: `break/soon?in=10`). During a sponsor break the others are refused until **End break**. | `break/brb`, `break/soon`, `break/off` |
 | **Panic** | | One press: fade to Be right back, mute every lobby voice, clear the graphics, pause alerts and hold switching. While that panic is on the key says **UNDO PANIC**: a press puts it all back (that panic's undo only, never another switch). | `panic`, `panic/undo` |
 | **Undo** | | Takes back the panic while there is one, else an automatic switch away from a lobby that dropped, else the last switch made by hand. Lit while a panic is on. Refused (503) while OBS isn't connected when it would switch. | `undo` |
 | **Custom path** | path (with a list of common ones), key text | Any other Red Alert Stream Deck path: skip or clear graphics, the player card, after-game prompts, listen to one lobby, the host's view modes, player cameras on/off. | `gfx/skip`, `voice/listen/2`, `spec/vision`… |
@@ -193,7 +198,7 @@ http://127.0.0.1:8768/deck/<path>?key=<your key>
 
 GET and POST both work. Red Alert answers with JSON, `{"ok":true,"message":"…"}`, and a status:
 200 done, 202 queued or armed, 401 wrong key, 404 unknown action or lobby, 409 refused (for example
-the camera isn't available), 423 locked, 500 it went wrong on the way (the message says what, for
+the camera isn't available, or a sponsor break is on), 410 removed (`auto/intermission`), 423 locked, 500 it went wrong on the way (the message says what, for
 example OBS not answering), 503 OBS not connected (nothing switched; the Live desk's own buttons
 still switch Red Alert's pages without OBS, and say so). The same link twice within 300 ms is
 ignored. `hello` alone answers without the key. Settings → Stream Deck in Red Alert lists
@@ -213,7 +218,8 @@ ready-made links with your key in them.
 | `break/soon?in=10`, `break/soon?at=19:30`, `&text=Doors%20open` | Starting soon on stream, counting down 10 minutes (or to 19:30) with a line of text. `in=` or `at=` empty: no countdown. At zero it says "Starting now" and stays until you take a lobby |
 | `soon/set?in=10`, `soon/set?at=19:30`, `soon/set?text=…` | Starting soon's countdown and line, without switching |
 | `hold/on`, `hold/off`, `hold/toggle` | Hold: no automatic switching |
-| `auto/grid/…`, `auto/intermission/…`, `auto/switch/…` (`on`, `off`, `toggle`) | Automatic switching |
+| `auto/grid/…`, `auto/switch/…` (`on`, `off`, `toggle`) | Automatic switching |
+| `auto/intermission/…` | Removed: answers 410 "Automatic switching was removed: people switch the stream." and changes nothing |
 | `undo` | The panic, else an automatic switch, else the last switch by hand |
 | `gfx/standings/…`, `gfx/alerts/…` (`on`, `off`, `toggle`), `gfx/skip`, `gfx/clear`, `gfx/card` | Graphics |
 | `prompt/show`, `prompt/skip`, `prompt/save` | After-game prompts: show the table, skip it, or save it for intermission |

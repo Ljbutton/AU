@@ -534,9 +534,10 @@ stream.
   **Starting soon** (the **TT Starting Soon** scene) counts down to the start (minutes or a time
   on its Live desk card, with a line of your own), with the tournament's logo and sponsors; at
   zero it says "Starting now" and stays, and nothing switches by itself, until you Take a lobby.
-* **Hold** (**H**, or the AUTO pill): nothing switches by itself until you release it (auto
-  intermission, a camera going back to the map, auto switch off a dropped lobby, a break ending,
-  armed cameras), and auto grid puts nothing in Preview. What it held back shows as a toast and a
+* **Hold** (**H**, or the AUTO pill): nothing switches by itself until you release it (a camera
+  going back to the map, auto switch off a dropped lobby, a sponsor break ending, a montage going
+  back to intermission, the grid closing up after a drop, armed cameras), and auto grid puts
+  nothing in Preview. What it held back shows as a toast and a
   warning. Your own switches still go through.
 * **Panic** (**P** twice, or the Panic button): something must come off stream now. It fades to
   Be right back, mutes every lobby voice, clears the graphics, pauses alerts and holds switching.
@@ -763,7 +764,7 @@ the caster's PC and off stream.
     task machines and survivors (top 10 of the counted games).
   * Impostor tags per feed (dead crossed out), a big reactor/O2 countdown with the fixing
     progress (lights and comms as a small icon), grid tiles, standings, points on the line,
-    standings changes, storyline notes, off-screen alerts, the win counter and player cards.
+    standings changes, storyline notes, off-screen alerts and player cards.
   * **Hide room code** (off by default: hosts stream with Among Us's streamer mode on): a "Room
     code hidden" box over the room code while a lobby on stream is in its lobby or menu, so
     viewers can't join. Where it goes is `roomCodeBox` in `broadcast.json` (shares of the game
@@ -772,7 +773,10 @@ the caster's PC and off stream.
     is smooth under the swoosh.
 * **Grid:** every active lobby at once in **TT Grid** (1 full, 2 side by side, up to 4×4, then five wide), each
   tile with its label, a status line, the impostor tag and a border that pulses at high
-  priority; empty tiles show a sponsor or the logo. Click a tile (on stream) for full screen.
+  priority; empty tiles show a sponsor or the logo. Tiles and their status lines stop above the
+  stats ticker while it shows. Click a tile (on stream) for full screen. Once it's on, the grid
+  only changes by itself when a lobby on it drops (see Lobby drops below): a lobby joining or
+  going to its menu waits until you change the grid.
   **Auto grid** puts it into Preview whenever no lobby is mid-game (Take shows it).
 * **Multiview:** the lobby tiles on the Live desk are a small live picture of every lobby sending
   its game. Click one for Preview, Ctrl+click to add more (they're numbered in the order you pick),
@@ -806,8 +810,13 @@ the caster's PC and off stream.
   `multiview` (a "Multiview presented by" badge while 4 or more lobbies are on screen),
   `montage` (an opening card), `standings`
   ("Presented by" under the table), `grid` (empty tiles), `break` (a split-screen break, the
-  lobby on the left and the sponsor on the right, that ends by itself, and straight back to
-  full screen on a must-show play). **Verbal reads:** give a sponsor `readScript` and
+  lobby on the left and the sponsor on the right). **A sponsor break can't be interrupted:** it
+  runs its time, then goes full screen on its lobby. A lobby you pick meanwhile (a cut, Take, a
+  Stream Deck key, a player camera) goes into the break's picture and the break carries on.
+  Replays, montages, Be right back, Intermission, Starting soon and another break are refused
+  ("A sponsor break is on: 18 s left. End break first.") until you press **End break**. Panic
+  still works at once. If the break's lobby drops, auto switch puts a healthy lobby in the break.
+  Switching scenes in OBS itself still ends it. **Verbal reads:** give a sponsor `readScript` and
   `readEveryMinutes`, `readEveryGames` or `readEveryRounds`; when one is due the Live desk
   shows the script (only to you) with **Done** (logged as a read) and **Snooze 5 min**.
   Every appearance is logged; **Export report** saves a CSV
@@ -823,12 +832,11 @@ the caster's PC and off stream.
   that isn't on screen; about 4 s each, one at a time, the rest queued, merged per lobby. Each
   kind switches off in the graphics card; **B** pauses them all.
 * **Intermission:** the **TT Intermission** scene between rounds: a countdown to the next round
-  (set it on the Live desk's intermission card: minutes or a time), standings, the win counter, storyline notes taking
-  turns and the montage up next. Offered when every lobby has been out of a game for 45 s, or by
-  itself with **Auto intermission**; a lobby going live brings it back (auto) or says so.
-  Key **I**.
-* **Win counter:** IMPOSTOR WINS · CREWMATE WINS, today or this round, in the corner and in
-  intermission (top middle on the player camera, clear of the host's picture and its chat).
+  (set it on the Live desk's intermission card: minutes or a time), standings, storyline notes
+  taking turns and the montage up next. Offered when every lobby has been out of a game for 45 s
+  (**Intermission** or **Not now**); it doesn't come on or go off by itself between rounds (auto
+  switch still puts it on when every lobby drops between games). A lobby going live is said on
+  the card ("LJ IS LIVE"): go back with **Back to the game**. Key **I**.
 * **Player cards:** a lower third with the player's real name, rank, points and today's
   impostor and crewmate records and kills. **Card** buttons on every notification, lobby and
   roster row, key **C** for the top notification's player, and by itself for the key player of

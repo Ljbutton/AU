@@ -21,7 +21,7 @@ see the [README](../README.md#red-alert-the-broadcasters-app).
 * **Replays and montages:** a clip of every kill and big moment, "Replay that" on any lobby, slow
   motion, a second angle from the player camera, and montages built after each game and round.
 * **On-stream graphics:** one transparent page with labels, impostor tags, sabotage countdowns,
-  standings, a stats ticker, player cards, off-screen alerts and the win counter.
+  standings, a stats ticker, player cards and off-screen alerts.
 * **Lobby voice and health:** each lobby's Discord voice and game sound on stream, following the
   picture, the lobby in Preview in your headphones, and every lobby shown green, yellow or red with
   automatic switching away from a drop.
@@ -45,7 +45,7 @@ see the [README](../README.md#red-alert-the-broadcasters-app).
 * **Updates** — Settings → Updates says when a new Red Alert is out (it looks every 30 minutes, or **Check now**); **Update** downloads it and **Restart Red Alert** starts it. It never updates by itself, so nothing changes mid-stream. The download is checked against the size and SHA-256 its release lists: one that doesn't match is refused and nothing changes ("The download didn't match the release (it may be incomplete). Nothing was changed; try again later.").
 * **Log** — `red-alert.log` in `%LOCALAPPDATA%\RedAlert` records what Red Alert did and what went wrong (an error is logged and Red Alert carries on); past 1 MB it moves to `red-alert.log.1`.
 * **Settings files** — everything is in `%LOCALAPPDATA%\RedAlert` (`settings.json`, `obs.json`, `caster-priority.json`, `lobby-numbers.json`, `roster.csv`, `broadcast.json`, `sponsors.json`, `health.json`, `twitch.json`, `lobbies-cache.json`…); edited files are re-read while Red Alert runs.
-* **Back after a restart** — Hold, auto grid, auto intermission, the next-round countdown and the win counter's and standings' scope are kept (`settings.json`; a countdown or timed hold that ran out meanwhile isn't brought back). The lobbies and their links last read come back at once, marked **CACHED** on their tiles until the results channel confirms them (`lobbies-cache.json`, without players or impostors; only for the same results channel and lobbies seen in the last 18 hours; deleted on **Lock**; never in a support bundle).
+* **Back after a restart** — Hold, auto grid, the next-round countdown and the standings' scope are kept (`settings.json`; a countdown or timed hold that ran out meanwhile isn't brought back). The lobbies and their links last read come back at once, marked **CACHED** on their tiles until the results channel confirms them (`lobbies-cache.json`, without players or impostors; only for the same results channel and lobbies seen in the last 18 hours; deleted on **Lock**; never in a support bundle).
 * **Saved safely** — every file is written whole to a side file first and only then takes the old one's place, so a crash, a power cut or a full disk part-way through leaves the old file as it was. A file that can't be read (half-written, or edited wrongly by hand) is kept as `<name>.corrupt-<time>` before anything is saved over it, and `red-alert.log` says so; a hand-edited `broadcast.json` with a mistake is kept that way before a switch saves the last good settings.
 
 ## The side menu
@@ -72,7 +72,7 @@ an item shows what needs a look; a number shows a count.
 
 ## Live desk: the status bar
 
-* **On air box** — what OBS is showing: **PROGRAM** (red) with the layout and lobbies, **BREAK** (amber), **REPLAY**, **OFF AIR**, **EMPTY** (a layout with no lobby in it) or **SWITCHING**; with who switched (here or the Stream Deck, by itself, a dropped lobby, or by hand in OBS) and the OBS scene.
+* **On air box** — what OBS is showing: **PROGRAM** (red) with the layout and lobbies, **BREAK** (amber), **REPLAY**, **OFF AIR**, **EMPTY** (a layout with no lobby in it) or **SWITCHING**; with who switched ("by hand" from the desk or the Stream Deck, "switched by itself", "switched by itself (a lobby dropped)" or "switched in OBS") and the scene ("scene TT Full"); the whole line is also its tooltip.
 * **Follows OBS** — a switch made in OBS by hand shows here; a switch OBS doesn't make within about 2.5 s turns into a red "OBS didn't switch" error.
 * **Stream and recording** — STREAMING with its time, RECONNECTING, NOT STREAMING; REC with its time, REC PAUSED, NOT RECORDING.
 * **AUDIO pill** — whose lobby voice the stream hears, with a meter; red and flashing while every lobby is muted; click to mute or unmute all.
@@ -112,7 +112,7 @@ an item shows what needs a look; a number shows a count.
 * **Back** — undoes the last switch (or a panic, or an auto switch).
 * **Program picture** — OBS's own output, about twice a second, while OBS is connected; otherwise a drawing of the layout. Click a slot's name to put that lobby in Preview.
 * **Rearrange** — on a 2-up or quad, pick which lobby goes in which slot; the result goes into Preview for Take.
-* **Grid** — every active lobby at once (1 full, 2 side by side, up to 4×4, more five wide); empty tiles show a sponsor or the logo; a lobby that drops keeps its tile as RECONNECTING for 45 s, then the rest close up.
+* **Grid** — every active lobby at once (1 full, 2 side by side, up to 4×4, more five wide); empty tiles show a sponsor or the logo; a lobby that drops keeps its tile as RECONNECTING for 45 s, then the rest close up. Nothing else changes the grid by itself: a lobby joining or going to its menu waits until you change it, and a grid you picked keeps its lobbies.
 * **Without OBS** — the desk still switches Red Alert's own pages (the overlay and video pages) and says OBS didn't.
 
 ## Player cams
@@ -133,30 +133,32 @@ an item shows what needs a look; a number shows a count.
 ## Automation, Hold and Panic
 
 * **Auto grid** — fills Preview, never switches: when no lobby is mid-game (all in meetings or between games) it puts the grid into Preview ("All lobbies quiet: Grid is in Preview. Take to show it."), and when a game starts while its grid is on stream, the way back (what was on before, else the top lobby) goes into Preview ("A game started: … Take to go back."). Nothing switches until **Take** (Enter, TAKE, or the Stream Deck's Take). It fills only an empty Preview or replaces its own suggestion, never a Preview you picked; it takes its suggestion out once it no longer applies (a game started before the grid was taken, auto grid off, Hold, a break on stream); and one you cleared or replaced isn't made again until things change.
-* **Auto intermission** — intermission by itself when every lobby has been out of a game for 45 s, and back to the game when one starts. Off, the desk offers it instead ("BETWEEN ROUNDS", **Intermission** or **Not now**).
+* **Between rounds** — when every lobby has been out of a game for 45 s, the desk offers intermission ("BETWEEN ROUNDS", **Intermission** or **Not now**); it never switches by itself. There's no auto intermission any more: you put intermission on and take it off (auto switch still puts it on when every lobby drops between games).
 * **Auto switch** (Switch away) — when a lobby on stream goes down, switch away from it once (to the next lobby worth showing, else the grid); a card says what it did with **Undo / keep**. A lobby you put on yourself while it's down stays on.
-* **Hold** (**H**, the Hold button or the AUTO pill) — nothing switches by itself until released (auto intermission, a camera going back to the map, auto switch, armed cameras, a break ending, the grid closing up), and auto grid puts nothing in Preview ("Held back: Auto grid"). What it held back shows as a toast and a warning; your own switches still go through. Kept across restarts (a timed hold until the same time).
+* **Hold** (**H**, the Hold button or the AUTO pill) — nothing switches by itself until released (a camera going back to the map, auto switch, armed cameras, a sponsor break ending, a montage going back to intermission, the grid closing up after a drop), and auto grid puts nothing in Preview ("Held back: Auto grid"). What it held back shows as a toast and a warning; your own switches still go through. Kept across restarts (a timed hold until the same time).
 * **Panic** (**P** twice within 3 s, or **Panic** then **Sure? Panic**) — fades to Be right back, mutes every lobby voice, clears the graphics, pauses off-screen alerts and holds switching.
 * **Undo panic** — while a panic is on, **Undo panic**, **Back** or the Stream Deck's Undo puts back what was on, the voice, the alerts and your own hold. Put right by hand instead, the panic is over and later changes are yours.
 * **Panic goes on at once** — nothing holds Panic's switch back on its way to the stream (OBS's own "stop streaming" is in OBS).
 
 ## Breaks and intermission
 
-* **Starting soon** — the **TT Starting Soon** scene before the show: a countdown to the start (in minutes, "10", or a time, "19:30"), the tournament's name and logo, a line of your own (up to 120 characters), and the sponsors listed for `startingsoon` (else the split-screen break's) taking turns every 10 s. Goes on at once; at zero it says "Starting now" and stays. While it's on nothing switches by itself (auto grid, auto intermission, armed cameras and the graphics queue wait) and lobby voice is silent: **Take** a lobby to start the show.
-* **Starting soon card** (Live desk) — **Starts** ("10" or "19:30") with **Set**, the time left ("at 19:30 · 4:59 to go", "Starting now" or "No countdown"), and your line with **Set** (Enter works too).
+* **Starting soon** — the **TT Starting Soon** scene before the show: a countdown to the start (in minutes, "10", or a time, "19:30"), the tournament's name and logo, a line of your own (up to 120 characters), and the sponsors listed for `startingsoon` (else the split-screen break's) taking turns every 10 s. Goes on at once; at zero it says "Starting now" and stays. While it's on nothing switches by itself (auto grid, armed cameras and the graphics queue wait) and lobby voice is silent: **Take** a lobby to start the show.
+* **Starting soon card** (Live desk) — two rows: **Starts** ("10" or "19:30") with **Set** and the time left ("at 19:30 · 4:59 to go", "Starting now" or "No countdown"), then **Line**, your line, with **Set** (Enter works too).
 * **BRB** (Be right back) — the **TT Be Right Back** scene ("Technical difficulties", standings and storylines taking turns); goes on at once.
-* **Intermission** (**I**) — the **TT Intermission** scene between rounds: a countdown to the next round, the standings, the win counter, storyline notes taking turns, Chat Detectives, and the montage up next.
-* **Intermission card** (Live desk) — **Next round** in minutes ("20") or a time ("19:30") with **Set**, **Play montage** for the one up next, the win counter's Today or Round, and **Back to the game**; says "LJ IS LIVE" when a lobby starts during it.
-* **Sponsor break** — split screen, the lobby on the left and the sponsor on the right with a countdown; ends by itself, and a Must show play cuts straight back. The button shows **End break Ns** while it's on.
+* **Intermission** (**I**) — the **TT Intermission** scene between rounds: a countdown to the next round, the standings, storyline notes taking turns, Chat Detectives, and the montage up next.
+* **Intermission card** (Live desk) — **Next round** in minutes ("20") or a time ("19:30") with **Set**, **Play montage** for the one up next, and **Back to the game**; says "LJ IS LIVE" when a lobby starts during it (it doesn't go back by itself).
+* **Sponsor break** — split screen, the lobby on the left and the sponsor on the right with a countdown; when its time is up it goes full screen on its lobby. The button shows **End break Ns** while it's on.
+* **A sponsor break can't be interrupted** — a lobby you pick meanwhile (a cut, Take, a Stream Deck key, a player camera) goes into the break's picture and the break carries on ("Sponsor break on (18 s left): LJ is in the break's picture now."). Replays, montages, BRB, Intermission, Starting soon and another break are refused until **End break** ("A sponsor break is on: 18 s left. End break first."). Panic still works at once. If the break's lobby drops, auto switch puts a healthy lobby in the break (with none, the break stays on with RECONNECTING). Switching scenes in OBS itself still ends it.
 * **Breaks apart from layouts** — breaks sit in their own row in the action panel, in amber, so one isn't clicked by mistake.
+* **The action panel** — the Replays row and the Breaks rows stay at the top; prompts, sponsor reads and the break's card go below them (the break that's on has its card first) and scroll when they don't all fit.
 
 ## Replays
 
 * **Clips by themselves** — every kill, winning kill, ejection, meeting, witnessed kill and game end saves a clip (8 s before to 2 s after) from OBS's buffer of each lobby's last 30 s.
 * **Save replay** — any Happening now card can save its clip while OBS still has it; the card then shows **▶ REPLAY**, "Saving replay…" or why it failed, with retry.
 * **Replay that** — saves the last 8 s of the lobby on stream and plays them as soon as they're saved, no card needed (not if you've switched or held since).
-* **Best replay** (**N**, the desk's **Best replay** button, the Stream Deck) — Red Alert picks the highest rated replay from the last 3 minutes that hasn't been played (card tier, then a play viewers missed, then points, then the newest; "Replay that" clips and montages are never picked) and puts it in Preview; **Take** plays it. Pressed again, the next one down. Nothing worth it: "No replay worth showing yet." It switches nothing, so Hold doesn't stop it.
-* **Play last** — plays the newest ready replay again; the six newest also sit as buttons beside it.
+* **Best replay** (**N**, the desk's **▶ Best** button, the Stream Deck) — Red Alert picks the highest rated replay from the last 3 minutes that hasn't been played (card tier, then a play viewers missed, then points, then the newest; "Replay that" clips and montages are never picked) and puts it in Preview; **Take** plays it. Pressed again, the next one down. Nothing worth it: "No replay worth showing yet." It switches nothing, so Hold doesn't stop it.
+* **Play last** — plays the newest ready replay again; the six newest also sit as buttons beside it, as many as fit whole (a long title ends in "…", the full one is its tooltip).
 * **TT Replay scene** — the clip as a Media Source, cropped and zoomed (up to 2.5×) to keep the killer and victim in frame, following them as the camera moves, with a slow push-in and a REPLAY tag.
 * **Replay controls** — take over the action panel while a replay plays: play/pause, ±1 s, frame step, a scrub bar with the play marked, restart, zoom, pan, **Follow**, **Back to live**; each has a key.
 * **Slow motion** — 100 / 50 / 25 %, muted while slowed.
@@ -192,8 +194,7 @@ an item shows what needs a look; a number shows a count.
 * **Lobby labels** — the host's Twitch channel with Twitch's logo (hosts set it in The Button), else the lobby's name.
 * **Impostor tags** — the impostors on each feed, dead ones crossed out. On by default, and live: they show on stream as it happens.
 * **Sabotage countdown** — a big reactor or O2 countdown with fixing progress; lights and comms as a small icon.
-* **Grid tiles** — each grid tile's label, status line and impostor tag, a border that pulses at high priority, and the logo or a sponsor in empty tiles.
-* **Win counter** — IMPOSTOR WINS · CREWMATE WINS, today or this round, in the corner and in intermission.
+* **Grid tiles** — each grid tile's label, status line and impostor tag, a border that pulses at high priority, and the logo or a sponsor in empty tiles; they stop above the stats ticker while it shows.
 * **Top 3 by lobby** — top left, each playing lobby's top three for its own round, a different lobby every 8 s.
 * **Stats ticker** — along the bottom, leader boards taking turns five names at a time: tournament points, sharpest voters, most kills, impostor win %, task machines, survivors (top 10 of the counted games).
 * **Hide room code** — a "Room code hidden" box over the room code while a lobby on stream is in its lobby or menu (off by default: hosts use streamer mode).
@@ -330,7 +331,7 @@ an item shows what needs a look; a number shows a count.
 * **Select, then submit** — new Lobby and Player cam keys put their lobby or camera in Preview, and the **Take** key puts it on stream; keys set up with an older plugin keep cutting, but a key whose settings were never opened now selects into Preview.
 * **Lobby key** — a lobby by number, or next, previous, or Best replay; into Preview (the default), cut, or add to Preview; red border for Program, green for Preview, phase, crew v impostors, tasks and a flashing sabotage timer.
 * **Player cam key** — the lobby on stream, in Preview, or a number; a player slot (1–15, fixed for the game), a colour, next, previous or auto; into Preview (the default), cut, or arm. Shows the crewmate in its colour and the name, dimmed when dead, a ring while the camera follows them (red on stream) and ARMED.
-* **Other keys** — **Take** (as a layout, with a transition; reads TAKE with what's in Preview: lobbies and layout, or REPLAY L3), **Wide**, **Cut to cam**, **Layout** (lit red on stream, green in Preview), **Replay** (Best replay, play last, replay that, back to live and the transport, speed), **Toggle** (mute all, Hear Preview, hold, auto grid, auto intermission, auto switch, standings, alerts, shown as ON/OFF, MUTED, HELD, PAUSED), **Break** (be right back, Starting soon, intermission, sponsor, end the break), **Panic** (UNDO PANIC while on), **Undo**, **Custom path**.
+* **Other keys** — **Take** (as a layout, with a transition; reads TAKE with what's in Preview: lobbies and layout, or REPLAY L3), **Wide**, **Cut to cam**, **Layout** (lit red on stream, green in Preview), **Replay** (Best replay, play last, replay that, back to live and the transport, speed), **Toggle** (mute all, Hear Preview, hold, auto grid, auto switch, standings, alerts, shown as ON/OFF, MUTED, HELD, PAUSED), **Break** (be right back, Starting soon, intermission, sponsor, end the break), **Panic** (UNDO PANIC while on), **Undo**, **Custom path**.
 * **Stream Deck + dials** — **Preview dial** (turn to pick, push to Take, tap to clear), **Player dial** (turn to pick who the camera follows, push to cut, tap for wide), **Replay dial** (turn to scrub, push to play or pause, tap for speed).
 * **Key art** — every key is drawn from Red Alert's live state; when something is wrong a strip says SET UP, WRONG KEY, OFFLINE, UPDATE RED ALERT or RED ALERT LOCKED over a faded picture.
 * **No impostor information** — the plugin never asks for impostor flags (Red Alert leaves them out unless a link adds `&imp=1`, which the plugin strips), so a Stream Deck on camera or at a LAN gives nothing away.

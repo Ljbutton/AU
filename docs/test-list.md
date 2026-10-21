@@ -62,7 +62,6 @@ _OBS connected, Source Record installed._
 ## Red Alert graphics
 - [ ] No "Lobby … OFFLINE" bar over the Tournament Points ticker
 - [ ] Hide room code is off (Graphics) — turn it on and restart: it stays on.
-- [ ] On the player camera the win counter is at the top middle — clear of the host's chat in the corner picture.
 
 ## Red Alert Live desk
 _1440×900 or bigger window._
@@ -336,7 +335,7 @@ _Red Alert with the new Stream Deck state, Stream Deck app 6.5+ on the same PC, 
 - [ ] Press a player cam key in play — the camera cuts to them (tick). In a meeting — the key shows ARMED and the camera goes on when play resumes, no frozen picture.
 - [ ] Player cam key for a lobby whose host isn't sending a camera — NO CAM on the key, and a press shows the alert triangle (no tick).
 - [ ] Wide and Cut to cam — back to the whole map, then back to the same player's camera.
-- [ ] Toggles (mute all, hold, auto grid, auto intermission, auto switch, standings, alerts) — each shows ON/OFF (MUTED, HELD, PAUSED) matching Red Alert, and switches it when pressed; switching on the desk updates the key within a second.
+- [ ] Toggles (mute all, hold, auto grid, auto intermission, auto switch, standings, alerts) — each shows ON/OFF (MUTED, HELD, PAUSED) matching Red Alert, and switches it when pressed; switching on the desk updates the key within a second. _(changed in Red Alert 0.3.19: no auto intermission)_
 - [ ] Replay that, Play last, Back to live, Speed — replay plays the on-air lobby's last seconds; the speed key shows 100/50/25%.
 - [ ] Break keys and Panic — the break screen goes up; Panic fades to Be right back and mutes lobby voice in one press.
 - [ ] Press a key many times fast — only one request is sent at a time, nothing switches twice.
@@ -355,12 +354,12 @@ _Red Alert with the new Stream Deck state, Stream Deck app 6.5+ on the same PC, 
 - [ ] Red Alert: player camera key while the lobby is in a meeting answers 202 "armed" and the camera goes on by itself when play resumes; pressing it again disarms; with cameras off it is refused (409)
 - [ ] Red Alert: camera follow (cam/1/slot3, colour, next/prev) reaches the host's game within a couple of seconds and is sent again until the host has it
 - [ ] Red Alert: /deck/state?key=... waits and answers as soon as something changes (rev goes up); no impostor flags in it unless &imp=1; /deck/img keys draw lobby tally/phase and player heads
-- [ ] Red Alert: Hold on: auto grid, auto intermission, the camera going back to the map, auto switch off a dropped lobby, break end and armed cameras all wait, and the desk says what was held back; the caster's own switches still go _(changed in Red Alert 0.3.17: auto grid only fills Preview, and Hold stops that)_
+- [ ] Red Alert: Hold on: auto grid, auto intermission, the camera going back to the map, auto switch off a dropped lobby, break end and armed cameras all wait, and the desk says what was held back; the caster's own switches still go _(changed in Red Alert 0.3.17: auto grid only fills Preview, and Hold stops that; in 0.3.19: no auto intermission, and a montage going back to intermission waits too)_
 - [ ] Red Alert: Panic fades to be-right-back, mutes lobby voice, clears graphics, pauses alerts and holds; Undo puts the previous view, voice and alerts back
 - [ ] Red Alert: Panic, then put it right by hand (another lobby, hold off, voice back on). Later press BRB, Hold and Mute all yourself → the desk doesn't show "Undo panic"; Undo takes back the BRB (to the lobby you were on, not the one before the panic) and the voice stays muted
 - [ ] Red Alert: Panic, then OBS closes; the Stream Deck's Undo → refused (OBS isn't connected), still on be right back and held; reconnect OBS → the desk still says "Undo panic" and Undo puts the lobby back in OBS. (Or, with OBS still closed, the desk's Back undoes it and says OBS didn't switch)
 - [ ] Red Alert: arm a lobby's camera in a meeting, then put another lobby on stream (or intermission, or a sponsor break) by hand → a toast says the armed camera was cancelled; when the meeting ends the stream stays where you put it
-- [ ] Red Alert: arm a camera, auto intermission comes up → the camera doesn't cut over intermission; when intermission ends by itself, the camera goes on
+- [ ] Red Alert: arm a camera, auto intermission comes up → the camera doesn't cut over intermission; when intermission ends by itself, the camera goes on _(changed in Red Alert 0.3.19: no auto intermission; put intermission on by hand, end it by hand → the camera goes on)_
 - [ ] Red Alert: a player camera on stream, Intermission, then End the break (desk or `break/off?t=cut`) → back to that player camera, with a straight cut
 - [ ] Red Alert: Settings → Stream Deck → Lobby numbers: type 1 for the lobby that's 3 → it's 1, the old 1 is 3, and the Stream Deck's Lobby 1 key is that lobby; Renumber online lobbies 1…N → the lobbies sending now are 1, 2, 3…; both survive a restart
 - [ ] Red Alert: Replay "that" plays the on-air lobby's last ~8 s with no card; "last" plays the newest clip again; slow motion cycles 50%/25%/100% (quiet while slowed)
@@ -390,12 +389,12 @@ _Red Alert with the new Stream Deck state, Stream Deck app 6.5+ on the same PC, 
 - [ ] Replay that, Play last and ready-replay buttons; replay controls in the action panel with slow motion 100/50/25%; the cursor moves while playing
 - [ ] After-game prompt: buttons stay clickable while the countdown ticks; sponsor read Done/Snooze; Sponsor break button counts down
 - [ ] Panic: be right back, AUDIO "All muted", PANIC pill, "Undo panic" puts everything back
-- [ ] Hold blocks auto grid / intermission; the held-back switch shows as a toast and a warning with Release hold _(changed in Red Alert 0.3.17: auto grid only fills Preview)_
+- [ ] Hold blocks auto grid / intermission; the held-back switch shows as a toast and a warning with Release hold _(changed in Red Alert 0.3.17: auto grid only fills Preview; in 0.3.19: no auto intermission)_
 - [ ] Clicking cards, Save replay and player-card buttons always works (no lost clicks while polls run); tooltips stay up
 - [ ] Other pages (Health, Montages, Graphics, Standings, Sponsors, Twitch, OBS, Lobby voice, Players, Settings) still work; lobby voice Discord/Among Us/Sent meters move; Twitch clip picker keeps the chosen clip
 - [ ] Lobby pictures don't reconnect when another lobby starts sending
 - [ ] Settings → Stream Deck: link builder (lobby, camera slot/colour, cut or arm, switch) gives a working link; Copy all links; port shown with a warning if not 8768; Copy key; Download plugin and How to set it up links open
-- [ ] Overlay in OBS: switching layouts glides graphics smoothly; sabotage alarm pulses steadily; sponsor break video stops (no sound) when the break ends and restarts on the next break; win counter in the right place in intermission after a player cam; intermission storyline changes without the whole screen flickering; room-code cover fully hides the code
+- [ ] Overlay in OBS: switching layouts glides graphics smoothly; sabotage alarm pulses steadily; sponsor break video stops (no sound) when the break ends and restarts on the next break; win counter in the right place in intermission after a player cam; intermission storyline changes without the whole screen flickering; room-code cover fully hides the code _(changed in Red Alert 0.3.19: no win counter)_
 - [ ] REPLAY tag over replays shows the right title and sponsor and doesn't flicker
 
 
@@ -556,7 +555,7 @@ _Red Alert 0.3.18 on the caster's PC with OBS connected and the Stream Deck plug
 
 ### Red Alert: Best replay
 _Two or more lobbies playing, replays saving (Source Record)._
-- [ ] After a kill: **N** (or the Live desk's **Best replay** button) → Preview shows the clip's still, REPLAY and "Replay: LJ · … (MEDIUM)" (or HIGH, VERY HIGH, MUST SHOW); the toast ends "In Preview: Take plays it."; nothing changes on stream
+- [ ] After a kill: **N** (or the Live desk's **Best replay** button, **▶ Best** from Red Alert 0.3.19) → Preview shows the clip's still, REPLAY and "Replay: LJ · … (MEDIUM)" (or HIGH, VERY HIGH, MUST SHOW); the toast ends "In Preview: Take plays it."; nothing changes on stream
 - [ ] **Take** (Enter) → the replay plays in TT Replay, as Play last does, and Preview empties
 - [ ] Several replays ready: the highest tier comes first, and in the same tier a play from a lobby that wasn't on stream comes before one viewers saw; **N** again → the next one down, and after the last back to the best
 - [ ] A replay that has played, a **Replay that** clip, a montage or a play older than 3 minutes is never offered; with none left → "No replay worth showing yet." (or "No replay worth showing yet: one is still being saved.") and Preview doesn't change
@@ -580,7 +579,7 @@ _Two or more lobbies playing, replays saving (Source Record)._
 - [ ] Live desk → Breaks → **Starting soon** → TT Starting Soon on stream at once with the tournament's name and logo; the status bar says BREAK, the Program box STARTING SOON, and the Starting soon card shows
 - [ ] **Starts**: type 10 and **Set** → the card says "at <time> · 9:59 to go" and the stream counts down; 19:30 → counts down to 19:30 (a time already past today means tomorrow); empty → "No countdown"; "abc" → "Type minutes (10) or a time (19:30)."
 - [ ] Your line: type it and press **Set** (or Enter) → it shows on stream; it takes at most 120 characters
-- [ ] At zero the stream says "Starting now" and stays; while it's on, auto grid, auto intermission, armed cameras and the graphics queue wait, and lobby voice is silent
+- [ ] At zero the stream says "Starting now" and stays; while it's on, auto grid, auto intermission, armed cameras and the graphics queue wait, and lobby voice is silent _(changed in Red Alert 0.3.19: no auto intermission)_
 - [ ] Sponsors listed for `startingsoon` in sponsors.json take turns every 10 s; with none listed, the `break` sponsors do; **Export report** has "Starting soon screen" appearances
 - [ ] Click **Starting soon** again while it's on → the cursor goes to **Starts**; nothing switches
 - [ ] **Take** a lobby → the lobby comes on at once and no Starting soon graphic lingers on top of it
@@ -619,7 +618,7 @@ _OBS → Settings → Audio → Advanced → Monitoring Device set to the caster
 - [ ] While HEAR plays, set TT Cue to **Monitor and Output** in OBS (Advanced Audio Properties) → it's muted at once and goes back to Monitor Only, then plays again in your headphones only
 
 ### Red Alert: restarts and crashes
-- [ ] Turn on Hold, Auto grid, Auto intermission, set a countdown, Win counter: this round, Standings: whole tournament → close and reopen Red Alert → all still set (a countdown or timed hold that ran out meanwhile isn't)
+- [ ] Turn on Hold, Auto grid, Auto intermission, set a countdown, Win counter: this round, Standings: whole tournament → close and reopen Red Alert → all still set (a countdown or timed hold that ran out meanwhile isn't) _(changed in Red Alert 0.3.19: no Auto intermission or Win counter)_
 - [ ] With lobbies showing → close and reopen Red Alert (or reopen with the internet off) → the lobbies and their OBS sources are there at once; a lobby not sending yet says **CACHED** on its tile (hover: "Kept from before Red Alert restarted…") until the results channel confirms it, within a few seconds once Discord answers
 - [ ] A lobby whose live message was deleted meanwhile → it goes after the first poll
 - [ ] **Save support bundle** → no lobbies-cache.json in the zip, and no VDO.Ninja password in any file
@@ -653,3 +652,39 @@ _Their lobby on stream in Red Alert (and then in its Preview)._
 - [ ] Referee slot on but the mod in safe mode (the host plays as an ordinary player) → neither bar
 - [ ] The mod's status (`/api/status`) has `refSlotActive`: true with the slot on and no safe mode, false otherwise
 - [ ] The Button 0.1.67 with a mod from 0.1.66 → the bar shows with the referee slot on and no safe mode, and not otherwise
+
+### Red Alert: sponsor breaks can't be interrupted
+_A sponsor with the `break` placement; two or more lobbies sending._
+- [ ] Start a sponsor break, then cut to another lobby (Shift+1–9), **Take**, a tile's **CUT**, a Stream Deck Lobby key set to Cut, a player camera → each time the break carries on with that lobby on the left, the same sponsor and the same time left; the toast says "Sponsor break on (N s left): LJ is in the break's picture now."
+- [ ] With several lobbies in Preview, **Take** → the first of them goes into the break
+- [ ] During the break: **Be right back**, **Intermission**, **Starting soon**, **Sponsor**, **Replay that**, **Play last**, a ready replay and a montage → each refused with "A sponsor break is on: N s left. End break first."; the Stream Deck keys show the triangle (409)
+- [ ] When its time is up → full screen on the lobby that was in the break at that moment
+- [ ] **End break** (the button, or the Stream Deck's end the break) → full screen on the break's lobby at once
+- [ ] **Panic** during a break → Be right back at once
+- [ ] A MUST SHOW play in any lobby during the break → the break carries on
+- [ ] The break's lobby drops → a healthy lobby goes into the break (the LOBBY DOWN card says "… (the sponsor break carries on)"); with every lobby down, the break stays with RECONNECTING
+
+### Red Alert: no automatic screen changes for breaks
+- [ ] The Live desk's Auto group has only **Grid** and **Switch away**; the AUTO pill never says "inter"
+- [ ] Every lobby out of a game for 45 s → the BETWEEN ROUNDS card offers **Intermission** / **Not now**; wait a few minutes → nothing switches
+- [ ] In intermission, a lobby starts a game → the card says "LJ IS LIVE"; the stream stays on intermission until **Back to the game**
+- [ ] A montage played from intermission → back to intermission when it ends
+- [ ] Grid on stream, a new lobby starts sending, or a lobby goes to its menu → the grid doesn't change
+- [ ] A grid you picked (some lobbies in Preview, **Grid**, **Take**) → it keeps those lobbies; one of them drops → RECONNECTING for 45 s, then the rest close up in the same order
+- [ ] A lobby on stream drops → auto switch still moves off it (Undo / keep), and Be right back still comes and goes by itself when every lobby drops mid-game
+- [ ] A Stream Deck Toggle key still set to auto intermission → it reads AUTO INTER, *removed*, dimmed; a press shows the triangle and changes nothing; `deck/auto/intermission/toggle` → 410 "Automatic switching was removed: people switch the stream."
+- [ ] A settings.json from 0.3.18 with auto intermission on → Red Alert starts with no auto intermission and everything else as it was
+
+### Red Alert: visual fixes and no win counter
+_Live desk at 1600×900 and at 1920×1080._
+- [ ] No win counter on stream (the corner, Intermission, Be right back), none on the Graphics page, and no Today / Round on the intermission card
+- [ ] A broadcast.json from 0.3.18 with the win counter on → Red Alert starts and the Graphics page shows the rest as they were
+- [ ] Grid on stream with the stats ticker on → the bottom tiles and their status lines end above the ticker; ticker off → the tiles use the whole height
+- [ ] Action panel: the Replays row, then the Breaks rows, then the cards; only the cards scroll; in intermission or Starting soon that break's card comes first
+- [ ] A sponsor read and Starting soon (or Intermission) both fit without scrolling at both sizes
+- [ ] The Replays row shows only whole buttons; a long title ends in "…", with the whole title in its tooltip; the Best replay button reads **▶ Best**
+- [ ] Starting soon card: two rows, **Starts** with Set and the time, then **Line** with Set
+- [ ] The Program line says "by hand" for a switch from the desk or the Stream Deck, and "scene TT Full" for the scene; hovering shows the whole line
+- [ ] Four lobbies → four wide lobby tiles in one row
+- [ ] Twitch page with nothing logged yet → "Nothing yet."
+- [ ] Stream Deck + replay dial: the bottom hint "turn: scrub · push: play/pause" isn't cut off by the strip's border
