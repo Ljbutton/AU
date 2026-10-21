@@ -82,7 +82,7 @@ img.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 .05em;vert
 .tw-it .bar{height:7px;border-radius:4px;background:var(--panel);overflow:hidden}.tw-it .bar i{display:block;height:100%;background:#9146ff}
 .tw-feat{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 8px;align-items:center;font-size:13px}
 .tw-set{display:grid;gap:6px;font-size:13px}.tw-set label{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tw-set input[type=number]{width:80px}.tw-set #tw-client{flex:1;min-width:180px}
-.tw-log{max-height:220px;overflow:auto;font-size:12.5px;display:grid;gap:3px}.tw-log span{color:var(--muted);margin-right:6px;font-variant-numeric:tabular-nums}
+.tw-log{max-height:220px;overflow:auto;font-size:12.5px;display:grid;gap:3px}.tw-log:empty::before{content:"Nothing yet.";color:var(--muted)}.tw-log span{color:var(--muted);margin-right:6px;font-variant-numeric:tabular-nums}
 .tw-red{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 10px;border-radius:10px;background:var(--sunk);font-size:13px;margin-bottom:5px}
 .tw-red .fl{color:var(--danger);font-size:12px}
 .hl-list{display:grid;gap:5px;margin-top:8px}
@@ -112,6 +112,7 @@ img.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 .05em;vert
 .vo .mtr{height:7px;border-radius:4px;background:var(--panel);overflow:hidden}
 .vo .mtr i{display:block;height:100%;background:var(--good);transition:width .3s}
 .vo .ctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.vo .ctl label{display:inline-flex;align-items:center;gap:5px}
 .vo .ctl input[type=range]{width:90px}
 .vo .ctl input[type=number]{width:70px}
 .mt-list{display:grid;gap:6px;margin-top:8px}
@@ -459,23 +460,33 @@ kbd{display:inline-block;font:600 11.5px/1 var(--mono);padding:3px 6px;border:1p
 .seg.trans button{padding:5px 0 3px;text-align:center;font-size:13px}
 .seg.trans button.on::before{content:none}
 [data-layout].pick{outline:2px solid var(--good);outline-offset:-2px;color:var(--good)}
-.ld-act{min-width:0;min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:6px;background:#0d0d10;border:1px solid var(--line);padding:6px;height:calc(var(--pv) * 9 / 16 + 30px)}
-.act-scroll{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:6px;scrollbar-width:thin}
-.brk-bar{display:grid;gap:5px}
+/* The action panel: the Replays row and the Breaks rows stay where they are, one under the other; the cards
+   (replay transport, after-game prompts, sponsor reads, intermission, Starting soon) go under them and
+   scroll when they don't all fit. (The order is set here: the Breaks rows come last in the page.) */
+.ld-act{min-width:0;min-height:0;display:flex;flex-direction:column;gap:5px;background:#0d0d10;border:1px solid var(--line);padding:6px;height:calc(var(--pv) * 9 / 16 + 30px)}
+.ld-act>.rp-ready{order:1}
+.ld-act>.brk-bar{order:2;flex:none}
+.act-scroll{order:3;flex:1 1 auto;min-height:0;overflow:auto;overflow-anchor:none;display:flex;flex-direction:column;gap:5px;scrollbar-width:thin}
+.act-scroll>*{flex:none}
+/* The break that's on (intermission, Starting soon) has its card first, right under the Breaks rows. */
+.act-scroll>#inter-card,.act-scroll>#soon-card{order:-1}
+.brk-bar{display:grid;gap:4px}
 .brk-bar .lay-grp{gap:4px;flex-wrap:nowrap;min-width:0}
-.brk-bar .b{font-size:14px;padding:5px 8px 3px}
+.brk-bar .b{font-size:14px;padding:4px 8px 2px}
 .brk-bar .lay-h,.rp-ready .lay-h{width:auto;margin-right:4px}
 .lay-grp.auto .b.on{background:var(--good-soft);border-color:var(--good);color:#fff}
 .b.hold.on{background:var(--red);border-color:var(--red);color:#fff;animation:hlb 1s infinite}
 .b.panic{border-color:var(--red);color:#ff5a50;background:transparent}
 .b.panic.sure{background:var(--red);color:#fff;animation:hlb .5s infinite}
 .b.panic.on{background:var(--warn);border-color:var(--warn);color:#16120a}
-/* One line: as many of the newest ready replays as fit beside the buttons (prompts and reads below stay in view). */
-.rp-ready{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;overflow:hidden;flex:none}
+/* One line: as many of the newest ready replays as fit beside the buttons, each one whole (a long title ends
+   in "…", the full one is its tooltip). One that doesn't fit wraps to a second line, which is never shown. */
+.rp-ready{display:flex;flex-wrap:wrap;gap:20px 4px;align-items:center;overflow:hidden;flex:none;height:28px}
 .rp-ready>.b{flex:none}
 .rp-ready .b{font-size:14px;padding:4px 9px 2px}
 .rp-list{display:contents}
-.rpc{all:unset;box-sizing:border-box;cursor:pointer;display:inline-block;flex:0 0 auto;max-width:210px;padding:4px 8px;background:#141417;border:1px solid var(--line);font:600 12px/1.25 var(--round);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rp-list>.muted{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rpc{all:unset;box-sizing:border-box;cursor:pointer;display:inline-block;flex:1 1 150px;min-width:0;max-width:230px;padding:4px 8px;background:#141417;border:1px solid var(--line);font:600 12px/1.25 var(--round);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rpc:hover{border-color:var(--red)}
 .rpc b{color:#ff5a50}
 .ld-act .rp-card{margin:0;padding:6px 8px;gap:5px;background:#141417;border:1px solid var(--red);display:grid}
@@ -484,15 +495,22 @@ kbd{display:inline-block;font:600 11.5px/1 var(--mono);padding:3px 6px;border:1p
 .rp-top .b,.ld-act .rp-ctl .b{font-size:13px;padding:4px 7px 2px;min-width:0}
 .ld-act .rp-ctl{gap:3px;flex-wrap:wrap}
 .ld-act .rp-play{min-width:62px}
-.ld-act .prompt{padding:5px 8px;gap:6px}
+.ld-act .prompt{padding:4px 8px;gap:6px}
 .ld-act .prompt b{font-size:17px}
 .ld-act .prompt .b{font-size:14px;padding:4px 8px 2px}
 .ld-act .read{padding:5px 8px;gap:8px;grid-template-columns:auto minmax(0,1fr) auto}
-.ld-act .read .tg{font-size:14px}
+.ld-act .read .tg{font-size:12.5px;padding:4px 6px 1px}
 .ld-act .read .sc{font-size:13px;line-height:1.3}
+.ld-act .read .sc small{display:inline;margin-left:6px;font-size:11.5px}
 .ld-act .read .b{font-size:14px;padding:4px 8px 2px}
-.ld-act .inter-card{margin:0;padding:6px 8px;gap:6px}
+.ld-act .inter-card{margin:0;padding:5px 8px;gap:6px}
 .ld-act .inter-card .b{font-size:14px;padding:4px 8px 2px}
+.soon-card{display:grid;gap:5px}
+.soon-card .r{display:flex;gap:8px;align-items:center;min-width:0}
+.soon-card .r>*{flex:none}
+.soon-card .r input{padding-top:3px;padding-bottom:3px}
+.soon-card #soon-text{flex:1 1 auto;min-width:120px;width:auto}
+.soon-card .r .muted{min-width:0;flex:0 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rp-keymap{position:fixed;left:50%;top:12%;transform:translateX(-50%);width:min(900px,90vw);max-height:70vh;overflow:auto;display:grid;gap:8px}
 /* Lobby tiles: one per lobby */
 .ld-in{display:grid;grid-template-columns:repeat(var(--cols,6),minmax(0,1fr));gap:6px;margin:0}
@@ -569,7 +587,7 @@ kbd{display:inline-block;font:600 11.5px/1 var(--mono);padding:3px 6px;border:1p
 .cam-st:empty{display:none}
 .cam-st .live,.cline .live{font:700 10px/1 "Segoe UI",sans-serif;letter-spacing:.12em;color:#fff;background:var(--red);padding:3px 5px}
 .armed{font:700 10px/1 "Segoe UI",sans-serif;letter-spacing:.12em;color:#16120a;background:var(--warn);padding:3px 5px}
-.cams-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.cams-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(136px,1fr));gap:4px}
 .cams-grid .cchip{height:30px;justify-content:flex-start;padding:0 6px;font-size:12px;overflow:hidden;white-space:nowrap;min-width:0}
 .cams-grid .cchip span{overflow:hidden;text-overflow:ellipsis}
 .cams-grid .cchip img.sw{height:1.7em;flex:none}
@@ -627,6 +645,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .deck-out{margin-top:8px;grid-template-columns:40px minmax(0,1fr) auto}
 .deck-out #db-url{color:#fff}
 .deck-all{margin-top:8px}.deck-all summary{cursor:pointer;color:var(--muted);font-size:13px}
+#deck-links .url{grid-template-columns:minmax(220px,34%) minmax(0,1fr) auto}
 .deck-nums{margin-top:10px;padding:8px 10px;background:var(--sunk);font-size:13px}
 .dn-list{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:6px}
 .dn-list label{display:flex;gap:6px;align-items:center}
@@ -708,7 +727,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
         <div class="lay-col">
           <button class="b" type="button" data-layout="full" title="Preview full screen">Full</button><button class="b" type="button" data-layout="2up" title="Preview side by side">2-Up</button>
           <button class="b" type="button" data-layout="4up" title="Preview as a quad">Quad</button><button class="b" type="button" data-layout="grid" title="Every lobby at once (key G)">Grid</button>
-          <button class="b" type="button" data-layout="cams" id="desk-cams" title="The lobbies in Preview as player cameras: one full screen (its whole map in the corner), two side by side, three or four in a quad. Back to the whole map by itself at a meeting or when the game ends.">Cams</button><button class="b" type="button" id="org-jump" title="The best recent replay (the highest rated one not played yet) into Preview: Take plays it (key N)">Best replay</button>
+          <button class="b" type="button" data-layout="cams" id="desk-cams" title="The lobbies in Preview as player cameras: one full screen (its whole map in the corner), two side by side, three or four in a quad. Back to the whole map by itself at a meeting or when the game ends.">Cams</button><button class="b" type="button" id="org-jump" title="Best replay: the best recent replay (the highest rated one not played yet) into Preview. Take plays it (key N)">▶ Best</button>
         </div>
         <div class="lay-col"><button class="b" type="button" id="stage-clear" title="Clear Preview (Esc)">Clear</button><button class="b" type="button" id="ld-back" title="Back: undo the last switch (or a panic, or an auto switch)">Back</button></div>
       </div>
@@ -716,6 +735,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
         <div class="mon-box"><div class="sch" id="pgm-sch"></div><img id="pgm-img" alt="What OBS is sending" hidden><div class="air-slots" id="air-slots"></div></div>
         <div class="pop air-pick" id="air-pick" hidden></div></section>
       <aside class="ld-act">
+        <div class="rp-ready" id="rp-ready"><span class="lay-h">Replays</span><button class="b" type="button" data-rdo="that" title="Save the last seconds of the lobby on stream and play it as soon as it's saved (no card needed)">Replay that</button><button class="b" type="button" data-rdo="last" title="Play the newest saved replay">Play last</button><span class="rp-list" id="rp-list"></span></div>
         <div class="act-scroll">
           <div class="rp-card" id="rp-card" hidden>
             <div class="rp-top"><span class="rp-badge">REPLAY</span><b class="rp-title" id="rp-what"></b><button class="b" type="button" id="rp-keys" title="See and change the replay keys">Keys</button><button class="b primary" type="button" data-rp="live" title="Back to live">Back to live</button></div>
@@ -732,7 +752,6 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
               <button class="b" type="button" data-rp="angle" id="rp-angle" hidden title="The other angle of this moment: the player camera's close-up, or the whole map (key P)">🎥 Cam</button>
             </div>
           </div>
-          <div class="rp-ready" id="rp-ready"><span class="lay-h">Replays</span><button class="b" type="button" data-rdo="that" title="Save the last seconds of the lobby on stream and play it as soon as it's saved (no card needed)">Replay that</button><button class="b" type="button" data-rdo="last" title="Play the newest saved replay">Play last</button><span class="rp-list" id="rp-list"></span></div>
           <div class="prompts" id="ag-prompts"></div>
           <div class="reads" id="reads"></div>
           <div class="card inter-card" id="inter-card" hidden></div>
@@ -1356,10 +1375,11 @@ function renderBar() {
   setClass($('onair'), 'onair ' + (waiting ? 'wait' : kind));
   setText($('oa-tag'), waiting ? 'SWITCHING' : empty ? 'EMPTY' : kind === 'live' ? (air.layout === 'replay' ? 'REPLAY' : 'PROGRAM') : kind === 'brk' ? 'BREAK' : 'OFF AIR');
   setText($('oa-what'), empty ? `Nothing on · ${LAYOUT_NAME[air.layout]} has no lobby` : air.layout === 'none' ? (air.scene ? 'OBS: ' + air.scene : 'Nothing on stream') : `${LAYOUT_NAME[air.layout] || air.layout}${lobbies.length ? ' · ' + lobbies.join(' · ') : ''}`);
-  const sub = air.since ? `${air.by === 'obs' ? 'switched in OBS' : air.by === 'health' ? 'switched by itself (a lobby dropped)' : air.by === 'auto' || air.by === 'armed' ? 'switched by itself' : air.by === 'deck' ? 'from the Stream Deck or here' : 'from here'}${air.scene ? ' · OBS scene ' + air.scene : ''}` : '';
+  const sub = air.since ? `${air.by === 'obs' ? 'switched in OBS' : air.by === 'health' ? 'switched by itself (a lobby dropped)' : air.by === 'auto' || air.by === 'armed' ? 'switched by itself' : 'by hand'}${air.scene ? ' · scene ' + air.scene : ''}` : '';
   const prob = OBS && OBS.connected && OBS.switchProblem;
   setText($('oa-sub'), prob ? prob : waiting ? `Waiting for OBS to show ${OBS.switchingTo}…` : OBS && OBS.connected && air.layout !== 'none' && air.layout !== 'replay' && !air.scene ? 'Not confirmed by OBS yet' : sub);
   $('oa-sub').classList.toggle('bad', !!prob);
+  $('oa-sub').title = $('oa-sub').textContent;
   // The stream and the recording, as OBS says.
   const out = OBS && OBS.connected && OBS.output;
   setHtml($('oa-out'), !out || !out.known ? '' : `<span class="${out.streaming ? 'on' : 'off'}${out.reconnecting ? ' rc' : ''}">${out.reconnecting ? '● RECONNECTING' : out.streaming ? '● STREAMING ' + (out.streamTime || '') : 'NOT STREAMING'}</span><span class="${out.recording ? 'on' : 'off'}">${out.recording ? (out.recordPaused ? '❚❚ REC PAUSED' : '● REC ' + (out.recordTime || '')) : 'NOT RECORDING'}</span>`);
@@ -1611,7 +1631,8 @@ function renderTiles() {
   const grid = $('mv-grid'), d = DESK;
   const urls = new Map(PREVIEWS.map(p => [p.lobby, p.url]));
   const n = d.lobbies.length;
-  const cols = String(n <= 6 ? 6 : n <= 10 ? n : Math.max(8, Math.ceil(n / 2)));
+  // A few lobbies fill the width (four lobbies: four wide tiles), never fewer than four columns.
+  const cols = String(n <= 4 ? 4 : n <= 10 ? n : Math.max(8, Math.ceil(n / 2)));
   if (grid.style.getPropertyValue('--cols') !== cols) grid.style.setProperty('--cols', cols);
   const have = new Map([...grid.children].map(el => [el.dataset.lobby, el]));
   const pv = d.preview || { slots: [] }, ready = new Set((RP && RP.ready || []).map(c => c.lobby));
@@ -2339,11 +2360,11 @@ function renderSoon(d) {
   const key = JSON.stringify([so.at, so.text]);
   if (key !== soonKey && !card.contains(document.activeElement) && !(ptrDown && card.contains(ptrDown))) {
     soonKey = key;
-    card.innerHTML = `<span class="tag">STARTING SOON</span>
+    card.innerHTML = `<div class="r"><span class="tag" title="Take a lobby to start the show">STARTING SOON</span>
       <span class="muted" style="font-size:13px">Starts</span><input id="soon-at" placeholder="10 (min) or 19:30" style="width:130px" title="Minutes from now (10) or a time (19:30). Empty: no countdown.">
-      <button class="b" type="button" data-soon="time">Set</button><span class="muted" id="soon-when" style="font-size:13px"></span>
-      <input id="soon-text" placeholder="A line on screen (optional)" maxlength="120" style="flex:1;min-width:150px" value="${esc(so.text || '')}"><button class="b" type="button" data-soon="text">Set</button>
-      <span class="muted" style="font-size:12px">Take a lobby to start the show.</span>`;
+      <button class="b" type="button" data-soon="time">Set</button><span class="muted" id="soon-when" style="font-size:13px"></span></div>
+      <div class="r"><span class="muted" style="font-size:13px">Line</span><input id="soon-text" placeholder="A line on screen (optional)" maxlength="120" title="A line of your own on the Starting soon screen" value="${esc(so.text || '')}"><button class="b" type="button" data-soon="text">Set</button>
+      <span class="muted" style="font-size:12px" title="Take a lobby to start the show.">Take a lobby to start the show.</span></div>`;
   }
   const at = so.at ? new Date(so.at) : null;
   setText($('soon-when'), !at ? 'No countdown' : so.left > 0 ? `at ${at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${fmtShot(so.left)} to go` : 'Starting now');
