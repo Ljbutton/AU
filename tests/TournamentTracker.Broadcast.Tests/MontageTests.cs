@@ -293,7 +293,7 @@ public class MontageTests : IDisposable
     }
 
     [Fact]
-    public void A_sponsor_break_splits_the_screen_ends_by_itself_and_a_must_show_play_cuts_back()
+    public void A_sponsor_break_splits_the_screen_ends_by_itself_and_a_must_show_play_doesnt_cut_it_short()
     {
         var desk = new CasterDesk(null, () => _clock.Now, new PriorityConfig(), null, _dir.Path);
         EditSponsors("{\"sponsors\":[{\"name\":\"Acme\",\"placements\":[\"break\",\"grid\",\"standings\"],\"breakSeconds\":20}]}");
@@ -312,13 +312,22 @@ public class MontageTests : IDisposable
             Assert.Equal("full", desk.OnAir.Layout);
             Assert.Equal(21, desk.Sponsors.Appearances().Single().Seconds);
 
-            // Again, and a must-show play in another lobby: straight to it, full screen.
+            // Again, and a must-show play in another lobby: the break carries on (its card is on the desk).
+            var made = new List<Card>();
+            desk.CardMade += made.Add;
             desk.StartBreak();
             _clock.Advance(3);
             desk.Apply(JsonSerializer.Serialize(new { type = "event", kind = "eject", lobby = "MAL", ejected = new { id = 3, name = "Sam", color = 2 }, wasImpostor = true, t = new DateTimeOffset(_clock.Now).ToUnixTimeMilliseconds() }));
-            Assert.Equal("full", desk.OnAir.Layout);
-            Assert.Equal("MAL", desk.OnAir.Slots[0]);
+            desk.Tick();
+            Assert.Contains(made, c => c.Lobby == "MAL" && c.Tier == "must");
+            Assert.Equal(("break", "LJ"), (desk.OnAir.Layout, desk.OnAir.Slots[0]));
+            Assert.Equal("Acme", desk.Break!.Value.Sponsor.Name);
+            Assert.Single(desk.Sponsors.Appearances());                    // the break's appearance is still open
+            // End break: back to LJ full screen, and its appearance is logged.
+            desk.EndBreak("button");
+            Assert.Equal(("full", "LJ"), (desk.OnAir.Layout, desk.OnAir.Slots[0]));
             Assert.Null(desk.Break);
+            Assert.Equal(2, desk.Sponsors.Appearances().Count);
 
             // The grid's empty tile goes to a grid sponsor (3 lobbies in a 2×2).
             Snap("LJ"); Snap("MAL"); Snap("ZED");

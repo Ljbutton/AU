@@ -29,8 +29,8 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>The caster's line on the screen ("" for none).</summary>
         public string SoonText { get { lock (_lock) return _soonText; } }
 
-        /// <summary>Starting soon on stream (at once, like the other breaks).</summary>
-        public OnAir ShowStartingSoon(string by = "button", string? transition = null) => PutOn(() =>
+        /// <summary>Starting soon on stream (at once, like the other breaks; not over a sponsor break).</summary>
+        public OnAir ShowStartingSoon(string by = "button", string? transition = null) => BreakRefusal() != null ? OnAir : PutOn(() =>
         {
             if (_onAir.Layout is not ("intermission" or "replay" or "none" or "slate" or "soon")) _beforeSoon = _onAir;
             return new OnAir { Layout = "soon", Slots = new List<string?>(), By = by, Since = _clock(), Transition = transition };

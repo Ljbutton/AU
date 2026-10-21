@@ -698,4 +698,100 @@ public class StreamDeckTests : IAsyncLifetime
         Assert.DoesNotContain("killed", plain.GetRawText());
         Assert.Equal("Ann killed Cy in Electrical", (await State("&imp=1")).GetProperty("replay").GetProperty("last").GetProperty("title").GetString());
     }
+
+    // ---- Removed automatic switching, and sponsor breaks that can't be interrupted ----------------
+
+    [Fact]
+    public async Task An_old_auto_intermission_key_or_link_is_told_it_was_removed_and_nothing_changes()
+    {
+        foreach (var how in new[] { "toggle", "on", "off" })
+        {
+            var (status, body) = await Press($"auto/intermission/{how}");
+            Assert.Equal((HttpStatusCode)410, status);
+            Assert.False(body.GetProperty("ok").GetBoolean());
+            Assert.Equal("Automatic switching was removed: people switch the stream.", body.GetProperty("message").GetString());
+        }
+        // Its state stays readable for older plugins (always off), and its key picture still draws.
+        Assert.False((await State()).GetProperty("auto").GetProperty("intermission").GetBoolean());
+        Assert.Contains("OFF", await _deck.GetStringAsync($"deck/img/toggle/autointermission.svg?key={_key}"));
+        // The desk page's old toggle too; auto switch and auto grid are still there.
+        var desk = await Post("app/admin/do", new { path = "auto/intermission/toggle" });
+        Assert.Equal(410, desk.GetProperty("status").GetInt32());
+        Assert.Equal(HttpStatusCode.OK, (await Press("auto/switch/off")).Status);
+        Assert.False(Desk.HealthConfig.AutoSwitch);
+        Assert.Equal(HttpStatusCode.OK, (await Press("auto/grid/on")).Status);
+        // Settings → Stream Deck lists no link for it.
+        Assert.DoesNotContain("auto/intermission", (await Get("app/admin/deck")).GetProperty("links").GetRawText());
+    }
+
+    private void BreakSponsor()
+    {
+        File.WriteAllText(Path.Combine(_dir.Path, "RedAlert", SponsorBook.FileName), "{\"sponsors\":[{\"name\":\"Acme\",\"placements\":[\"break\"],\"breakSeconds\":300}]}");
+        Desk.Sponsors.Refresh(force: true);
+    }
+
+    [Fact]
+    public async Task A_sponsor_break_carries_on_through_lobby_keys_and_refuses_whole_screen_ones_until_End_break()
+    {
+        await ConnectObs();
+        BreakSponsor();
+        Snap("Lobby 3", "ingame");
+        Snap("Lobby 4", "ingame");
+        Assert.Equal(HttpStatusCode.OK, (await Press("lobby/3", "&t=cut")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await Press("break/sponsor")).Status);
+        Assert.Equal(("break", "Lobby 3"), (Desk.OnAir.Layout, Desk.OnAir.Slots[0]));
+        var until = Desk.Break!.Value.Until;
+
+        // A lobby key: the break carries on with Lobby 4 in its picture.
+        var (status, body) = await Press("lobby/4");
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Matches(@"^Sponsor break on \(\d+ s left\): Lobby 4 is in the break's picture now\.$", body.GetProperty("message").GetString());
+        Assert.Equal(("break", "Lobby 4"), (Desk.OnAir.Layout, Desk.OnAir.Slots[0]));
+        // Preview and Take, and a player camera cut: the same.
+        Assert.Equal(HttpStatusCode.OK, (await Press("pvw/lobby/3")).Status);
+        (status, body) = await Press("take");
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Contains("Lobby 3 is in the break's picture now.", body.GetProperty("message").GetString());
+        (status, body) = await Press("cam/4/slot1");
+        Assert.True(status is HttpStatusCode.OK or HttpStatusCode.Accepted, body.GetProperty("message").GetString());
+        Assert.Contains("Lobby 4 is in the break's picture now.", body.GetProperty("message").GetString());
+        Assert.Equal(("break", "Lobby 4", "Acme", until), (Desk.OnAir.Layout, Desk.OnAir.Slots[0], Desk.Break!.Value.Sponsor.Name, Desk.Break.Value.Until));
+
+        // Whole-screen switches: refused, with how long is left.
+        foreach (var path in new[] { "break/brb", "break/intermission", "break/soon", "break/sponsor", "replay/that" })
+        {
+            (status, body) = await Press(path);
+            Assert.Equal(HttpStatusCode.Conflict, status);
+            Assert.Matches(@"^A sponsor break is on: \d+ s left\. End break first\.$", body.GetProperty("message").GetString());
+        }
+        var show = await Post("app/admin/show", new { lobby = "", layout = "slate" });
+        Assert.False(show.GetProperty("ok").GetBoolean());
+        Assert.StartsWith("A sponsor break is on:", show.GetProperty("message").GetString());
+        Assert.False((await Post("app/admin/intermission", new { action = "on" })).GetProperty("ok").GetBoolean());
+        Assert.Equal("break", Desk.OnAir.Layout);
+        Assert.Empty(Desk.Sponsors.Appearances());                          // its appearance is still open
+        await Until(() => _obs!.Program == "TT Sponsor Break");
+
+        // End break: the lobby it has now, full screen; its appearance is logged.
+        (status, _) = await Press("break/off");
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal(("full", "Lobby 4"), (Desk.OnAir.Layout, Desk.OnAir.Slots[0]));
+        Assert.Null(Desk.Break);
+        Assert.Equal("Acme", Desk.Sponsors.Appearances().Single().Sponsor);
+    }
+
+    [Fact]
+    public async Task Panic_ends_a_sponsor_break_at_once()
+    {
+        await ConnectObs();
+        BreakSponsor();
+        Snap("Lobby 3", "ingame");
+        Assert.Equal(HttpStatusCode.OK, (await Press("lobby/3", "&t=cut")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await Press("break/sponsor")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await Press("panic")).Status);
+        Assert.Equal("slate", Desk.OnAir.Layout);
+        Assert.Null(Desk.Break);
+        Assert.Single(Desk.Sponsors.Appearances());
+        await Until(() => _obs!.Program == "TT Be Right Back");
+    }
 }

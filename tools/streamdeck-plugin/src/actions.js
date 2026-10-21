@@ -37,11 +37,19 @@ export const TOGGLES = {
 	cue: { path: "voice/cue", label: "HEAR PREVIEW", onColour: "#46c28b", onInk: "#0b0b0d" },
 	hold: { path: "hold", label: "HOLD", onText: "HELD", onColour: "#ffc15a", onInk: "#0b0b0d" },
 	autogrid: { path: "auto/grid", label: "AUTO GRID" },
-	autointermission: { path: "auto/intermission", label: "AUTO INTERMISSION" },
 	autoswitch: { path: "auto/switch", label: "AUTO SWITCH" },
 	standings: { path: "gfx/standings", label: "STANDINGS" },
 	alerts: { path: "gfx/alerts", label: "ALERTS", offText: "PAUSED" },
 };
+
+/**
+ * Toggles Red Alert no longer has (people switch the stream): a key still set to one draws as removed
+ * and says so when pressed, without sending anything (it never turns into another toggle).
+ */
+export const REMOVED_TOGGLES = {
+	autointermission: { label: "AUTO INTER" },
+};
+export const AUTO_REMOVED = "Automatic switching was removed: people switch the stream.";
 
 const REPLAY_OPS = {
 	best: { title: "BEST REPLAY", icon: "replay" },
@@ -351,10 +359,12 @@ const toggleAction = {
 	uuid: id("toggle"),
 	defaults: { which: "mute", press: "toggle" },
 	request(s) {
+		if (Object.hasOwn(REMOVED_TOGGLES, s.which)) return refuse(AUTO_REMOVED);
 		const which = pick(s.which, Object.keys(TOGGLES), "mute");
 		return go(`${TOGGLES[which].path}/${pick(s.press, ["toggle", "on", "off"], "toggle")}`);
 	},
 	view(s, state, ctx) {
+		if (Object.hasOwn(REMOVED_TOGGLES, s.which)) return { ...base(ctx), type: "label", title: REMOVED_TOGGLES[s.which].label, sub: "removed", dim: true };
 		const which = pick(s.which, Object.keys(TOGGLES), "mute");
 		const t = TOGGLES[which];
 		const on = toggleOn(state, which);

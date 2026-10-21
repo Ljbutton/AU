@@ -16,7 +16,8 @@ namespace TournamentTracker.App.Broadcast
     /// </summary>
     /// <remarks>
     /// Every answer is JSON {ok, message} with a status the key can show: 200 done, 202 accepted
-    /// (queued, or armed for when play resumes), 401 wrong key, 404 no such action or lobby, 409
+    /// (queued, or armed for when play resumes), 401 wrong key, 404 no such action or lobby, 410 an
+    /// action that was removed (auto intermission: people switch the stream), 409
     /// refused (with why), 423 locked (or switching held), 500 it went wrong on the way (with what, e.g.
     /// OBS not answering), 503 OBS isn't connected (nothing was done; the desk's own switches go through
     /// without OBS, and say so). /deck/hello alone answers without the key.
@@ -119,8 +120,18 @@ namespace TournamentTracker.App.Broadcast
         /// </summary>
         private bool NoObsFor(bool requireObs) => requireObs && !ObsLive;
 
-        /// <summary>A switch's answer, saying when OBS didn't switch with it.</summary>
-        private (int Status, string Message) Switched(string said) => (200, ObsLive ? said : said + ObsDidnt);
+        /// <summary>
+        /// A switch's answer, saying when OBS didn't switch with it. A lobby switch during a sponsor break
+        /// went into the break's picture (the break carries on): it says so instead.
+        /// </summary>
+        private (int Status, string Message) Switched(string said)
+        {
+            if (_desk is { } desk && desk.BreakSaid(desk.OnAir) is { } inBreak) said = inBreak;
+            return (200, ObsLive ? said : said + ObsDidnt);
+        }
+
+        /// <summary>What an old Stream Deck key or link for a removed automatic switch is told.</summary>
+        internal const string AutoRemoved = "Automatic switching was removed: people switch the stream.";
 
         // ---- Player cameras --------------------------------------------------------------------------
 
@@ -221,6 +232,8 @@ namespace TournamentTracker.App.Broadcast
             var air = desk.OnAir;
             bool among = air.Layout == "cams" && air.Slots.Any(s => string.Equals(s, lobby, StringComparison.OrdinalIgnoreCase));
             if (!among) desk.Show(lobby, "cam", null, null, "deck", transition);
+            // A sponsor break on: that lobby went into the break's picture, and the break carries on.
+            if (desk.BreakSaid(desk.OnAir) is { } inBreak) return (paused.Length > 0 ? 202 : 200, inBreak + paused + (ObsLive ? "" : ObsDidnt));
             return (paused.Length > 0 ? 202 : 200, (pick.HasValue ? $"{lobby}: player camera on {name}." : $"{lobby}: player camera (it picks who to follow).") + paused + (ObsLive ? "" : ObsDidnt));
         }
 
@@ -316,7 +329,7 @@ namespace TournamentTracker.App.Broadcast
             }
             else p = new PanicState { Air = desk.OnAir, MuteAll = obs?.Settings.Voice.MuteAll ?? false, Hold = desk.HoldNow(), AlertsPaused = desk.Alerts.Settings.Paused };
             desk.SetHold(true, null, PanicWhy);
-            p.Slate = desk.ShowSlate("deck", "fade");
+            p.Slate = desk.ShowSlate("deck", "fade", force: true);      // over a sponsor break too: safety first
             desk.Graphics.Clear();
             desk.HidePlayerCard();
             desk.Alerts.SetPaused(true);
@@ -533,6 +546,8 @@ namespace TournamentTracker.App.Broadcast
                 case "break":
                 {
                     if (noObs && what != "off") return (503, NoObs);
+                    // A sponsor break isn't interrupted by another whole-screen break: End break first.
+                    if (what is "brb" or "intermission" or "soon" or "sponsor" && desk.BreakRefusal() is { } inBreak) return (409, inBreak);
                     switch (what)
                     {
                         case "brb": desk.ShowSlate("deck", t); return Switched("On stream: Be right back.");
@@ -593,9 +608,10 @@ namespace TournamentTracker.App.Broadcast
                     switch (which)
                     {
                         case "grid": desk.AutoGrid = OnOff(how, desk.AutoGrid); return (200, desk.AutoGrid ? "Auto grid on." : "Auto grid off.");
-                        case "intermission": desk.AutoIntermission = OnOff(how, desk.AutoIntermission); return (200, desk.AutoIntermission ? "Auto intermission on." : "Auto intermission off.");
+                        // Auto intermission is gone: an old key or link says so (nothing changes).
+                        case "intermission": return (410, AutoRemoved);
                         case "switch": return (200, desk.SetAutoSwitch(OnOff(how, desk.HealthConfig.AutoSwitch)));
-                        default: return (404, "Auto: grid, intermission or switch.");
+                        default: return (404, "Auto: grid or switch.");
                     }
                 }
                 case "undo":
@@ -611,6 +627,7 @@ namespace TournamentTracker.App.Broadcast
                         return Switched($"Back to what you had. Auto switch leaves {note.Lobby} alone until it comes back and drops again.");
                     }
                     if (noObs) return (503, NoObs);
+                    if (desk.BackRefused() is { } inBreak) return (409, inBreak);
                     var back = desk.Back();
                     return back == null ? (409, "Nothing to undo.") : Switched($"Back to {LayoutName(back.Layout)}: {string.Join(", ", back.Slots.Where(x => x != null))}.");
                 }
@@ -719,6 +736,7 @@ namespace TournamentTracker.App.Broadcast
                 {
                     var air = desk.OnAir;
                     if (air.Layout == "replay") return (409, "A replay is on: go back to live first.");
+                    if (desk.BreakRefusal() is { } inBreak) return (409, inBreak);
                     var lobby = air.Slots.FirstOrDefault(x => x != null);
                     if (lobby == null) return (409, "No lobby on stream to replay.");
                     var clip = replays.SaveNow(lobby);
@@ -817,7 +835,6 @@ namespace TournamentTracker.App.Broadcast
                 L("Breaks", "Undo (the panic, an auto switch, or the last switch)", "undo"),
                 L("Automation", "Hold switching (on, off or toggle at the end)", "hold/toggle"),
                 L("Automation", "Auto grid", "auto/grid/toggle"),
-                L("Automation", "Auto intermission", "auto/intermission/toggle"),
                 L("Automation", "Auto switch off a lobby that drops", "auto/switch/toggle"),
                 L("Graphics", "Standings on stream", "gfx/standings/toggle"),
                 L("Graphics", "Off-screen alerts", "gfx/alerts/toggle"),

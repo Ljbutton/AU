@@ -4,6 +4,7 @@ import { test } from "node:test";
 
 import { ACTIONS, BY_UUID, PLUGIN_UUID, TOGGLES, camCutRequest, customRequest, scrubStep, settingsOf } from "../src/actions.js";
 import { sampleState } from "./fixtures.js";
+import { render } from "../src/svg.js";
 
 const P = `${PLUGIN_UUID}.`;
 const req = (name, settings, state = sampleState(), pending = null) => {
@@ -148,13 +149,24 @@ test("Panic shows a panic that is on and undoes only that; Undo is lit while it 
 });
 
 test("Toggles go to their own paths: toggle by default, or always on or off", () => {
-	const paths = { mute: "voice/mute", cue: "voice/cue", hold: "hold", autogrid: "auto/grid", autointermission: "auto/intermission", autoswitch: "auto/switch", standings: "gfx/standings", alerts: "gfx/alerts" };
+	const paths = { mute: "voice/mute", cue: "voice/cue", hold: "hold", autogrid: "auto/grid", autoswitch: "auto/switch", standings: "gfx/standings", alerts: "gfx/alerts" };
 	assert.deepEqual(Object.keys(TOGGLES).sort(), Object.keys(paths).sort());
 	for (const [which, path] of Object.entries(paths)) {
 		assert.deepEqual(req("toggle", { which }), { path: `${path}/toggle`, query: {} });
 		assert.deepEqual(req("toggle", { which, press: "on" }), { path: `${path}/on`, query: {} });
 		assert.deepEqual(req("toggle", { which, press: "off" }), { path: `${path}/off`, query: {} });
 	}
+});
+
+test("A key still set to auto intermission (removed) says so when pressed and never becomes another toggle", () => {
+	for (const press of ["toggle", "on", "off"])
+		assert.deepEqual(req("toggle", { which: "autointermission", press }), { error: "Automatic switching was removed: people switch the stream." });
+	const v = view("toggle", { which: "autointermission" });
+	assert.equal(v.type, "label");
+	assert.equal(v.title, "AUTO INTER");
+	assert.equal(v.sub, "removed");
+	assert.equal(v.dim, true);
+	assert.ok(render(v).includes("AUTO INTER") && render(v).includes("removed"), "its key art still draws");
 });
 
 test("Custom path is tidied, and never carries a key or the impostor flag", () => {

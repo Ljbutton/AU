@@ -134,7 +134,7 @@
 			"Name": "Toggle",
 			"UUID": "com.ljbutton.redalert.toggle",
 			"Icon": "imgs/actions/toggle",
-			"Tooltip": "Mute all, hold, auto grid, auto intermission, auto switch, standings or alerts, showing whether each is on.",
+			"Tooltip": "Mute all, hold, auto grid, auto switch, standings or alerts, showing whether each is on.",
 			"Controllers": [
 				"Keypad"
 			],

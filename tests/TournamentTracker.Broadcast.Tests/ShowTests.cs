@@ -91,7 +91,7 @@ public class ShowTests : IDisposable
     // ---- Part 19A --------------------------------------------------------------------------------
 
     [Fact]
-    public void Between_rounds_intermission_is_offered_or_comes_up_by_itself_and_a_lobby_going_live_ends_it()
+    public void Between_rounds_intermission_is_only_offered_and_a_lobby_going_live_is_only_said()
     {
         Snap("LJ", "lobby"); Snap("MAL", "lobby");
         _desk.Show("LJ");
@@ -101,9 +101,13 @@ public class ShowTests : IDisposable
         _desk.Tick();
         Assert.True(_desk.IntermissionOffer);
         Assert.Equal("full", _desk.OnAir.Layout);
+        // Every lobby quiet for minutes: still only the offer, nothing switches.
+        for (int i = 0; i < 300; i++) { _clock.Advance(1); if (i % 5 == 0) { Snap("LJ", "lobby"); Snap("MAL", "lobby"); } _desk.Tick(); }
+        Assert.Equal(("full", "LJ"), (_desk.OnAir.Layout, _desk.OnAir.Slots[0]));
+        Assert.True(_desk.IntermissionOffer);
 
-        _desk.AutoIntermission = true;
-        _desk.Tick();
+        // A person puts it on (the offer's Intermission button).
+        _desk.ShowIntermission();
         Assert.Equal("intermission", _desk.OnAir.Layout);
         Assert.Null(_desk.OnAir.Label("LJ"));
         _desk.NextRoundAt = _clock.Now.AddMinutes(10);
@@ -113,20 +117,13 @@ public class ShowTests : IDisposable
         Assert.Equal(JsonValueKind.Object, Broadcast().GetProperty("wins").ValueKind);   // the win counter is part of it
         Assert.Empty(Broadcast().GetProperty("slots").EnumerateArray());
 
-        // A lobby starts: back by itself (auto) to it.
-        Snap("MAL", "ingame");
-        _desk.Tick();
-        Assert.Equal("full", _desk.OnAir.Layout);
-        Assert.Equal("MAL", _desk.OnAir.Slots[0]);
-
-        // By hand: it stays, and says which lobby went live.
-        _desk.AutoIntermission = false;
-        _desk.ShowIntermission();
-        _desk.Tick();
+        // A lobby starts: intermission stays, and the desk says which lobby went live.
+        for (int i = 0; i < 60; i++) { _clock.Advance(1); Snap("MAL", "ingame"); Snap("LJ", "lobby"); _desk.Tick(); }
         Assert.Equal("intermission", _desk.OnAir.Layout);
         Assert.Equal("MAL", _desk.LiveDuringIntermission);
+        // Ended by a person: back to the lobby that went live.
         _desk.EndIntermission();
-        Assert.Equal("MAL", _desk.OnAir.Slots[0]);
+        Assert.Equal(("full", "MAL"), (_desk.OnAir.Layout, _desk.OnAir.Slots[0]));
     }
 
     // ---- Parts 20 and 21 -------------------------------------------------------------------------

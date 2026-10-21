@@ -392,7 +392,14 @@ namespace TournamentTracker.App.Broadcast
             {
                 switch (air.Layout)
                 {
-                    case "full" or "break" when air.Slots.FirstOrDefault() is { } on && FreshlyDown(on):
+                    // A sponsor break carries on: a healthy lobby goes into its picture (none: the break stays, RECONNECTING).
+                    case "break" when air.Slots.FirstOrDefault() is { } inBreak && FreshlyDown(inBreak):
+                        from = inBreak;
+                        moved = BreakAwayFrom(inBreak);
+                        changed = moved != null;
+                        if (moved == null) Handled(inBreak);
+                        break;
+                    case "full" when air.Slots.FirstOrDefault() is { } on && FreshlyDown(on):
                         from = on;
                         moved = AwayFrom(on);
                         changed = true;
@@ -477,8 +484,23 @@ namespace TournamentTracker.App.Broadcast
             return "intermission";
         }
 
-        /// <summary>"Technical difficulties: be right back", with the standings and storylines taking turns.</summary>
-        public OnAir ShowSlate(string by = "button", string? transition = null) => PutOn(() =>
+        /// <summary>
+        /// In a sponsor break whose lobby is down: the lobby auto switch would pick (a hot one, else the top
+        /// healthy one) goes into the break's picture, and the break carries on. Null when none is healthy.
+        /// </summary>
+        private string? BreakAwayFrom(string down)
+        {
+            var healthy = Board.Ranking().Where(r => r.Online && !IsDown(r.Lobby) && r.Phase != "menu" && !string.Equals(r.Lobby, down, StringComparison.OrdinalIgnoreCase)).ToList();
+            var to = healthy.FirstOrDefault(r => r.Tier is "must" or "veryHigh" or "high") ?? healthy.FirstOrDefault();
+            if (to == null || IntoBreak(to.Lobby, "health", null) == null) return null;
+            return $"{to.Lobby} (the sponsor break carries on)";
+        }
+
+        /// <summary>
+        /// "Technical difficulties: be right back", with the standings and storylines taking turns. Refused
+        /// (what's on stays) while a sponsor break is on, unless <paramref name="force"/> (Panic).
+        /// </summary>
+        public OnAir ShowSlate(string by = "button", string? transition = null, bool force = false) => !force && BreakRefusal() != null ? OnAir : PutOn(() =>
         {
             if (_onAir.Layout is not ("intermission" or "replay" or "none" or "slate")) _beforeSlate = _onAir;
             return new OnAir { Layout = "slate", Slots = new List<string?>(), By = by, Since = _clock(), Transition = transition };
@@ -497,7 +519,7 @@ namespace TournamentTracker.App.Broadcast
             {
                 case "intermission": return EndIntermission(by, transition);
                 case "soon": return EndStartingSoon(by, transition);
-                case "break": return Show(Break?.Lobby ?? air.Slots.FirstOrDefault() ?? "", "full", null, null, by, transition);
+                case "break": return EndSponsorBreak(by, transition);
                 case "slate":
                 {
                     OnAir? back;
