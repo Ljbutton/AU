@@ -159,6 +159,49 @@ public class CasterPageScriptTests
     }
 
     /// <summary>
+    /// The top 3 never covers a layout's own label or a lobby's picture: it steps aside in the quad, the grid and
+    /// the sponsor break (where it sat on the SPONSOR BREAK label and the lobby's tag), and stays over the one
+    /// picture that fills the screen and above the 2-up's pictures. Run in Node (skipped where it isn't installed).
+    /// </summary>
+    [Fact]
+    public void The_top_3_steps_aside_wherever_it_would_cover_a_picture()
+    {
+        using var s = typeof(BroadcastServer).Assembly.GetManifestResourceStream("ui/broadcast.html")!;
+        string graphics = new StreamReader(s).ReadToEnd();
+        var busy = Regex.Match(graphics, @"^const LEFT_BUSY = .*$", RegexOptions.Multiline);
+        var at = Regex.Match(graphics, @"^function top3At\(\) \{.*?\n\}\n", RegexOptions.Multiline | RegexOptions.Singleline);
+        Assert.True(busy.Success && at.Success);
+        Assert.Contains("const list = S.top3, at = top3At(); if (!at) return;", graphics);
+        Assert.Contains("{ left: at.x + 'px', top: at.y + 'px', fontSize: '26px' }", graphics);
+        string script = "let S;\n" + busy.Value + "\n" + at.Value + "\n" + """
+            const assert = (ok, what) => { if (!ok) { console.error(what); process.exit(1); } };
+            const W = 1920, H = 1080, g = 8, bw = (W - 3 * g) / 2;
+            const on = (layout, slots, more) => { S = Object.assign({ canvas: { w: W, h: H }, layout, slots: slots.map((b, i) => ({ lobby: 'L' + i, slot: i + 1, ...b })), top3: [{ lobby: 'L0', rows: [] }], big: null }, more || {}); return top3At(); };
+            const full = on('full', [{ x: 0, y: 0, w: W, h: H }]);
+            assert(full && full.x === 24 && full.y === 78, 'full screen: under the lobby label, top left');
+            const two = on('2up', [{ x: g, y: (H - bw * 9 / 16) / 2, w: bw, h: bw * 9 / 16 }, { x: 2 * g + bw, y: (H - bw * 9 / 16) / 2, w: bw, h: bw * 9 / 16 }]);
+            assert(two && two.y === 66 && two.y + two.h < (H - bw * 9 / 16) / 2, '2-up: above the pictures');
+            const qh = (H - 3 * g) / 2;
+            assert(on('4up', [{ x: g, y: g, w: bw, h: qh }, { x: 2 * g + bw, y: g, w: bw, h: qh }, { x: g, y: 2 * g + qh, w: bw, h: qh }, { x: 2 * g + bw, y: 2 * g + qh, w: bw, h: qh }]) === null, 'quad: steps aside');
+            assert(on('grid', [{ x: g, y: g, w: bw, h: qh }, { x: 2 * g + bw, y: g, w: bw, h: qh }, { x: g, y: 2 * g + qh, w: bw, h: qh }, { lobby: null, x: 2 * g + bw, y: 2 * g + qh, w: bw, h: qh }]) === null, 'grid: steps aside');
+            assert(on('grid', [{ x: g, y: g, w: bw, h: H - 2 * g }, { x: 2 * g + bw, y: g, w: bw, h: H - 2 * g }]) === null, 'grid of two: steps aside');
+            assert(on('grid', [{ x: g, y: g, w: W - 2 * g, h: H - 2 * g }]) !== null, 'a grid of one fills the screen: stays');
+            const cw = Math.round(W * 0.27), ch = Math.round(cw * 9 / 16), m = Math.round(W * 0.015);
+            assert(on('cam', [{ x: W - cw - m, y: H - ch - m, w: cw, h: ch }]) !== null, 'player cam: over the camera, clear of the map in the corner');
+            const kw = Math.round(W * 0.66), kh = kw * 9 / 16;
+            assert(on('break', [{ x: Math.round(W * 0.025), y: (H - kh) / 2, w: kw, h: kh }]) === null, 'sponsor break: steps aside (its label and the lobby tag)');
+            assert(on('break', [{ x: 1200, y: 600, w: 600, h: 300 }]) !== null, 'a break picture far from it: stays');
+            assert(on('break', [{ x: 20, y: 300, w: 600, h: 300 }]) === null, 'the label above the break picture counts too');
+            assert(on('full', [{ x: 0, y: 0, w: W, h: H }], { big: { kind: 'standings' } }) === null, 'a big graphic: steps aside');
+            assert(on('full', [{ x: 0, y: 0, w: W, h: H }], { top3: [] }) === null, 'nothing to show');
+            assert(on('none', []) !== null, 'nothing on stream: stays');
+            console.log('ok');
+            """;
+        string? output = RunNode(script);
+        if (output != null) Assert.Contains("ok", output);
+    }
+
+    /// <summary>
     /// syncList itself, run in Node with a small stand-in for the DOM (skipped where Node isn't installed).
     /// </summary>
     [Fact]

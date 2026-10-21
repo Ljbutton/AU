@@ -308,13 +308,24 @@ function emptyTile(slot) {
 // Top 3: each playing lobby's top three for its own round, top left, a different lobby every 8 s.
 // The top 3 steps aside while a big graphic (a table, a card, a note) is up.
 const LEFT_BUSY = () => S.big || S.layout === 'intermission' || S.layout === 'slate' || S.layout === 'replay';
+// Where the top 3 goes (its box, a little bigger than it draws), or null when it would cover a picture: a tile
+// of the quad or the grid, the sponsor break's lobby or its SPONSOR BREAK label. Over the one picture that fills
+// the screen (full screen, a player cam's camera) it sits under that lobby's label, clear of its impostors.
+function top3At() {
+  if (!S.top3 || !S.top3.length || LEFT_BUSY()) return null;
+  const box = { x: 24, y: S.slots.length > 1 ? 66 : 78, w: 400, h: 180 };
+  const fills = s => s.w >= S.canvas.w * 0.95 && s.h >= S.canvas.h * 0.95;
+  const pic = s => S.layout === 'break' ? { x: s.x, y: s.y - 70, w: s.w, h: s.h + 70 } : s;   // the label sits above the break's lobby
+  const over = s => box.x < s.x + s.w && s.x < box.x + box.w && box.y < s.y + s.h && s.y < box.y + box.h;
+  return S.slots.some(s => !fills(s) && over(pic(s))) ? null : box;
+}
 function top3() {
-  const list = S.top3; if (!list || !list.length || LEFT_BUSY()) return;
+  const list = S.top3, at = top3At(); if (!at) return;
   const i = Math.floor(Date.now() / 8000) % list.length, x = list[i];
   const rows = x.rows.map(r => `<div class="r"><span class="n">${r.rank}</span>${sw(r.color)}<span>${esc(r.name)}</span><span class="p">${r.points}</span></div>`).join('');
   const dots = list.length > 1 ? `<div class="dots">${list.map((_, j) => `<i${j === i ? ' class="on"' : ''}></i>`).join('')}</div>` : '';
   put('top3', `<div class="t3" data-k="${esc(x.lobby)}"><div class="t3h">${x.twitch ? TWI + esc(x.twitch) : esc(x.lobby)}<small>TOP 3 · ROUND ${x.round}</small></div>${rows}${dots}</div>`,
-    { left: '24px', top: (S.slots.length > 1 ? 66 : 78) + 'px', fontSize: '26px' });
+    { left: at.x + 'px', top: at.y + 'px', fontSize: '26px' });
 }
 // The stats ticker: leader boards along the bottom, five names at a time, a new page every 7 s.
 function ticker() {
@@ -456,7 +467,7 @@ const TWK = { prediction: 'PREDICTION', poll: 'POLL', chat: 'CHAT VOTE' };
 function twIcon(o) { return o.icon ? (o.icon === 'imp' ? CNT.imp : CNT.crew) : o.color != null ? sw(o.color) : ''; }
 function twitch() {
   const t = S.extras && S.extras.twitch; if (!t || S.layout === 'replay') return;
-  const pos = S.standings && S.layout !== 'intermission' && S.layout !== 'slate' ? { left: '40px', right: 'auto', top: S.top3 && S.top3.length ? '300px' : '120px' } : { right: '40px', left: 'auto' };
+  const pos = S.standings && S.layout !== 'intermission' && S.layout !== 'slate' ? { left: '40px', right: 'auto', top: top3At() ? '300px' : '120px' } : { right: '40px', left: 'auto' };
   // Between rounds: under the storyline on the left, clear of the standings.
   const css = S.layout === 'intermission' || S.layout === 'slate' ? { left: '110px', right: 'auto', top: '430px', fontSize: '34px' } : Object.assign({ top: '120px', fontSize: '34px' }, pos);
   const a = t.active, r = t.result;
