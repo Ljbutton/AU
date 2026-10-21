@@ -691,23 +691,29 @@ _Live desk at 1600×900 and at 1920×1080._
 
 ### Red Alert: Team watch
 _Red Alert on the caster's PC with OBS connected; a second PC or tablet on the same network for the team; a phone on mobile data (Wi-Fi off) for the last check._
-- [ ] Settings → **Team watch** is off on a fresh install; the card says to allow Windows Firewall on private networks only
-- [ ] Switch it on → the toast says "Team watch on: your team opens http://IP:8780/ and types the code."; the card shows the link (with **Copy**), the code with **New code**, and "Nobody is watching yet."
+- [ ] Settings → **Team watch** is off on a fresh install; the card says to allow Windows Firewall on private networks only; **Without OBS, show the host's own video** is unticked, with "Each person watching then gets every host's own video link, which signing out doesn't take back, and costs each host upload."
+- [ ] Switch it on → the toast says "Team watch on: your team opens http://IP:8780/ and types the code."; the card shows the link (with **Copy**), **Show code** (the code itself hidden) with **New code** and "A new code each time you turn it on. A new code signs everyone out.", and "Nobody is watching yet."
+- [ ] **Show code** → the code and **Copy** ("Copied the watch code."); the button says **Hide code** and hides it again
 - [ ] The first time on this PC → Windows Firewall asks; allow it on private networks only
 - [ ] Port 8780 taken by something else → Team watch uses the next free one up to 8789, and the card's link says which
 - [ ] On the second PC, open the link → the sign-in page ("Who's watching?") with Your name and Watch code; nothing about the games shows before signing in
 - [ ] A wrong code → "That code isn't right. It's in Red Alert: Settings → Team watch."; `red-alert.log` says "a wrong code from" that address and never the code
-- [ ] Six wrong codes within a minute → "Too many wrong codes. Wait a minute, then try again.", and the right code is refused too until the minute is up; then it works
+- [ ] Six wrong codes within a minute → "Too many wrong codes. Wait a minute, then try again.", and the right code is refused too from that PC until the minute is up; then it works. Meanwhile the right code from another PC works at once
 - [ ] The right code with a name → every lobby with its picture, tally, badge, phase, map, crew v impostors, tasks, players (dead crossed out, impostors marked IMP) and the last events; the header shows ON STREAM, PREVIEW and "Watching as" the name
 - [ ] Settings → Team watch lists them (name, address, "watching now"); **Sign out** there → the Watch page goes back to the sign-in with "Sign in again: …"
 - [ ] **New code** → everyone signed in goes back to the sign-in; the old code is refused; the new one works
-- [ ] Switch Team watch off → the Watch page goes back to the sign-in, and the link no longer opens at all (not reachable) from the second PC; on again → the same code works
+- [ ] Switch Team watch off → the Watch page goes back to the sign-in, and the link no longer opens at all (not reachable) from the second PC; on again → a new code (the old one is refused), and the new one works
 - [ ] Restart Red Alert with Team watch on → it's still on with the same code; the team signs in again
+- [ ] Close the Watch page's tab for over 30 minutes, then open the link → the sign-in again; Settings no longer lists them
+- [ ] The Watch page in a background tab for over 10 s → Settings says "(none now)" for the pictures and no longer "watching now" for them (they stay signed in); back to the tab → the pictures come back within a few seconds
 - [ ] A phone on another network (mobile data, Wi-Fi off) can't reach the link, nor the PC's public address on that port
 - [ ] A support bundle with Team watch on → no file has the code (settings.json shows it as `[removed]`), state.json has no suggestions, and versions.txt says "Team watch: on, port N, X signed in."
 - [ ] OBS connected → the pictures come from OBS and keep up (a few a second); the hosts' upload doesn't change with more people watching; nobody on the page → Settings says "(none now)"
-- [ ] OBS disconnected → each card shows the host's own video, small and muted, with "OBS isn't connected: video straight from the host"
-- [ ] Simulation on → the Watch page shows SIMULATION and the four fake lobbies with their stand-in pictures
+- [ ] OBS connected, a lobby's TT Lobby source renamed or hidden so OBS has no picture of it → that card says "No picture" (never the host's video); with **Without OBS, show the host's own video** ticked too
+- [ ] OBS connected, in the browser's developer tools → `/watch/state` has no `video` link and nothing with `vdo.ninja`, ticked or not
+- [ ] OBS disconnected, the box unticked → each card says "No picture: OBS isn't connected." with the game's state and events; Settings says the Watch page has no pictures
+- [ ] OBS disconnected, tick **Without OBS, show the host's own video** → each card shows the host's own video, small and muted, with "OBS isn't connected: video straight from the host"; untick → "No picture: OBS isn't connected." again; the box is kept across a restart
+- [ ] Simulation on → the Watch page shows SIMULATION and the four fake lobbies (with their stand-in pictures from OBS, or without OBS only when the box is ticked)
 - [ ] 12 lobbies at 1366×768 and 1920×1080 → the cards fill the window in as many columns as fit, with no sideways scrolling
 
 ### Red Alert: Suggestions on the Live desk
@@ -717,13 +723,15 @@ _Two people signed in to the Watch page; two or more lobbies sending._
 - [ ] On the Watch page, **Show this** on a lobby not on stream, **Kill coming** → "Sent: LJ, Kill coming."; the Live desk shows it at once, newest first: TEAM, the lobby, the name, the age and "Kill coming"
 - [ ] The second person sends the same → one suggestion with both names; the chooser says "Already sent for this lobby"
 - [ ] A few words (up to 60 characters) show on the desk in quotes; a 61st character can't be typed
-- [ ] A lobby on stream → the chooser offers only its camera ("… is on stream already: suggest its camera on a player")
+- [ ] A lobby full screen on stream → the chooser offers only its camera ("… is on stream already: suggest its camera on a player"); a lobby only in the quad or the grid → every reason is offered, and its suggestion stays until it's full screen
+- [ ] A camera suggestion for Ann while that lobby's camera is on stream following Bob → it stays; the camera turns to Ann → it moves under Earlier as "went on stream"; asked for Ann again then → "LJ's camera on Ann is on stream already."
 - [ ] The camera on a living player → "Cam on" the player; **Into Preview** puts that lobby's camera following them in Preview; **Take** puts it on
 - [ ] **Into Preview** on a lobby suggestion → "Preview: LJ (Sam: Kill coming). Take puts it on.", IN PREVIEW on the suggestion; **Take** → it moves under Earlier as "went on stream"
 - [ ] **Cut** → that lobby on stream at once (with the transition picked beside Take); **×** → under Earlier as "dismissed"
 - [ ] A suggestion left alone for 2 minutes → under Earlier as "timed out"
 - [ ] Two suggestions within 3 s from one person → "Slow down: one suggestion every few seconds."
 - [ ] The side menu's Live desk number counts new suggestions while on another page; opening the Live desk clears it
+- [ ] With the desk page left open, restart Red Alert and send a new suggestion → the side menu counts it (it isn't taken for one seen before the restart)
 - [ ] **Plays** drawer (third column) → "N now · M earlier"; plays going on now with **Save replay** / **▶ REPLAY**, **Preview** and **Card**; earlier ones with **Watch again**
 - [ ] Key **C** still puts up the top play's player card
 
