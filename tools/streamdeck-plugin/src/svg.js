@@ -235,7 +235,7 @@ export function toggleKey(v) {
 	const ink = !known ? C.muted : on ? (v.onInk ?? C.fg) : (v.offInk ?? C.muted);
 	const word = !known ? "?" : on ? (v.onText ?? "ON") : (v.offText ?? "OFF");
 	const parts = [];
-	// "AUTO GRID", "AUTO INTERMISSION"…: a small AUTO over the bigger name, so the long ones fit.
+	// "AUTO GRID", "AUTO SWITCH"…: a small AUTO over the bigger name, so the long ones fit.
 	const auto = /^AUTO (.+)$/.exec(v.label ?? "");
 	if (auto) {
 		parts.push(text(72, 24, "AUTO", { size: 14, fill: C.muted, anchor: "middle" }));
@@ -338,8 +338,9 @@ export function replayDial(v) {
 	} else {
 		parts.push(text(12, 60, v.ready ? `${v.ready} ready` : "no clips", { size: 20, fill: v.ready ? C.fg : C.muted }));
 	}
-	if (v.last) parts.push(text(12, 78, fit(v.last, 26), { size: 13, weight: "normal", fill: C.muted }));
-	parts.push(text(12, 94, "turn: scrub · push: play/pause", { size: 12, weight: "normal", fill: C.muted }));
+	if (v.last) parts.push(text(12, 76, fit(v.last, 26), { size: 13, weight: "normal", fill: C.muted }));
+	// Clear of the strip's border (its descenders were cut off at 94).
+	parts.push(text(12, 90, "turn: scrub · push: play/pause", { size: 12, weight: "normal", fill: C.muted }));
 	return strip(parts.join(""), { status: v.status, border: v.onAir ? C.red : C.line });
 }
 

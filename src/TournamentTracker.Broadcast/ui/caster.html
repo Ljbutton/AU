@@ -82,7 +82,7 @@ img.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 .05em;vert
 .tw-it .bar{height:7px;border-radius:4px;background:var(--panel);overflow:hidden}.tw-it .bar i{display:block;height:100%;background:#9146ff}
 .tw-feat{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 8px;align-items:center;font-size:13px}
 .tw-set{display:grid;gap:6px;font-size:13px}.tw-set label{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tw-set input[type=number]{width:80px}.tw-set #tw-client{flex:1;min-width:180px}
-.tw-log{max-height:220px;overflow:auto;font-size:12.5px;display:grid;gap:3px}.tw-log span{color:var(--muted);margin-right:6px;font-variant-numeric:tabular-nums}
+.tw-log{max-height:220px;overflow:auto;font-size:12.5px;display:grid;gap:3px}.tw-log:empty::before{content:"Nothing yet.";color:var(--muted)}.tw-log span{color:var(--muted);margin-right:6px;font-variant-numeric:tabular-nums}
 .tw-red{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 10px;border-radius:10px;background:var(--sunk);font-size:13px;margin-bottom:5px}
 .tw-red .fl{color:var(--danger);font-size:12px}
 .hl-list{display:grid;gap:5px;margin-top:8px}
@@ -102,6 +102,24 @@ img.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 .05em;vert
 .hl-int .it{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 10px;border-radius:10px;border:1.5px solid var(--danger);font-size:13px}
 .hl-int .it .tag{font:700 10.5px/1 var(--round);letter-spacing:.1em;color:var(--danger)}
 .dcard .acts{display:flex;gap:6px;flex-wrap:wrap}
+/* Team suggestions (from the Watch page): green edge, who and how long ago, Into Preview / Cut / Dismiss. */
+.dcard.sugg{--tier:var(--good);cursor:default}
+.dcard.sugg.pv{--tier:var(--warn)}
+.dcard.sugg .t1 .team{font:700 11px/1 "Segoe UI",sans-serif;letter-spacing:.12em;text-transform:uppercase;background:var(--good);color:#03140a;padding:3px 6px 2px}
+.dcard.sugg .t1 .inpv{font:700 11px/1 "Segoe UI",sans-serif;letter-spacing:.1em;background:var(--warn);color:#111;padding:3px 6px 2px}
+.dcard.sugg .txt{color:var(--muted);font-size:13px}
+.dcard.sugg .acts .b{font-size:15px;padding:4px 9px 2px}
+.sugg-empty{font-size:13px;color:var(--muted);padding:6px 2px}
+.sugg-earlier .hrow{grid-template-columns:auto minmax(0,1fr) auto}
+.hrow .why{color:var(--muted);font-size:11.5px;white-space:nowrap}
+.hrow.now{background:#16161a;border-left:3px solid var(--tier,var(--line))}
+.team-urls{display:grid;gap:6px;margin-top:8px}
+.team-code{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px;padding:8px 10px;background:var(--sunk)}
+.team-code .code{font:700 28px/1 var(--mono);letter-spacing:.2em;color:#fff}
+.team-hv{display:flex;gap:8px;align-items:center;margin-top:8px;font-size:13px}
+.team-who{margin-top:8px;font-size:13px}
+.team-who td{padding:4px 6px}
+.team-who .on{color:var(--good)}
 .dcard.sys .play{font-size:16px}
 .vo{display:grid;grid-template-columns:minmax(90px,.7fr) minmax(0,1.6fr) auto;gap:10px;align-items:center;padding:7px 10px;border-radius:10px;background:var(--sunk);font-size:13px}
 .vo.heard{box-shadow:inset 3px 0 0 var(--good)}
@@ -112,6 +130,7 @@ img.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 .05em;vert
 .vo .mtr{height:7px;border-radius:4px;background:var(--panel);overflow:hidden}
 .vo .mtr i{display:block;height:100%;background:var(--good);transition:width .3s}
 .vo .ctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.vo .ctl label{display:inline-flex;align-items:center;gap:5px}
 .vo .ctl input[type=range]{width:90px}
 .vo .ctl input[type=number]{width:70px}
 .mt-list{display:grid;gap:6px;margin-top:8px}
@@ -459,23 +478,39 @@ kbd{display:inline-block;font:600 11.5px/1 var(--mono);padding:3px 6px;border:1p
 .seg.trans button{padding:5px 0 3px;text-align:center;font-size:13px}
 .seg.trans button.on::before{content:none}
 [data-layout].pick{outline:2px solid var(--good);outline-offset:-2px;color:var(--good)}
-.ld-act{min-width:0;min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:6px;background:#0d0d10;border:1px solid var(--line);padding:6px;height:calc(var(--pv) * 9 / 16 + 30px)}
-.act-scroll{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:6px;scrollbar-width:thin}
-.brk-bar{display:grid;gap:5px}
+/* The action panel: the Replays row and the Breaks rows stay where they are, one under the other; the cards
+   (replay transport, after-game prompts, sponsor reads, intermission, Starting soon) go under them and
+   scroll when they don't all fit. (The order is set here: the Breaks rows come last in the page.) */
+.ld-act{min-width:0;min-height:0;display:flex;flex-direction:column;gap:5px;background:#0d0d10;border:1px solid var(--line);padding:6px;height:calc(var(--pv) * 9 / 16 + 30px)}
+.ld-act>.rp-ready{order:1}
+.ld-act>.brk-bar{order:2;flex:none}
+.act-scroll{order:3;flex:1 1 auto;min-height:0;overflow:auto;overflow-anchor:none;display:flex;flex-direction:column;gap:5px;scrollbar-width:thin}
+.act-scroll>*{flex:none}
+/* More below: while the cards go on past the bottom, they fade out there with a "More below" button (WebView2's
+   scrollbar is thin and easy to miss). Gone once scrolled to the end. */
+.act-more{order:99;position:sticky;bottom:0;height:30px;margin-top:-35px;display:flex;align-items:flex-end;justify-content:flex-end;background:linear-gradient(rgba(13,13,16,0),#0d0d10 80%);pointer-events:none}
+.act-more[hidden]{display:none}
+.act-more button{pointer-events:auto;font:700 11px/1 var(--round);letter-spacing:.1em;text-transform:uppercase;padding:4px 9px 3px;background:#26262c;border:1px solid var(--warn);color:#fff;cursor:pointer}
+.act-more button:hover{background:#34343b}
+/* The break that's on (intermission, Starting soon) has its card first, right under the Breaks rows. */
+.act-scroll>#inter-card,.act-scroll>#soon-card{order:-1}
+.brk-bar{display:grid;gap:4px}
 .brk-bar .lay-grp{gap:4px;flex-wrap:nowrap;min-width:0}
-.brk-bar .b{font-size:14px;padding:5px 8px 3px}
+.brk-bar .b{font-size:14px;padding:4px 8px 2px}
 .brk-bar .lay-h,.rp-ready .lay-h{width:auto;margin-right:4px}
 .lay-grp.auto .b.on{background:var(--good-soft);border-color:var(--good);color:#fff}
 .b.hold.on{background:var(--red);border-color:var(--red);color:#fff;animation:hlb 1s infinite}
 .b.panic{border-color:var(--red);color:#ff5a50;background:transparent}
 .b.panic.sure{background:var(--red);color:#fff;animation:hlb .5s infinite}
 .b.panic.on{background:var(--warn);border-color:var(--warn);color:#16120a}
-/* One line: as many of the newest ready replays as fit beside the buttons (prompts and reads below stay in view). */
-.rp-ready{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;overflow:hidden;flex:none}
+/* One line: as many of the newest ready replays as fit beside the buttons, each one whole (a long title ends
+   in "…", the full one is its tooltip). One that doesn't fit wraps to a second line, which is never shown. */
+.rp-ready{display:flex;flex-wrap:wrap;gap:20px 4px;align-items:center;overflow:hidden;flex:none;height:28px}
 .rp-ready>.b{flex:none}
 .rp-ready .b{font-size:14px;padding:4px 9px 2px}
 .rp-list{display:contents}
-.rpc{all:unset;box-sizing:border-box;cursor:pointer;display:inline-block;flex:0 0 auto;max-width:210px;padding:4px 8px;background:#141417;border:1px solid var(--line);font:600 12px/1.25 var(--round);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rp-list>.muted{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rpc{all:unset;box-sizing:border-box;cursor:pointer;display:inline-block;flex:1 1 150px;min-width:0;max-width:230px;padding:4px 8px;background:#141417;border:1px solid var(--line);font:600 12px/1.25 var(--round);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rpc:hover{border-color:var(--red)}
 .rpc b{color:#ff5a50}
 .ld-act .rp-card{margin:0;padding:6px 8px;gap:5px;background:#141417;border:1px solid var(--red);display:grid}
@@ -484,15 +519,23 @@ kbd{display:inline-block;font:600 11.5px/1 var(--mono);padding:3px 6px;border:1p
 .rp-top .b,.ld-act .rp-ctl .b{font-size:13px;padding:4px 7px 2px;min-width:0}
 .ld-act .rp-ctl{gap:3px;flex-wrap:wrap}
 .ld-act .rp-play{min-width:62px}
-.ld-act .prompt{padding:5px 8px;gap:6px}
+.ld-act .prompt{padding:2px 8px;gap:6px}
 .ld-act .prompt b{font-size:17px}
 .ld-act .prompt .b{font-size:14px;padding:4px 8px 2px}
-.ld-act .read{padding:5px 8px;gap:8px;grid-template-columns:auto minmax(0,1fr) auto}
-.ld-act .read .tg{font-size:14px}
+.ld-act .read{padding:3px 8px;gap:8px;grid-template-columns:auto minmax(0,1fr) auto}
+.ld-act .read .tg{font-size:12.5px;padding:4px 6px 1px}
 .ld-act .read .sc{font-size:13px;line-height:1.3}
+.ld-act .read .sc small{display:inline;margin-left:6px;font-size:11.5px}
 .ld-act .read .b{font-size:14px;padding:4px 8px 2px}
-.ld-act .inter-card{margin:0;padding:6px 8px;gap:6px}
+.ld-act .inter-card{margin:0;padding:3px 8px;gap:6px}
+.ld-act .inter-card input{padding-top:3px;padding-bottom:3px}
 .ld-act .inter-card .b{font-size:14px;padding:4px 8px 2px}
+.soon-card{display:grid;gap:4px}
+.soon-card .r{display:flex;gap:8px;align-items:center;min-width:0}
+.soon-card .r>*{flex:none}
+.soon-card .r input{padding-top:3px;padding-bottom:3px}
+.soon-card #soon-text{flex:1 1 auto;min-width:120px;width:auto}
+.soon-card .r .muted{min-width:0;flex:0 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rp-keymap{position:fixed;left:50%;top:12%;transform:translateX(-50%);width:min(900px,90vw);max-height:70vh;overflow:auto;display:grid;gap:8px}
 /* Lobby tiles: one per lobby */
 .ld-in{display:grid;grid-template-columns:repeat(var(--cols,6),minmax(0,1fr));gap:6px;margin:0}
@@ -569,7 +612,7 @@ kbd{display:inline-block;font:600 11.5px/1 var(--mono);padding:3px 6px;border:1p
 .cam-st:empty{display:none}
 .cam-st .live,.cline .live{font:700 10px/1 "Segoe UI",sans-serif;letter-spacing:.12em;color:#fff;background:var(--red);padding:3px 5px}
 .armed{font:700 10px/1 "Segoe UI",sans-serif;letter-spacing:.12em;color:#16120a;background:var(--warn);padding:3px 5px}
-.cams-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.cams-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(136px,1fr));gap:4px}
 .cams-grid .cchip{height:30px;justify-content:flex-start;padding:0 6px;font-size:12px;overflow:hidden;white-space:nowrap;min-width:0}
 .cams-grid .cchip span{overflow:hidden;text-overflow:ellipsis}
 .cams-grid .cchip img.sw{height:1.7em;flex:none}
@@ -627,6 +670,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .deck-out{margin-top:8px;grid-template-columns:40px minmax(0,1fr) auto}
 .deck-out #db-url{color:#fff}
 .deck-all{margin-top:8px}.deck-all summary{cursor:pointer;color:var(--muted);font-size:13px}
+#deck-links .url{grid-template-columns:minmax(220px,34%) minmax(0,1fr) auto}
 .deck-nums{margin-top:10px;padding:8px 10px;background:var(--sunk);font-size:13px}
 .dn-list{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:6px}
 .dn-list label{display:flex;gap:6px;align-items:center}
@@ -708,7 +752,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
         <div class="lay-col">
           <button class="b" type="button" data-layout="full" title="Preview full screen">Full</button><button class="b" type="button" data-layout="2up" title="Preview side by side">2-Up</button>
           <button class="b" type="button" data-layout="4up" title="Preview as a quad">Quad</button><button class="b" type="button" data-layout="grid" title="Every lobby at once (key G)">Grid</button>
-          <button class="b" type="button" data-layout="cams" id="desk-cams" title="The lobbies in Preview as player cameras: one full screen (its whole map in the corner), two side by side, three or four in a quad. Back to the whole map by itself at a meeting or when the game ends.">Cams</button><button class="b" type="button" id="org-jump" title="The best recent replay (the highest rated one not played yet) into Preview: Take plays it (key N)">Best replay</button>
+          <button class="b" type="button" data-layout="cams" id="desk-cams" title="The lobbies in Preview as player cameras: one full screen (its whole map in the corner), two side by side, three or four in a quad. Back to the whole map by itself at a meeting or when the game ends.">Cams</button><button class="b" type="button" id="org-jump" title="Best replay: the best recent replay (the highest rated one not played yet) into Preview. Take plays it (key N)">▶ Best</button>
         </div>
         <div class="lay-col"><button class="b" type="button" id="stage-clear" title="Clear Preview (Esc)">Clear</button><button class="b" type="button" id="ld-back" title="Back: undo the last switch (or a panic, or an auto switch)">Back</button></div>
       </div>
@@ -716,6 +760,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
         <div class="mon-box"><div class="sch" id="pgm-sch"></div><img id="pgm-img" alt="What OBS is sending" hidden><div class="air-slots" id="air-slots"></div></div>
         <div class="pop air-pick" id="air-pick" hidden></div></section>
       <aside class="ld-act">
+        <div class="rp-ready" id="rp-ready"><span class="lay-h">Replays</span><button class="b" type="button" data-rdo="that" title="Save the last seconds of the lobby on stream and play it as soon as it's saved (no card needed)">Replay that</button><button class="b" type="button" data-rdo="last" title="Play the newest saved replay">Play last</button><span class="rp-list" id="rp-list"></span></div>
         <div class="act-scroll">
           <div class="rp-card" id="rp-card" hidden>
             <div class="rp-top"><span class="rp-badge">REPLAY</span><b class="rp-title" id="rp-what"></b><button class="b" type="button" id="rp-keys" title="See and change the replay keys">Keys</button><button class="b primary" type="button" data-rp="live" title="Back to live">Back to live</button></div>
@@ -732,22 +777,25 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
               <button class="b" type="button" data-rp="angle" id="rp-angle" hidden title="The other angle of this moment: the player camera's close-up, or the whole map (key P)">🎥 Cam</button>
             </div>
           </div>
-          <div class="rp-ready" id="rp-ready"><span class="lay-h">Replays</span><button class="b" type="button" data-rdo="that" title="Save the last seconds of the lobby on stream and play it as soon as it's saved (no card needed)">Replay that</button><button class="b" type="button" data-rdo="last" title="Play the newest saved replay">Play last</button><span class="rp-list" id="rp-list"></span></div>
           <div class="prompts" id="ag-prompts"></div>
           <div class="reads" id="reads"></div>
           <div class="card inter-card" id="inter-card" hidden></div>
           <div class="card inter-card soon-card" id="soon-card" hidden></div>
+          <div class="act-more" id="act-more" hidden><button type="button" title="Scroll down to the rest of the cards">▾ More below</button></div>
         </div>
         <div class="brk-bar">
-          <div class="lay-grp brk"><span class="lay-h">Breaks</span><button class="b" type="button" id="desk-soon" title="Before the show: a countdown to the start, the tournament's name and logo, the sponsors and a line of your own. On at once; at zero it says Starting now and stays until you Take a lobby">Starting soon</button><button class="b" type="button" data-layout="slate" title="Technical difficulties: be right back (standings and storylines take turns)">BRB</button><button class="b" type="button" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" type="button" id="desk-sponsor" title="Split screen: the lobby on the left, the sponsor on the right">Sponsor</button><span style="flex:1"></span><button class="b hold" type="button" id="desk-hold" title="Hold: nothing switches by itself (intermission, cameras going back, auto switch) and auto grid puts nothing in Preview. Key H">Hold</button><button class="b panic" type="button" id="desk-panic" title="Panic: fade to be right back, mute every lobby voice, clear graphics, pause alerts and hold. Press twice (key P twice); again to undo">Panic</button></div>
-          <div class="lay-grp auto"><span class="lay-h">Auto</span><button class="b sw-onoff" type="button" id="desk-autogrid" title="When no lobby is mid-game, the grid goes into Preview; when a game starts again, the way back does. Nothing switches until you Take it">Grid</button><button class="b sw-onoff" type="button" id="desk-autointer" title="Intermission by itself when every lobby is between games, and back when one starts">Intermission</button><button class="b sw-onoff" type="button" id="desk-autosw" title="When a lobby on stream drops, switch away from it once (a lobby you put on yourself while it's down stays on)">Switch away</button></div>
+          <div class="lay-grp brk"><span class="lay-h">Breaks</span><button class="b" type="button" id="desk-soon" title="Before the show: a countdown to the start, the tournament's name and logo, the sponsors and a line of your own. On at once; at zero it says Starting now and stays until you Take a lobby">Starting soon</button><button class="b" type="button" data-layout="slate" title="Technical difficulties: be right back (standings and storylines take turns)">BRB</button><button class="b" type="button" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" type="button" id="desk-sponsor" title="Split screen: the lobby on the left, the sponsor on the right. It runs its time: a lobby you pick goes into it, and only End break or Panic end it early">Sponsor</button><span style="flex:1"></span><button class="b hold" type="button" id="desk-hold" title="Hold: nothing switches by itself (cameras going back to the map, auto switch, the sponsor break ending) and auto grid puts nothing in Preview. Key H">Hold</button><button class="b panic" type="button" id="desk-panic" title="Panic: fade to be right back, mute every lobby voice, clear graphics, pause alerts and hold. Press twice (key P twice); again to undo">Panic</button></div>
+          <div class="lay-grp auto"><span class="lay-h">Auto</span><button class="b sw-onoff" type="button" id="desk-autogrid" title="When no lobby is mid-game, the grid goes into Preview; when a game starts again, the way back does. Nothing switches until you Take it">Grid</button><button class="b sw-onoff" type="button" id="desk-autosw" title="When a lobby on stream drops, switch away from it once (a lobby you put on yourself while it's down stays on)">Switch away</button></div>
         </div>
       </aside>
     </div>
     <div class="ld-in" id="mv-grid"></div>
     <div class="ld-low">
-      <div class="ld-col"><div class="ld-h"><h2>Happening now</h2><span class="muted" id="desk-sub"></span></div>
-        <div class="desk-cards" id="desk-cards"></div></div>
+      <div class="ld-col"><div class="ld-h"><h2>Suggestions</h2><span class="muted" id="desk-sub"></span></div>
+        <div class="desk-cards" id="desk-cards"></div>
+        <div class="desk-cards sugg-list" id="sugg-list"></div>
+        <details class="card hist-card sugg-earlier" id="sugg-earlier"><summary><b>Earlier</b> <span class="muted" id="sugg-n"></span></summary>
+          <div class="desk-history" id="sugg-history"></div></details></div>
       <div class="ld-col">
         <div class="card cams-card" id="cams-card">
           <div class="row" style="justify-content:space-between"><b>Player cams</b><span class="muted" id="cam-sub" style="font-size:12px"></span></div>
@@ -771,7 +819,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
           <div class="row" style="justify-content:space-between"><b>Talking points</b><button class="b" type="button" id="talk-next" title="The next note">Next</button></div>
           <div class="talk-list" id="talk-list"></div>
         </div>
-        <details class="card hist-card" id="hist-card"><summary><b>Earlier</b> <span class="muted" id="hist-n"></span></summary>
+        <details class="card hist-card" id="hist-card"><summary><b>Plays</b> <span class="muted" id="hist-n"></span></summary>
           <div class="desk-history" id="desk-history"></div></details>
       </div>
     </div>
@@ -804,7 +852,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       <input id="obs-pass" type="password" placeholder="Password (Tools → WebSocket Server Settings)" style="flex:1;min-width:200px" autocomplete="off">
       <button class="b primary">Connect</button>
     </form>
-    <div class="row" style="margin-top:8px"><label class="muted" style="font-size:12.5px" for="obs-delay">Broadcast delay</label><select id="obs-delay" title="The lobbies (picture, voice, cameras) and the graphics reach the stream this late; the Live desk stays live. Up to 4 s (the most VDO.Ninja's buffer holds in OBS)."><option value="0">Off</option><option value="0.5">0.5 s</option><option value="1">1 s</option><option value="1.5">1.5 s</option><option value="2">2 s</option><option value="2.5">2.5 s</option><option value="3">3 s</option><option value="3.5">3.5 s</option><option value="4">4 s</option></select>
+    <div class="row" style="margin-top:8px" hidden><label class="muted" style="font-size:12.5px" for="obs-delay">Broadcast delay</label><select id="obs-delay" title="The lobbies (picture, voice, cameras) and the graphics reach the stream this late; the Live desk stays live. Up to 4 s (the most VDO.Ninja's buffer holds in OBS)."><option value="0">Off</option><option value="0.5">0.5 s</option><option value="1">1 s</option><option value="1.5">1.5 s</option><option value="2">2 s</option><option value="2.5">2.5 s</option><option value="3">3 s</option><option value="3.5">3.5 s</option><option value="4">4 s</option></select>
       <span class="muted" style="font-size:12.5px">Viewers see the lobbies this late, so you can cut to a play before it airs. Changing it reloads every lobby in OBS (a moment of black): set it before you go live.</span></div>
     <p class="muted help" id="obs-help" style="margin:6px 0 0;font-size:12.5px">In OBS: Tools → WebSocket Server Settings → tick Enable WebSocket server, set a password. Red Alert then builds the scenes TT Full, TT 2-up, TT Quad, TT Grid, TT Player Cam, TT Sponsor Break, TT Intermission, TT Be Right Back, TT Starting Soon and TT Replay, with one source per lobby, and switches them for you. It leaves your other scenes alone.</p>
   </div>
@@ -824,7 +872,6 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
     <div class="gfx-groups" id="gfx-els"></div>
     <div class="gfx-row"><span class="gh">Off-screen alerts</span><span id="gfx-alerts" class="sws"></span></div>
     <div class="gfx-row"><span class="gh">After a game</span><span class="sws" id="gfx-ag"></span></div>
-    <div class="gfx-row"><span class="gh">Win counter counts</span><span class="seg" id="gfx-wins"><button data-wins="today">Today</button><button data-wins="round">This round</button></span><span class="muted" id="gfx-wins-now" style="font-size:12.5px"></span></div>
   </details>
   <details class="card roster-card" id="story-card" open data-page="stories">
     <summary><div><b>Standings &amp; storylines</b> <span class="muted" id="story-line"></span></div>
@@ -907,7 +954,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
     <summary><div><b>Sponsors</b> <span class="muted" id="sp-line"></span></div>
       <div class="row"><button class="b" id="sp-break" title="Split screen: the lobby on the left, the sponsor on the right">Sponsor break</button><button class="b" id="sp-export" title="Every appearance (CSV) and a summary">Export report</button><button class="b" id="sp-open" title="Open sponsors.json">Edit sponsors</button></div></summary>
     <p class="note bad" id="sp-problem" hidden></p>
-    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Placements: killcam ("Kill Cam presented by" on kill replays), replay ("presented by" on every other replay), multiview (a "presented by" badge while 4 or more lobbies are on screen), montage (an opening card), standings ("Presented by" under the table), grid (empty grid tiles), break (split-screen breaks; they end by themselves, and a MUST SHOW play cuts straight back). Every appearance is logged. Verbal reads: give a sponsor "readScript" and "readEveryMinutes", "readEveryGames" or "readEveryRounds"; a reminder shows on the Live desk (only you see it), and Done logs it.</p>
+    <p class="muted help" style="font-size:12.5px;margin:6px 0 0">Placements: killcam ("Kill Cam presented by" on kill replays), replay ("presented by" on every other replay), multiview (a "presented by" badge while 4 or more lobbies are on screen), montage (an opening card), standings ("Presented by" under the table), grid (empty grid tiles), break (split-screen breaks: they run their time and end by themselves; a lobby picked meanwhile goes into the break). Every appearance is logged. Verbal reads: give a sponsor "readScript" and "readEveryMinutes", "readEveryGames" or "readEveryRounds"; a reminder shows on the Live desk (only you see it), and Done logs it.</p>
     <div class="sp-list" id="sp-list"></div>
   </details>
   <div class="card" id="code-card" data-page="settings">
@@ -920,6 +967,21 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
     <div class="row" style="justify-content:space-between"><div><b>Player camera</b> <span class="muted" id="cam-line"></span></div>
       <label class="sw" title="Each host's game sends a second picture that follows one player up close"><input type="checkbox" id="cam-on"><i></i><span>Player cameras</span></label></div>
     <p class="muted help" style="margin:6px 0 0;font-size:12.5px">Each host's game draws a second, close-up picture that follows one player (you pick who on the Live desk or the Stream Deck, or it follows whoever is in the action) and sends it with their game, at 960×540. Red Alert adds it to OBS as the <b>TT Player Cam</b> scene: the camera full screen, the whole map small in the corner. Hosts can't see it or change who it follows. On by default; it costs each host about one more video stream of upload while they send their game, so turn it off if a host's internet is weak. Replays saved while it's on get a second angle (🎥 in the replay controls, key P).</p>
+  </div>
+  <div class="card team-card" id="team-card" data-page="settings">
+    <div class="row" style="justify-content:space-between"><div><b>Team watch</b> <span class="muted" id="team-line">off</span></div>
+      <label class="sw" title="The Watch page for your production team, on this network"><input type="checkbox" id="team-on"><i></i><span>Team watch</span></label></div>
+    <p class="muted help" style="margin:6px 0 0;font-size:12.5px">Your production team watches every game at once on their own PC or tablet, on the same network as this PC: the pictures, each game's state and events, how exciting it is, and who the impostors are. They send you suggestions with <b>Show this</b> (they show on the Live desk); they can't switch the stream. The page needs the code below. Off by default.</p>
+    <p class="muted" style="margin:6px 0 0;font-size:12.5px">The first time you turn it on, Windows Firewall asks whether Red Alert may use the network: allow it on private networks only.</p>
+    <p class="note bad" id="team-problem" hidden></p>
+    <label class="team-hv"><input type="checkbox" id="team-hostvideo"> Without OBS, show the host's own video</label>
+    <p class="muted" style="margin:2px 0 0 24px;font-size:12.5px">Each person watching then gets every host's own video link, which signing out doesn't take back, and costs each host upload.</p>
+    <div id="team-body" hidden>
+      <div class="team-urls" id="team-urls"></div>
+      <div class="team-code"><span class="muted">Code</span><button class="b" type="button" id="team-show" title="Shows the code your team types (hidden, so it isn't seen on a shared screen)">Show code</button><span class="code" id="team-code" hidden></span><button class="b" type="button" id="team-copy" data-copied="Copied the watch code." hidden>Copy</button><button class="b" type="button" id="team-new" title="A new code signs everyone out: they type the new one">New code</button><span class="muted" style="font-size:12.5px">A new code each time you turn it on. A new code signs everyone out.</span></div>
+      <div class="team-who" id="team-who"></div>
+      <p class="muted help" id="team-pics" style="margin:6px 0 0;font-size:12.5px"></p>
+    </div>
   </div>
   <div class="card deck-card" id="deck-card" data-page="settings">
     <div class="row" style="justify-content:space-between"><div><b>Stream Deck</b> <span class="muted">a key for anything on the Live desk · port <b id="deck-port">…</b></span></div>
@@ -1357,10 +1419,11 @@ function renderBar() {
   setClass($('onair'), 'onair ' + (waiting ? 'wait' : kind));
   setText($('oa-tag'), waiting ? 'SWITCHING' : empty ? 'EMPTY' : kind === 'live' ? (air.layout === 'replay' ? 'REPLAY' : 'PROGRAM') : kind === 'brk' ? 'BREAK' : 'OFF AIR');
   setText($('oa-what'), empty ? `Nothing on · ${LAYOUT_NAME[air.layout]} has no lobby` : air.layout === 'none' ? (air.scene ? 'OBS: ' + air.scene : 'Nothing on stream') : `${LAYOUT_NAME[air.layout] || air.layout}${lobbies.length ? ' · ' + lobbies.join(' · ') : ''}`);
-  const sub = air.since ? `${air.by === 'obs' ? 'switched in OBS' : air.by === 'health' ? 'switched by itself (a lobby dropped)' : air.by === 'auto' || air.by === 'armed' ? 'switched by itself' : air.by === 'deck' ? 'from the Stream Deck or here' : 'from here'}${air.scene ? ' · OBS scene ' + air.scene : ''}` : '';
+  const sub = air.since ? `${air.by === 'obs' ? 'switched in OBS' : air.by === 'health' ? 'switched by itself (a lobby dropped)' : air.by === 'auto' || air.by === 'armed' ? 'switched by itself' : 'by hand'}${air.scene ? ' · scene ' + air.scene : ''}` : '';
   const prob = OBS && OBS.connected && OBS.switchProblem;
   setText($('oa-sub'), prob ? prob : waiting ? `Waiting for OBS to show ${OBS.switchingTo}…` : OBS && OBS.connected && air.layout !== 'none' && air.layout !== 'replay' && !air.scene ? 'Not confirmed by OBS yet' : sub);
   $('oa-sub').classList.toggle('bad', !!prob);
+  $('oa-sub').title = $('oa-sub').textContent;
   // The stream and the recording, as OBS says.
   const out = OBS && OBS.connected && OBS.output;
   setHtml($('oa-out'), !out || !out.known ? '' : `<span class="${out.streaming ? 'on' : 'off'}${out.reconnecting ? ' rc' : ''}">${out.reconnecting ? '● RECONNECTING' : out.streaming ? '● STREAMING ' + (out.streamTime || '') : 'NOT STREAMING'}</span><span class="${out.recording ? 'on' : 'off'}">${out.recording ? (out.recordPaused ? '❚❚ REC PAUSED' : '● REC ' + (out.recordTime || '')) : 'NOT RECORDING'}</span>`);
@@ -1391,7 +1454,7 @@ function renderBar() {
   setTitle($('pill-replay'), ready.length ? 'Ready: ' + ready.map(c => `${c.lobby}: ${c.title}`).join(' · ') : 'No replays ready yet');
   // Automation: held (nothing switches by itself), or which automatic switches are on.
   const h = d.hold || {};
-  const autos = [d.autoGrid && 'grid', d.intermission && d.intermission.auto && 'inter', d.health && d.health.settings && d.health.settings.autoSwitch && 'switch'].filter(Boolean);
+  const autos = [d.autoGrid && 'grid', d.health && d.health.settings && d.health.settings.autoSwitch && 'switch'].filter(Boolean);
   setText($('pill-hold-k'), h.on ? (h.why === 'Panic' ? 'PANIC' : 'HOLD') : 'AUTO');
   setText($('pill-hold-t'), h.on ? (h.heldBack ? 'held back' : 'held') : autos.length ? autos.join(' · ') : 'off');
   setClass($('pill-hold'), 'pill' + (h.on ? ' bad flash' : autos.length ? ' good' : ''));
@@ -1612,7 +1675,8 @@ function renderTiles() {
   const grid = $('mv-grid'), d = DESK;
   const urls = new Map(PREVIEWS.map(p => [p.lobby, p.url]));
   const n = d.lobbies.length;
-  const cols = String(n <= 6 ? 6 : n <= 10 ? n : Math.max(8, Math.ceil(n / 2)));
+  // A few lobbies fill the width (four lobbies: four wide tiles), never fewer than four columns.
+  const cols = String(n <= 4 ? 4 : n <= 10 ? n : Math.max(8, Math.ceil(n / 2)));
   if (grid.style.getPropertyValue('--cols') !== cols) grid.style.setProperty('--cols', cols);
   const have = new Map([...grid.children].map(el => [el.dataset.lobby, el]));
   const pv = d.preview || { slots: [] }, ready = new Set((RP && RP.ready || []).map(c => c.lobby));
@@ -1762,7 +1826,6 @@ function renderBreaks() {
   const air = d.onAir, h = d.hold || {}, panic = !!d.panic;
   $('desk-inter').classList.toggle('on', air.layout === 'intermission');
   $('desk-soon').classList.toggle('on', air.layout === 'soon');
-  $('desk-autointer').classList.toggle('on', !!(d.intermission && d.intermission.auto));
   $('desk-autogrid').classList.toggle('on', !!d.autoGrid);
   $('desk-autosw').classList.toggle('on', !!(d.health && d.health.settings && d.health.settings.autoSwitch));
   const br = d.break;
@@ -1778,10 +1841,12 @@ $('desk-panic').addEventListener('click', panicPress);
 $('desk-hold').addEventListener('click', holdToggle);
 $('desk-sponsor').addEventListener('click', () => post('/app/admin/sponsor', { action: DESK && DESK.break ? 'end' : 'break' }));
 $('desk-autogrid').addEventListener('click', () => deckDo('auto/grid/toggle'));
-$('desk-autointer').addEventListener('click', () => deckDo('auto/intermission/toggle'));
 $('desk-autosw').addEventListener('click', () => deckDo('auto/switch/toggle'));
 
-// ---- Happening now, player cameras and the drawer of earlier plays ----------------------------------
+// ---- Suggestions (the desk's own items, then the team's), player cameras and the drawer of plays --------
+// Play cards (what used to be Happening now) are on the Watch page's feed and excitement now, and in the
+// Plays drawer here; the desk's own items (a lobby down or back, an interrupted game, a replay decision,
+// chat's pick) stay at the top of the Suggestions column, with their buttons.
 // A play's card. Its counts, age and "updated" time change all the time and are written in place
 // (renderCards), so the card itself is only made again when the play or its buttons change.
 function cardHtml(c) {
@@ -1796,10 +1861,12 @@ function cardHtml(c) {
 }
 function renderCards() {
   const d = DESK, box = $('desk-cards');
+  const items = d.cards.filter(c => c.system);
   setText($('desk-sub'), `${d.lobbies.filter(l => l.online).length} sending${d.simulating ? ' · simulation' : ''} · keep this screen off stream`);
-  syncList(box, d.cards, c => c.id, cardHtml, `<div class="card"><p class="empty">${d.lobbies.length ? 'Quiet right now.' : 'No lobbies yet. Hosts appear here when they turn on "Send my game to the caster" (or turn on Simulation under OBS → Test).'}</p></div>`);
-  // Counts and ages tick on the cards as they are.
-  for (const c of d.cards) {
+  syncList(box, items, c => c.id, cardHtml, d.lobbies.length ? '' : '<div class="card"><p class="empty">No lobbies yet. Hosts appear here when they turn on "Send my game to the caster" (or turn on Simulation under OBS → Test).</p></div>');
+  renderSuggestions();
+  // Ages tick on the cards as they are.
+  for (const c of items) {
     const el = box.querySelector(`[data-k="${CSS.escape(c.id)}"]`); if (!el) continue;
     if (!c.system) {
       setText(el.querySelector('.cnt'), c.crew != null ? `${c.crew} crew v ${c.imps} imp` : '');
@@ -1809,16 +1876,54 @@ function renderCards() {
     setText(el.querySelector('.upd'), !c.system && c.updatedAgo < c.ago - 1 ? `updated ${ago(c.updatedAgo)}` : '');
   }
 }
+// The drawer of plays: the ones going on now (into Preview, save or play its replay, a player's card), then
+// the ones that have calmed down (Watch again).
 function renderHistory() {
   const d = DESK;
-  setText($('hist-n'), d.history.length ? `(${d.history.length})` : '');
+  const now = d.cards.filter(c => !c.system);
+  const n = now.length + d.history.length;
+  setText($('hist-n'), n ? `(${now.length ? now.length + ' now · ' : ''}${d.history.length} earlier)` : '');
   if (!$('hist-card').open) return;
-  syncList($('desk-history'), d.history, c => c.id, c => `<div class="hrow tier-${c.tier}">
+  const rows = now.map(c => ({ c, now: true })).concat(d.history.map(c => ({ c, now: false })));
+  syncList($('desk-history'), rows, x => (x.now ? 'n' : 'h') + x.c.id, ({ c, now }) => now ? `<div class="hrow now tier-${c.tier}">
+      <span class="tm">${clock(c.at)}</span>
+      <span class="tx"><b>${esc(c.lobby)}</b> · <span class="why">${esc(TIER_NAME[c.tier] || c.tier)}</span> ${rich(c.text)}${c.onAir ? ' <span class="live">' + esc(c.onAir) + '</span>' : ''}</span>
+      <span class="row" style="gap:4px;flex-wrap:nowrap">${replayButton(c)}<button data-cardshow="${esc(c.lobby)}" title="${esc(c.lobby)} into Preview">Preview</button>${c.people && c.people.length ? `<button data-pcard="${esc(c.people[0].key)}" data-plobby="${esc(c.lobby)}" title="${esc(c.people[0].name)}'s player card on stream">Card</button>` : ''}</span>
+    </div>` : `<div class="hrow tier-${c.tier}">
       <span class="tm">${clock(c.at)}</span>
       <span class="tx"><b>${esc(c.lobby)}</b> · ${rich(c.text)}${c.shown ? ' <span class="shown">SHOWN</span>' : ''}</span>
       <button data-watch="${c.id}" title="Plays its replay when one is saved, else brings this lobby back up">Watch again</button>
-    </div>`, '<p class="empty" style="font-size:13px">Plays that have calmed down move here.</p>');
+    </div>`, '<p class="empty" style="font-size:13px">Plays show here as they happen; the team sees them on the Watch page.</p>');
 }
+// The team's suggestions from the Watch page, newest first: Into Preview, Cut (straight on stream) and Dismiss.
+// Each clears itself when its lobby goes on stream, after 2 minutes, or when dismissed (then it's under Earlier).
+const SUGG_WHY = { program: 'went on stream', expired: 'timed out', dismissed: 'dismissed' };
+function suggWhat(x) { return x.cam ? `Cam on ${sw(x.cam.color)}${esc(x.cam.name || '')}` : esc(x.label); }
+function renderSuggestions() {
+  const d = DESK, sg = d.suggestions || { live: [], earlier: [] };
+  syncList($('sugg-list'), sg.live, x => x.id, x => `<div class="dcard sugg${x.previewed ? ' pv' : ''}" data-sugg="${esc(x.id)}">
+      <button class="x" data-sgdo="dismiss" data-sgid="${esc(x.id)}" title="Dismiss">×</button>
+      <div class="t1"><span class="team">Team</span><b>${esc(x.lobby)}</b>${x.previewed ? '<span class="inpv">IN PREVIEW</span>' : ''}<span>${esc(x.who)}${x.also && x.also.length ? ' + ' + esc(x.also.join(', ')) : ''}</span><span class="ago"></span></div>
+      <div class="play">${suggWhat(x)}${x.text ? ` <span class="txt">“${esc(x.text)}”</span>` : ''}</div>
+      <div class="acts"><button class="b primary" data-sgdo="preview" data-sgid="${esc(x.id)}" title="${x.cam ? 'Its camera, following that player, into Preview' : 'This lobby into Preview'} (Take puts it on)">Into Preview</button><button class="b" data-sgdo="cut" data-sgid="${esc(x.id)}" title="${x.cam ? 'Its camera on stream now' : 'This lobby on stream now'}">Cut</button></div>
+    </div>`, `<p class="sugg-empty">${TEAM && TEAM.on ? 'No suggestions right now. Your team sends them from the Watch page.' : 'No suggestions. Turn on Team watch (Settings) and your team suggests what to show from the Watch page.'}</p>`);
+  for (const x of sg.live) setText($('sugg-list').querySelector(`[data-k="${CSS.escape(x.id)}"] .ago`), ago(x.ago));
+  $('sugg-earlier').hidden = !sg.earlier.length;
+  setText($('sugg-n'), sg.earlier.length ? `(${sg.earlier.length})` : '');
+  if (!$('sugg-earlier').open) return;
+  syncList($('sugg-history'), sg.earlier, x => x.id + '|' + x.cleared, x => `<div class="hrow">
+      <span class="tm">${clock(x.at)}</span>
+      <span class="tx"><b>${esc(x.lobby)}</b> · ${suggWhat(x)}${x.text ? ' “' + esc(x.text) + '”' : ''} · ${esc(x.who)}</span>
+      <span class="why">${SUGG_WHY[x.cleared] || ''}</span>
+    </div>`, '');
+}
+$('sugg-earlier').addEventListener('toggle', () => { if ($('sugg-earlier').open) renderSuggestions(); });
+$('sugg-list').addEventListener('click', async e => {
+  const b = e.target.closest('[data-sgdo]'); if (!b) return;
+  const r = await api('POST', '/app/admin/suggestion', Object.assign({ id: b.dataset.sgid, action: b.dataset.sgdo }, b.dataset.sgdo === 'cut' ? transQuery() : {}));
+  if (r && r.ok && r.message && b.dataset.sgdo !== 'dismiss') toast(r.message);
+  loadLive();
+});
 $('hist-card').addEventListener('toggle', () => { if ($('hist-card').open) renderHistory(); });
 // Player cams: the target lobby's players (the lobby in Preview, else the one on stream; tabs change
 // it). A click puts that lobby's camera on stream on them (armed until play resumes in a meeting);
@@ -2074,7 +2179,12 @@ function specRow(l) {
   </div>`;
 }
 const keyName = k => ((RP && RP.hotkeys && RP.hotkeys[k]) || '').replace(/^Key|^Digit/, '');
-$('desk-history').addEventListener('click', e => { const w = e.target.closest('[data-watch]'); if (w) post('/app/admin/watch', { id: w.dataset.watch }); });
+$('desk-history').addEventListener('click', e => {
+  const w = e.target.closest('[data-watch]'); if (w) { post('/app/admin/watch', { id: w.dataset.watch }); return; }
+  // A play going on now: save or play its replay.
+  const rp = e.target.closest('[data-rplay]'); if (rp) { post('/app/admin/replay', { action: 'play', id: rp.dataset.rplay }); return; }
+  const rs = e.target.closest('[data-rsave]'); if (rs) post('/app/admin/replay', { action: 'save', id: rs.dataset.rsave });
+});
 let OBS = null;
 function renderObs() {
   const o = OBS; if (!o) return;
@@ -2302,7 +2412,7 @@ function renderInter(d) {
   interLive = it.live || null;
   card.classList.toggle('live', !!it.live);
   if (card.contains(document.activeElement)) return;
-  const key = JSON.stringify([it.on, it.offer, it.live, it.nextRoundAt, it.montage, d.winScope]);
+  const key = JSON.stringify([it.on, it.offer, it.live, it.nextRoundAt, it.montage]);
   if (key === interKey) return;
   if (ptrDown && card.contains(ptrDown)) { ptrAgain = true; return; }
   interKey = key;
@@ -2312,8 +2422,7 @@ function renderInter(d) {
       <span class="muted" style="font-size:13px">Next round</span><input id="inter-next" placeholder="20 (min) or 19:30" style="width:130px" value="">
       <button class="b" data-inter="next">Set</button>${at ? `<span class="muted" style="font-size:13px">at ${at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>` : ''}
       ${it.montage ? `<span style="font-size:13px">Up next: <b>${esc(it.montage)}</b></span><button class="b" data-inter="montage">Play montage</button>` : ''}
-      <span style="flex:1"></span><span class="muted" style="font-size:12px">Win counter</span><button class="b${d.winScope === 'today' ? ' on' : ''}" data-wins="today">Today</button><button class="b${d.winScope === 'round' ? ' on' : ''}" data-wins="round">Round</button>
-      <button class="b primary" data-inter="off">Back to the game</button>`;
+      <span style="flex:1"></span><button class="b primary" data-inter="off">Back to the game</button>`;
     card.hidden = false;
   } else if (it.offer) {
     card.innerHTML = `<span class="tag">BETWEEN ROUNDS</span><span>Every lobby is between games.</span><span style="flex:1"></span><button class="b primary" data-inter="on">Intermission</button><button class="b" data-inter="dismiss">Not now</button>`;
@@ -2322,8 +2431,6 @@ function renderInter(d) {
 }
 function intermissionToggle() { post('/app/admin/intermission', { action: 'toggle' }); }
 $('inter-card').addEventListener('click', async e => {
-  const w = e.target.closest('[data-wins]');
-  if (w) { await post('/app/admin/wins', { scope: w.dataset.wins }); interKey = ''; return; }
   const b = e.target.closest('[data-inter]'); if (!b) return;
   const body = { action: b.dataset.inter };
   if (b.dataset.inter === 'next') body.value = $('inter-next').value;
@@ -2343,11 +2450,11 @@ function renderSoon(d) {
   const key = JSON.stringify([so.at, so.text]);
   if (key !== soonKey && !card.contains(document.activeElement) && !(ptrDown && card.contains(ptrDown))) {
     soonKey = key;
-    card.innerHTML = `<span class="tag">STARTING SOON</span>
+    card.innerHTML = `<div class="r"><span class="tag" title="Take a lobby to start the show">STARTING SOON</span>
       <span class="muted" style="font-size:13px">Starts</span><input id="soon-at" placeholder="10 (min) or 19:30" style="width:130px" title="Minutes from now (10) or a time (19:30). Empty: no countdown.">
-      <button class="b" type="button" data-soon="time">Set</button><span class="muted" id="soon-when" style="font-size:13px"></span>
-      <input id="soon-text" placeholder="A line on screen (optional)" maxlength="120" style="flex:1;min-width:150px" value="${esc(so.text || '')}"><button class="b" type="button" data-soon="text">Set</button>
-      <span class="muted" style="font-size:12px">Take a lobby to start the show.</span>`;
+      <button class="b" type="button" data-soon="time">Set</button><span class="muted" id="soon-when" style="font-size:13px"></span></div>
+      <div class="r"><span class="muted" style="font-size:13px">Line</span><input id="soon-text" placeholder="A line on screen (optional)" maxlength="120" title="A line of your own on the Starting soon screen" value="${esc(so.text || '')}"><button class="b" type="button" data-soon="text">Set</button>
+      <span class="muted" style="font-size:12px" title="Take a lobby to start the show.">Take a lobby to start the show.</span></div>`;
   }
   const at = so.at ? new Date(so.at) : null;
   setText($('soon-when'), !at ? 'No countdown' : so.left > 0 ? `at ${at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${fmtShot(so.left)} to go` : 'Starting now');
@@ -2464,6 +2571,20 @@ function renderReads() {
     <span class="acts"><button class="b primary" data-read="readDone" data-name="${esc(r.sponsor)}">Done</button><button class="b" data-read="readSnooze" data-name="${esc(r.sponsor)}">Snooze 5 min</button></span></div>`, '');
 }
 $('reads').addEventListener('click', e => { const b = e.target.closest('[data-read]'); if (b) post('/app/admin/sponsor', { action: b.dataset.read, name: b.dataset.name }); });
+// The action panel's cards: "More below" while some of them are past the bottom (see .act-more), gone at the end.
+const actScroll = document.querySelector('.ld-act .act-scroll');
+let actMoreQueued = false;
+function actMore() {
+  actMoreQueued = false;
+  const more = $('act-more'), left = actScroll.scrollHeight - actScroll.clientHeight - actScroll.scrollTop;
+  const on = actScroll.clientHeight > 0 && left > 6;
+  if (more.hidden === on) more.hidden = !on;
+}
+const actMoreSoon = () => { if (!actMoreQueued) { actMoreQueued = true; requestAnimationFrame(actMore); } };
+actScroll.addEventListener('scroll', actMoreSoon, { passive: true });
+new ResizeObserver(actMoreSoon).observe(actScroll);
+new MutationObserver(actMoreSoon).observe(actScroll, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['hidden'] });
+$('act-more').addEventListener('click', () => actScroll.scrollBy({ top: Math.max(40, actScroll.clientHeight - 40), behavior: 'smooth' }));
 function renderSponsors() {
   const s = SPON; if (!s) return;
   const br = DESK && DESK.break;
@@ -2486,10 +2607,6 @@ function renderGfx(g) {
   if (!g || !g.names) return;
   if ($('gfx-url').dataset.u !== (g.url || '')) { $('gfx-url').dataset.u = g.url || ''; $('gfx-url').innerHTML = g.url ? urlRow('Graphics', g.url) : ''; }
   $('gfx-problem').hidden = !g.problem; setText($('gfx-problem'), g.problem || '');
-  if (DESK) {
-    document.querySelectorAll('#gfx-wins [data-wins]').forEach(b => b.classList.toggle('on', b.dataset.wins === DESK.winScope));
-    setText($('gfx-wins-now'), DESK.wins ? `Impostors ${DESK.wins.impostors} · Crewmates ${DESK.wins.crew}` : '');
-  }
   const agk = String(!!g.afterGameAuto);
   if ($('gfx-ag').dataset.k !== agk) { $('gfx-ag').dataset.k = agk; $('gfx-ag').innerHTML = swHtml('data-agauto=""', g.afterGameAuto, 'Put the table up by itself', 'Off: the Live desk asks first (Show / Skip / Save for intermission)'); }
   const al = g.alerts || { types: {} };
@@ -2508,7 +2625,7 @@ function renderGfx(g) {
 }
 // Graphics in three groups: what's always up, what comes up when something happens, and what you put up.
 const GFX_GROUPS = [
-  ['Always on', 'on the pictures all the time', ['hideRoomCode', 'lobbyLabels', 'impostorTags', 'sabotage', 'gridTiles', 'winCounter', 'top3', 'ticker']],
+  ['Always on', 'on the pictures all the time', ['hideRoomCode', 'lobbyLabels', 'impostorTags', 'sabotage', 'gridTiles', 'top3', 'ticker']],
   ['Moments', 'come up by themselves', ['alerts', 'standingsChange', 'playerCards']],
   ['Info', 'up while on', ['standings', 'pointsOnTheLine', 'storyline']],
 ];
@@ -2518,7 +2635,6 @@ $('gfx-els').addEventListener('change', async e => {
   const b = e.target.closest('[data-gfx]'); if (!b) return;
   await post('/app/admin/broadcast', { element: b.dataset.gfx, on: String(b.checked) }); gfxKey = '';
 });
-$('gfx-wins').addEventListener('click', e => { const b = e.target.closest('[data-wins]'); if (b) post('/app/admin/wins', { scope: b.dataset.wins }); });
 $('gfx-alerts').addEventListener('change', async e => {
   const b = e.target.closest('[data-alert]'); if (!b) return;
   const k = b.dataset.alert;
@@ -2753,12 +2869,12 @@ function renderSide() {
   const h = d && d.health, lob = h ? h.lobbies : [];
   const red = lob.filter(x => x.level === 'red').length, yellow = lob.filter(x => x.level === 'yellow').length;
   set('st-health', 'dot ' + (!lob.length ? '' : red ? 'bad' : yellow ? 'warn' : 'good'), lob.length ? '•' : '', !lob.length ? 'No lobbies yet' : red || yellow ? `${red ? red + ' down' : ''}${red && yellow ? ' · ' : ''}${yellow ? yellow + ' degraded' : ''}` : 'All good');
-  // New plays (Happening now) since you last looked at the Live desk; opening it clears the count.
-  const plays = d && d.cards ? d.cards.filter(c => !c.system) : [];
-  if (PAGE === 'live') plays.forEach(c => SEEN_CARDS.add(c.id));
-  const fresh = plays.filter(c => !SEEN_CARDS.has(c.id));
-  set('st-live', 'count' + (fresh.some(c => c.tier === 'must' || c.tier === 'veryHigh') ? ' hot' : ''), fresh.length ? String(fresh.length) : '',
-    fresh.length ? `${fresh.length} new play${fresh.length === 1 ? '' : 's'} on the Live desk since you last looked${fresh.some(c => c.tier === 'must') ? ' (one is MUST SHOW)' : ''}` : 'Live desk');
+  // New team suggestions since you last looked at the Live desk; opening it clears the count.
+  const sugg = d && d.suggestions ? d.suggestions.live : [];
+  if (PAGE === 'live') sugg.forEach(x => SEEN_CARDS.add(x.id));
+  const fresh = sugg.filter(x => !SEEN_CARDS.has(x.id));
+  set('st-live', 'count' + (fresh.length ? ' hot' : ''), fresh.length ? String(fresh.length) : '',
+    fresh.length ? `${fresh.length} new suggestion${fresh.length === 1 ? '' : 's'} from your team on the Live desk since you last looked` : 'Live desk');
   const ready = MONT && MONT.list ? MONT.list.filter(x => x.state === 'ready').length : 0;
   set('st-replays', 'count', ready ? String(ready) : '');
   set('st-obs', 'dot ' + (OBS && OBS.connected ? 'good' : OBS && (obsSeen || OBS.problem) ? 'bad' : ''), OBS && (OBS.connected || obsSeen || OBS.problem) ? '•' : '', OBS ? (OBS.connected ? 'Connected' : OBS.problem || 'Not connected') : '');
@@ -2781,7 +2897,46 @@ async function refresh() {
   setText($('app-ver'), S.app ? 'v' + S.app : '');
   renderUpdate();
   if (PAGE === 'settings') { renderCam(); renderDeck(); }
+  // Settings shows it (and keeps it fresh itself); elsewhere it's only for the Live desk's words, now and then.
+  if (PAGE === 'settings' || Date.now() - teamAt > 30000) loadTeam();
 }
+// Settings → Team watch: on or off, the links for the team, the code (hidden until Show code; New code signs everyone out), who's watching.
+let TEAM = null, teamBusy = false, teamAt = 0, teamShown = false;
+async function loadTeam() {
+  if (teamBusy) return;
+  teamBusy = true;
+  teamAt = Date.now();
+  try { TEAM = await api('GET', '/app/admin/teamwatch'); if (S) S.team = TEAM; } catch (e) { } finally { teamBusy = false; }
+  renderTeam();
+}
+function renderTeam() {
+  const t = TEAM; if (!t) return;
+  if (document.activeElement !== $('team-on')) $('team-on').checked = !!t.on;
+  if (document.activeElement !== $('team-hostvideo')) $('team-hostvideo').checked = !!t.hostVideo;
+  const watching = t.watchers.filter(w => w.watching).length;
+  setText($('team-line'), !t.on ? 'off' : t.listening ? `on · port ${t.port} · ${watching} watching` : 'on, but not listening');
+  $('team-problem').hidden = !t.problem; setText($('team-problem'), t.problem || '');
+  $('team-body').hidden = !(t.on && t.listening);
+  if (!t.on || !t.listening) { teamShown = false; return; }
+  setHtml($('team-urls'), t.urls.length ? t.urls.map(u => `<div class="url"><span class="muted">Watch page</span><span class="mono">${esc(u)}</span><button type="button" data-copy="${esc(u)}">Copy</button></div>`).join('')
+    : `<p class="muted" style="margin:0;font-size:13px">This PC isn't on a network: the team can't reach it. (Port ${t.port}.)</p>`);
+  setText($('team-code'), teamShown ? t.code.slice(0, 4) + ' ' + t.code.slice(4) : '');
+  $('team-code').hidden = $('team-copy').hidden = !teamShown;
+  $('team-copy').dataset.copy = teamShown ? t.code : '';
+  setText($('team-show'), teamShown ? 'Hide code' : 'Show code');
+  setHtml($('team-who'), t.watchers.length ? `<table><tr><td class="muted">Who</td><td class="muted">From</td><td class="muted">Last seen</td><td></td></tr>${t.watchers.map(w => `<tr><td><b>${esc(w.name)}</b></td><td class="mono">${esc(w.ip)}</td><td class="${w.watching ? 'on' : 'muted'}">${w.watching ? 'watching now' : ago(w.seen)}</td><td><button class="b" type="button" data-teamout="${esc(w.id)}" style="font-size:13px;padding:3px 7px 1px">Sign out</button></td></tr>`).join('')}</table>`
+    : '<span class="muted">Nobody is watching yet.</span>');
+  const p = t.pictures;
+  setText($('team-pics'), !p.obs ? (t.hostVideo ? "OBS isn't connected, so the Watch page shows each host's own video (small, from VDO.Ninja). Connect OBS and Red Alert sends the pictures itself, so the hosts upload nothing more however many watch."
+      : "OBS isn't connected, so the Watch page has no pictures, only each game's state and events. Connect OBS and Red Alert sends the pictures itself, so the hosts upload nothing more however many watch.")
+    : p.running ? `Pictures from OBS: about ${p.fps} a second per lobby, while someone watches.` : 'Pictures from OBS while someone watches (none now).');
+}
+$('team-on').addEventListener('change', async e => { const r = await api('POST', '/app/admin/teamwatch', { action: e.target.checked ? 'on' : 'off' }); toast(r.message); loadTeam(); });
+$('team-new').addEventListener('click', async () => { const r = await api('POST', '/app/admin/teamwatch', { action: 'code' }); toast(r.message); loadTeam(); });
+$('team-show').addEventListener('click', () => { teamShown = !teamShown; renderTeam(); });
+$('team-hostvideo').addEventListener('change', async e => { const r = await api('POST', '/app/admin/teamwatch', { action: 'hostvideo', on: String(e.target.checked) }); toast(r.message); loadTeam(); });
+$('team-who').addEventListener('click', async e => { const b = e.target.closest('[data-teamout]'); if (!b) return; const r = await api('POST', '/app/admin/teamwatch', { action: 'signout', id: b.dataset.teamout }); toast(r.message); loadTeam(); });
+setInterval(() => { if (PAGE === 'settings' && !document.hidden) loadTeam(); }, 2000);
 // Settings → Player camera.
 function renderCam() {
   const c = S && S.cam; $('cam-card').hidden = !c; if (!c) return;
@@ -2802,7 +2957,7 @@ const DECK_OPTS = {
   layout: [['full', 'Full'], ['2up', '2-up'], ['quad', 'Quad'], ['grid', 'Grid'], ['cams', 'Player cams']],
   replay: [['best', 'Best replay into Preview (Take plays it)'], ['last', 'Play the newest replay'], ['that', 'Replay that (last seconds of the lobby on stream)'], ['live', 'Back to live'], ['toggle', 'Play / pause'], ['slow', 'Slow motion 100/50/25%'], ['angle', 'Other angle']],
   break: [['brb', 'Be right back'], ['intermission', 'Intermission'], ['sponsor', 'Sponsor break'], ['off', 'End the break']],
-  auto: [['grid', 'Auto grid'], ['intermission', 'Auto intermission'], ['switch', 'Auto switch off a lobby that drops']],
+  auto: [['grid', 'Auto grid'], ['switch', 'Auto switch off a lobby that drops']],
   gfx: [['standings/toggle', 'Standings on stream'], ['alerts/toggle', 'Off-screen alerts'], ['skip', 'Skip the graphic on now'], ['clear', 'Clear the graphics queue'], ['card', 'Card for the top notification\'s player']],
   prompt: [['show', 'Show'], ['skip', 'Skip'], ['save', 'Save for intermission']],
   voice: [['mute/toggle', 'Mute all (toggle)'], ['listen', 'Listen: keep a lobby\'s voice up'], ['listen/off', 'Listen off: follow the picture']],

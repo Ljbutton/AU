@@ -4,7 +4,7 @@ namespace TournamentTracker.App.Broadcast
 {
     /// <summary>
     /// Hold and the desk's automation as the caster left them, kept in Red Alert's settings.json ("Desk") so a
-    /// restart mid-show keeps them: auto grid, auto intermission, the next-round countdown, the win counter's
+    /// restart mid-show keeps them: auto grid, the next-round countdown, the win counter's
     /// and the standings' scope, Starting soon's countdown and line, and Hold (until released, or until a time). The rest of the automation is
     /// kept in its own file already: auto switch and the be-right-back screen (health.json), the after-game
     /// table and how long each graphic stays (broadcast.json), off-screen alerts (alerts.json), lobby voice
@@ -13,6 +13,7 @@ namespace TournamentTracker.App.Broadcast
     public sealed record DeskAutomation
     {
         public bool AutoGrid { get; set; }
+        /// <summary>Auto intermission was removed (people switch the stream): read from older files, ignored, written as false.</summary>
         public bool AutoIntermission { get; set; }
         /// <summary>When the next round starts (UTC), for the countdown; null: none.</summary>
         public DateTime? NextRoundAt { get; set; }
@@ -36,7 +37,6 @@ namespace TournamentTracker.App.Broadcast
             return new DeskAutomation
             {
                 AutoGrid = desk.AutoGrid,
-                AutoIntermission = desk.AutoIntermission,
                 NextRoundAt = desk.NextRoundAt,
                 WinScope = desk.WinScope,
                 StandingsScope = desk.StandingsScope,
@@ -55,7 +55,6 @@ namespace TournamentTracker.App.Broadcast
         public void ApplyTo(CasterDesk desk, DateTime utcNow)
         {
             desk.AutoGrid = AutoGrid;
-            desk.AutoIntermission = AutoIntermission;
             desk.NextRoundAt = NextRoundAt is { } at && at.ToUniversalTime() > utcNow ? at.ToUniversalTime() : null;
             if (WinScope is "today" or "round") desk.WinScope = WinScope;
             if (StandingsScope is "lobby" or "round" or "overall") desk.StandingsScope = StandingsScope;

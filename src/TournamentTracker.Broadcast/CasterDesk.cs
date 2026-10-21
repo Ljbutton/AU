@@ -168,6 +168,10 @@ namespace TournamentTracker.App.Broadcast
         public SponsorBook Sponsors { get; }
         /// <summary>Banners for plays in lobbies that aren't on screen.</summary>
         public AlertQueue Alerts { get; }
+        /// <summary>The production team's "Show this" suggestions from the Watch page (Suggestions on the Live desk).</summary>
+        public SuggestionBox Suggestions { get; }
+        /// <summary>Each lobby's recent events in words, for the Watch page's feed.</summary>
+        public LobbyEvents Events { get; }
         private readonly HashSet<string> _alerted = new HashSet<string>();
         private readonly Dictionary<string, (JsonElement Data, DateTime At)> _voice = new Dictionary<string, (JsonElement, DateTime)>(StringComparer.OrdinalIgnoreCase);
 
@@ -249,6 +253,10 @@ namespace TournamentTracker.App.Broadcast
             }
             Board = new LobbyBoard(_config, _clock) { RosterName = (key, discord, name) => Roster.Match(key, discord, name).Entry?.Name };
             Board.PlayChanged += OnPlay;
+            Suggestions = new SuggestionBox(_clock, () => OnAir, CamPick);
+            Events = new LobbyEvents(_clock, (lobby, p) => WhoIs(lobby, p) is { } w ? NameTag.Make(w.Color, w.Name) : null,
+                (lobby, id) => Board.Lobby(lobby) is { } l && l.People.TryGetValue(id, out var lp) ? NameTag.Make(lp.Color, Board.DisplayName(l, id, lp.Name)) : null);
+            Fed += Events.Add;
             _numbersPath = dataFolder == null ? null : System.IO.Path.Combine(dataFolder, NumbersFile);
             LoadNumbers();
             // One tick at a time: a slow one (the 5 s standings update late in the day) is skipped over,
@@ -400,8 +408,6 @@ namespace TournamentTracker.App.Broadcast
                 if (fresh) Alerts.Push(lobby, kind, play.Text);
             }
             if (made != null) CardMade?.Invoke(made);
-            // A MUST SHOW play cuts a sponsor break short: straight back to full screen on it.
-            if (made != null && made.Tier == "must" && OnAir.Layout == "break" && !HoldBack($"A MUST SHOW play in {lobby} ending the sponsor break")) Show(lobby, "full", null, null, "auto");
         }
 
         /// <summary>Notes a card's replay clip.</summary>
@@ -472,6 +478,8 @@ namespace TournamentTracker.App.Broadcast
             Archive.Forget(sim);
             Tables.Forget(sim);
             Replays.Forget(sim);
+            Suggestions.Forget(sim);
+            Events.Forget(sim);
             lock (_lock)
             {
                 foreach (var c in _cards.Where(c => sim(c.Lobby)).ToList()) { _cards.Remove(c); _byPlay.Remove(c.PlayKey); }
@@ -640,6 +648,14 @@ namespace TournamentTracker.App.Broadcast
             if (layout == "intermission") return ShowIntermission(by, transition);
             if (layout == "slate") return ShowSlate(by, transition);
             if (layout == "soon") return ShowStartingSoon(by, transition);
+            // A sponsor break on: it carries on, and only its lobby changes (the one picked, else the first of them).
+            if (IntoBreak(lobby.Length > 0 ? lobby : slots?.FirstOrDefault(x => !string.IsNullOrEmpty(x)), by, transition) is { } inBreak) return inBreak;
+            return ShowLayout(lobby, layout, slot, slots, by, transition);
+        }
+
+        /// <summary><see cref="Show"/> for a lobby layout, over whatever is on (a sponsor break ends).</summary>
+        private OnAir ShowLayout(string lobby, string layout, int? slot, IList<string>? slots, string by, string? transition)
+        {
             layout = OnAir.SlotsFor(layout) > 0 && layout != "break" ? layout : "full";
             int n = OnAir.SlotsFor(layout);
             var ranked = Board.Ranking().Where(r => r.Online && !IsDown(r.Lobby)).Select(r => r.Lobby).ToList();
@@ -689,13 +705,11 @@ namespace TournamentTracker.App.Broadcast
 
         /// <summary>When the next round starts (set in the tab), for the countdown.</summary>
         public DateTime? NextRoundAt { get; set; }
-        /// <summary>Intermission by itself when every lobby has been out of a game for a while, and back when one starts.</summary>
-        public bool AutoIntermission { get; set; }
-        /// <summary>How long every lobby must be out of a game before intermission is offered (or comes up).</summary>
+        /// <summary>How long every lobby must be out of a game before intermission is offered.</summary>
         public double IntermissionAfterSeconds { get; set; } = 45;
         /// <summary>Every lobby is between games: the tab offers intermission.</summary>
         public bool IntermissionOffer { get; private set; }
-        /// <summary>During intermission: a lobby went live (the tab says so; auto mode goes back by itself).</summary>
+        /// <summary>During intermission: a lobby went live (the tab says so; a person goes back to it).</summary>
         public string? LiveDuringIntermission { get; private set; }
         /// <summary>A montage waiting to be played (shown as "up next" in intermission).</summary>
         public (string Id, string Title)? QueuedMontage { get; set; }
@@ -703,7 +717,7 @@ namespace TournamentTracker.App.Broadcast
         private OnAir? _beforeIntermission;
         private readonly HashSet<string> _offerDismissed = new HashSet<string>();
 
-        public OnAir ShowIntermission(string by = "button", string? transition = null) => PutOn(() =>
+        public OnAir ShowIntermission(string by = "button", string? transition = null) => BreakRefusal() != null ? OnAir : PutOn(() =>
         {
             if (_onAir.Layout is not ("intermission" or "replay" or "none" or "slate")) _beforeIntermission = _onAir;
             IntermissionOffer = false;
@@ -714,7 +728,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>
         /// Out of intermission: the lobby that went live, else what was on before (a player camera or
         /// several, a lobby, 2-up, quad; the grid as it is now), else the top lobby. <paramref name="by"/>
-        /// and <paramref name="transition"/> as for any switch ("auto" when auto intermission ends it).
+        /// and <paramref name="transition"/> as for any switch.
         /// </summary>
         public OnAir EndIntermission(string by = "button", string? transition = null)
         {
@@ -729,7 +743,10 @@ namespace TournamentTracker.App.Broadcast
 
         public void DismissIntermissionOffer() { IntermissionOffer = false; _quietSince = _clock(); }
 
-        /// <summary>Once a second: offers (or, in auto mode, starts) intermission between rounds, and notices a lobby going live during it.</summary>
+        /// <summary>
+        /// Once a second: offers intermission between rounds, and notices a lobby going live during it. It
+        /// never switches: a person puts intermission on and takes it off.
+        /// </summary>
         private bool IntermissionTick(OnAir air)
         {
             var now = _clock();
@@ -739,13 +756,11 @@ namespace TournamentTracker.App.Broadcast
             {
                 if (playing.Count == 0) { LiveDuringIntermission = null; return true; }
                 LiveDuringIntermission ??= playing.OrderByDescending(r => r.Score).First().Lobby;
-                if (AutoIntermission && air.By == "auto" && !HoldBack("Auto intermission going back to the game")) EndIntermission("auto");
                 return true;
             }
             if (online.Count == 0 || playing.Count > 0) { _quietSince = null; IntermissionOffer = false; return false; }
             _quietSince ??= now;
             if ((now - _quietSince.Value).TotalSeconds < IntermissionAfterSeconds || air.Layout is "replay" or "break") return false;
-            if (AutoIntermission && !HoldBack("Auto intermission")) { ShowIntermission("auto"); return true; }
             IntermissionOffer = true;
             return false;
         }
@@ -961,10 +976,12 @@ namespace TournamentTracker.App.Broadcast
 
         /// <summary>
         /// A split-screen sponsor break: the lobby (the one on now, or the top one) shrinks to the left,
-        /// the sponsor's video or logo fills the right. Ends by itself; a MUST SHOW play ends it at once.
+        /// the sponsor's video or logo fills the right. It ends when its time is up, with End break, or with
+        /// Panic; nothing else ends it (a lobby picked meanwhile goes into its picture: <see cref="IntoBreak"/>).
         /// </summary>
         public string StartBreak(string? sponsorName = null, string? lobby = null)
         {
+            if (BreakRefusal() is { } refused) return refused;
             var list = Sponsors.Sponsors.Where(x => x.Placements.Contains("break")).ToList();
             var sp = sponsorName != null ? list.FirstOrDefault(x => string.Equals(x.Name, sponsorName, StringComparison.OrdinalIgnoreCase)) : Sponsors.Next("break");
             if (sp == null) return list.Count == 0 ? "No sponsor has the \"break\" placement: add it in sponsors.json." : "No such sponsor.";
@@ -1045,6 +1062,7 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>The grid on stream: one tile per active lobby (or the ones picked), empty tiles left for sponsors or the logo.</summary>
         public OnAir ShowGrid(string by = "button", IList<string>? pick = null, string? transition = null)
         {
+            if (IntoBreak(pick?.FirstOrDefault(x => !string.IsNullOrEmpty(x)), by, transition) is { } inBreak) return inBreak;
             var lobbies = pick?.ToList() ?? GridLobbies();
             var (cols, rows) = ObsDirector.GridShape(lobbies.Count);
             var slots = lobbies.Cast<string?>().ToList();
@@ -1229,7 +1247,7 @@ namespace TournamentTracker.App.Broadcast
             _beforeGrid = now.Layout == "grid" ? before : null;
         }
 
-        /// <summary>Once a second: keeps the grid's tiles matching the active lobbies, and runs auto grid.</summary>
+        /// <summary>Once a second: a lobby that dropped leaves the grid, and auto grid runs.</summary>
         private DateTime _nextSlowTick;
 
         public void Tick()
@@ -1257,18 +1275,20 @@ namespace TournamentTracker.App.Broadcast
             if (IntermissionTick(air)) return;
             if (air.Layout == "break")
             {
-                if (Break is { } b && _clock() >= b.Until && !HoldBack("The sponsor break ending")) Show(b.Lobby ?? "", "full", null, null, "auto");
+                if (Break is { } b && _clock() >= b.Until && !HoldBack("The sponsor break ending")) EndSponsorBreak("auto");
                 return;
             }
             var ranking = Board.Ranking().Where(r => r.Online && r.Phase != "menu").ToList();
             bool quiet = ranking.Count > 0 && ranking.All(r => r.Phase != "ingame");
             // Auto grid only fills Preview: the caster's Take switches.
             AutoGridTick(air, quiet);
+            // The grid closes up only when a lobby on it has dropped (its RECONNECTING tile goes after a while).
+            // Nothing else changes it: a lobby joining, starting to send or going to its menu waits for a person.
             if (air.Layout == "grid")
             {
-                var want = GridLobbies();
-                var have = air.Slots.Where(x => x != null).ToList();
-                if (!want.SequenceEqual(have!, StringComparer.OrdinalIgnoreCase) && !HoldBack("The grid closing up")) ShowGrid(air.By);
+                var have = air.Slots.Where(x => x != null).Select(x => x!).ToList();
+                var keep = have.Where(l => !GridDropped(l)).ToList();
+                if (keep.Count > 0 && keep.Count < have.Count && !HoldBack("The grid closing up")) ShowGrid(air.By, keep);
             }
         }
 
@@ -1391,7 +1411,7 @@ namespace TournamentTracker.App.Broadcast
                 Health = HealthState(),
                 AutoSwitched = AutoSwitched is { } asw ? new { asw.Lobby, asw.Text, At = asw.At.ToString("o") } : null,
                 Soon = SoonState(),
-                Intermission = new { On = air.Layout == "intermission", Offer = IntermissionOffer, Auto = AutoIntermission, Live = LiveDuringIntermission, NextRoundAt = NextRoundAt?.ToString("o"), Montage = QueuedMontage?.Title },
+                Intermission = new { On = air.Layout == "intermission", Offer = IntermissionOffer, Live = LiveDuringIntermission, NextRoundAt = NextRoundAt?.ToString("o"), Montage = QueuedMontage?.Title },
                 WinScope, Wins = new { Impostors = wins.Impostors, Crew = wins.Crew },
                 Break = Break is { } br ? new { Sponsor = br.Sponsor.Name, Left = Math.Max(0, (int)Math.Ceiling((br.Until - now).TotalSeconds)), br.Lobby } : null,
                 OnAir = new { air.Layout, air.Slots, air.By, air.Scene, Since = air.Since == default ? null : air.Since.ToString("o") },
@@ -1426,6 +1446,7 @@ namespace TournamentTracker.App.Broadcast
                 }).ToList(),
                 Cards = cards.Select(View).ToList(),
                 History = history.Select(View).ToList(),
+                Suggestions = Suggestions.State(),
             };
         }
 

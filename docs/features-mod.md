@@ -7,7 +7,7 @@ and scores each game there, keeps the tournament's rounds and standings, runs au
 everything the tournament does in Discord (reports, standings, the live lobby message, linking, the
 private results channel) through The Button open on the same PC. Players use the normal game on any
 platform. Hosts run it; organisers, referees and casters use what it posts and sends. This page
-describes the mod as of v0.1.66 (released with Red Alert 0.3.18). For setup steps, see the
+describes the mod as of v0.1.67 (released with Red Alert 0.3.19). For setup steps, see the
 [README](../README.md).
 
 ## At a glance
@@ -205,7 +205,7 @@ The full sheet, with examples, is in the README's [Scoring](../README.md#scoring
 ## The Button's connection
 
 * **Private connection** — the mod listens on `127.0.0.1`, port 8766 (`ControlPort`; any free port when that one is taken, `-1` turns it off), with a random key in `control.json` in its data folder; only programs on this PC with the key get in.
-* **What The Button reads** — `GET /api/status` (lobby, players with their Discord link and voice state, round, automute, every switch, safe mode, the last disconnect, the Live data state, points and games for the Referee tab, notices for Home), `GET /api/feed?since=N` (the caster feed), `GET /api/pov?after=N` (the player camera's newest picture); it sends `POST /api/command` (runs a command and answers with what the mod said) and `POST /api/names` (the caster's roster names).
+* **What The Button reads** — `GET /api/status` (lobby, players with their Discord link and voice state, round, automute, every switch, whether the referee slot is active this game (`refSlotActive`, new in v0.1.67: on and not in safe mode; The Button shows its On stream light only then), safe mode, the last disconnect, the Live data state, points and games for the Referee tab, notices for Home), `GET /api/feed?since=N` (the caster feed), `GET /api/pov?after=N` (the player camera's newest picture); it sends `POST /api/command` (runs a command and answers with what the mod said) and `POST /api/names` (the caster's roster names).
 * **Notices on Home** — what the game says on its own (a player left, an extra game, settings put back, new links, messages turned down by the host-only guard, safe mode) shows at the top of Home for 20 minutes.
 * **Discord through The Button** — every Discord request from the mod goes through The Button on the same PC (to Discord addresses only), and The Button keeps the bot connected. Without it, games are still tracked and saved (with the Submit hold, they wait in the Referee tab), but nothing reaches Discord; the host's chat says so when a game starts or The Button closes, and every voice state is sent again when it's back.
 * **New setup without restarting Among Us** — a setup code or Your Discord saved in The Button restarts the tracker straight away in the lobby, or as soon as the current game ends.

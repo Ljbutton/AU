@@ -97,6 +97,143 @@ public class CasterPageScriptTests
         Assert.True(esc < replay.IndexOf("map[keyWait] = e.code"), "Esc is checked before the key is saved");
     }
 
+    [Fact]
+    public void The_action_panel_keeps_Replays_and_Breaks_in_view_and_only_its_cards_scroll()
+    {
+        string page = Page();
+        string css = page.Substring(0, page.IndexOf("</style>", StringComparison.Ordinal));
+        // The Replays row and the Breaks rows sit outside the scrolling part, one under the other.
+        int panel = page.IndexOf("<aside class=\"ld-act\">", StringComparison.Ordinal), scroll = page.IndexOf("<div class=\"act-scroll\">", StringComparison.Ordinal);
+        int replays = page.IndexOf("<div class=\"rp-ready\" id=\"rp-ready\">", StringComparison.Ordinal), soon = page.IndexOf("id=\"soon-card\"", StringComparison.Ordinal);
+        Assert.True(panel < replays && replays < scroll && scroll < soon, "Replays before the cards, the cards inside the scrolling part");
+        Assert.Contains(".ld-act>.rp-ready{order:1}", css);
+        Assert.Contains(".ld-act>.brk-bar{order:2;flex:none}", css);
+        Assert.Contains(".act-scroll{order:3;flex:1 1 auto;min-height:0;overflow:auto;", css);
+        Assert.Contains(".act-scroll>#inter-card,.act-scroll>#soon-card{order:-1}", css);   // the break's own card first
+        // Replay buttons: whole ones only, on one line (one that doesn't fit wraps out of sight), the title in "…".
+        Assert.Contains(".rp-ready{display:flex;flex-wrap:wrap;gap:20px 4px;align-items:center;overflow:hidden;flex:none;height:28px}", css);
+        Assert.Matches(@"\.rpc\{[^}]*min-width:0;[^}]*text-overflow:ellipsis", css);
+        // Starting soon: the start time on one line, the on-screen line and its Set on the next.
+        string soonCard = Block(page, "function renderSoon(d)");
+        Assert.Equal(2, Regex.Matches(soonCard, "<div class=\"r\">").Count);
+        Assert.Contains(".soon-card .r{display:flex;gap:8px;align-items:center;min-width:0}", css);
+    }
+
+    [Fact]
+    public void The_win_counter_is_gone_from_the_desk_and_the_graphics()
+    {
+        string page = Page();
+        foreach (var gone in new[] { "data-wins", "/app/admin/wins", "gfx-wins", "winScope", "'winCounter'", "Win counter" })
+            Assert.DoesNotContain(gone, page);
+        using var s = typeof(BroadcastServer).Assembly.GetManifestResourceStream("ui/broadcast.html")!;
+        string graphics = new StreamReader(s).ReadToEnd();
+        foreach (var gone in new[] { "winCounter", "S.wins", "IMPOSTOR WINS", ".wins{" })
+            Assert.DoesNotContain(gone, graphics);
+    }
+
+    /// <summary>
+    /// The grid's tiles (frame and status line) end above the stats ticker, run in Node (skipped where it isn't installed).
+    /// </summary>
+    [Fact]
+    public void Grid_tiles_and_their_status_lines_stop_above_the_stats_ticker()
+    {
+        using var s = typeof(BroadcastServer).Assembly.GetManifestResourceStream("ui/broadcast.html")!;
+        string graphics = new StreamReader(s).ReadToEnd();
+        var bottom = Regex.Match(graphics, @"^const BOTTOM = .*$", RegexOptions.Multiline);
+        var tile = Regex.Match(graphics, @"^const tileBottom = .*$", RegexOptions.Multiline);
+        Assert.True(bottom.Success && tile.Success);
+        Assert.Contains("top: bottom - 52 * k + 'px'", graphics);
+        Assert.Contains("height:${bottom - slot.y}px", graphics);
+        string script = "let S;\n" + bottom.Value + "\n" + tile.Value + "\n" + """
+            const assert = (ok, what) => { if (!ok) { console.error(what); process.exit(1); } };
+            const lower = { x: 964, y: 541, w: 948, h: 533 }, upper = { x: 8, y: 8, w: 948, h: 533 };
+            S = { canvas: { w: 1920, h: 1080 }, layout: 'grid', ticker: [{ title: 'Kills' }] };
+            assert(tileBottom(lower) === 1080 - 66 - 8, 'a lower tile ends above the ticker: ' + tileBottom(lower));
+            assert(tileBottom(upper) === 541, 'an upper tile keeps its own bottom: ' + tileBottom(upper));
+            S.ticker = [];
+            assert(tileBottom(lower) === 1074, 'no ticker: the whole tile: ' + tileBottom(lower));
+            console.log('ok');
+            """;
+        string? output = RunNode(script);
+        if (output != null) Assert.Contains("ok", output);
+    }
+
+    /// <summary>
+    /// The top 3 never covers a layout's own label or a lobby's picture: it steps aside in the quad, the grid and
+    /// the sponsor break (where it sat on the SPONSOR BREAK label and the lobby's tag), and stays over the one
+    /// picture that fills the screen and above the 2-up's pictures. Run in Node (skipped where it isn't installed).
+    /// </summary>
+    [Fact]
+    public void The_top_3_steps_aside_wherever_it_would_cover_a_picture()
+    {
+        using var s = typeof(BroadcastServer).Assembly.GetManifestResourceStream("ui/broadcast.html")!;
+        string graphics = new StreamReader(s).ReadToEnd();
+        var busy = Regex.Match(graphics, @"^const LEFT_BUSY = .*$", RegexOptions.Multiline);
+        var at = Regex.Match(graphics, @"^function top3At\(\) \{.*?\n\}\n", RegexOptions.Multiline | RegexOptions.Singleline);
+        Assert.True(busy.Success && at.Success);
+        Assert.Contains("const list = S.top3, at = top3At(); if (!at) return;", graphics);
+        Assert.Contains("{ left: at.x + 'px', top: at.y + 'px', fontSize: '26px' }", graphics);
+        string script = "let S;\n" + busy.Value + "\n" + at.Value + "\n" + """
+            const assert = (ok, what) => { if (!ok) { console.error(what); process.exit(1); } };
+            const W = 1920, H = 1080, g = 8, bw = (W - 3 * g) / 2;
+            const on = (layout, slots, more) => { S = Object.assign({ canvas: { w: W, h: H }, layout, slots: slots.map((b, i) => ({ lobby: 'L' + i, slot: i + 1, ...b })), top3: [{ lobby: 'L0', rows: [] }], big: null }, more || {}); return top3At(); };
+            const full = on('full', [{ x: 0, y: 0, w: W, h: H }]);
+            assert(full && full.x === 24 && full.y === 78, 'full screen: under the lobby label, top left');
+            const two = on('2up', [{ x: g, y: (H - bw * 9 / 16) / 2, w: bw, h: bw * 9 / 16 }, { x: 2 * g + bw, y: (H - bw * 9 / 16) / 2, w: bw, h: bw * 9 / 16 }]);
+            assert(two && two.y === 66 && two.y + two.h < (H - bw * 9 / 16) / 2, '2-up: above the pictures');
+            const qh = (H - 3 * g) / 2;
+            assert(on('4up', [{ x: g, y: g, w: bw, h: qh }, { x: 2 * g + bw, y: g, w: bw, h: qh }, { x: g, y: 2 * g + qh, w: bw, h: qh }, { x: 2 * g + bw, y: 2 * g + qh, w: bw, h: qh }]) === null, 'quad: steps aside');
+            assert(on('grid', [{ x: g, y: g, w: bw, h: qh }, { x: 2 * g + bw, y: g, w: bw, h: qh }, { x: g, y: 2 * g + qh, w: bw, h: qh }, { lobby: null, x: 2 * g + bw, y: 2 * g + qh, w: bw, h: qh }]) === null, 'grid: steps aside');
+            assert(on('grid', [{ x: g, y: g, w: bw, h: H - 2 * g }, { x: 2 * g + bw, y: g, w: bw, h: H - 2 * g }]) === null, 'grid of two: steps aside');
+            assert(on('grid', [{ x: g, y: g, w: W - 2 * g, h: H - 2 * g }]) !== null, 'a grid of one fills the screen: stays');
+            const cw = Math.round(W * 0.27), ch = Math.round(cw * 9 / 16), m = Math.round(W * 0.015);
+            assert(on('cam', [{ x: W - cw - m, y: H - ch - m, w: cw, h: ch }]) !== null, 'player cam: over the camera, clear of the map in the corner');
+            const kw = Math.round(W * 0.66), kh = kw * 9 / 16;
+            assert(on('break', [{ x: Math.round(W * 0.025), y: (H - kh) / 2, w: kw, h: kh }]) === null, 'sponsor break: steps aside (its label and the lobby tag)');
+            assert(on('break', [{ x: 1200, y: 600, w: 600, h: 300 }]) !== null, 'a break picture far from it: stays');
+            assert(on('break', [{ x: 20, y: 300, w: 600, h: 300 }]) === null, 'the label above the break picture counts too');
+            assert(on('full', [{ x: 0, y: 0, w: W, h: H }], { big: { kind: 'standings' } }) === null, 'a big graphic: steps aside');
+            assert(on('full', [{ x: 0, y: 0, w: W, h: H }], { top3: [] }) === null, 'nothing to show');
+            assert(on('none', []) !== null, 'nothing on stream: stays');
+            console.log('ok');
+            """;
+        string? output = RunNode(script);
+        if (output != null) Assert.Contains("ok", output);
+    }
+
+    /// <summary>
+    /// The action panel's cards scroll when they don't all fit: a "More below" fade and button shows while there
+    /// is more under the bottom edge and goes at the end. Run in Node (skipped where it isn't installed).
+    /// </summary>
+    [Fact]
+    public void The_action_panel_says_more_below_while_its_cards_go_on_past_the_bottom()
+    {
+        string page = Page();
+        // The cue is the last thing in the scrolling cards, stuck to their bottom edge, over the last 30 px.
+        int scroll = page.IndexOf("<div class=\"act-scroll\">", StringComparison.Ordinal), more = page.IndexOf("<div class=\"act-more\" id=\"act-more\" hidden>", StringComparison.Ordinal);
+        Assert.True(scroll > 0 && more > scroll && more < page.IndexOf("<div class=\"brk-bar\">", StringComparison.Ordinal));
+        Assert.Contains(".act-more{order:99;position:sticky;bottom:0;", page);
+        Assert.Contains("actScroll.addEventListener('scroll', actMoreSoon, { passive: true });", page);
+        Assert.Contains("new MutationObserver(actMoreSoon).observe(actScroll,", page);
+        var fn = Regex.Match(page, @"^function actMore\(\) \{.*?\n\}\n", RegexOptions.Multiline | RegexOptions.Singleline);
+        Assert.True(fn.Success);
+        string script = "let actMoreQueued = true;\nconst cue = { hidden: true }, $ = id => id === 'act-more' ? cue : null;\nconst actScroll = { scrollHeight: 0, clientHeight: 127, scrollTop: 0 };\n" + fn.Value + """
+            const assert = (ok, what) => { if (!ok) { console.error(what); process.exit(1); } };
+            const at = (sh, top, ch = 127) => { Object.assign(actScroll, { scrollHeight: sh, scrollTop: top, clientHeight: ch }); actMore(); return !cue.hidden; };
+            assert(!at(127, 0), 'everything fits: no cue');
+            assert(at(151, 0), 'more below: the cue');
+            assert(at(151, 10), 'still more below');
+            assert(!at(151, 24), 'scrolled to the end: gone');
+            assert(!at(151, 20), 'within a few pixels of the end: gone');
+            assert(at(300, 0), 'back at the top with more cards: shown again');
+            assert(!at(0, 0, 0), 'the panel not laid out (another page): no cue');
+            assert(actMoreQueued === false, 'ready for the next change');
+            console.log('ok');
+            """;
+        string? output = RunNode(script);
+        if (output != null) Assert.Contains("ok", output);
+    }
+
     /// <summary>
     /// syncList itself, run in Node with a small stand-in for the DOM (skipped where Node isn't installed).
     /// </summary>

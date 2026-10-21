@@ -351,6 +351,8 @@ namespace TournamentTracker.App.Broadcast
 
         public async Task<string> PlayAsync(Clip clip)
         {
+            // A sponsor break isn't interrupted: a replay or montage waits until it's over.
+            if (_desk.BreakRefusal() is { } refused) return refused;
             if (clip.State != "ready" || clip.File == null) return clip.State == "saving" ? "The replay is still being saved." : "No replay: " + (clip.Problem ?? "it wasn't saved.");
             try
             {

@@ -37,11 +37,19 @@ export const TOGGLES = {
 	cue: { path: "voice/cue", label: "HEAR PREVIEW", onColour: "#46c28b", onInk: "#0b0b0d" },
 	hold: { path: "hold", label: "HOLD", onText: "HELD", onColour: "#ffc15a", onInk: "#0b0b0d" },
 	autogrid: { path: "auto/grid", label: "AUTO GRID" },
-	autointermission: { path: "auto/intermission", label: "AUTO INTERMISSION" },
 	autoswitch: { path: "auto/switch", label: "AUTO SWITCH" },
 	standings: { path: "gfx/standings", label: "STANDINGS" },
 	alerts: { path: "gfx/alerts", label: "ALERTS", offText: "PAUSED" },
 };
+
+/**
+ * Toggles Red Alert no longer has (people switch the stream): a key still set to one draws as removed
+ * and says so when pressed, without sending anything (it never turns into another toggle).
+ */
+export const REMOVED_TOGGLES = {
+	autointermission: { label: "AUTO INTER" },
+};
+export const AUTO_REMOVED = "Automatic switching was removed: people switch the stream.";
 
 const REPLAY_OPS = {
 	best: { title: "BEST REPLAY", icon: "replay" },
@@ -98,6 +106,20 @@ function bestView(state, ctx) {
 	const best = state?.replay?.best ?? null;
 	const staged = state?.preview?.replay ?? null;
 	return { ...base(ctx), type: "label", icon: "replay", title: "BEST REPLAY", sub: staged ? "in Preview" : best?.title ?? "nothing yet", accent: "green", lit: Boolean(staged), dim: !best && !staged };
+}
+
+/**
+ * The newest team suggestion (the Lobby key set to "suggest"): Red Alert puts the newest one from the Watch
+ * page that isn't in Preview yet into Preview (suggest/next); Take puts it on. The key shows how many are
+ * waiting and the next one by its lobby and reason (never the team's own words), lit while there are any.
+ */
+function suggestView(state, ctx) {
+	const s = state?.suggestions ?? null;
+	const count = s?.count ?? 0;
+	const next = s?.next ?? null;
+	const no = next ? lobbyByName(state, next.lobby)?.no : null;
+	const where = next ? (Number.isFinite(no) ? `L${no}` : next.lobby) : "";
+	return { ...base(ctx), type: "label", word: count > 0 ? String(count) : "0", title: "SUGGESTED", sub: next ? `${where} ${next.label}` : "none yet", accent: "green", lit: count > 0, dim: count === 0 };
 }
 
 /** A key's target lobby setting as the path segment Red Alert takes: "pgm", "pvw" or the number. */
@@ -168,6 +190,8 @@ const lobbyAction = {
 		const which = String(s.lobby ?? "1").trim().toLowerCase();
 		// Where the action was is Best replay: into Preview whatever the press is set to.
 		if (which === "action") return go("replay/best");
+		// The newest team suggestion into Preview, whatever the press is set to.
+		if (which === "suggest") return go("suggest/next");
 		// Adding builds a 2-up or quad in Preview one lobby at a time, so it takes a lobby number.
 		if (s.mode === "add") {
 			const n = posInt(which);
@@ -191,6 +215,7 @@ const lobbyAction = {
 		const which = String(s.lobby ?? "1").trim().toLowerCase();
 		const mode = s.mode === "preview" || s.mode === "add" ? "preview" : "cut";
 		if (which === "action") return bestView(state, ctx);
+		if (which === "suggest") return suggestView(state, ctx);
 		if (which === "next" || which === "prev") {
 			const from = mode === "preview" ? (previewLobby(state) ?? programLobby(state)) : programLobby(state);
 			const target = stepLobby(state, from?.no, which === "next" ? 1 : -1);
@@ -351,10 +376,12 @@ const toggleAction = {
 	uuid: id("toggle"),
 	defaults: { which: "mute", press: "toggle" },
 	request(s) {
+		if (Object.hasOwn(REMOVED_TOGGLES, s.which)) return refuse(AUTO_REMOVED);
 		const which = pick(s.which, Object.keys(TOGGLES), "mute");
 		return go(`${TOGGLES[which].path}/${pick(s.press, ["toggle", "on", "off"], "toggle")}`);
 	},
 	view(s, state, ctx) {
+		if (Object.hasOwn(REMOVED_TOGGLES, s.which)) return { ...base(ctx), type: "label", title: REMOVED_TOGGLES[s.which].label, sub: "removed", dim: true };
 		const which = pick(s.which, Object.keys(TOGGLES), "mute");
 		const t = TOGGLES[which];
 		const on = toggleOn(state, which);

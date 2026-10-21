@@ -88,6 +88,8 @@ namespace TournamentTracker.App.Broadcast
                     if (full["replay"]?["last"] is JsonObject last) last["title"] = last["label"]?.GetValue<string>();
                     if (full["replay"]?["best"] is JsonObject bestOne) bestOne["title"] = bestOne["label"]?.GetValue<string>();
                     if (full["preview"]?["replay"] is JsonObject staged) staged["title"] = staged["label"]?.GetValue<string>();
+                    // A team suggestion's own words could name an impostor: only its lobby and reason.
+                    if (full["suggestions"]?["next"] is JsonObject next) next.Remove("text");
                     byte[] plain = Encoding.UTF8.GetBytes(full.ToJsonString());
                     lock (_deckLock) { _deckJson = (withImp, plain); _deckBuiltAt = DateTime.UtcNow; }
                     if (changed)
@@ -166,7 +168,8 @@ namespace TournamentTracker.App.Broadcast
                 },
                 hold = desk.Held,
                 panic = _panic is { } inPanic && PanicInEffect(desk, inPanic),
-                auto = new { grid = desk.AutoGrid, intermission = desk.AutoIntermission, @switch = desk.HealthConfig.AutoSwitch },
+                // intermission: auto intermission was removed; always false, for keys of older plugins.
+                auto = new { grid = desk.AutoGrid, intermission = false, @switch = desk.HealthConfig.AutoSwitch },
                 graphics = new
                 {
                     standings = _broadcast?.Settings.Current.Elements.GetValueOrDefault("standings") == true,
@@ -215,6 +218,7 @@ namespace TournamentTracker.App.Broadcast
                         }).ToList(),
                     };
                 }).ToList(),
+                suggestions = DeckSuggestions(),
                 port = Port,
                 portWarning = PortWarning,
             };
@@ -313,7 +317,7 @@ namespace TournamentTracker.App.Broadcast
                         "cue" => ("HEAR PVW", v?.HearPreview),
                         "hold" => ("HOLD", desk.Held),
                         "autogrid" => ("AUTO GRID", desk.AutoGrid),
-                        "autointermission" => ("AUTO INTER", desk.AutoIntermission),
+                        "autointermission" => ("AUTO INTER", false),        // removed: always off
                         "autoswitch" => ("AUTO SWITCH", desk.HealthConfig.AutoSwitch),
                         "standings" => ("STANDINGS", _broadcast?.Settings.Current.Elements.GetValueOrDefault("standings")),
                         "alerts" => ("ALERTS", !desk.Alerts.Settings.Paused),

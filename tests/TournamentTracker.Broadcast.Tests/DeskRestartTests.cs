@@ -46,9 +46,11 @@ public class DeskRestartTests : IDisposable
         {
             Assert.True((await Post(server, "/app/admin/code", new { code = Admin().Encode() })).GetProperty("ok").GetBoolean());
             await Post(server, "/app/admin/autogrid", new { on = "true" });
-            await Post(server, "/app/admin/intermission", new { action = "auto", on = "true" });
+            // Auto intermission was removed: an old desk page's toggle is told so, and nothing is kept.
+            var removed = await Post(server, "/app/admin/intermission", new { action = "auto", on = "true" });
+            Assert.False(removed.GetProperty("ok").GetBoolean());
+            Assert.Equal("Automatic switching was removed: people switch the stream.", removed.GetProperty("message").GetString());
             await Post(server, "/app/admin/intermission", new { action = "next", value = "30" });
-            await Post(server, "/app/admin/wins", new { scope = "round" });
             await Post(server, "/app/admin/standings", new { scope = "overall" });
             await Post(server, "/app/admin/health", new { what = "autoSwitch", on = "false" });
             await Post(server, "/app/admin/health", new { what = "slate", on = "false" });
@@ -63,9 +65,7 @@ public class DeskRestartTests : IDisposable
         using var again = Server();
         var desk = again.Desk!;
         Assert.True(desk.AutoGrid);
-        Assert.True(desk.AutoIntermission);
         Assert.Equal(countdown, desk.NextRoundAt);
-        Assert.Equal("round", desk.WinScope);
         Assert.Equal("overall", desk.StandingsScope);
         Assert.True(desk.Held);
         Assert.Equal("Held from the Stream Deck", desk.HoldWhy);
@@ -85,7 +85,6 @@ public class DeskRestartTests : IDisposable
         Assert.False(third.Desk!.Held);
         Assert.False(third.Desk.AutoGrid);
         Assert.Null(third.Desk.NextRoundAt);
-        Assert.True(third.Desk.AutoIntermission);
     }
 
     [Fact]
@@ -102,6 +101,40 @@ public class DeskRestartTests : IDisposable
         var e = JsonDocument.Parse(File.ReadAllText(SettingsFile)).RootElement;
         foreach (var name in new[] { "AdminCode", "MuteHotkey", "DeckKey", "CamOff", "Desk" }) Assert.True(e.TryGetProperty(name, out _), name);
         Assert.Equal(new DeskAutomation { AutoGrid = true, Hold = true, HoldWhy = "Panic" }, BroadcastAppSettings.Load(SettingsFile).Desk);
+    }
+
+    [Fact]
+    public void An_older_settings_file_with_auto_intermission_on_still_reads_and_it_stays_off()
+    {
+        Directory.CreateDirectory(App);
+        File.WriteAllText(SettingsFile, "{\"DeckKey\":\"abcdef1234567890\",\"Desk\":{\"AutoGrid\":true,\"AutoIntermission\":true}}");
+        var old = BroadcastAppSettings.Load(SettingsFile);
+        Assert.True(old.Desk!.AutoGrid);
+        var clock = new FakeClock();
+        using var desk = new CasterDesk(null, () => clock.Now, new PriorityConfig());
+        old.Desk.ApplyTo(desk, clock.Now);
+        Assert.True(desk.AutoGrid);
+        Assert.False(DeskAutomation.From(desk).AutoIntermission);         // written as off from now on
+        // Every lobby quiet for minutes: the offer only, nothing switches.
+        desk.Apply(JsonSerializer.Serialize(new { type = "snap", lobby = "LJ", phase = "lobby", t = new DateTimeOffset(clock.Now).ToUnixTimeMilliseconds() }));
+        desk.Show("LJ");
+        for (int i = 0; i < 120; i++) { clock.Advance(1); if (i % 5 == 0) desk.Apply(JsonSerializer.Serialize(new { type = "snap", lobby = "LJ", phase = "lobby", t = new DateTimeOffset(clock.Now).ToUnixTimeMilliseconds() })); desk.Tick(); }
+        Assert.Equal(("full", "LJ"), (desk.OnAir.Layout, desk.OnAir.Slots[0]));
+        Assert.True(desk.IntermissionOffer);
+    }
+
+    [Fact]
+    public void A_settings_file_with_the_old_win_counter_scope_still_reads()
+    {
+        Directory.CreateDirectory(App);
+        File.WriteAllText(SettingsFile, "{\"DeckKey\":\"abcdef123456\",\"Desk\":{\"WinScope\":\"round\",\"StandingsScope\":\"overall\",\"Hold\":true,\"HoldWhy\":\"Panic\"}}");
+        var old = BroadcastAppSettings.Load(SettingsFile);
+        Assert.Equal("abcdef123456", old.DeckKey);
+        var clock = new FakeClock();
+        using var desk = new CasterDesk(null, () => clock.Now, new PriorityConfig());
+        old.Desk!.ApplyTo(desk, clock.Now);
+        Assert.Equal("overall", desk.StandingsScope);
+        Assert.True(desk.Held);
     }
 
     [Fact]

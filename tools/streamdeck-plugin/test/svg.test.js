@@ -150,6 +150,15 @@ test("dial strips are 200 x 100", () => {
 	for (const a of ACTIONS.filter((x) => !x.dial)) assert.match(render(a.view(settingsOf(a, {}), s, ctx(), null)), /width="144" height="144"/);
 });
 
+test("the replay dial's lines stay clear of the strip's border", () => {
+	const s = sampleState();
+	const a = ACTIONS.find((x) => x.dial && /replay/.test(x.uuid));
+	const markup = render(a.view(settingsOf(a, {}), s, ctx(), null));
+	assert.ok(markup.includes(">turn: scrub · push: play/pause<"));
+	// The border's inner edge is at y 94.5: a 12 px line's descenders end about 3 px under its baseline.
+	for (const m of markup.matchAll(/<text x="\d+" y="(\d+)"[^>]*font-size="(\d+)"/g)) assert.ok(+m[1] + +m[2] / 4 <= 94, `a line at y ${m[1]} (size ${m[2]}) touches the border`);
+});
+
 test("helpers: shade and the crewmate", () => {
 	assert.equal(shade("#808080", 0.5), "#404040");
 	assert.equal(shade("#ffffff", 2), "#ffffff");

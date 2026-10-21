@@ -1,6 +1,6 @@
 # What's left to do
 
-What needs doing, or could be done, to improve the tournament system, as of The Button and the mod **v0.1.66** and Red Alert **0.3.18** (20 October 2026; first written for v0.1.64). Each item says why, where the evidence is (file and line as of v0.1.64), and a rough size: **S** is under half a day, **M** is 1–2 days, **L** is 3 days or more.
+What needs doing, or could be done, to improve the tournament system, as of The Button and the mod **v0.1.67** and Red Alert **0.3.19** (20 October 2026; first written for v0.1.64). Each item says why, where the evidence is (file and line as of v0.1.64), and a rough size: **S** is under half a day, **M** is 1–2 days, **L** is 3 days or more.
 
 What each app already does is in [features-the-button.md](features-the-button.md), [features-mod.md](features-mod.md) and [features-red-alert.md](features-red-alert.md).
 
@@ -204,10 +204,9 @@ What each app already does is in [features-the-button.md](features-the-button.md
 
 *21 is done: see [Done in 0.1.66](#done-in-0166).*
 
-22. **Impostors on stream, a few seconds late.**
-    - **Decided:** there is no OBS stream delay. Red Alert's own broadcast delay (0–4 s, 3 s by default) holds the lobbies and the graphics' game data back, so the caster can cut to a play before it airs, and impostor information stays visible on stream (see [Done in 0.1.66](#done-in-0166)). The docs no longer ask for a 2–3 minute or 90 s delay.
-    - **What still shows impostors to anyone watching:** impostor tags, kill cards and alerts naming the killer, kill replays, player cams marking impostors and the referee ghost's screen (impostors' names in red), all a few seconds late.
-    - **Not held back by the delay:** the hand-added caster pages (`localhost:8767/` with `?full=1`, `/video`, `/multiview`) and the caster's mic (item 56). The delay is close rather than exact: Chromium treats VDO.Ninja's buffer as a hint.
+22. **Impostors on stream.**
+    - **Decided:** there is no OBS stream delay, and impostor information stays visible on stream. The docs no longer ask for a 2–3 minute or 90 s delay. Red Alert's own broadcast delay (0.3.18) is off since 0.3.19, so nothing is held back at all (see [Done in 0.1.67](#done-in-0167)); bringing it back is item 73.
+    - **What shows impostors to anyone watching:** impostor tags, kill cards and alerts naming the killer, kill replays, player cams marking impostors and the referee ghost's screen (impostors' names in red), as it happens.
     - **Do:** nothing unless the decision changes.
     - **Size:** none.
 
@@ -225,6 +224,7 @@ What each app already does is in [features-the-button.md](features-the-button.md
     - **Do:**
       - Default to about 6,000 kbps.
       - Build the tiles from OBS `GetSourceScreenshot` while OBS is connected (already used for Program, `ObsOutputs.cs:198`), instead of a second VDO.Ninja viewer per host. The owner is deciding on this one.
+      - The Watch page now does this for the team (0.3.19): `WatchCapture.cs` takes a small picture of each TT Lobby source from OBS in one shared loop while someone watches, and serves the newest one. The desk tiles could reuse it (see item 74 for the OBS load).
     - **Size:** S, then M.
 
 27. **Pin VDO.Ninja.**
@@ -293,7 +293,7 @@ What each app already does is in [features-the-button.md](features-the-button.md
 
 53. **Auto grid small things.** Hold says "Held back: Auto grid" while the caster's own Preview is waiting, and a replay going on doesn't take auto grid's suggestion out of Preview. **Size:** S.
 
-54. **Other automatic switches still don't wait for Take:** auto intermission, auto switch away from a dropped lobby (and swapping a dead tile, Be right back coming back), the sponsor break ending, a MUST SHOW play ending a break, the player camera going back to the map, an armed camera going on, the grid resizing, a montage going back to intermission. Which of them go through Preview is waiting for a decision: item 59. **Size:** M.
+54. **Other automatic switches still don't wait for Take:** auto switch away from a dropped lobby (and swapping a dead tile, Be right back coming back), the sponsor break ending, the player camera going back to the map, an armed camera going on, the grid closing up after a drop, a montage going back to intermission. Which of them go through Preview is waiting for a decision: item 59. (Auto intermission, a MUST SHOW play ending a break and the grid changing for any other reason were removed: see [Done in 0.1.67](#done-in-0167).) **Size:** M.
 
 55. **Windows CI: an occasional stall in Red Alert's OBS tests.**
     - **Why:** on the Windows runner, a test using the fake OBS (HttpListener) sometimes waited forever, a different test each time; Linux never did. Limits were added to the fake's sends and closes, and to Red Alert's own sends to OBS (10 s), and the runs since are green.
@@ -302,12 +302,12 @@ What each app already does is in [features-the-button.md](features-the-button.md
 
 ### Found in 0.1.66 (not done yet)
 
-56. **Set the caster's mic Sync Offset by itself.**
+56. **Set the caster's mic Sync Offset by itself.** (On hold: moot while the broadcast delay is off, item 73.)
     - **Why:** the broadcast delay holds the lobbies back, not the caster's mic, so commentary runs about 3 s ahead of the picture viewers see. The setup check only suggests a Sync Offset (Edit → Advanced Audio Properties).
     - **Do (if wanted):** set the Sync Offset on the duck-under mic to the broadcast delay. It changes a source that isn't one of Red Alert's own, so ask first.
     - **Size:** S.
 
-57. **Twitch's delay following the broadcast delay.**
+57. **Twitch's delay following the broadcast delay.** (On hold: moot while the broadcast delay is off, item 73. Twitch's own **Stream delay** works as it is.)
     - **Why:** the Twitch card's **Stream delay** (`twitch.json DelaySeconds`) is a setting of its own; the broadcast delay isn't added to it, so predictions, polls and chat messages can come before viewers see the play unless the caster counts it in.
     - **Do:** add the broadcast delay to Twitch's wait by itself, or show the total on the Twitch card.
     - **Size:** S.
@@ -322,39 +322,54 @@ What each app already does is in [features-the-button.md](features-the-button.md
     - **Do:** have the plugin check `/deck/state` for what's new (`preview.replay`, `voice.cue`) and fall back to Arm, or warn on the key. Until then: update Red Alert and its plugin together.
     - **Size:** S.
 
-71. **Best replay's "missed" with the broadcast delay.**
+71. **Best replay's "missed" with the broadcast delay.** (On hold: moot while the broadcast delay is off, item 73.)
     - **Why:** a play counts as seen when its lobby goes on stream at the desk, which is live; with the delay the stream is a few seconds behind, so plays just before a cut-in count as missed, and plays just before a cut-away count as seen though they never aired.
     - **Do:** shift those times by the broadcast delay (`BestReplay.cs`, `MarkShown`).
     - **Size:** S.
 
-72. **What hosts learn from the On stream light (decide).**
-    - **Why:** NEXT (in the caster's Preview) and ON STREAM reach the host's The Button before the stream shows it, and the caster often picks a lobby because of something the stream hasn't shown yet (a kill). A host who is also playing could read that.
-    - **Do (if it matters):** send NEXT only to referee hosts, or only ON STREAM, or delay the light by the broadcast delay.
+*72 is done: see [Done in 0.1.67](#done-in-0167).*
+
+### Found in 0.1.67 (not done yet)
+
+74. **OBS load of the Watch page's pictures.**
+    - **Why:** Team watch asks OBS for `GetSourceScreenshot` of every lobby, up to 5 a second each and 30 a second in all (`WatchCapture.cs`), while anyone has the page open. That rate hasn't been tried on a real OBS with real lobbies, and it isn't known whether a browser source that isn't in the live scene keeps drawing (if not, its pictures freeze).
+    - **Do:** on the dry run, watch OBS's render and encode lag (the OBS pill) with the Watch page open and closed, and check that lobbies off stream keep moving; lower `MaxShotsPerSecond` if OBS suffers.
+    - **Size:** S (the check), S (a lower rate).
+
+75. **The Watch page is plain HTTP on the network.**
+    - **Why:** the watch code, the sign-in's token and the pages (impostors included) travel unencrypted on the LAN, so anyone on the same network who can capture traffic can read them. The docs say to use it on a trusted network only.
+    - **Do (if wanted):** HTTPS with a certificate made by Red Alert (the team accepts it once), or keep to trusted networks and say so on the Team watch card.
+    - **Size:** M.
+
+76. **The team signs in again after a restart.**
+    - **Why:** sign-ins (and suggestions) are in memory only (`WatchServer.cs`, `Suggestions.cs`); the code is kept in `settings.json`, but after Red Alert restarts everyone on the Watch page goes back to the sign-in.
+    - **Do (if wanted):** keep the sign-ins' tokens in a file of their own (never in a support bundle), cleared by **New code** and Team watch off.
+    - **Size:** S.
+
+77. **Top 3 over camera 1 with three or four player cams.**
+    - **Why:** the Top 3 now steps aside wherever it would cover a picture (see [Done in 0.1.67](#done-in-0167)), but in the player cams layout with three or four cameras it still sits over camera 1: the graphics state has no camera boxes (`broadcast.html`, `top3At`).
+    - **Do:** add the camera boxes to `/broadcast/state` (an added field) and let `top3At` check them, or hide the Top 3 in that layout.
     - **Size:** S.
 
 ### Red Alert's automatic actions (decisions pending)
 
-From a read of everything Red Alert 0.3.17 does by itself (the file:lines are from that version). None of these has been changed yet.
+From a read of everything Red Alert 0.3.17 does by itself (the file:lines are from that version). 60, 61, 62 and 68 were settled in 0.3.19 (see [Done in 0.1.67](#done-in-0167)); the rest haven't been changed yet.
 
-59. **Which automatic switches go through Preview.** Auto switch and every other automatic switch go straight to Program; only auto grid uses Preview. Candidates for "into Preview, press Take": auto switch's destination, the auto intermission return, the camera going back to the map, the break ending, MUST SHOW, the grid closing up, the armed camera (see item 54). **Size:** M, once decided.
+59. **Which automatic switches go through Preview.** Auto switch and every other automatic switch go straight to Program; only auto grid uses Preview. Candidates for "into Preview, press Take": auto switch's destination, the camera going back to the map, the break ending, the grid closing up after a drop, the armed camera, a montage going back to intermission (see item 54). (Auto intermission and a MUST SHOW play ending a break are gone: see [Done in 0.1.67](#done-in-0167).) **Size:** M, once decided.
 
-60. **The grid closing up replaces a hand-picked grid** with every active lobby within a second, with a swoosh (`CasterDesk.cs:1265-1270`). It has no switch apart from Hold. **Size:** S.
+*60, 61 and 62 are done: see [Done in 0.1.67](#done-in-0167).*
 
-61. **Auto intermission's "back to the game" always goes full screen on the top-scoring live lobby**, never to what was on before (2-up, grid, camera), because `LiveDuringIntermission` is set before `EndIntermission` (`CasterDesk.cs:740-741, 724`). **Size:** S.
-
-62. **A montage returning to intermission puts intermission back as if by hand** (`by=button`), so auto intermission no longer ends that intermission when play resumes (`ReplayManager.cs:528`). The same goes for an intermission put on by auto switch (`by=health`). **Size:** S.
-
-63. **Graphics switches not obeyed:** player cards on replays ignore the **Player cards** switch, and the win counter shows in Intermission and Be right back even when it's switched off (`BroadcastApp.cs:326-327`). **Size:** S.
+63. **Graphics switches not obeyed:** player cards on replays ignore the **Player cards** switch (`BroadcastApp.cs:326-327`). (The win counter half no longer applies: the win counter was removed in 0.3.19.) **Size:** S.
 
 64. **Swoosh off doesn't fully stop it.** Automatic switches carry no transition, and Red Alert sets OBS's transition to the TT Swoosh stinger whenever it exists, without checking Swoosh on or off, so scene changes from automatic switches can still swoosh. It also resets OBS's transition mid-show when a new lobby source is added (`ObsSwoosh.cs:66-77`; `ObsDirector.cs:397-401`). **Size:** S.
 
-65. **The intermission delay (45 s) has no UI.** (Auto intermission and auto grid are now kept across a restart: see [Done in 0.1.66](#done-in-0166).) **Size:** S.
+65. **The intermission offer's delay (45 s) has no UI.** (Auto grid is now kept across a restart: see [Done in 0.1.66](#done-in-0166).) **Size:** S.
 
 66. **Auto clip saving and auto montages have no switch on screen** (obs.json only). **Size:** S.
 
 67. **Hold doesn't stop the automatic actions that aren't switches:** Twitch polls, predictions and chat messages, auto clips, montage building, graphics, alerts, the after-game queue and audio. Decide which of them Hold should cover. **Size:** S–M.
 
-68. **A MUST SHOW play from any lobby ends a sponsor break on that lobby**, not on the break's lobby (`CasterDesk.cs:404`). **Size:** S.
+*68 is done: see [Done in 0.1.67](#done-in-0167).*
 
 69. **alerts.json's `max: 3` is unused:** banners show one at a time (the docs now say so). Use it or remove it. **Size:** S.
 
@@ -382,7 +397,7 @@ From a read of everything Red Alert 0.3.17 does by itself (the file:lines are fr
 ### The Button
 
 38. **"Host away" for the caster.**
-    - **Why:** The tally is done (The Button's Home shows ON STREAM and NEXT, see [Done in 0.1.66](#done-in-0166)), but the caster still can't tell when a host on stream has left the game window.
+    - **Why:** The tally is done (The Button's Home shows ON STREAM and NEXT to a host in the referee slot, see [Done in 0.1.66](#done-in-0166) and [Done in 0.1.67](#done-in-0167)), but the caster still can't tell when a host on stream has left the game window.
     - **Do:** The Button warns the caster, over the data link, when Among Us isn't the foreground window while the lobby is on stream.
     - **Size:** S.
 
@@ -407,13 +422,19 @@ From a read of everything Red Alert 0.3.17 does by itself (the file:lines are fr
     - **Size:** S–M.
 
 43. **Stream Deck or Companion from another PC, opt-in.**
-    - **Why:** Red Alert only listens on this PC.
+    - **Why:** Red Alert's screen and Stream Deck links only listen on this PC (only the Watch page listens on the network, while Team watch is on).
     - **Do:** an opt-in LAN listener for `/deck/*`, with the key and a Host check.
     - **Size:** S–M.
 
 44. **Remote co-caster.**
     - **Do:** VDO.Ninja guest sources in OBS, ducked under the host's mic.
     - **Size:** L.
+
+73. **The broadcast delay, brought back later.**
+    - **Why:** Red Alert 0.3.18 held every lobby's picture, voice and camera in OBS, and the graphics' game data, back a few seconds (0–4 s, 3 s by default), so the caster could cut to a play before it aired. The owner turned it off in 0.3.19 ("we'll come back to it later"; see [Done in 0.1.67](#done-in-0167)).
+    - **Where it is:** the code is kept behind `BroadcastDelay.Enabled` (`false`, `ObsDelay.cs`), read through `ObsDirector.DelayAllowed`; its tests turn that on for their own director. Turning it on brings back the OBS card's setting, the setup check's delay line and its **Turn on a 3 s delay** fix, the graphics waiting (`BroadcastStream.cs`) and replays waiting for the play to reach OBS (`ReplayManager.cs`). `obs.json` may still hold 3 s from 0.3.18.
+    - **When it comes back:** test it again ([test-list.md](test-list.md), New in 0.1.66, broadcast delay), and items 56, 57 and 71 apply again. The hand-added caster pages (`localhost:8767/` with `?full=1`, `/video`, `/multiview`) and the caster's mic aren't held back by it, and it's close rather than exact: Chromium treats VDO.Ninja's buffer as a hint.
+    - **Size:** S to turn on and test; the open items with it S each.
 
 ### Stream Deck plugin
 
@@ -488,6 +509,30 @@ These ideas from earlier audits are in the code now, so they are not on the list
 - **The Referee tab on one screen,** with one void reason, the admin lobby list filled when the tab opens, and the "Not held for Submit" subtitle (`index.html:918`).
 
 ---
+
+## Done in 0.1.67
+
+Done in The Button and the mod 0.1.67 and Red Alert 0.3.19; the numbers are the items above.
+
+- **22 (the broadcast delay off):** the owner's call, for now. Nothing is held back whatever `obs.json` says, the OBS card's **Broadcast delay** row is hidden, the setup check has no delay line (no **Turn on a 3 s delay**, no "No broadcast delay" warning), and asking for one answers "The broadcast delay is off in this version of Red Alert." The graphics and the lobby pictures are live again, and **Replay that** and the kill clips no longer wait for a delay. No OBS stream delay either: impostor information stays visible on stream. The code is kept behind `BroadcastDelay.Enabled` (`ObsDelay.cs`); bringing it back is item 73.
+- **60, 61, 62 and 68 (no automatic screen changes for breaks or other reasons):** the owner's call. Auto intermission is gone, start and end: when every lobby has been out of a game for 45 s the desk only offers intermission (**Intermission** / **Not now**), and a lobby going live during it is only said ("LJ IS LIVE"); a person goes back (61 and 62 no longer apply). A MUST SHOW play no longer ends a sponsor break (68). The grid only changes by itself when a lobby on it drops (down 45 s, or gone quiet): the rest close up in their order, and a lobby joining or going to its menu, or a grid you picked, is left alone (60). The Live desk's **Auto → Intermission** button and its Stream Deck link are gone; `auto/intermission/…` answers 410 "Automatic switching was removed: people switch the stream." and `/app/admin/intermission` `action=auto` answers the same with ok false; an old Toggle key set to it reads AUTO INTER, *removed*, and sends nothing; an old `settings.json` with `AutoIntermission` still loads and it's ignored (`DeskMemory.cs`, `DeckState.cs`). Kept: auto switch off a dropped lobby (with Be right back and the dead-tile swap), the camera going back to the map, the grid closing up after a drop, a montage going back to intermission, armed cameras and the break's own timer, all still stopped by Hold.
+- **Sponsor breaks can't be interrupted** (`CasterDeskBreak.cs`): a lobby picked during a break (a cut, Take, a tile, the multiview pick, Stream Deck lobby, Take and camera keys, Undo to a lobby) goes into the break's picture and the break carries on with its sponsor, its time and its sponsor appearance. BRB, Intermission, Starting soon, another break, a replay or montage (`ReplayManager.PlayAsync`), **Replay that** and an Undo back to one of those are refused with "A sponsor break is on: N s left. End break first." (409 on the Stream Deck). It ends only when its time is up, with **End break** (`break/off`, `/app/admin/sponsor` `end`) or with Panic, and then goes full screen on the break's lobby as it is then. If the break's lobby drops, auto switch puts a healthy lobby (a hot one, else the top one) in the break; with none, the break stays with RECONNECTING. Switching scenes in OBS itself still ends a break.
+- **Red Alert's visual fixes and the win counter removed:** the win counter is gone from the stream (the corner, Intermission, Be right back), the Graphics page and the intermission card's Today / Round; `/broadcast/state` has no `wins`, `POST /app/admin/wins` is gone (404), and an old `broadcast.json` with `winCounter` still loads and drops it (`BroadcastApp.cs`). The desk still keeps `WinScope` in `settings.json`, unused. Grid tiles and their status lines stop above the stats ticker while it shows (`broadcast.html`). The Live desk's action panel is the Replays row, then the Breaks rows, then the cards, and only the cards scroll (the break that's on has its card first); a sponsor read and the Starting soon or Intermission card fit at 1600×900 and 1920×1080. The Replays row shows only whole buttons (long titles end in "…"); the Best replay button reads **▶ Best**; the Starting soon card has two rows with a **Line** label; the Program line says "by hand" and "scene TT Full"; up to four lobbies get four wide tiles; the Twitch log says "Nothing yet." when empty; the Stream Deck + replay dial's hint is clear of its border (`svg.js`).
+- **72 (decided):** the On stream light (ON STREAM and NEXT) shows only to a host in the referee slot (the referee ghost, not playing); a playing host never sees it, since it could tell them something happened in their game (`AppServer.cs`, `RefereeHost`). The mod's status has `refSlotActive` (the slot on and not in safe mode this game, `ControlApi.cs`); with an older mod, The Button goes by the referee slot on and safe mode off.
+- **Team watch** (`WatchServer.cs`, `BroadcastWatch.cs`, `WatchCapture.cs`, `Suggestions.cs`, `LobbyEvents.cs`, `ui/watch.html`): a Watch page for the production team on their own PCs on the network, on port 8780 (or the next free one up to 8789), listening only while Settings → **Team watch** is on (off by default), behind an 8-character watch code. Each lobby's card has its picture (from OBS while it's connected; without OBS, the host's own video only when the caster ticks it), state, players with impostors, last 8 events and **Show this**. Wrong codes are limited (5 a minute per address, 200 overall), **New code** or Team watch off signs everyone out, every request needs the sign-in's token, the code is never logged and is taken out of support bundles. On the Live desk, **Happening now** is replaced by **Suggestions** (the desk's own items, then the team's, with **Into Preview**, **Cut** and **×**, cleared on Program, after 2 minutes or when dismissed); plays move to the **Plays** drawer, with Save replay / ▶ REPLAY, Preview and Card; the side menu's number counts new suggestions. The Stream Deck gains `suggest/next`, a Lobby key option **Newest team suggestion**, and `suggestions` in `/deck/state` (its words only with `&imp=1`).
+- **Team watch: fixes from its security review** (`WatchServer.cs`, `BroadcastWatch.cs`, `Suggestions.cs`, `ui/watch.html`, `ui/caster.html`):
+  - **The hosts' VDO.Ninja links (with their passwords) no longer reach watchers.** With OBS connected `/watch/state` never has `video`, and a lobby whose OBS picture fails or goes stale says "No picture" instead of falling back to the host's video. Without OBS there's no host video unless the caster ticks **Without OBS, show the host's own video** on the Team watch card (off by default, `WatchHostVideo` in `settings.json`), which warns "Each person watching then gets every host's own video link, which signing out doesn't take back, and costs each host upload." Without it the card says "No picture: OBS isn't connected." A link once handed out let a signed-out watcher keep each host's live data feed (impostors included) and send it spectator commands.
+  - **One machine can't block the page:** at most 16 connections at once from one address (96 in all), the request's head within 3 s and all of it within 10 s.
+  - **Wrong codes don't lock out the right one:** still 5 a minute per address; overall 200 a minute (was 40), and past that an address with no wrong code this minute still gets in.
+  - **Sign-ins and the code don't last forever:** someone not seen for 30 minutes is signed out; each time Team watch is switched on it makes a new code ("A new code each time you turn it on."); the card hides the code until **Show code** (then the code and **Copy**).
+  - **Team watch off ends what's open:** every connection still open is closed, each answer is written within 5 s or the connection is closed, and a sign-in that arrives once it's off makes no token ("Team watch is off.").
+  - **Hidden tabs don't keep OBS busy:** only the page in front (its state polls, which a background tab marks `bg=1`) and picture requests count as watching, so the pictures stop when nobody looks.
+  - **Suggestions are "on stream" only as suggested:** a lobby suggestion only when that lobby is full screen on Program (a quad tile, the grid or a sponsor break don't count), a camera suggestion only when that lobby's camera is on Program following that player (the desk's camera pick); the 409 refusal uses the same rule ("LJ is on stream already.", "LJ's camera on Ann is on stream already.").
+  - **No blocking in the Watch path:** the Watch server's routes are async and await the shared state.
+  - **Smaller:** the desk page reads Team watch every 2 s on Settings only (else every 30 s); suggestion ids differ from one run to the next, so a desk page left open over a restart still counts new ones; the tests bind loopback (no Firewall question on Windows) and give the picture loop a fake clock.
+- **The Top 3 steps aside over pictures** (`broadcast.html`, `top3At`): it's hidden in the quad, a grid of two or more lobbies and the sponsor break, and shows as before over full screen, 2-up, a one-lobby grid and a player cam. Three or four player cams are item 77.
+- **More below on the action panel** (`caster.html`): while the cards go on past the bottom, the panel fades out there with a **▾ More below** button that scrolls down, gone at the end; the cards are a little shorter, so Intermission with a prompt and a sponsor read fits at 1600×900.
+- **Sponsor breaks ended early** (checked, no code change): a break ended with **End break**, or with its lobby changed by a cut or a camera, logs one appearance for its time on screen (`SponsorBreakTests.cs`); simulated breaks are never logged, which is why a rehearsal in Simulation counts none. The logged lobby is the one the break started with.
 
 ## Done in 0.1.66
 

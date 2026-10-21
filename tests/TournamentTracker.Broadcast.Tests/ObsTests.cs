@@ -72,6 +72,8 @@ public sealed class FakeObs : IAsyncDisposable
     public long StreamBytes, StreamSkipped, StreamFrames, RenderSkipped, RenderFrames;
     public double DiskMb = 500_000;
     public int Screenshots;
+    /// <summary>The source each screenshot was of (the program scene, or a lobby's source for the Watch page).</summary>
+    public readonly List<string> ShotSources = new();
     /// <summary>Every SetInputMute, by source name, in the order they came.</summary>
     public readonly List<string> MuteLog = new();
     /// <summary>Audio monitoring per input (SetInputAudioMonitorType), and OBS's monitoring device (null: OBS's default).</summary>
@@ -361,6 +363,7 @@ public sealed class FakeObs : IAsyncDisposable
                 return new { cpuUsage = 12.5, memoryUsage = 900.0, availableDiskSpace = DiskMb, activeFps = 60.0, averageFrameRenderTime = 2.0, renderSkippedFrames = RenderSkipped, renderTotalFrames = RenderFrames, outputSkippedFrames = 0, outputTotalFrames = StreamFrames };
             case "GetSourceScreenshot":
                 Screenshots++;
+                ShotSources.Add(S(d, "sourceName"));
                 return new { imageData = "data:image/jpg;base64," + Convert.ToBase64String(new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, (byte)(Screenshots & 0xFF), 0xFF, 0xD9 }) };
             default: throw new Exception("unknown request " + type);
         }
@@ -453,7 +456,7 @@ public class ObsTests : IAsyncLifetime
             Assert.Equal(new[] { "TT Lobby LJ", "TT Lobby MAL", "TT Lobby Soggy" }, _obs.Scenes[scene].Select(i => i.Source).Where(x => x.StartsWith("TT Lobby ")).OrderBy(x => x));
         Assert.Equal("TT Swoosh", _obs.Scenes["TT Full"].Last().Source);        // the swoosh plays on top
         Assert.Empty(_obs.Scenes["Starting soon"]);
-        Assert.Equal("https://vdo.ninja/?view=a&password=x&cleanoutput&videobitrate=8000&buffer=3000", _obs.Inputs["TT Lobby LJ"]["url"]!.ToString());
+        Assert.Equal("https://vdo.ninja/?view=a&password=x&cleanoutput&videobitrate=8000", _obs.Inputs["TT Lobby LJ"]["url"]!.ToString());
         Assert.Equal("True", _obs.Inputs["TT Lobby LJ"]["reroute_audio"]!.ToString());
         Assert.All(_obs.Scenes["TT Full"].Where(i => i.Source.StartsWith("TT Lobby ")), i => Assert.False(i.Enabled));     // hidden until put on
 
@@ -621,10 +624,23 @@ public class ObsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task With_the_broadcast_delay_off_nothing_is_held_back_and_the_setup_check_doesnt_ask_for_it()
+    {
+        _director.ImpostorTagsOn = () => true;
+        _director.Settings.BroadcastDelay = 3;                          // left in obs.json by 0.3.18
+        await Connect();
+        Assert.Equal(0, _director.DelaySeconds);
+        Assert.DoesNotContain(_director.Checks, c => c.Id == "delay");
+        Assert.Equal("The broadcast delay is off in this version of Red Alert.", await _director.SetDelayAsync(3));
+        lock (_obs) Assert.DoesNotContain(_obs.Inputs.Values.SelectMany(i => i.Values).OfType<string>(), v => v.Contains("buffer="));
+    }
+
+    [Fact]
     public async Task The_setup_check_finds_names_an_empty_scene_desktop_audio_replays_and_no_delay()
     {
         lock (_obs) { _obs.Scenes["Scene"] = new(); _obs.Inputs["Desktop Audio"] = new(); _obs.Kinds["Desktop Audio"] = "wasapi_output_capture"; _obs.Muted["Desktop Audio"] = false; _obs.SourceRecordInstalled = false; }
         _director.ImpostorTagsOn = () => true;
+        _director.DelayAllowed = true;                                  // off in this version (no delay check then); kept working for later
         _director.Settings.BroadcastDelay = 0;
         await Connect();
         var checks = _director.Checks.ToDictionary(c => c.Id);

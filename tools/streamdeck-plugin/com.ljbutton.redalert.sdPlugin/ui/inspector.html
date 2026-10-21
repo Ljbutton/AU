@@ -128,9 +128,9 @@ function fieldsFor(k) {
   switch (k) {
     case "lobby":
       return [
-        ["lobby", "Lobby", () => lobbyNumbers().concat([["next", "Next lobby"], ["prev", "Previous lobby"], ["action", "Best replay (into Preview)"]])],
-        ["mode", "Press", [["preview", "Put it in Preview (Take puts it on)"], ["cut", "Cut it to stream"], ["add", "Add it to Preview (2-up, quad)"]], (s) => s.lobby !== "action"],
-        ["t", "Transition", TRANSITION, (s) => s.mode === "cut" && s.lobby !== "action"],
+        ["lobby", "Lobby", () => lobbyNumbers().concat([["next", "Next lobby"], ["prev", "Previous lobby"], ["action", "Best replay (into Preview)"], ["suggest", "Newest team suggestion (into Preview)"]])],
+        ["mode", "Press", [["preview", "Put it in Preview (Take puts it on)"], ["cut", "Cut it to stream"], ["add", "Add it to Preview (2-up, quad)"]], (s) => s.lobby !== "action" && s.lobby !== "suggest"],
+        ["t", "Transition", TRANSITION, (s) => s.mode === "cut" && s.lobby !== "action" && s.lobby !== "suggest"],
       ];
     case "cam":
       return [
@@ -152,14 +152,14 @@ function fieldsFor(k) {
       return [["op", "Replay", [["best", "Best replay into Preview (Take plays it)"], ["last", "Play the last clip"], ["that", "Replay that (the last seconds on stream)"], ["live", "Back to live"], ["toggle", "Play / pause"], ["back", "Back"], ["forward", "Forward"], ["frameback", "Frame back"], ["frameforward", "Frame forward"], ["restart", "Restart"], ["zoomin", "Zoom in"], ["zoomout", "Zoom out"], ["follow", "Follow the player"], ["angle", "Other angle"], ["slow", "Speed 100 / 50 / 25%"]]]];
     case "toggle":
       return [
-        ["which", "Toggle", [["mute", "Mute all lobby voice"], ["cue", "Hear Preview in headphones"], ["hold", "Hold (no automatic switching)"], ["autogrid", "Auto grid"], ["autointermission", "Auto intermission"], ["autoswitch", "Auto switch"], ["standings", "Standings on stream"], ["alerts", "Alerts (on or paused)"]]],
+        ["which", "Toggle", [["mute", "Mute all lobby voice"], ["cue", "Hear Preview in headphones"], ["hold", "Hold (no automatic switching)"], ["autogrid", "Auto grid"], ["autoswitch", "Auto switch"], ["standings", "Standings on stream"], ["alerts", "Alerts (on or paused)"]]],
         ["press", "Press", [["toggle", "Switch it"], ["on", "Always on"], ["off", "Always off"]]],
       ];
     case "break":
       return [["kind", "Break", [["brb", "Be right back"], ["soon", "Starting soon"], ["intermission", "Intermission"], ["sponsor", "Sponsor break"], ["off", "End the break"]]]];
     case "custom":
       return [
-        ["preset", "Common", [["", "Pick one to fill the path…"], ["gfx/skip", "Skip the graphic on screen"], ["gfx/clear", "Clear the graphics queue"], ["gfx/card", "Top player card"], ["prompt/show", "Show the after-game prompt"], ["prompt/skip", "Skip the after-game prompt"], ["undo", "Undo (the panic, an auto switch, or the last switch)"], ["voice/listen/1", "Listen to lobby 1"], ["voice/listen/off", "Stop listening"], ["spec/lit", "Host view: lights"], ["spec/vision", "Host view: vision"], ["spec/eye", "Host view: eye"], ["replay/best", "Best replay into Preview"], ["cam/on", "Player cameras on"], ["cam/off", "Player cameras off"]]],
+        ["preset", "Common", [["", "Pick one to fill the path…"], ["gfx/skip", "Skip the graphic on screen"], ["gfx/clear", "Clear the graphics queue"], ["gfx/card", "Top player card"], ["prompt/show", "Show the after-game prompt"], ["prompt/skip", "Skip the after-game prompt"], ["undo", "Undo (the panic, an auto switch, or the last switch)"], ["voice/listen/1", "Listen to lobby 1"], ["voice/listen/off", "Stop listening"], ["spec/lit", "Host view: lights"], ["spec/vision", "Host view: vision"], ["spec/eye", "Host view: eye"], ["replay/best", "Best replay into Preview"], ["suggest/next", "Newest team suggestion into Preview"], ["cam/on", "Player cameras on"], ["cam/off", "Player cameras off"]]],
         ["path", "Path", "text"],
         ["label", "Key text", "text"],
       ];
@@ -169,7 +169,7 @@ function fieldsFor(k) {
 }
 
 const HINTS = {
-  lobby: "Select, then submit: a press puts the lobby in Preview and the Take key puts it on stream. Set Press to Cut to go straight to stream. Best replay puts the best recent replay in Preview (the same pick as the desk's N key); Take plays it.",
+  lobby: "Select, then submit: a press puts the lobby in Preview and the Take key puts it on stream. Set Press to Cut to go straight to stream. Best replay puts the best recent replay in Preview (the same pick as the desk's N key); Take plays it. Newest team suggestion puts the newest Show this from the Watch page (Team watch) in Preview; Take puts it on.",
   take: "The submit key: puts what's in Preview on stream (the lobbies, a player camera, or a replay, which plays). The key shows what's in Preview.",
   replay: "Best replay puts the best recent replay (the highest rated one not played yet) in Preview; Take plays it. Play the last clip plays the newest at once.",
   wide: "Back to the whole map from a player camera.",

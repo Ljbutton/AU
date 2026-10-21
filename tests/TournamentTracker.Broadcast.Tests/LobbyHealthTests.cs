@@ -389,6 +389,35 @@ public class LobbyHealthTests : IDisposable
     }
 
     [Fact]
+    public void The_grid_never_grows_or_changes_by_itself_and_a_hand_picked_grid_only_loses_a_lobby_that_dropped()
+    {
+        foreach (var l in new[] { "A", "B", "C", "D", "E", "F" }) Snap(l);
+        // Hand-picked: five of the six.
+        _desk.ShowPicked(new[] { "E", "A", "C", "B", "D" });
+        Assert.Equal("grid", _desk.OnAir.Layout);
+        int switches = _switched.Count;
+        // A new lobby starts sending, one goes to its menu, every other one goes on as before: nothing changes.
+        for (int i = 0; i < 60; i++) { _clock.Advance(1); foreach (var l in new[] { "A", "B", "D", "E", "F", "G" }) Snap(l); Snap("C", "menu"); _desk.Tick(); }
+        Assert.Equal(new[] { "E", "A", "C", "B", "D" }, _desk.OnAir.Slots.Where(x => x != null).ToArray());
+        Assert.Equal(switches, _switched.Count);
+
+        // D drops: its tile stays (RECONNECTING), then goes; the rest keep their order. Nobody is added.
+        for (int i = 0; i < 11; i++) { _clock.Advance(1); foreach (var l in new[] { "A", "B", "E", "F", "G" }) Snap(l); Snap("C", "menu"); _desk.Tick(); }
+        Assert.True(_desk.IsDown("D"));
+        Assert.Contains("D", _desk.OnAir.Slots);
+        for (int i = 0; i < 46; i++) { _clock.Advance(1); foreach (var l in new[] { "A", "B", "E", "F", "G" }) Snap(l); Snap("C", "menu"); _desk.Tick(); }
+        Assert.Equal(new[] { "E", "A", "C", "B" }, _desk.OnAir.Slots.Where(x => x != null).ToArray());
+
+        // The grid of every lobby, put on by a person: a lobby joining later isn't added by itself either.
+        _desk.ShowGrid();
+        var all = _desk.OnAir.Slots.Where(x => x != null).ToArray();
+        Snap("H");
+        Pass(5, "A", "B", "E", "F", "G", "H");
+        Assert.Equal(all, _desk.OnAir.Slots.Where(x => x != null).ToArray());
+        Assert.DoesNotContain("H", _desk.OnAir.Slots);
+    }
+
+    [Fact]
     public void A_game_cut_short_by_a_crash_is_held_out_of_the_standings_until_the_caster_decides()
     {
         var games = new List<GameRecord>

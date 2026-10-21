@@ -75,6 +75,11 @@ thing it knew:
   before. Keys set up with an older plugin keep the press they had: a key with settings of its own
   but no Press saved still cuts. A key you never opened the settings of (Lobby 1, everything as it
   came) has nothing saved, so it now selects into Preview: set it to Cut if you want it to cut.
+* **Sponsor breaks can't be interrupted.** During a sponsor break a Lobby key set to Cut, Take or a
+  Player cam key puts its lobby into the break's picture and the break carries on. Be right back,
+  Starting soon, Intermission, Sponsor, Replay that, Play last and an Undo back to one of those
+  screens answer 409 ("A sponsor break is on: 18 s left. End break first.") until **End break**.
+  Panic still works at once.
 * **Best replay.** The Lobby key set to **Best replay** (it used to say *where the action is*) and
   the Replay key's **Best replay** put the best recent replay into Preview, and Take plays it, as
   **Play last** does. Red Alert makes the pick, the same one as the desk's **N** key and **Best
@@ -85,6 +90,13 @@ thing it knew:
   Nothing worth it: the key shows *nothing yet* and a press says "No replay worth showing yet." and
   changes nothing. The key shows the pick by its lobby and kind of play ("LJ: winning kill"),
   never who did it.
+* **Newest team suggestion.** With Team watch on, the production team sends **Show this** from
+  the Watch page (see [features-red-alert.md](features-red-alert.md#team-watch)). The Lobby key set
+  to **Newest team suggestion** puts the newest one not yet in Preview into Preview (else the
+  newest), whatever the Press, and Take puts it on: its lobby, or for a camera suggestion that
+  lobby's camera following the player. The key reads **SUGGESTED** with how many are waiting and
+  the next one by its lobby and reason ("L3 Kill coming"), lit while there are any; it never shows
+  the team's own words. With none, a press says "No suggestions." (409) and changes nothing.
 * **Lobby numbers stay put.** Lobby 3 is always the same lobby during an event: Red Alert keeps a
   list of lobby names and their numbers (`lobby-numbers.json` next to its desk settings), and uses
   the number at the end of a lobby's name when it's free, else the lowest free one. A lobby keeps its
@@ -102,18 +114,18 @@ Alert (`/deck/<path>`), for reference and for Companion below.
 
 | Action | Settings | What a press does | Path |
 |---|---|---|---|
-| **Lobby** | lobby 1, 2, 3… or next, previous, Best replay; **Press**: put it in Preview (the default), cut it to stream, or add it to Preview; transition (cut or swoosh, for Cut) | A lobby into Preview (Take puts it on), or full screen now. Next and previous step through the live lobbies. Add builds a 2-up or quad in Preview, one lobby per press. Best replay puts the best recent replay into Preview (whatever the Press). | `pvw/lobby/3`, `lobby/3`, `lobby/next`, `pvw/add/3`, `replay/best` |
+| **Lobby** | lobby 1, 2, 3… or next, previous, Best replay, Newest team suggestion; **Press**: put it in Preview (the default), cut it to stream, or add it to Preview; transition (cut or swoosh, for Cut) | A lobby into Preview (Take puts it on), or full screen now. Next and previous step through the live lobbies. Add builds a 2-up or quad in Preview, one lobby per press. Best replay puts the best recent replay into Preview, and Newest team suggestion the newest suggestion from the Watch page (whatever the Press). | `pvw/lobby/3`, `lobby/3`, `lobby/next`, `pvw/add/3`, `replay/best`, `suggest/next` |
 | **Player cam** | **Lobby**: on stream, in Preview, or a number; **Player**: slot 1–15, a colour, next, previous, auto; **Press**: into Preview (the default), cut, or arm | Sets who the camera follows and puts that camera in Preview (Take puts it on), or cuts to it, or (arm) only sets who it follows. | `cam/pgm/slot2?to=pvw`, `cam/3/red`, `cam/pvw/next?arm=1` |
 | **Take** | take as (the layout in Preview, or full, 2-up, quad, grid, cameras); transition | The submit key: reads **TAKE** with what's in Preview under it (L1 L5 2-UP, REPLAY L3, or nothing staged). Preview goes on stream; a replay in Preview plays. | `take`, `take?as=quad&t=swoosh` |
 | **Wide** | | Back to the whole map from a player camera. | `wide` |
 | **Cut to cam** | lobby: on stream, in Preview, or a number | That lobby's camera on stream, still following whoever it follows. | `cam/cut`, `cam/3/slot2` |
 | **Layout** | full, 2-up, quad, grid, cameras | What's in Preview (or, with nothing there, what's on stream) in that layout, in Preview: **Take** puts it on stream, so keep a Take key next to it. Lit red while on stream, green while in Preview. | `layout/quad` |
 | **Replay** | best replay, play last, replay that, back to live, play/pause, back, forward, frame back, frame forward, restart, zoom in, zoom out, follow, angle, speed | **Best replay** puts the best recent replay into Preview (Take plays it); **Replay that** saves the last seconds of the lobby on stream and plays them; **Play last** plays the newest ready clip; **Speed** steps 100 / 50 / 25%. | `replay/best`, `replay/that`, `replay/last`, `replay/slow`… |
-| **Toggle** | mute all lobby voice, Hear Preview (HEAR PREVIEW: the lobby in Preview in your headphones), hold, auto grid, auto intermission, auto switch, standings, alerts; **Press**: switch it, always on, always off | Shows ON / OFF (MUTED, HELD, PAUSED) from Red Alert's own state. **Hold** stops all automatic switching. | `voice/mute/toggle`, `voice/cue/toggle`, `hold/on`, `auto/grid/off`, `gfx/alerts/toggle`… |
-| **Break** | be right back, starting soon, intermission, sponsor, end the break | That break screen, or back from it. **Starting soon** keeps the countdown and line set on the Live desk (a Custom path key can set them: `break/soon?in=10`). | `break/brb`, `break/soon`, `break/off` |
+| **Toggle** | mute all lobby voice, Hear Preview (HEAR PREVIEW: the lobby in Preview in your headphones), hold, auto grid, auto switch, standings, alerts; **Press**: switch it, always on, always off | Shows ON / OFF (MUTED, HELD, PAUSED) from Red Alert's own state. **Hold** stops all automatic switching. Auto intermission is gone: a key still set to it shows AUTO INTER, *removed*, dimmed, and a press sends nothing and shows the alert triangle. | `voice/mute/toggle`, `voice/cue/toggle`, `hold/on`, `auto/grid/off`, `gfx/alerts/toggle`… |
+| **Break** | be right back, starting soon, intermission, sponsor, end the break | That break screen, or back from it. **Starting soon** keeps the countdown and line set on the Live desk (a Custom path key can set them: `break/soon?in=10`). During a sponsor break the others are refused until **End break**. | `break/brb`, `break/soon`, `break/off` |
 | **Panic** | | One press: fade to Be right back, mute every lobby voice, clear the graphics, pause alerts and hold switching. While that panic is on the key says **UNDO PANIC**: a press puts it all back (that panic's undo only, never another switch). | `panic`, `panic/undo` |
 | **Undo** | | Takes back the panic while there is one, else an automatic switch away from a lobby that dropped, else the last switch made by hand. Lit while a panic is on. Refused (503) while OBS isn't connected when it would switch. | `undo` |
-| **Custom path** | path (with a list of common ones), key text | Any other Red Alert Stream Deck path: skip or clear graphics, the player card, after-game prompts, listen to one lobby, the host's view modes, player cameras on/off. | `gfx/skip`, `voice/listen/2`, `spec/vision`… |
+| **Custom path** | path (with a list of common ones), key text | Any other Red Alert Stream Deck path: skip or clear graphics, the player card, after-game prompts, listen to one lobby, the host's view modes, the newest team suggestion, player cameras on/off. | `gfx/skip`, `voice/listen/2`, `spec/vision`, `suggest/next`… |
 
 **Player slots.** Slot 1 to 15 are a lobby's players, living and dead, in colour order. A slot keeps
 its player for the whole game, so a row of slot keys is a fixed row of player cameras: each shows
@@ -193,7 +205,7 @@ http://127.0.0.1:8768/deck/<path>?key=<your key>
 
 GET and POST both work. Red Alert answers with JSON, `{"ok":true,"message":"…"}`, and a status:
 200 done, 202 queued or armed, 401 wrong key, 404 unknown action or lobby, 409 refused (for example
-the camera isn't available), 423 locked, 500 it went wrong on the way (the message says what, for
+the camera isn't available, or a sponsor break is on), 410 removed (`auto/intermission`), 423 locked, 500 it went wrong on the way (the message says what, for
 example OBS not answering), 503 OBS not connected (nothing switched; the Live desk's own buttons
 still switch Red Alert's pages without OBS, and say so). The same link twice within 300 ms is
 ignored. `hello` alone answers without the key. Settings → Stream Deck in Red Alert lists
@@ -208,12 +220,14 @@ ready-made links with your key in them.
 | `cam/<lobby>/<who>` (add `?to=pvw` for Preview, `?arm=1` to arm) | A player camera, cut to (or into Preview, or armed). `<lobby>` is a number, `pgm` or `pvw`; `<who>` is a colour, `slot1`…`slot15`, `next`, `prev` or `auto` |
 | `cam/cut`, `wide` | The camera on stream; back to the whole map |
 | `replay/best` | The best recent replay into Preview (`take` plays it); 409 "No replay worth showing yet." when there's none |
+| `suggest/next` | The newest team suggestion from the Watch page not yet in Preview (else the newest) into Preview: its lobby, or its lobby's camera on the player (`take` puts it on); 409 "No suggestions." when there's none |
 | `replay/last`, `replay/that`, `replay/live`, `replay/toggle`, `replay/back`, `replay/forward`, `replay/frameback`, `replay/frameforward`, `replay/restart`, `replay/zoomin`, `replay/zoomout`, `replay/follow`, `replay/angle`, `replay/slow` | Replays |
 | `break/brb`, `break/soon`, `break/intermission`, `break/sponsor`, `break/off` (add `?t=cut`, `swoosh` or `fade`), `panic`, `panic/undo` | Breaks; panic, and that panic's undo only |
 | `break/soon?in=10`, `break/soon?at=19:30`, `&text=Doors%20open` | Starting soon on stream, counting down 10 minutes (or to 19:30) with a line of text. `in=` or `at=` empty: no countdown. At zero it says "Starting now" and stays until you take a lobby |
 | `soon/set?in=10`, `soon/set?at=19:30`, `soon/set?text=…` | Starting soon's countdown and line, without switching |
 | `hold/on`, `hold/off`, `hold/toggle` | Hold: no automatic switching |
-| `auto/grid/…`, `auto/intermission/…`, `auto/switch/…` (`on`, `off`, `toggle`) | Automatic switching |
+| `auto/grid/…`, `auto/switch/…` (`on`, `off`, `toggle`) | Automatic switching |
+| `auto/intermission/…` | Removed: answers 410 "Automatic switching was removed: people switch the stream." and changes nothing |
 | `undo` | The panic, else an automatic switch, else the last switch by hand |
 | `gfx/standings/…`, `gfx/alerts/…` (`on`, `off`, `toggle`), `gfx/skip`, `gfx/clear`, `gfx/card` | Graphics |
 | `prompt/show`, `prompt/skip`, `prompt/save` | After-game prompts: show the table, skip it, or save it for intermission |
@@ -223,9 +237,11 @@ ready-made links with your key in them.
 | `lobby/action`, `action` | Older links for *where the action is*: they do what `replay/best` does now |
 
 For feedback on keys, `/deck/state?key=…` is the JSON the plugin reads (add `&since=<rev>` to wait
-up to 25 s for a change), and `/deck/img/lobby/<n>.svg?key=…`, `/deck/img/cam/<n>/slot<k>.svg?key=…`
-and `/deck/img/toggle/<name>.svg?key=…` are ready-made 144 × 144 key pictures for tools that can show
-an image from a URL.
+up to 25 s for a change). Its `suggestions` has the team's suggestions: `count` and `next` (`id`,
+`lobby`, `label` such as "Kill coming", and `who`); the suggestion's own words (`text`) are only
+there with `&imp=1`, since they could name an impostor. `/deck/img/lobby/<n>.svg?key=…`,
+`/deck/img/cam/<n>/slot<k>.svg?key=…` and `/deck/img/toggle/<name>.svg?key=…` are ready-made
+144 × 144 key pictures for tools that can show an image from a URL.
 
 ## Building the plugin
 

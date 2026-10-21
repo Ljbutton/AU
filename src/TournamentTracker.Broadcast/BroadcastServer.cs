@@ -27,8 +27,17 @@ namespace TournamentTracker.App.Broadcast
         public string? DeckKey { get; set; }
         /// <summary>Player cameras off for every lobby (on unless turned off).</summary>
         public bool CamOff { get; set; }
-        /// <summary>Hold and the desk's automation (auto grid, auto intermission, the countdown…), as left (null: never saved: the defaults).</summary>
+        /// <summary>Hold and the desk's automation (auto grid, the countdown…), as left (null: never saved: the defaults).</summary>
         public DeskAutomation? Desk { get; set; }
+        /// <summary>Team watch: the Watch page listens on the network (off unless turned on in Settings).</summary>
+        public bool TeamWatch { get; set; }
+        /// <summary>The Watch page's code (a secret: taken out of support bundles, never logged). A new one each time Team watch is turned on.</summary>
+        public string? WatchCode { get; set; }
+        /// <summary>
+        /// Without OBS, the Watch page shows each host's own video (off unless turned on): everyone watching
+        /// then gets each host's view link, which signing out doesn't take back. Never with OBS connected.
+        /// </summary>
+        public bool WatchHostVideo { get; set; }
 
         public static BroadcastAppSettings Load(string file) => Files.ReadJson<BroadcastAppSettings>(file) ?? new BroadcastAppSettings();
 
@@ -55,6 +64,12 @@ namespace TournamentTracker.App.Broadcast
         public string? SupportFolder { get; set; }
         /// <summary>OBS's own folder, for its newest log and crash report in the support bundle; null: %APPDATA%\obs-studio.</summary>
         public string? ObsFolder { get; set; }
+        /// <summary>The Watch page's port while Team watch is on (8780, else the next free one); 0 picks any free one (tests).</summary>
+        public int WatchPort { get; set; } = WatchServer.DefaultPort;
+        /// <summary>The Watch page's pictures are taken by their own loop (false: tests step it themselves).</summary>
+        public bool WatchCapture { get; set; } = true;
+        /// <summary>The address the Watch page listens on: null for every network (Red Alert), loopback for tests.</summary>
+        public System.Net.IPAddress? WatchBind { get; set; }
     }
 
     /// <summary>
@@ -120,6 +135,7 @@ namespace TournamentTracker.App.Broadcast
             Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
             Task.Run(() => LocalServer.Serve(_listener, _cts.Token, Route));
             StartDesk();
+            StartWatch();
         }
 
         /// <summary>
@@ -190,6 +206,7 @@ namespace TournamentTracker.App.Broadcast
                 // A panic put right by hand is forgotten as soon as it is (before the Stream Deck hears of it).
                 desk.Changed += PanicCheck;
                 desk.Changed += DeckPoke;
+                desk.Suggestions.Changed += DeckPoke;
                 var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(caster, desk)) { VoiceFeeds = () => VoiceFeeds(caster, desk), MuteHotkey = MuteHotkey, CamFeeds = () => caster.CamLinks() };
                 obs.ImpostorTagsOn = () => _broadcast?.Settings.Current.Elements.GetValueOrDefault("impostorTags") == true;
                 obs.OutputChanged += DeckPoke;
@@ -607,8 +624,10 @@ namespace TournamentTracker.App.Broadcast
                     int? slot = int.TryParse(Arg("slot"), out var sl) ? sl : (int?)null;
                     List<string>? slots = Prop("slots") is { ValueKind: JsonValueKind.Array } ss
                         ? ss.EnumerateArray().Select(x => x.ValueKind == JsonValueKind.String ? x.GetString() ?? "" : "").ToList() : null;
+                    // A sponsor break isn't replaced by another whole-screen break: End break first.
+                    if (layout is "intermission" or "slate" or "soon" && _desk.BreakRefusal() is { } inBreak) return Say(false, inBreak);
                     var air = _desk.Show(Arg("lobby"), layout, slot, slots);
-                    return Ok(new { ok = true, message = air.Layout switch
+                    return Ok(new { ok = true, message = _desk.BreakSaid(air) ?? air.Layout switch
                     {
                         "full" => $"{air.Slots.FirstOrDefault() ?? Arg("lobby")} is on stream.",
                         "slate" => "On stream: Be right back.",
@@ -624,9 +643,12 @@ namespace TournamentTracker.App.Broadcast
                     if (_desk == null || card == null) return Say(false, "That card is gone.");
                     // A card with a saved replay plays it; otherwise its lobby comes back up.
                     if (_replays != null && card.ClipId != null && _replays.Find(card.ClipId)?.State == "ready")
+                    {
+                        if (_desk.BreakRefusal() is { } inBreak) return Say(false, inBreak);
                         return Say(true, await _replays.PlayAsync(card.ClipId).ConfigureAwait(false));
-                    _desk.Show(card.Lobby, _desk.OnAir.Layout == "none" ? "full" : _desk.OnAir.Layout, 1);
-                    return Say(true, $"Back to {card.Lobby}: {NameTag.Plain(card.Text)}.");
+                    }
+                    var watched = _desk.Show(card.Lobby, _desk.OnAir.Layout == "none" ? "full" : _desk.OnAir.Layout, 1);
+                    return Say(true, _desk.BreakSaid(watched) ?? $"Back to {card.Lobby}: {NameTag.Plain(card.Text)}.");
                 }
                 case ("POST", "/app/admin/obs"):
                 {
@@ -680,7 +702,8 @@ namespace TournamentTracker.App.Broadcast
                             return Say(true, $"Saving a replay of {card.Lobby}: {NameTag.Plain(card.Text)}.");
                         }
                         case "play":
-                            // A card's id plays its clip.
+                            // A card's id plays its clip (not over a sponsor break).
+                            if (_desk.BreakRefusal() is { } inBreak) return Say(false, inBreak);
                             return Say(true, await _replays.PlayAsync(_desk.Find(Arg("id"))?.ClipId ?? Arg("id")).ConfigureAwait(false));
                         case "hotkeys":
                         {
@@ -705,6 +728,8 @@ namespace TournamentTracker.App.Broadcast
                     string id = Arg("id"), action = Arg("action");
                     // Building one (again) needs ffmpeg.
                     if (action is "archiveRebuild" or "game" or "round" or "custom" && _montages.Builder.Ffmpeg == null) return Say(false, "Get ffmpeg first.");
+                    // Not over a sponsor break.
+                    if (action is "play" or "archivePlay" && _desk.BreakRefusal() is { } inBreak) return Say(false, inBreak);
                     switch (action)
                     {
                         case "play": return Say(true, await _montages.PlayAsync(id).ConfigureAwait(false));
@@ -774,12 +799,13 @@ namespace TournamentTracker.App.Broadcast
                     {
                         case "break":
                         {
+                            if (_desk.BreakRefusal() is { } inBreak) return Say(false, inBreak);
                             string said = _desk.StartBreak(Arg("name").Length > 0 ? Arg("name") : null);
                             return Say(_desk.Break != null, said);
                         }
                         case "end":
-                            if (_desk.Break is not { } b) return Say(false, "No sponsor break is on.");
-                            _desk.Show(b.Lobby ?? "");
+                            if (_desk.Break == null || _desk.OnAir.Layout != "break") return Say(false, "No sponsor break is on.");
+                            _desk.EndBreak("button");
                             return Say(true, "Back to full screen.");
                         case "open":
                             _desk.Sponsors.Refresh(force: true);
@@ -913,6 +939,9 @@ namespace TournamentTracker.App.Broadcast
                         default: return Say(false, "Unknown graphics action.");
                     }
                 }
+                case ("GET", "/app/admin/teamwatch"): return Ok(TeamWatchState());
+                case ("POST", "/app/admin/teamwatch"): return Ok(TeamWatchAction(Arg("action"), Arg("id"), Arg("on")));
+                case ("POST", "/app/admin/suggestion"): return SuggestionAction(Arg("id"), Arg("action"), Arg("t"));
                 case ("POST", "/app/admin/dismiss"):
                     _desk?.Dismiss(Arg("id"));
                     return Ok(new { ok = true });
@@ -950,6 +979,7 @@ namespace TournamentTracker.App.Broadcast
                     if (pick.Count == 0) return Say(false, "Pick one or more lobbies first.");
                     var air = _desk.ShowPicked(pick, "button", Arg("layout").Length > 0 ? Arg("layout") : null);
                     string how = air.Layout switch { "full" => "Full screen", "2up" => "2-up", "4up" => "Quad", "grid" => "Grid", "cam" => "Player cam", "cams" => "Player cams", _ => air.Layout };
+                    if (_desk.BreakSaid(air) is { } inBreak) return Ok(new { ok = true, message = inBreak + _desk.DownNote(air.Slots), down = _desk.DownNote(air.Slots).Trim() });
                     return Ok(new { ok = true, message = $"On stream ({how}): {string.Join(", ", air.Slots.Where(x => x != null))}." + _desk.DownNote(air.Slots), down = _desk.DownNote(air.Slots).Trim() });
                 }
                 case ("POST", "/app/admin/autoswitch"):
@@ -1025,11 +1055,12 @@ namespace TournamentTracker.App.Broadcast
                     switch (action)
                     {
                         case "on" or "off" or "toggle":
+                            if (_desk.BreakRefusal() is { } inBreak) return Say(false, inBreak);
                             if (action == "on" || action == "toggle" && _desk.OnAir.Layout != "intermission") { _desk.ShowIntermission(); return Say(true, "Intermission on stream."); }
                             return Say(true, $"Back to {string.Join(", ", _desk.EndIntermission().Slots.Where(x => x != null))}.");
                         case "auto":
-                            _desk.AutoIntermission = Arg("on") == "true";
-                            return Say(true, _desk.AutoIntermission ? "Auto intermission: on between rounds, back when a lobby starts." : "Auto intermission off.");
+                            // Auto intermission was removed: people switch the stream.
+                            return Say(false, AutoRemoved);
                         case "dismiss": _desk.DismissIntermissionOffer(); return Say(true, "OK, not now.");
                         case "next":
                         {
@@ -1052,6 +1083,7 @@ namespace TournamentTracker.App.Broadcast
                         {
                             var q = _desk.QueuedMontage;
                             if (q == null || _montages == null) return Say(false, "No montage waiting.");
+                            if (_desk.BreakRefusal() is { } onBreak) return Say(false, onBreak);
                             return Say(true, await _montages.PlayAsync(q.Value.Id).ConfigureAwait(false));
                         }
                         default: return Say(false, "Unknown intermission action.");
@@ -1066,10 +1098,6 @@ namespace TournamentTracker.App.Broadcast
                     string said = _desk.ShowPlayerCard(Arg("key"), Arg("lobby").Length > 0 ? Arg("lobby") : null);
                     return Say(!said.StartsWith("Skipped", StringComparison.Ordinal), said);
                 }
-                case ("POST", "/app/admin/wins"):
-                    if (_desk == null) return Say(false, Locked);
-                    _desk.WinScope = Arg("scope") == "round" ? "round" : "today";
-                    return Say(true, _desk.WinScope == "round" ? "Win counter: this round." : "Win counter: today.");
                 case ("POST", "/app/admin/autogrid"):
                     if (_desk == null) return Say(false, Locked);
                     _desk.AutoGrid = Arg("on") == "true";
@@ -1088,6 +1116,8 @@ namespace TournamentTracker.App.Broadcast
         public void Dispose()
         {
             _cts.Cancel();
+            _watch?.Dispose();
+            _capture?.Dispose();
             _twitchTimer?.Dispose();
             _twitch?.Dispose();
             _caster?.Dispose();

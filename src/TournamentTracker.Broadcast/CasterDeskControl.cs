@@ -152,9 +152,9 @@ namespace TournamentTracker.App.Broadcast
         public (string Text, DateTime At)? HeldBack { get; private set; }
 
         /// <summary>
-        /// Automatic switching paused: auto intermission, the camera going back to the map, auto switch
-        /// off a lobby that dropped, the grid closing up, a MUST SHOW play ending a sponsor break, the
-        /// break timer and armed cameras all wait, and auto grid puts nothing in
+        /// Automatic switching paused: the camera going back to the map, auto switch off a lobby that
+        /// dropped, the grid closing up after a drop, the sponsor break's timer, a montage going back to
+        /// intermission and armed cameras all wait, and auto grid puts nothing in
         /// Preview (its suggestion comes out). The caster's own switches still go through.
         /// </summary>
         public bool Held

@@ -244,6 +244,7 @@ public class ReplayObsTests : IAsyncLifetime
     [Fact]
     public async Task With_the_broadcast_delay_a_save_waits_for_the_play_to_reach_OBS_and_the_clip_ends_that_much_earlier()
     {
+        _director.DelayAllowed = true;                                  // off in this version; kept working for later
         _director.Settings.BroadcastDelay = 3;
         var now = DateTime.UtcNow;
         using var replays = new ReplayManager(_desk, _director, clock: () => now, loop: false);

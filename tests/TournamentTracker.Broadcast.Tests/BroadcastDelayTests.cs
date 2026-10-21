@@ -41,6 +41,10 @@ public class BroadcastDelayTests : IDisposable
         Assert.Equal(1.5, ObsSettings.Load(path).BroadcastDelay);
         using var desk = new CasterDesk(null, () => _clock.Now, new PriorityConfig());
         var director = new ObsDirector(path, desk, () => new List<(string, string)>());
+        // Off in this version: nothing is held back, whatever obs.json says.
+        Assert.Equal(0, director.DelaySeconds);
+        Assert.Equal("https://vdo.ninja/?view=a", director.WithDelay("https://vdo.ninja/?view=a"));
+        director.DelayAllowed = true;
         director.Settings.BroadcastDelay = 12;                          // edited by hand
         Assert.Equal(4, director.DelaySeconds);
     }
@@ -83,7 +87,7 @@ public class BroadcastDelayTests : IDisposable
             big = new { kind = "afterGame", lobby = "LJ", id = "g1" },
             standingsChange = new { change = new { lobby = "LJ" }, at = new { x = 0, y = 0, w = 1920, h = 1080, full = true } },
             playerCard = new { id = "ann|1", lobby = "LJ", data = new { name = "Ann" }, x = 0, y = 0, w = 1920, h = 1080, full = true },
-            wins = new { impostors = 3, crew = 4 },
+            ticker = new[] { new { title = "Kills", top = 3 } },
         });
         var live = Obj(new
         {
@@ -97,7 +101,7 @@ public class BroadcastDelayTests : IDisposable
                 ["NEW"] = new { number = 3, order = 3, onScreen = false, imps = 2 },
             },
             alerts = Array.Empty<object>(),
-            wins = new { impostors = 4, crew = 4 },
+            ticker = new[] { new { title = "Kills", top = 4 } },
         });
         string pastWas = past.ToJsonString(), liveWas = live.ToJsonString();
         var o = BroadcastApp.Delayed(live, past, (_, _) => true);
@@ -105,10 +109,10 @@ public class BroadcastDelayTests : IDisposable
         Assert.Equal("2up", o["layout"]!.GetValue<string>());
         Assert.Equal(2, o["slots"]!.AsArray().Count);
         Assert.False(o["elements"]!["impostorTags"]!.GetValue<bool>());
-        // … the games as they were: impostors alive, the wins before the last one, the alert.
+        // … the games as they were: impostors alive, the ticker before the last kill, the alert.
         Assert.False(o["lobbies"]!["LJ"]!["impostors"]![0]!["dead"]!.GetValue<bool>());
         Assert.Equal(2, o["lobbies"]!["MAL"]!["imps"]!.GetValue<int>());
-        Assert.Equal(3, o["wins"]!["impostors"]!.GetValue<int>());
+        Assert.Equal(3, o["ticker"]![0]!["top"]!.GetValue<int>());
         Assert.Single(o["alerts"]!.AsArray());
         // A lobby that wasn't there then isn't drawn yet (its live data would be early).
         Assert.Null(o["lobbies"]!["NEW"]);
@@ -148,7 +152,7 @@ public class BroadcastDelayTests : IDisposable
     public void The_graphics_page_gets_the_impostor_count_late_and_the_switch_at_once()
     {
         using var desk = new CasterDesk(null, () => _clock.Now, new PriorityConfig());
-        var director = new ObsDirector(null, desk, () => new List<(string, string)>());
+        var director = new ObsDirector(null, desk, () => new List<(string, string)>()) { DelayAllowed = true };
         var app = new BroadcastApp(desk, () => director, Path.Combine(_dir.Path, BroadcastSettings.FileName)) { Clock = () => _clock.Now };
         var json = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         void Snap(string lobby, int imps) => desk.Apply(JsonSerializer.Serialize(new { type = "snap", lobby, round = 1, phase = "ingame", crewAlive = 6, impAlive = imps, taskPct = 30, t = 0 }));
@@ -192,7 +196,8 @@ public class HearPreviewTests : IAsyncLifetime
         _obs = new FakeObs();
         lock (_obs) { _obs.Inputs["Desktop Audio"] = new(); _obs.Kinds["Desktop Audio"] = "wasapi_output_capture"; _obs.Muted["Desktop Audio"] = true; }
         _desk = new CasterDesk(null, null, new PriorityConfig());
-        _director = new ObsDirector(SettingsPath, _desk, () => _feeds.ToList()) { VoiceFeeds = () => _voices.ToList() };
+        // The delay is off in this version; these tests keep the code for it working for when it comes back.
+        _director = new ObsDirector(SettingsPath, _desk, () => _feeds.ToList()) { VoiceFeeds = () => _voices.ToList(), DelayAllowed = true };
         _desk.Switch = air => _director.ApplyAsync(air).Wait();
         foreach (var l in new[] { "LJ", "MAL" })
             _desk.Apply(JsonSerializer.Serialize(new { type = "snap", lobby = l, round = 1, phase = "ingame", crewAlive = 7, impAlive = 2, taskPct = 30, t = 0 }));
