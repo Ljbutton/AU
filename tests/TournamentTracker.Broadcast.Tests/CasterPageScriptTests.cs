@@ -202,6 +202,39 @@ public class CasterPageScriptTests
     }
 
     /// <summary>
+    /// The action panel's cards scroll when they don't all fit: a "More below" fade and button shows while there
+    /// is more under the bottom edge and goes at the end. Run in Node (skipped where it isn't installed).
+    /// </summary>
+    [Fact]
+    public void The_action_panel_says_more_below_while_its_cards_go_on_past_the_bottom()
+    {
+        string page = Page();
+        // The cue is the last thing in the scrolling cards, stuck to their bottom edge, over the last 30 px.
+        int scroll = page.IndexOf("<div class=\"act-scroll\">", StringComparison.Ordinal), more = page.IndexOf("<div class=\"act-more\" id=\"act-more\" hidden>", StringComparison.Ordinal);
+        Assert.True(scroll > 0 && more > scroll && more < page.IndexOf("<div class=\"brk-bar\">", StringComparison.Ordinal));
+        Assert.Contains(".act-more{order:99;position:sticky;bottom:0;", page);
+        Assert.Contains("actScroll.addEventListener('scroll', actMoreSoon, { passive: true });", page);
+        Assert.Contains("new MutationObserver(actMoreSoon).observe(actScroll,", page);
+        var fn = Regex.Match(page, @"^function actMore\(\) \{.*?\n\}\n", RegexOptions.Multiline | RegexOptions.Singleline);
+        Assert.True(fn.Success);
+        string script = "let actMoreQueued = true;\nconst cue = { hidden: true }, $ = id => id === 'act-more' ? cue : null;\nconst actScroll = { scrollHeight: 0, clientHeight: 127, scrollTop: 0 };\n" + fn.Value + """
+            const assert = (ok, what) => { if (!ok) { console.error(what); process.exit(1); } };
+            const at = (sh, top, ch = 127) => { Object.assign(actScroll, { scrollHeight: sh, scrollTop: top, clientHeight: ch }); actMore(); return !cue.hidden; };
+            assert(!at(127, 0), 'everything fits: no cue');
+            assert(at(151, 0), 'more below: the cue');
+            assert(at(151, 10), 'still more below');
+            assert(!at(151, 24), 'scrolled to the end: gone');
+            assert(!at(151, 20), 'within a few pixels of the end: gone');
+            assert(at(300, 0), 'back at the top with more cards: shown again');
+            assert(!at(0, 0, 0), 'the panel not laid out (another page): no cue');
+            assert(actMoreQueued === false, 'ready for the next change');
+            console.log('ok');
+            """;
+        string? output = RunNode(script);
+        if (output != null) Assert.Contains("ok", output);
+    }
+
+    /// <summary>
     /// syncList itself, run in Node with a small stand-in for the DOM (skipped where Node isn't installed).
     /// </summary>
     [Fact]

@@ -468,6 +468,12 @@ kbd{display:inline-block;font:600 11.5px/1 var(--mono);padding:3px 6px;border:1p
 .ld-act>.brk-bar{order:2;flex:none}
 .act-scroll{order:3;flex:1 1 auto;min-height:0;overflow:auto;overflow-anchor:none;display:flex;flex-direction:column;gap:5px;scrollbar-width:thin}
 .act-scroll>*{flex:none}
+/* More below: while the cards go on past the bottom, they fade out there with a "More below" button (WebView2's
+   scrollbar is thin and easy to miss). Gone once scrolled to the end. */
+.act-more{order:99;position:sticky;bottom:0;height:30px;margin-top:-35px;display:flex;align-items:flex-end;justify-content:flex-end;background:linear-gradient(rgba(13,13,16,0),#0d0d10 80%);pointer-events:none}
+.act-more[hidden]{display:none}
+.act-more button{pointer-events:auto;font:700 11px/1 var(--round);letter-spacing:.1em;text-transform:uppercase;padding:4px 9px 3px;background:#26262c;border:1px solid var(--warn);color:#fff;cursor:pointer}
+.act-more button:hover{background:#34343b}
 /* The break that's on (intermission, Starting soon) has its card first, right under the Breaks rows. */
 .act-scroll>#inter-card,.act-scroll>#soon-card{order:-1}
 .brk-bar{display:grid;gap:4px}
@@ -495,17 +501,18 @@ kbd{display:inline-block;font:600 11.5px/1 var(--mono);padding:3px 6px;border:1p
 .rp-top .b,.ld-act .rp-ctl .b{font-size:13px;padding:4px 7px 2px;min-width:0}
 .ld-act .rp-ctl{gap:3px;flex-wrap:wrap}
 .ld-act .rp-play{min-width:62px}
-.ld-act .prompt{padding:4px 8px;gap:6px}
+.ld-act .prompt{padding:2px 8px;gap:6px}
 .ld-act .prompt b{font-size:17px}
 .ld-act .prompt .b{font-size:14px;padding:4px 8px 2px}
-.ld-act .read{padding:5px 8px;gap:8px;grid-template-columns:auto minmax(0,1fr) auto}
+.ld-act .read{padding:3px 8px;gap:8px;grid-template-columns:auto minmax(0,1fr) auto}
 .ld-act .read .tg{font-size:12.5px;padding:4px 6px 1px}
 .ld-act .read .sc{font-size:13px;line-height:1.3}
 .ld-act .read .sc small{display:inline;margin-left:6px;font-size:11.5px}
 .ld-act .read .b{font-size:14px;padding:4px 8px 2px}
-.ld-act .inter-card{margin:0;padding:5px 8px;gap:6px}
+.ld-act .inter-card{margin:0;padding:3px 8px;gap:6px}
+.ld-act .inter-card input{padding-top:3px;padding-bottom:3px}
 .ld-act .inter-card .b{font-size:14px;padding:4px 8px 2px}
-.soon-card{display:grid;gap:5px}
+.soon-card{display:grid;gap:4px}
 .soon-card .r{display:flex;gap:8px;align-items:center;min-width:0}
 .soon-card .r>*{flex:none}
 .soon-card .r input{padding-top:3px;padding-bottom:3px}
@@ -756,6 +763,7 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
           <div class="reads" id="reads"></div>
           <div class="card inter-card" id="inter-card" hidden></div>
           <div class="card inter-card soon-card" id="soon-card" hidden></div>
+          <div class="act-more" id="act-more" hidden><button type="button" title="Scroll down to the rest of the cards">▾ More below</button></div>
         </div>
         <div class="brk-bar">
           <div class="lay-grp brk"><span class="lay-h">Breaks</span><button class="b" type="button" id="desk-soon" title="Before the show: a countdown to the start, the tournament's name and logo, the sponsors and a line of your own. On at once; at zero it says Starting now and stays until you Take a lobby">Starting soon</button><button class="b" type="button" data-layout="slate" title="Technical difficulties: be right back (standings and storylines take turns)">BRB</button><button class="b" type="button" id="desk-inter" title="Intermission between rounds (key I)">Intermission</button><button class="b" type="button" id="desk-sponsor" title="Split screen: the lobby on the left, the sponsor on the right. It runs its time: a lobby you pick goes into it, and only End break or Panic end it early">Sponsor</button><span style="flex:1"></span><button class="b hold" type="button" id="desk-hold" title="Hold: nothing switches by itself (cameras going back to the map, auto switch, the sponsor break ending) and auto grid puts nothing in Preview. Key H">Hold</button><button class="b panic" type="button" id="desk-panic" title="Panic: fade to be right back, mute every lobby voice, clear graphics, pause alerts and hold. Press twice (key P twice); again to undo">Panic</button></div>
@@ -2479,6 +2487,20 @@ function renderReads() {
     <span class="acts"><button class="b primary" data-read="readDone" data-name="${esc(r.sponsor)}">Done</button><button class="b" data-read="readSnooze" data-name="${esc(r.sponsor)}">Snooze 5 min</button></span></div>`, '');
 }
 $('reads').addEventListener('click', e => { const b = e.target.closest('[data-read]'); if (b) post('/app/admin/sponsor', { action: b.dataset.read, name: b.dataset.name }); });
+// The action panel's cards: "More below" while some of them are past the bottom (see .act-more), gone at the end.
+const actScroll = document.querySelector('.ld-act .act-scroll');
+let actMoreQueued = false;
+function actMore() {
+  actMoreQueued = false;
+  const more = $('act-more'), left = actScroll.scrollHeight - actScroll.clientHeight - actScroll.scrollTop;
+  const on = actScroll.clientHeight > 0 && left > 6;
+  if (more.hidden === on) more.hidden = !on;
+}
+const actMoreSoon = () => { if (!actMoreQueued) { actMoreQueued = true; requestAnimationFrame(actMore); } };
+actScroll.addEventListener('scroll', actMoreSoon, { passive: true });
+new ResizeObserver(actMoreSoon).observe(actScroll);
+new MutationObserver(actMoreSoon).observe(actScroll, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['hidden'] });
+$('act-more').addEventListener('click', () => actScroll.scrollBy({ top: Math.max(40, actScroll.clientHeight - 40), behavior: 'smooth' }));
 function renderSponsors() {
   const s = SPON; if (!s) return;
   const br = DESK && DESK.break;
