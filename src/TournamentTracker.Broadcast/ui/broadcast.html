@@ -289,10 +289,11 @@ const ELEMENTS = {
 ELEMENTS.gridTiles = (slot, l, k) => {
   if (S.layout !== 'grid' || !l) return;
   const hot = l.tier === 'must' || l.tier === 'veryHigh', high = l.tier === 'high';
-  put(`tile-${slot.slot}`, `<div class="tile${hot ? ' hot' : high ? ' high' : ''}" style="width:${slot.w}px;height:${slot.h}px"></div>`, { left: slot.x + 'px', top: slot.y + 'px', fontSize: 30 + 'px' });
+  const bottom = tileBottom(slot);
+  put(`tile-${slot.slot}`, `<div class="tile${hot ? ' hot' : high ? ' high' : ''}" style="width:${slot.w}px;height:${bottom - slot.y}px"></div>`, { left: slot.x + 'px', top: slot.y + 'px', fontSize: 30 + 'px' });
   const playing = l.phase === 'ingame' || l.phase === 'meeting', counts = playing && l.crew != null;
   const el = put(`mini-${slot.slot}`, `<div class="mini${l.reconnecting ? ' frozen' : ''}">${l.reconnecting ? '<span class="ph rc">RECONNECTING</span>' : `<span class="ph ${l.phase}">${(PH[l.phase] || l.phase).toUpperCase()}</span>`}${counts ? `<span>${CNT.crew} <em class="c"></em></span><span>${CNT.imp} <em class="m"></em></span><span>tasks <em class="t"></em>%</span>` : ''}${l.sabotage ? `<span style="color:var(--danger)">${esc(l.sabotage.system)}<em class="s"></em></span>` : ''}</div>`,
-    { left: slot.x + 14 * k + 'px', top: slot.y + slot.h - 52 * k + 'px', fontSize: 34 * k + 'px' });
+    { left: slot.x + 14 * k + 'px', top: bottom - 52 * k + 'px', fontSize: 34 * k + 'px' });
   if (counts) { setT(el, '.c', String(l.crew)); setT(el, '.m', String(l.imps)); setT(el, '.t', String(l.tasks ?? 0)); }
   if (l.sabotage) setT(el, '.s', l.sabotage.left != null ? ' ' + Math.ceil(l.sabotage.left) + 's' : '');
 };
@@ -301,7 +302,7 @@ function emptyTile(slot) {
   const sp = S.extras && S.extras.sponsorTiles && S.extras.sponsorTiles[slot.slot];
   const inner = sp ? (sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : `<span class="tn">${esc(sp.name)}</span>`)
     : S.logo ? `<img src="${esc(S.logo)}" alt="">` : `<span class="tn">${esc((S.theme && S.theme.tournamentName) || '')}</span>`;
-  put(`empty-${slot.slot}`, `<div class="empty" style="width:${slot.w}px;height:${slot.h}px">${inner}</div>`, { left: slot.x + 'px', top: slot.y + 'px', fontSize: 40 * slot.w / S.canvas.w * 2 + 'px' });
+  put(`empty-${slot.slot}`, `<div class="empty" style="width:${slot.w}px;height:${tileBottom(slot) - slot.y}px">${inner}</div>`, { left: slot.x + 'px', top: slot.y + 'px', fontSize: 40 * slot.w / S.canvas.w * 2 + 'px' });
 }
 
 // Top 3: each playing lobby's top three for its own round, top left, a different lobby every 8 s.
@@ -325,6 +326,8 @@ function ticker() {
     { left: '0px', bottom: '0px', fontSize: '26px' });
 }
 const BOTTOM = () => S.ticker && S.ticker.length && S.layout !== 'intermission' && S.layout !== 'slate' ? 66 : 0;
+// Where a grid tile's frame and status line end: above the stats ticker when the tile reaches down to it.
+const tileBottom = slot => Math.min(slot.y + slot.h, S.canvas.h - (BOTTOM() ? BOTTOM() + 8 : 0));
 // A multiview with 4 or more lobbies, presented by a sponsor: a badge where the pictures meet.
 function multiviewSponsor() {
   const m = S.extras && S.extras.multiviewSponsor; if (!m || (S.layout !== '4up' && S.layout !== 'grid')) return;
