@@ -156,6 +156,55 @@ public class SponsorBreakTests : IDisposable
     }
 
     [Fact]
+    public void Breaks_ended_early_count_as_shown_for_the_time_they_were_on_once_each()
+    {
+        // Three breaks, each ended early with End break; the second has its game side swapped twice during it.
+        OnBreak();
+        Pass(4, "LJ", "MAL", "ZED");
+        _desk.EndBreak("button");
+        Pass(2, "LJ", "MAL", "ZED");
+
+        _desk.StartBreak();
+        Pass(3, "LJ", "MAL", "ZED");
+        _desk.Show("MAL", "full", null, null, "deck");                      // a cut: into the break's picture
+        Pass(2, "LJ", "MAL", "ZED");
+        _desk.Show("ZED", "cam", null, null, "deck");                       // a player camera: the same
+        Assert.Single(_desk.Sponsors.Appearances());                          // the first break; this one is still open
+        Pass(2, "LJ", "MAL", "ZED");
+        Assert.Equal(("full", "ZED"), (_desk.EndBreak("deck")!.Layout, _desk.OnAir.Slots[0]));
+        Pass(2, "LJ", "MAL", "ZED");
+
+        _desk.StartBreak();
+        Pass(9, "LJ", "MAL", "ZED");
+        _desk.EndBreak("button");
+
+        var log = _desk.Sponsors.Appearances();
+        Assert.Equal(new[] { 4, 7, 9 }, log.Select(a => (int)a.Seconds));
+        Assert.All(log, a => Assert.Equal("break", a.Placement));
+        Assert.Equal(new[] { "Acme", "Bolt", "Acme" }, log.Select(a => a.Sponsor));
+        // What the Sponsors page shows: appearances and their time on screen, per sponsor.
+        var t = _desk.Sponsors.Tallies();
+        Assert.Equal((0, 2, 13.0), t["Acme"]);
+        Assert.Equal((0, 1, 7.0), t["Bolt"]);
+        Assert.Null(_desk.Break);
+    }
+
+    [Fact]
+    public void A_break_during_simulation_is_not_logged_even_when_it_runs_its_time()
+    {
+        // Fake games are never proof of delivery: the screenshot harness's breaks (simulation on) count nothing.
+        _desk.Sponsors.Hold = () => true;
+        OnBreak();
+        Pass(4, "LJ", "MAL", "ZED");
+        _desk.EndBreak("button");
+        _desk.StartBreak();
+        Pass(31, "LJ", "MAL", "ZED");
+        Assert.Null(_desk.Break);
+        Assert.Empty(_desk.Sponsors.Appearances());
+        Assert.Empty(_desk.Sponsors.Tallies());
+    }
+
+    [Fact]
     public void A_must_show_play_during_a_break_doesnt_end_it()
     {
         OnBreak();
