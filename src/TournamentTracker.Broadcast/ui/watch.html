@@ -65,8 +65,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--red);outline-of
 .wc.pvw{border-color:var(--green);box-shadow:0 0 0 2px var(--green)}
 .wc.off{opacity:.55}
 .wv{position:relative;aspect-ratio:16/9;background:#000;overflow:hidden}
-.wv img,.wv iframe{position:absolute;inset:0;width:100%;height:100%;border:0;object-fit:contain;display:block}
-.wv iframe{pointer-events:none}
+.wv img{position:absolute;inset:0;width:100%;height:100%;border:0;object-fit:contain;display:block}
+/* The host's own page is made for a 1920x1080 picture: drawn at that size and scaled down to the card. */
+.wv iframe{position:absolute;left:0;top:0;width:1920px;height:1080px;border:0;transform-origin:0 0;transform:scale(var(--sc,.2));pointer-events:none}
 .wc.nopic .wv img{visibility:hidden}
 .wv .nopic{position:absolute;inset:0;display:none;place-items:center;color:var(--muted);font-size:.95em}
 .wc.nopic:not(.iframe) .wv .nopic{display:grid}
@@ -126,7 +127,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--red);outline-of
 .wev .tx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wev .none{color:var(--muted);font-size:.82em}
 
-.wf{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.2em .7em;align-items:center;padding:.4em .6em .45em;border-top:1px solid var(--line);min-height:0;overflow:hidden}
+.wf{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.3em .7em;align-items:center;align-content:start;padding:.4em .6em .45em;border-top:1px solid var(--line);min-height:0;overflow:hidden}
 .wwhy{font-size:.86em;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .wwhy b{color:#fff;font-weight:600}
 .wsug{grid-column:1;display:flex;flex-wrap:wrap;gap:.25em .4em;font-size:.8em}
@@ -328,7 +329,7 @@ function drawCard(c, l, sugg, s) {
   setText(ex, l.online && l.tier !== 'low' && l.tier !== 'offline' ? (TIER[l.tier] || l.tier) : '');
   // The picture: OBS's (a few times a second), else the host's own video.
   if (useFrame) { dropFrame(c); pump(c, l.lobby); }
-  else if (iframe) setFrame(c, l.video);
+  else if (iframe) { setFrame(c, l.video); if (!c.style.getPropertyValue('--sc')) scaleFrames(); }
   else dropFrame(c);
   setText(q('.wvnote'), s.obs ? "No picture from OBS for this lobby: video straight from the host" : "OBS isn't connected: video straight from the host");
   const down = q('.wdown');
@@ -410,6 +411,7 @@ function layout(names) {
   if (innerWidth <= 700) {
     grid.style.gridTemplateColumns = 'minmax(0,1fr)'; grid.style.gridAutoRows = 'auto';
     for (const c of CARDS.values()) { c.style.setProperty('--fs', '14px'); c.style.removeProperty('--vw'); }
+    scaleFrames();
     return;
   }
   let best = null;
@@ -417,10 +419,9 @@ function layout(names) {
     const rows = Math.ceil(n / cols);
     const cw = (W - gap * (cols - 1)) / cols, ch = (H - gap * (rows - 1)) / rows;
     const fs = Math.max(12, Math.min(26, cw / 46));
-    const foot = fs * 3.6;
-    const side = Math.max(13 * fs, Math.min(cw * 0.42, 24 * fs));
-    let vw = cw - side, vh = vw * 9 / 16;
-    if (vh > ch - foot) { vh = ch - foot; vw = vh * 16 / 9; }
+    const foot = fs * 4.4;
+    // The picture as big as the height allows, the side (state, players, events) at least 13 lines wide.
+    const vw = Math.min(cw - 13 * fs, (ch - foot) * 16 / 9);
     if (vw < 120) continue;
     // Pages that don't fit (too many rows) scroll: a little worse than one that fits.
     const score = vw * (ch < foot + 90 ? 0.5 : 1);
@@ -430,6 +431,14 @@ function layout(names) {
   grid.style.gridTemplateColumns = `repeat(${best.cols},minmax(0,1fr))`;
   grid.style.gridAutoRows = Math.max(220, Math.floor(best.ch)) + 'px';
   for (const c of CARDS.values()) { c.style.setProperty('--fs', best.fs.toFixed(1) + 'px'); c.style.setProperty('--vw', Math.floor(best.vw) + 'px'); }
+  scaleFrames();
+}
+// The hosts' own pages (no OBS) are scaled to their card's picture.
+function scaleFrames() {
+  for (const c of CARDS.values()) {
+    const w = c.querySelector('.wv').clientWidth;
+    if (w) c.style.setProperty('--sc', (w / 1920).toFixed(4));
+  }
 }
 let resizeT = 0;
 addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(layout, 120); });

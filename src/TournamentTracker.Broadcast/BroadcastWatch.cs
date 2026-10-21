@@ -116,7 +116,8 @@ namespace TournamentTracker.App.Broadcast
                         onAir = air.Label(r.Lobby),
                         tier = r.Tier,
                         score = r.Score,
-                        reasons = r.Plays.Take(3).Select(p => p.Text).ToList(),
+                        // The plays behind its rating, as the desk ranks them (not plain "Playing" or "In the lobby").
+                        reasons = r.Plays.Where(p => p.Rule is not ("inGame" or "lobby")).Take(3).Select(p => p.Text).ToList(),
                         players = r.People.OrderBy(p => p.Color).ThenBy(p => p.Id).Select(p => new
                         {
                             id = p.Id,
