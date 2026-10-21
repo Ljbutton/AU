@@ -48,7 +48,6 @@ public class DeskRestartTests : IDisposable
             await Post(server, "/app/admin/autogrid", new { on = "true" });
             await Post(server, "/app/admin/intermission", new { action = "auto", on = "true" });
             await Post(server, "/app/admin/intermission", new { action = "next", value = "30" });
-            await Post(server, "/app/admin/wins", new { scope = "round" });
             await Post(server, "/app/admin/standings", new { scope = "overall" });
             await Post(server, "/app/admin/health", new { what = "autoSwitch", on = "false" });
             await Post(server, "/app/admin/health", new { what = "slate", on = "false" });
@@ -65,7 +64,6 @@ public class DeskRestartTests : IDisposable
         Assert.True(desk.AutoGrid);
         Assert.True(desk.AutoIntermission);
         Assert.Equal(countdown, desk.NextRoundAt);
-        Assert.Equal("round", desk.WinScope);
         Assert.Equal("overall", desk.StandingsScope);
         Assert.True(desk.Held);
         Assert.Equal("Held from the Stream Deck", desk.HoldWhy);
@@ -102,6 +100,20 @@ public class DeskRestartTests : IDisposable
         var e = JsonDocument.Parse(File.ReadAllText(SettingsFile)).RootElement;
         foreach (var name in new[] { "AdminCode", "MuteHotkey", "DeckKey", "CamOff", "Desk" }) Assert.True(e.TryGetProperty(name, out _), name);
         Assert.Equal(new DeskAutomation { AutoGrid = true, Hold = true, HoldWhy = "Panic" }, BroadcastAppSettings.Load(SettingsFile).Desk);
+    }
+
+    [Fact]
+    public void A_settings_file_with_the_old_win_counter_scope_still_reads()
+    {
+        Directory.CreateDirectory(App);
+        File.WriteAllText(SettingsFile, "{\"DeckKey\":\"abcdef123456\",\"Desk\":{\"WinScope\":\"round\",\"StandingsScope\":\"overall\",\"Hold\":true,\"HoldWhy\":\"Panic\"}}");
+        var old = BroadcastAppSettings.Load(SettingsFile);
+        Assert.Equal("abcdef123456", old.DeckKey);
+        var clock = new FakeClock();
+        using var desk = new CasterDesk(null, () => clock.Now, new PriorityConfig());
+        old.Desk!.ApplyTo(desk, clock.Now);
+        Assert.Equal("overall", desk.StandingsScope);
+        Assert.True(desk.Held);
     }
 
     [Fact]

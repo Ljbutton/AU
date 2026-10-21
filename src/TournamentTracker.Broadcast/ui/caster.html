@@ -824,7 +824,6 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
     <div class="gfx-groups" id="gfx-els"></div>
     <div class="gfx-row"><span class="gh">Off-screen alerts</span><span id="gfx-alerts" class="sws"></span></div>
     <div class="gfx-row"><span class="gh">After a game</span><span class="sws" id="gfx-ag"></span></div>
-    <div class="gfx-row"><span class="gh">Win counter counts</span><span class="seg" id="gfx-wins"><button data-wins="today">Today</button><button data-wins="round">This round</button></span><span class="muted" id="gfx-wins-now" style="font-size:12.5px"></span></div>
   </details>
   <details class="card roster-card" id="story-card" open data-page="stories">
     <summary><div><b>Standings &amp; storylines</b> <span class="muted" id="story-line"></span></div>
@@ -2302,7 +2301,7 @@ function renderInter(d) {
   interLive = it.live || null;
   card.classList.toggle('live', !!it.live);
   if (card.contains(document.activeElement)) return;
-  const key = JSON.stringify([it.on, it.offer, it.live, it.nextRoundAt, it.montage, d.winScope]);
+  const key = JSON.stringify([it.on, it.offer, it.live, it.nextRoundAt, it.montage]);
   if (key === interKey) return;
   if (ptrDown && card.contains(ptrDown)) { ptrAgain = true; return; }
   interKey = key;
@@ -2312,8 +2311,7 @@ function renderInter(d) {
       <span class="muted" style="font-size:13px">Next round</span><input id="inter-next" placeholder="20 (min) or 19:30" style="width:130px" value="">
       <button class="b" data-inter="next">Set</button>${at ? `<span class="muted" style="font-size:13px">at ${at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>` : ''}
       ${it.montage ? `<span style="font-size:13px">Up next: <b>${esc(it.montage)}</b></span><button class="b" data-inter="montage">Play montage</button>` : ''}
-      <span style="flex:1"></span><span class="muted" style="font-size:12px">Win counter</span><button class="b${d.winScope === 'today' ? ' on' : ''}" data-wins="today">Today</button><button class="b${d.winScope === 'round' ? ' on' : ''}" data-wins="round">Round</button>
-      <button class="b primary" data-inter="off">Back to the game</button>`;
+      <span style="flex:1"></span><button class="b primary" data-inter="off">Back to the game</button>`;
     card.hidden = false;
   } else if (it.offer) {
     card.innerHTML = `<span class="tag">BETWEEN ROUNDS</span><span>Every lobby is between games.</span><span style="flex:1"></span><button class="b primary" data-inter="on">Intermission</button><button class="b" data-inter="dismiss">Not now</button>`;
@@ -2322,8 +2320,6 @@ function renderInter(d) {
 }
 function intermissionToggle() { post('/app/admin/intermission', { action: 'toggle' }); }
 $('inter-card').addEventListener('click', async e => {
-  const w = e.target.closest('[data-wins]');
-  if (w) { await post('/app/admin/wins', { scope: w.dataset.wins }); interKey = ''; return; }
   const b = e.target.closest('[data-inter]'); if (!b) return;
   const body = { action: b.dataset.inter };
   if (b.dataset.inter === 'next') body.value = $('inter-next').value;
@@ -2486,10 +2482,6 @@ function renderGfx(g) {
   if (!g || !g.names) return;
   if ($('gfx-url').dataset.u !== (g.url || '')) { $('gfx-url').dataset.u = g.url || ''; $('gfx-url').innerHTML = g.url ? urlRow('Graphics', g.url) : ''; }
   $('gfx-problem').hidden = !g.problem; setText($('gfx-problem'), g.problem || '');
-  if (DESK) {
-    document.querySelectorAll('#gfx-wins [data-wins]').forEach(b => b.classList.toggle('on', b.dataset.wins === DESK.winScope));
-    setText($('gfx-wins-now'), DESK.wins ? `Impostors ${DESK.wins.impostors} · Crewmates ${DESK.wins.crew}` : '');
-  }
   const agk = String(!!g.afterGameAuto);
   if ($('gfx-ag').dataset.k !== agk) { $('gfx-ag').dataset.k = agk; $('gfx-ag').innerHTML = swHtml('data-agauto=""', g.afterGameAuto, 'Put the table up by itself', 'Off: the Live desk asks first (Show / Skip / Save for intermission)'); }
   const al = g.alerts || { types: {} };
@@ -2508,7 +2500,7 @@ function renderGfx(g) {
 }
 // Graphics in three groups: what's always up, what comes up when something happens, and what you put up.
 const GFX_GROUPS = [
-  ['Always on', 'on the pictures all the time', ['hideRoomCode', 'lobbyLabels', 'impostorTags', 'sabotage', 'gridTiles', 'winCounter', 'top3', 'ticker']],
+  ['Always on', 'on the pictures all the time', ['hideRoomCode', 'lobbyLabels', 'impostorTags', 'sabotage', 'gridTiles', 'top3', 'ticker']],
   ['Moments', 'come up by themselves', ['alerts', 'standingsChange', 'playerCards']],
   ['Info', 'up while on', ['standings', 'pointsOnTheLine', 'storyline']],
 ];
@@ -2518,7 +2510,6 @@ $('gfx-els').addEventListener('change', async e => {
   const b = e.target.closest('[data-gfx]'); if (!b) return;
   await post('/app/admin/broadcast', { element: b.dataset.gfx, on: String(b.checked) }); gfxKey = '';
 });
-$('gfx-wins').addEventListener('click', e => { const b = e.target.closest('[data-wins]'); if (b) post('/app/admin/wins', { scope: b.dataset.wins }); });
 $('gfx-alerts').addEventListener('change', async e => {
   const b = e.target.closest('[data-alert]'); if (!b) return;
   const k = b.dataset.alert;

@@ -97,6 +97,18 @@ public class CasterPageScriptTests
         Assert.True(esc < replay.IndexOf("map[keyWait] = e.code"), "Esc is checked before the key is saved");
     }
 
+    [Fact]
+    public void The_win_counter_is_gone_from_the_desk_and_the_graphics()
+    {
+        string page = Page();
+        foreach (var gone in new[] { "data-wins", "/app/admin/wins", "gfx-wins", "winScope", "'winCounter'", "Win counter" })
+            Assert.DoesNotContain(gone, page);
+        using var s = typeof(BroadcastServer).Assembly.GetManifestResourceStream("ui/broadcast.html")!;
+        string graphics = new StreamReader(s).ReadToEnd();
+        foreach (var gone in new[] { "winCounter", "S.wins", "IMPOSTOR WINS", ".wins{" })
+            Assert.DoesNotContain(gone, graphics);
+    }
+
     /// <summary>
     /// syncList itself, run in Node with a small stand-in for the DOM (skipped where Node isn't installed).
     /// </summary>

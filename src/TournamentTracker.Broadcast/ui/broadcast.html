@@ -147,14 +147,6 @@ img.sw{display:inline-block;height:1.1em;width:auto;margin-right:.25em;vertical-
 .soon .by{margin-top:1.4em;display:inline-flex;align-items:center;gap:.6em;padding:.35em .9em;border-radius:.35em;background:var(--panel);font:700 .8em/1 var(--font),sans-serif;letter-spacing:.18em;color:#cfd3da;animation:fadein .6s}
 .soon .by img{max-height:2.6em;max-width:320px;object-fit:contain}
 .soon .by b{font:700 1.5em/1 var(--head),sans-serif;letter-spacing:.04em;color:var(--text)}
-/* Win counter */
-.wins{display:flex;align-items:center;gap:.6em;padding:.3em .8em;border-radius:.3em;background:var(--panel);font:700 .9em/1 var(--head),sans-serif;letter-spacing:.08em;white-space:nowrap}
-.wins .i{color:var(--danger)}.wins .c{color:#7fd3ff}
-.wins b{font-size:1.35em;display:inline-block;font-variant-numeric:tabular-nums;margin-left:.25em}
-.wins b.bump{animation:bump 1.2s ease-out}
-.wins .sep{opacity:.5}
-.wins small{font:700 .55em/1 var(--font),sans-serif;opacity:.6;letter-spacing:.1em}
-@keyframes bump{0%{transform:scale(1.9);color:#fff;text-shadow:0 0 .5em currentColor}100%{transform:none}}
 /* Player card */
 .pcard{display:grid;gap:.25em;padding:.5em 1em .55em .9em;border-radius:.35em;background:var(--panel);border-left:.3em solid var(--primary);box-shadow:0 .5em 1.6em rgba(0,0,0,.5);animation:pcin .45s ease-out;min-width:12em}
 .pcard .nm{font:700 1.7em/1 var(--head),sans-serif;letter-spacing:.04em;display:flex;align-items:center;gap:.15em}
@@ -437,19 +429,6 @@ function startingSoon() {
   const sp = so.sponsor, slot = el.querySelector('.spslot'), key = sp ? sp.name : '';
   if (slot && slot._sp !== key) { slot._sp = key; slot.innerHTML = sp ? `<div class="by">PRESENTED BY ${sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : ''}<b>${esc(sp.name)}</b></div>` : ''; }
 }
-// Impostor wins v crewmate wins (today or this round), in the corner and in intermission; the number that changed jumps.
-const winsSeen = { i: null, c: null, at: { i: 0, c: 0 } };
-function winCounter() {
-  const w = S.wins; if (!w) return;
-  const now = Date.now();
-  for (const [k, v] of [['i', w.impostors], ['c', w.crew]]) { if (winsSeen[k] !== null && winsSeen[k] !== v) winsSeen.at[k] = now; winsSeen[k] = v; }
-  const b = k => now - winsSeen.at[k] < 1300 ? ' class="bump"' : '';
-  const html = `<div class="wins"><span class="i">IMPOSTOR WINS<b${b('i')}>${w.impostors}</b></span><span class="sep">·</span><span class="c">CREWMATE WINS<b${b('c')}>${w.crew}</b></span><small>${w.scope === 'round' ? 'THIS ROUND' : 'TODAY'}</small></div>`;
-  if (S.layout === 'intermission' || S.layout === 'slate') put('wins', html, { left: '110px', bottom: '150px', right: 'auto', top: 'auto', transform: '', fontSize: '40px' });
-  // On the player camera the lobby's picture sits in the bottom-right corner (its chat): the counter goes top middle there.
-  else if (S.elements.winCounter && S.layout === 'cam') put('wins', html, { left: S.canvas.w / 2 + 'px', top: '22px', right: 'auto', bottom: 'auto', transform: 'translateX(-50%)', fontSize: '26px' });
-  else if (S.elements.winCounter) put('wins', html, { right: '40px', bottom: (BOTTOM() || 10) + 20 + 'px', left: 'auto', top: 'auto', transform: '', fontSize: '28px' });
-}
 // A player's card: on their lobby's tile in a multi-view, else bottom left.
 function playerCard() {
   const c = S.playerCard; if (!c) return;
@@ -502,8 +481,8 @@ function twitch() {
 }
 
 // More elements are added by later parts (sponsors, alerts, counters…).
-const GLOBAL = { intermission, top3, ticker, standings, standingsChange, storyline, sponsorBreak, multiviewSponsor, winCounter, playerCard, alerts, twitch };
-const ALWAYS = new Set(['sponsorBreak', 'multiviewSponsor', 'intermission', 'winCounter', 'playerCard', 'twitch', 'standingsChange', 'storyline', 'standings']);
+const GLOBAL = { intermission, top3, ticker, standings, standingsChange, storyline, sponsorBreak, multiviewSponsor, playerCard, alerts, twitch };
+const ALWAYS = new Set(['sponsorBreak', 'multiviewSponsor', 'intermission', 'playerCard', 'twitch', 'standingsChange', 'storyline', 'standings']);
 
 function render() {
   const th = S.theme || {};

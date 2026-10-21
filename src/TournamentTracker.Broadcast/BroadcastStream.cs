@@ -8,7 +8,7 @@ namespace TournamentTracker.App.Broadcast
     /// <summary>
     /// The graphics app's state with the broadcast delay: the lobbies' pictures reach the stream that
     /// many seconds late, so what the graphics say about the games (impostor tags, sabotage timers,
-    /// counts, the stats ticker, top 3, win counter, alerts, player cards, the after-game tables) is
+    /// counts, the stats ticker, top 3, alerts, player cards, the after-game tables) is
     /// what it was that long ago. What's on screen stays as it is now (the layout, where each lobby is,
     /// the theme, which graphics are switched on, intermission, Starting soon, sponsors and Twitch): OBS switches scene
     /// at once, only the pictures inside are late. Replays, intermission, Starting soon and the be-right-back screen
