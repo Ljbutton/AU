@@ -58,6 +58,8 @@ namespace TournamentTracker.App.Broadcast
                 if (caster != null)
                     foreach (var link in caster.ObsLinks().Concat(caster.VoiceLinks()).Concat(caster.CamLinks()).Concat(caster.DataLinks()))
                         bundle.AddSecretsFromLink(link.Url);
+                // The Watch page's code, as it is now (saved or not).
+                bundle.AddSecret(_watch?.Code);
                 bundle.Add("versions.txt", await VersionsTextAsync(window).ConfigureAwait(false), "Versions: Red Alert, Windows, the window, OBS and obs-websocket, the Source Record plugin, ffmpeg.");
                 bundle.Add("summary.txt", SupportSummary(pageWarnings), "What was going on when this was saved: warnings, problems, the desk, OBS, lobby voice, lobby health, and the log's latest warnings.");
                 bundle.Add("state.json", SupportState(), "The same as summary.txt, as Red Alert holds it (for a closer look).");
@@ -115,6 +117,7 @@ namespace TournamentTracker.App.Broadcast
             if (tw != null)
                 sb.AppendLine("Twitch: " + (tw.Settings.Off ? "off" : tw.Settings.TestMode ? "test mode (nothing sent)" : tw.Auth.Token == null ? "not signed in" : tw.Connected ? "signed in and connected" : "signed in, not connected"));
             sb.AppendLine($"Red Alert's port: {Port}{(Port != DefaultPort ? $" (the usual {DefaultPort} was taken)" : "")}");
+            sb.AppendLine(TeamWatchLine());
             return sb.ToString();
         }
 
@@ -169,6 +172,8 @@ namespace TournamentTracker.App.Broadcast
             if (desk is not { ValueKind: JsonValueKind.Object } d || JsonNode.Parse(d.GetRawText()) is not JsonObject node) return null;
             node.Remove("cards");
             node.Remove("history");
+            // The team's suggestions are in their own words, which could name an impostor.
+            node.Remove("suggestions");
             if (node["lobbies"] is JsonArray lobbies)
                 foreach (var l in lobbies.OfType<JsonObject>())
                     foreach (var spoiler in new[] { "players", "people", "line" }) l.Remove(spoiler);

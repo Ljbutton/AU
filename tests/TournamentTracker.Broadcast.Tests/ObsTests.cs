@@ -72,6 +72,8 @@ public sealed class FakeObs : IAsyncDisposable
     public long StreamBytes, StreamSkipped, StreamFrames, RenderSkipped, RenderFrames;
     public double DiskMb = 500_000;
     public int Screenshots;
+    /// <summary>The source each screenshot was of (the program scene, or a lobby's source for the Watch page).</summary>
+    public readonly List<string> ShotSources = new();
     /// <summary>Every SetInputMute, by source name, in the order they came.</summary>
     public readonly List<string> MuteLog = new();
     /// <summary>Audio monitoring per input (SetInputAudioMonitorType), and OBS's monitoring device (null: OBS's default).</summary>
@@ -361,6 +363,7 @@ public sealed class FakeObs : IAsyncDisposable
                 return new { cpuUsage = 12.5, memoryUsage = 900.0, availableDiskSpace = DiskMb, activeFps = 60.0, averageFrameRenderTime = 2.0, renderSkippedFrames = RenderSkipped, renderTotalFrames = RenderFrames, outputSkippedFrames = 0, outputTotalFrames = StreamFrames };
             case "GetSourceScreenshot":
                 Screenshots++;
+                ShotSources.Add(S(d, "sourceName"));
                 return new { imageData = "data:image/jpg;base64," + Convert.ToBase64String(new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, (byte)(Screenshots & 0xFF), 0xFF, 0xD9 }) };
             default: throw new Exception("unknown request " + type);
         }

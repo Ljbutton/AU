@@ -168,6 +168,10 @@ namespace TournamentTracker.App.Broadcast
         public SponsorBook Sponsors { get; }
         /// <summary>Banners for plays in lobbies that aren't on screen.</summary>
         public AlertQueue Alerts { get; }
+        /// <summary>The production team's "Show this" suggestions from the Watch page (Suggestions on the Live desk).</summary>
+        public SuggestionBox Suggestions { get; }
+        /// <summary>Each lobby's recent events in words, for the Watch page's feed.</summary>
+        public LobbyEvents Events { get; }
         private readonly HashSet<string> _alerted = new HashSet<string>();
         private readonly Dictionary<string, (JsonElement Data, DateTime At)> _voice = new Dictionary<string, (JsonElement, DateTime)>(StringComparer.OrdinalIgnoreCase);
 
@@ -249,6 +253,10 @@ namespace TournamentTracker.App.Broadcast
             }
             Board = new LobbyBoard(_config, _clock) { RosterName = (key, discord, name) => Roster.Match(key, discord, name).Entry?.Name };
             Board.PlayChanged += OnPlay;
+            Suggestions = new SuggestionBox(_clock, () => OnAir);
+            Events = new LobbyEvents(_clock, (lobby, p) => WhoIs(lobby, p) is { } w ? NameTag.Make(w.Color, w.Name) : null,
+                (lobby, id) => Board.Lobby(lobby) is { } l && l.People.TryGetValue(id, out var lp) ? NameTag.Make(lp.Color, Board.DisplayName(l, id, lp.Name)) : null);
+            Fed += Events.Add;
             _numbersPath = dataFolder == null ? null : System.IO.Path.Combine(dataFolder, NumbersFile);
             LoadNumbers();
             // One tick at a time: a slow one (the 5 s standings update late in the day) is skipped over,
@@ -470,6 +478,8 @@ namespace TournamentTracker.App.Broadcast
             Archive.Forget(sim);
             Tables.Forget(sim);
             Replays.Forget(sim);
+            Suggestions.Forget(sim);
+            Events.Forget(sim);
             lock (_lock)
             {
                 foreach (var c in _cards.Where(c => sim(c.Lobby)).ToList()) { _cards.Remove(c); _byPlay.Remove(c.PlayKey); }
@@ -1436,6 +1446,7 @@ namespace TournamentTracker.App.Broadcast
                 }).ToList(),
                 Cards = cards.Select(View).ToList(),
                 History = history.Select(View).ToList(),
+                Suggestions = Suggestions.State(),
             };
         }
 

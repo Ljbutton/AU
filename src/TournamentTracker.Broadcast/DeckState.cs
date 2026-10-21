@@ -88,6 +88,8 @@ namespace TournamentTracker.App.Broadcast
                     if (full["replay"]?["last"] is JsonObject last) last["title"] = last["label"]?.GetValue<string>();
                     if (full["replay"]?["best"] is JsonObject bestOne) bestOne["title"] = bestOne["label"]?.GetValue<string>();
                     if (full["preview"]?["replay"] is JsonObject staged) staged["title"] = staged["label"]?.GetValue<string>();
+                    // A team suggestion's own words could name an impostor: only its lobby and reason.
+                    if (full["suggestions"]?["next"] is JsonObject next) next.Remove("text");
                     byte[] plain = Encoding.UTF8.GetBytes(full.ToJsonString());
                     lock (_deckLock) { _deckJson = (withImp, plain); _deckBuiltAt = DateTime.UtcNow; }
                     if (changed)
@@ -216,6 +218,7 @@ namespace TournamentTracker.App.Broadcast
                         }).ToList(),
                     };
                 }).ToList(),
+                suggestions = DeckSuggestions(),
                 port = Port,
                 portWarning = PortWarning,
             };

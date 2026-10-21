@@ -700,6 +700,7 @@ namespace TournamentTracker.App.Broadcast
                     }
                     return (404, "Voice: mute, listen or cue.");
                 }
+                case "suggest": return DeckSuggest(what);
                 case "mute":
                     MuteHotkeyPressed();
                     return (200, "Lobby voice mute switched.");
@@ -818,6 +819,7 @@ namespace TournamentTracker.App.Broadcast
                 L("Player camera", "Cut to the camera of the lobby on stream", "cam/cut"),
                 L("Player camera", "Back to the whole map", "wide"),
                 L("Player camera", "Player cameras on for every lobby (off the same way)", "cam/on"),
+                L("Preview and Take", "The newest team suggestion into Preview (Team watch)", "suggest/next"),
                 L("Replays", "Best replay into Preview (Take plays it)", "replay/best"),
                 L("Replays", "Play the newest replay", "replay/last"),
                 L("Replays", "Replay that: the last seconds of the lobby on stream", "replay/that"),
