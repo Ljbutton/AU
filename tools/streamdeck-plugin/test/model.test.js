@@ -113,7 +113,8 @@ test("toggles read the state, and say nothing when it doesn't", () => {
 	assert.equal(toggleOn({ voice: { muteAll: false } }, "cue"), null, "an older Red Alert doesn't say");
 	assert.equal(toggleOn(s, "hold"), true);
 	assert.equal(toggleOn(s, "autogrid"), false);
-	assert.equal(toggleOn(s, "autointermission"), true);
+	assert.equal(toggleOn(s, "autoswitch"), false);
+	assert.equal(toggleOn(s, "autointermission"), null, "auto intermission was removed");
 	assert.equal(toggleOn(s, "standings"), true);
 	assert.equal(toggleOn(s, "alerts"), true, "alerts on = not paused");
 	s.graphics.alertsPaused = true;

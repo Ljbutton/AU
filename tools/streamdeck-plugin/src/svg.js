@@ -235,7 +235,7 @@ export function toggleKey(v) {
 	const ink = !known ? C.muted : on ? (v.onInk ?? C.fg) : (v.offInk ?? C.muted);
 	const word = !known ? "?" : on ? (v.onText ?? "ON") : (v.offText ?? "OFF");
 	const parts = [];
-	// "AUTO GRID", "AUTO INTERMISSION"…: a small AUTO over the bigger name, so the long ones fit.
+	// "AUTO GRID", "AUTO SWITCH"…: a small AUTO over the bigger name, so the long ones fit.
 	const auto = /^AUTO (.+)$/.exec(v.label ?? "");
 	if (auto) {
 		parts.push(text(72, 24, "AUTO", { size: 14, fill: C.muted, anchor: "middle" }));

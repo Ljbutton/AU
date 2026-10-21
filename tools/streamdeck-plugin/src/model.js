@@ -153,7 +153,6 @@ const TOGGLE_STATE = {
 	cue: (s) => s.voice?.cue,
 	hold: (s) => s.hold,
 	autogrid: (s) => s.auto?.grid,
-	autointermission: (s) => s.auto?.intermission,
 	autoswitch: (s) => s.auto?.switch,
 	standings: (s) => s.graphics?.standings,
 	alerts: (s) => (typeof s.graphics?.alertsPaused === "boolean" ? !s.graphics.alertsPaused : null),
