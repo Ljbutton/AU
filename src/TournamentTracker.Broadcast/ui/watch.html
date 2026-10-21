@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Team watch · Red Alert</title>
+<link rel="stylesheet" href="/base.css">
+<style>
+/* The Watch page: every lobby at once for the production team, in Red Alert's look. Readable from a
+   distance (sizes follow each card's width), and light on the browser: pictures are plain images
+   swapped a few times a second, everything else is written once a second where it changed. */
+:root{
+  --hand:"Teko","Rajdhani","Arial Narrow",sans-serif;--round:"Segoe UI","Rajdhani",system-ui,sans-serif;--mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+  --bg:#08080a;--panel:#141417;--panel-solid:#141417;--sunk:#1d1d22;--fg:#f4f4f6;--muted:#9a9aa4;--line:#2c2c33;--edge:#4a4a54;
+  --accent:#e10600;--accent-2:#a30400;--accent-fg:#fff;--hi:#e10600;--hi-soft:rgba(225,6,0,.16);--red:#e10600;--green:#1fbf4a;--amber:#ffc15a;--orange:#ff7a1a;
+}
+html,body{height:100%}
+body{display:block;overflow:hidden;background:radial-gradient(1200px 500px at 70% -10%,rgba(225,6,0,.10),transparent 60%),var(--bg);font:14px/1.35 var(--round)}
+button.b{font:600 18px/1 var(--hand);letter-spacing:.07em;text-transform:uppercase;padding:6px 12px 3px;border-radius:2px;border:1px solid var(--edge);background:#18181c;color:var(--fg);cursor:pointer}
+button.b:hover{background:#24242a;border-color:#6a6a75}
+button.b.primary{background:var(--red);border-color:var(--red);color:#fff}
+button.b.primary:hover{background:#ff1a12}
+button.b:disabled{opacity:.45;cursor:default}
+input{border-radius:2px;background:#0f0f12;border:1px solid var(--line);color:var(--fg);font:16px var(--round);padding:8px 10px}
+button:focus-visible,input:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.note{border-radius:2px}
+#toast{border-radius:2px;border:1px solid var(--edge);border-left:4px solid var(--red);background:#111114;font-size:15px}
+.sw{height:1.15em;width:auto;vertical-align:-.22em;margin-right:.2em}
+.who{white-space:nowrap}
+.logo-mark{width:30px;height:30px;flex:none}
+.brand{display:flex;align-items:center;gap:8px}
+.brand b{font:700 26px/1 "Teko",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#fff;display:flex}
+.brand b span{color:#fff;background:var(--red);padding:2px 8px 0;margin-left:6px;transform:skewX(-12deg);display:inline-block}
+.brand i{font:600 11px/1 "Segoe UI",sans-serif;letter-spacing:.24em;color:var(--muted);font-style:normal;margin-left:8px;text-transform:uppercase}
+
+/* ---- Sign-in ---- */
+.signin{position:fixed;inset:0;display:grid;place-items:center;padding:16px;overflow:auto}
+.si-card{width:min(440px,100%);display:grid;gap:12px;padding:22px 24px;background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--red)}
+.si-card h1{font:700 40px/1 var(--hand);letter-spacing:.04em;text-transform:uppercase;margin:6px 0 0}
+.si-card label{display:grid;gap:5px;font-size:13px;color:var(--muted)}
+.si-card input{width:100%}
+.si-card #si-code{font:600 22px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase}
+.si-card .b{justify-self:start;font-size:22px;padding:8px 22px 5px}
+.si-card .fine{font-size:12.5px;color:var(--muted);margin:0}
+
+/* ---- The header: what's on stream, the caster's Preview, who you are ---- */
+.wh{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:6px 14px 7px;background:linear-gradient(180deg,#000,#0d0d10);box-shadow:inset 0 -3px 0 var(--red);min-height:44px}
+.wh .tn{font:600 20px/1 var(--hand);letter-spacing:.06em;text-transform:uppercase;color:#fff;white-space:nowrap}
+.wh .tn small{color:var(--muted);font:600 13px/1 var(--round);letter-spacing:0;text-transform:none;margin-left:6px}
+.pill{display:flex;align-items:center;gap:8px;padding:3px 10px 2px 3px;background:#111114;border:1px solid var(--line);min-width:0;max-width:34vw}
+.pill .k{font:700 13px/1 "Segoe UI",sans-serif;letter-spacing:.14em;padding:5px 7px 4px;color:#fff;white-space:nowrap}
+.pill.pgm .k{background:var(--red)}
+.pill.pvw .k{background:var(--green);color:#03140a}
+.pill b{font:600 19px/1.1 var(--hand);letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wh .sim{font:700 12px/1 "Segoe UI",sans-serif;letter-spacing:.14em;background:var(--amber);color:#111;padding:5px 8px 4px}
+.wh .me{margin-left:auto;display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;white-space:nowrap}
+.wh .me b{color:#fff}
+.wh .me .b{font-size:15px;padding:4px 9px 2px}
+
+/* ---- The grid of games: the page works out the columns and each card's size (layout()) ---- */
+.grid{display:grid;gap:var(--gap,10px);padding:10px;height:calc(100% - var(--hh,44px));overflow:auto;align-content:start}
+.wc{--tier:var(--line);position:relative;display:grid;grid-template-columns:var(--vw,60%) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);background:var(--panel);border:1px solid var(--line);border-top:2px solid #26262c;min-width:0;min-height:0;overflow:hidden;font-size:var(--fs,14px)}
+.wc.pgm{border-color:var(--red);box-shadow:0 0 0 2px var(--red)}
+.wc.pvw{border-color:var(--green);box-shadow:0 0 0 2px var(--green)}
+.wc.off{opacity:.55}
+.wv{position:relative;aspect-ratio:16/9;background:#000;overflow:hidden}
+.wv img,.wv iframe{position:absolute;inset:0;width:100%;height:100%;border:0;object-fit:contain;display:block}
+.wv iframe{pointer-events:none}
+.wc.nopic .wv img{visibility:hidden}
+.wv .nopic{position:absolute;inset:0;display:none;place-items:center;color:var(--muted);font-size:.95em}
+.wc.nopic:not(.iframe) .wv .nopic{display:grid}
+.wtag{position:absolute;left:0;top:0;display:flex;align-items:stretch;gap:0;max-width:100%}
+.wtag .no{font:700 1.5em/1 var(--hand);background:#000;color:#fff;padding:.18em .45em 0}
+.wtag .nm{font:700 1.5em/1 var(--hand);letter-spacing:.05em;text-transform:uppercase;background:rgba(0,0,0,.72);color:#fff;padding:.18em .5em 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wtag .tal{font:700 .78em/1 "Segoe UI",sans-serif;letter-spacing:.14em;padding:.55em .6em .45em;align-self:stretch;display:flex;align-items:center;white-space:nowrap}
+.wc.pgm .wtag .tal{background:var(--red);color:#fff}
+.wc.pvw .wtag .tal{background:var(--green);color:#03140a}
+.wex{position:absolute;right:0;top:0;font:700 .8em/1 "Segoe UI",sans-serif;letter-spacing:.12em;padding:.5em .65em .42em;text-transform:uppercase;background:rgba(0,0,0,.72);color:var(--muted)}
+.wex:empty{display:none}
+.wex.must{background:var(--red);color:#fff;animation:pulse 1.2s ease-in-out infinite}
+.wex.veryHigh{background:var(--orange);color:#120700}
+.wex.high{background:var(--amber);color:#120d00}
+.wex.medium{background:#2c2c33;color:#fff}
+@keyframes pulse{50%{box-shadow:0 0 0 .35em rgba(225,6,0,.35)}}
+@media (prefers-reduced-motion:reduce){.wex.must{animation:none}}
+.wsab{position:absolute;left:0;right:0;bottom:0;text-align:center;font:700 1.35em/1 var(--hand);letter-spacing:.08em;text-transform:uppercase;padding:.25em .4em .05em;background:rgba(225,6,0,.86);color:#fff}
+.wsab.calm{background:rgba(20,20,23,.82);color:var(--amber);font-size:1.05em}
+.wsab:empty{display:none}
+.wvnote{position:absolute;left:0;right:0;bottom:0;font-size:.74em;color:#d6d6dc;background:rgba(0,0,0,.66);padding:.3em .6em}
+.wc:not(.iframe) .wvnote{display:none}
+.wc.iframe .wsab:not(:empty)~.wvnote{bottom:1.7em}
+.wdown{position:absolute;inset:auto 0 50% 0;transform:translateY(50%);text-align:center;font:700 1.6em/1 var(--hand);letter-spacing:.1em;text-transform:uppercase;color:#fff}
+.wdown:empty{display:none}
+.wdown span{background:var(--red);padding:.2em .6em 0}
+.wdown.warn span{background:var(--amber);color:#111}
+
+.ws{display:flex;flex-direction:column;gap:.35em;padding:.45em .6em .4em;min-width:0;min-height:0;overflow:hidden;border-left:1px solid var(--line)}
+.wph{display:flex;gap:.5em;align-items:baseline;flex-wrap:wrap;font-size:.9em;color:var(--muted)}
+.wph .ph{font:700 1.25em/1 var(--hand);letter-spacing:.08em;text-transform:uppercase;color:#fff}
+.wph .ph.meeting{color:var(--amber)}
+.wph .hl{font:700 .78em/1 "Segoe UI",sans-serif;letter-spacing:.1em;padding:.3em .45em .25em;text-transform:uppercase}
+.wph .hl.red{background:var(--red);color:#fff}
+.wph .hl.yellow{background:var(--amber);color:#111}
+.wph .hl:empty{display:none}
+.wcount{display:flex;align-items:baseline;gap:.35em;font-size:.95em;color:var(--muted);white-space:nowrap}
+.wcount b{font:700 1.9em/1 var(--hand);color:#fff}
+.wcount b.imp{color:#ff5a50}
+.wcount:empty{display:none}
+.wtask{position:relative;height:1.25em;background:#0f0f12;border:1px solid var(--line)}
+.wtask i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#147a2c,#1fbf4a)}
+.wtask span{position:relative;font-size:.78em;line-height:1.55em;padding:0 .5em;color:#fff;font-weight:600}
+.wppl{display:flex;flex-wrap:wrap;gap:.25em .3em}
+.pc{display:inline-flex;align-items:center;gap:.15em;font-size:.8em;line-height:1.3;padding:.1em .4em .1em .2em;background:var(--sunk);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.pc.dead{opacity:.45;text-decoration:line-through;text-decoration-thickness:2px}
+.pc.imp{box-shadow:inset 0 0 0 1.5px #ff3b30;background:rgba(225,6,0,.16)}
+.pc.imp::after{content:"IMP";font:700 .72em/1 "Segoe UI",sans-serif;letter-spacing:.08em;color:#ff5a50;margin-left:.3em}
+.wev{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.18em;overflow:hidden;min-height:0;flex:1}
+.wev li{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:.4em;align-items:baseline;font-size:.82em;line-height:1.3}
+.wev time{color:var(--muted);font-variant-numeric:tabular-nums;font-size:.9em}
+.wev .k{font:700 .72em/1 "Segoe UI",sans-serif;letter-spacing:.08em;padding:.25em .35em .2em;background:#2c2c33;color:#fff;text-transform:uppercase}
+.wev .k.kill{background:var(--red)}
+.wev .k.body,.wev .k.meeting{background:var(--amber);color:#111}
+.wev .k.eject,.wev .k.votes{background:#4b4bd6}
+.wev .k.end{background:var(--green);color:#03140a}
+.wev .tx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wev .none{color:var(--muted);font-size:.82em}
+
+.wf{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.2em .7em;align-items:center;padding:.4em .6em .45em;border-top:1px solid var(--line);min-height:0;overflow:hidden}
+.wwhy{font-size:.86em;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.wwhy b{color:#fff;font-weight:600}
+.wsug{grid-column:1;display:flex;flex-wrap:wrap;gap:.25em .4em;font-size:.8em}
+.wsug:empty{display:none}
+.wsug span{background:rgba(31,191,74,.14);border-left:3px solid var(--green);padding:.15em .45em;white-space:nowrap}
+.wsug span.pv{border-left-color:var(--amber);background:rgba(255,193,90,.12)}
+.wf .wshow{grid-column:2;grid-row:1/span 2;font-size:1.2em;padding:.35em .8em .2em}
+
+/* ---- Show this: the reasons, a player for the camera, a few words ---- */
+.chooser{position:fixed;z-index:6;width:min(460px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;display:grid;gap:10px;padding:14px 16px;background:#111114;border:1px solid var(--edge);border-top:3px solid var(--red);box-shadow:0 18px 50px rgba(0,0,0,.6);font-size:15px}
+.chooser h3{margin:0;font:700 26px/1 var(--hand);letter-spacing:.05em;text-transform:uppercase}
+.chooser h3 small{font:400 14px/1 var(--round);letter-spacing:0;text-transform:none;color:var(--muted);margin-left:6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{all:unset;cursor:pointer;font:600 15px/1 var(--round);padding:8px 12px;background:var(--sunk);border:1px solid var(--line);white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+.chip:hover{border-color:#6a6a75}
+.chip.on{background:var(--red);border-color:var(--red);color:#fff}
+.chip:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.chooser .sub{font-size:12.5px;color:var(--muted);margin:2px 0 -4px}
+.chooser input{width:100%}
+.chooser .already{font-size:13px;color:var(--muted);display:grid;gap:3px}
+.chooser .already b{color:#fff;font-weight:600}
+.chooser .acts{display:flex;gap:8px;align-items:center}
+.chooser .acts .muted{margin-left:auto;font-size:12px}
+.empty-all{grid-column:1/-1;padding:60px 20px;text-align:center;color:var(--muted);font-size:18px}
+/* A small screen (a phone, a narrow window): one column, the side under the picture. */
+@media (max-width:700px){
+  .wh .me{margin-left:0}
+  .pill{max-width:100%}
+  .wc{grid-template-columns:minmax(0,1fr)!important}
+  .ws{border-left:0;border-top:1px solid var(--line)}
+  .wev{max-height:9em}
+}
+</style>
+</head>
+<body>
+<div class="signin" id="signin" hidden>
+  <form class="si-card" id="si-form" autocomplete="off">
+    <div class="brand"><svg class="logo-mark" viewBox="0 0 64 64" aria-hidden="true"><g stroke="#ff3b30" stroke-width="4.2" stroke-linecap="round"><path d="M32 4.5v7.5"/><path d="M10.5 13.5l5.3 5.3"/><path d="M53.5 13.5l-5.3 5.3"/><path d="M3.5 33h7.5"/><path d="M60.5 33h-7.5"/></g><path d="M16.5 47V36a15.5 15.5 0 0 1 31 0v11z" fill="#e10600"/><rect x="11" y="47" width="42" height="9" rx="2" fill="#f2f2f4"/></svg><b>Red <span>Alert</span></b><i>Team watch</i></div>
+    <h1>Who's watching?</h1>
+    <label>Your name <input id="si-name" maxlength="24" autocomplete="nickname" placeholder="So the caster knows who's suggesting"></label>
+    <label>Watch code <input id="si-code" maxlength="12" spellcheck="false" autocapitalize="characters" placeholder="From the caster"></label>
+    <button class="b primary" id="si-go">Watch</button>
+    <p class="note bad" id="si-err" hidden></p>
+    <p class="fine">The caster finds the code in Red Alert: Settings → Team watch. This page shows who the impostors are: keep it off stream and away from players.</p>
+  </form>
+</div>
+<div id="app" hidden>
+  <header class="wh" id="wh">
+    <div class="brand"><svg class="logo-mark" viewBox="0 0 64 64" aria-hidden="true"><g stroke="#ff3b30" stroke-width="4.2" stroke-linecap="round"><path d="M32 4.5v7.5"/><path d="M10.5 13.5l5.3 5.3"/><path d="M53.5 13.5l-5.3 5.3"/><path d="M3.5 33h7.5"/><path d="M60.5 33h-7.5"/></g><path d="M16.5 47V36a15.5 15.5 0 0 1 31 0v11z" fill="#e10600"/><rect x="11" y="47" width="42" height="9" rx="2" fill="#f2f2f4"/></svg></div>
+    <span class="tn" id="w-tn"></span>
+    <span class="sim" id="w-sim" hidden title="Simulation: SIM-1 to SIM-4 are fake lobbies">SIMULATION</span>
+    <span class="pill pgm" title="What's on stream now"><span class="k">ON STREAM</span><b id="w-pgm">—</b></span>
+    <span class="pill pvw" title="What the caster has in Preview (next up)"><span class="k">PREVIEW</span><b id="w-pvw">—</b></span>
+    <span class="me"><span>Watching as <b id="w-me"></b></span><button class="b" type="button" id="w-out">Sign out</button></span>
+  </header>
+  <main class="grid" id="grid"></main>
+</div>
+<div class="chooser" id="chooser" hidden role="dialog" aria-modal="false" aria-labelledby="ch-h">
+  <h3 id="ch-h">Show <span id="ch-lobby"></span><small>to the caster</small></h3>
+  <div class="sub">Why? Pick one (or just write a few words).</div>
+  <div class="chips" id="ch-reasons"></div>
+  <div class="sub" id="ch-cam-h">Or the player camera on</div>
+  <div class="chips" id="ch-cams"></div>
+  <input id="ch-text" maxlength="60" placeholder="A few words (optional, up to 60)">
+  <div class="already" id="ch-already"></div>
+  <div class="acts"><button class="b primary" type="button" id="ch-send" disabled>Send</button><button class="b" type="button" id="ch-cancel">Cancel</button><span class="muted">The caster decides what goes on stream.</span></div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="/base.js"></script>
+<script>
+// ---- Signing in ---------------------------------------------------------------------------------
+// The code gives a token: kept for this tab (and as a cookie for the pictures), sent with every request.
+let TOKEN = null, ME = '';
+const store = {
+  get(k, where) { try { return (where || sessionStorage).getItem(k); } catch (e) { return null; } },
+  set(k, v, where) { try { if (v == null) (where || sessionStorage).removeItem(k); else (where || sessionStorage).setItem(k, v); } catch (e) { } },
+};
+function showSignin(message) {
+  TOKEN = null; STATE = null;
+  store.set('ttwatch.token', null);
+  $('app').hidden = true; $('chooser').hidden = true; $('signin').hidden = false;
+  $('si-err').hidden = !message; $('si-err').textContent = message || '';
+  if (!$('si-name').value) $('si-name').value = store.get('ttwatch.name', localStorage) || '';
+  ($('si-name').value ? $('si-code') : $('si-name')).focus();
+}
+async function call(method, path, body) {
+  const r = await fetch(path, { method, headers: Object.assign({ 'Content-Type': 'application/json' }, TOKEN ? { 'X-Watch-Token': TOKEN } : {}), body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin', cache: 'no-store' });
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  return { status: r.status, body: j || {} };
+}
+$('si-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = $('si-name').value.trim(), code = $('si-code').value.trim();
+  if (!name) { $('si-err').hidden = false; $('si-err').textContent = 'Type your name first.'; return; }
+  $('si-go').disabled = true;
+  try {
+    const r = await call('POST', '/watch/signin', { name, code });
+    if (r.status !== 200 || !r.body.token) { $('si-err').hidden = false; $('si-err').textContent = r.body.message || `That didn't work (${r.status}).`; return; }
+    store.set('ttwatch.name', name, localStorage);
+    start(r.body.token, r.body.name);
+  } catch (err) { $('si-err').hidden = false; $('si-err').textContent = "Red Alert didn't answer. Is Team watch on, and are you on the same network?"; }
+  finally { $('si-go').disabled = false; }
+});
+$('w-out').addEventListener('click', async () => { try { await call('POST', '/watch/signout'); } catch (e) { } showSignin('Signed out.'); });
+function start(token, name) {
+  TOKEN = token; ME = name || '';
+  store.set('ttwatch.token', token);
+  $('signin').hidden = true; $('app').hidden = false; $('si-code').value = '';
+  $('w-me').textContent = ME;
+  poll();
+}
+
+// ---- What Red Alert says, once a second -----------------------------------------------------------
+let STATE = null, polling = null, FPS = 4;
+async function poll() {
+  clearTimeout(polling);
+  if (!TOKEN) return;
+  try {
+    const r = await call('GET', '/watch/state');
+    if (r.status === 401) return showSignin(r.body.message || 'Sign in again.');
+    if (r.status === 200) { STATE = r.body; FPS = Math.max(1, Math.min(5, STATE.fps || 4)); render(); }
+  } catch (e) { }
+  polling = setTimeout(poll, document.hidden ? 3000 : 1000);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && TOKEN) poll(); });
+
+// ---- Drawing ----------------------------------------------------------------------------------
+const sw = c => `<img class="sw" src="${head(+c)}" alt="">`;
+const rich = t => esc(t || '').replace(/\[\[(\d+)\|([^\]]*)\]\]/g, (m, c, n) => `<span class="who">${sw(+c)}${n}</span>`);
+const TIER = { must: 'Must show', veryHigh: 'Very high', high: 'High', medium: 'Medium', low: 'Low', offline: 'Offline' };
+const PHASE = { ingame: 'In game', meeting: 'Meeting', lobby: 'In the lobby', ended: 'Game over', menu: 'Not in a lobby' };
+const KIND = { kill: 'Kill', body: 'Body', meeting: 'Meeting', votes: 'Votes', eject: 'Eject', sabotage: 'Sabotage', start: 'Start', end: 'End' };
+const setText = (el, t) => { if (el && el.textContent !== t) el.textContent = t; };
+const setHtml = (el, h) => { if (el && el._h !== h) { el.innerHTML = h; el._h = h; } };
+const setCls = (el, c) => { if (el && el.className !== c) el.className = c; };
+const ago = s => s < 5 ? 'just now' : s < 60 ? `${s} s ago` : s < 3600 ? `${Math.floor(s / 60)} min ago` : `${Math.floor(s / 3600)} h ago`;
+const clock = iso => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const CARDS = new Map();
+function cardEl(l) {
+  let c = CARDS.get(l.lobby);
+  if (c) return c;
+  c = document.createElement('article');
+  c.className = 'wc';
+  c.dataset.lobby = l.lobby;
+  c.innerHTML = `<div class="wv"><img class="wimg" alt=""><div class="nopic">No picture yet</div>
+      <div class="wtag"><span class="no"></span><b class="nm"></b><span class="tal"></span></div><div class="wex"></div><div class="wdown"></div><div class="wsab"></div><div class="wvnote"></div></div>
+    <div class="ws"><div class="wph"><span class="ph"></span><span class="mp"></span><span class="hl"></span></div><div class="wcount"></div><div class="wtask"><i></i><span></span></div><div class="wppl"></div><ol class="wev"></ol></div>
+    <div class="wf"><div class="wwhy"></div><div class="wsug"></div><button class="b primary wshow" type="button">Show this</button></div>`;
+  c.querySelector('.wshow').addEventListener('click', () => openChooser(l.lobby, c));
+  CARDS.set(l.lobby, c);
+  return c;
+}
+function render() {
+  const s = STATE; if (!s) return;
+  if (s.locked) {
+    setHtml($('w-tn'), 'Red Alert is locked');
+    setHtml($('grid'), '<p class="empty-all">Red Alert is locked: the caster unlocks it with the administration code.</p>');
+    CARDS.clear();
+    return;
+  }
+  setHtml($('w-tn'), `${esc(s.tournament || 'Team watch')}${s.round ? `<small>Round ${s.round}</small>` : ''}`);
+  $('w-sim').hidden = !s.sim;
+  setText($('w-pgm'), s.program.label || '—');
+  setText($('w-pvw'), s.preview.label || '—');
+  const grid = $('grid');
+  const lobbies = s.lobbies || [];
+  if (!lobbies.length) {
+    for (const c of CARDS.values()) c.remove();
+    CARDS.clear();
+    setHtml(grid, '<p class="empty-all">No lobbies yet. They show here when hosts send their game to the caster.</p>');
+    return;
+  }
+  if (grid._h) { grid.innerHTML = ''; grid._h = null; }
+  const live = (s.suggestions && s.suggestions.live) || [];
+  const keep = new Set(lobbies.map(l => l.lobby));
+  for (const [k, c] of CARDS) if (!keep.has(k)) { c.remove(); CARDS.delete(k); }
+  lobbies.forEach((l, i) => {
+    const c = cardEl(l);
+    if (grid.children[i] !== c) grid.insertBefore(c, grid.children[i] || null);
+    drawCard(c, l, live.filter(x => x.lobby === l.lobby), s);
+  });
+  const names = lobbies.map(l => l.lobby).join('|');
+  if (names !== layoutFor) layout(names);
+  if (!$('chooser').hidden) drawChooser();
+}
+function drawCard(c, l, sugg, s) {
+  const tally = l.tally === 'pgm' ? ' pgm' : l.tally === 'pvw' ? ' pvw' : '';
+  const useFrame = s.obs && l.frame;
+  const iframe = !useFrame && !!l.video;
+  setCls(c, 'wc' + tally + (l.online ? '' : ' off') + (useFrame ? '' : ' nopic') + (iframe ? ' iframe' : ''));
+  const q = sel => c.querySelector(sel);
+  setText(q('.no'), String(l.no));
+  setText(q('.nm'), l.lobby);
+  setText(q('.tal'), l.tally === 'pgm' ? (l.onAir && l.onAir.includes('cam') ? 'ON STREAM · CAM' : 'ON STREAM') : l.tally === 'pvw' ? 'PREVIEW' : '');
+  q('.tal').hidden = !tally;
+  const ex = q('.wex');
+  setCls(ex, 'wex ' + (l.online ? l.tier : ''));
+  setText(ex, l.online && l.tier !== 'low' && l.tier !== 'offline' ? (TIER[l.tier] || l.tier) : '');
+  // The picture: OBS's (a few times a second), else the host's own video.
+  if (useFrame) { dropFrame(c); pump(c, l.lobby); }
+  else if (iframe) setFrame(c, l.video);
+  else dropFrame(c);
+  setText(q('.wvnote'), s.obs ? "No picture from OBS for this lobby: video straight from the host" : "OBS isn't connected: video straight from the host");
+  const down = q('.wdown');
+  setCls(down, 'wdown' + (l.health === 'yellow' ? ' warn' : ''));
+  setHtml(down, !l.online ? '<span>Offline</span>' : l.health === 'red' ? '<span>Down</span>' : '');
+  const sab = l.sabotage;
+  setCls(q('.wsab'), 'wsab' + (sab && sab.left == null ? ' calm' : ''));
+  setText(q('.wsab'), sab ? `${sab.system}${sab.left != null ? ' ' + Math.ceil(sab.left) + ' s' : ' sabotaged'}${sab.fixing ? ' · fixing' : ''}` : '');
+  // The game.
+  const inGame = l.phase === 'ingame' || l.phase === 'meeting';
+  setCls(q('.ph'), 'ph' + (l.phase === 'meeting' ? ' meeting' : ''));
+  setText(q('.ph'), l.online ? (PHASE[l.phase] || l.phase) : 'Offline');
+  setText(q('.mp'), l.map || '');
+  const hl = q('.hl');
+  setCls(hl, 'hl ' + l.health);
+  setText(hl, l.health === 'red' ? 'Down' : l.health === 'yellow' ? 'Degraded' : '');
+  hl.title = (l.problems || []).join(' · ');
+  setHtml(q('.wcount'), inGame && l.crew != null ? `<b>${l.crew}</b> crew <span>v</span> <b class="imp">${l.imps}</b> impostor${l.imps === 1 ? '' : 's'}` : '');
+  q('.wtask').hidden = !inGame;
+  q('.wtask i').style.width = Math.max(0, Math.min(100, l.tasks || 0)) + '%';
+  setText(q('.wtask span'), `Tasks ${l.tasks || 0}%`);
+  setHtml(q('.wppl'), (l.players || []).map(p => `<span class="pc${p.dead ? ' dead' : ''}${p.imp ? ' imp' : ''}" title="${esc(p.name)}${p.imp ? ' (impostor)' : ''}${p.dead ? ' (dead)' : ''}">${sw(p.color)}${esc(p.name)}</span>`).join(''));
+  setHtml(q('.wev'), (l.events || []).length ? l.events.map(e => `<li><time>${clock(e.at)}</time><span class="k ${e.kind}">${KIND[e.kind] || e.kind}</span><span class="tx" title="${esc(e.text.replace(/\[\[(\d+)\|([^\]]*)\]\]/g, '$2'))}">${rich(e.text)}</span></li>`).join('') : '<li class="none">Nothing yet this game.</li>');
+  // Why it's worth a look, and what the team has said already.
+  setHtml(q('.wwhy'), l.online && l.reasons && l.reasons.length ? `<b>${esc(TIER[l.tier] || '')}</b> · ${l.reasons.map(rich).join(' · ')}` : l.online ? 'Quiet right now.' : 'No data from this lobby.');
+  setHtml(q('.wsug'), sugg.map(x => `<span class="${x.previewed ? 'pv' : ''}" title="${x.previewed ? 'The caster has it in Preview' : 'Sent to the caster'}">${esc(x.who)}${x.also && x.also.length ? ' +' + x.also.length : ''}: ${x.cam ? 'Cam on ' + sw(x.cam.color) + esc(x.cam.name || '') : esc(x.label)}${x.text ? ' “' + esc(x.text) + '”' : ''} · ${ago(x.ago)}${x.previewed ? ' · IN PREVIEW' : ''}</span>`).join(''));
+  const btn = q('.wshow');
+  btn.disabled = !l.online;
+  btn.title = l.tally === 'pgm' ? `${l.lobby} is on stream: you can still suggest its camera on a player` : `Suggest ${l.lobby} to the caster`;
+}
+
+// ---- Pictures: OBS's, one lobby at a time, a few times a second -----------------------------------
+let SEQ = 0;
+function pump(c, lobby) {
+  if (c._pump) return;
+  c._pump = true;
+  const img = c.querySelector('.wimg');
+  const go = () => {
+    const l = STATE && STATE.lobbies && STATE.lobbies.find(x => x.lobby === lobby);
+    if (!c.isConnected || !TOKEN || !l || !STATE.obs || !l.frame) { c._pump = false; return; }
+    if (document.hidden) { setTimeout(go, 1000); return; }
+    const t0 = performance.now();
+    const next = ok => {
+      img.onload = img.onerror = null;
+      c.classList.toggle('nopic', !ok);
+      setTimeout(go, ok ? Math.max(40, 1000 / FPS - (performance.now() - t0)) : 1000);
+    };
+    img.onload = () => next(true);
+    img.onerror = () => next(false);
+    img.src = '/watch/frame?lobby=' + encodeURIComponent(lobby) + '&n=' + (++SEQ);
+  };
+  go();
+}
+function setFrame(c, url) {
+  let f = c.querySelector('iframe');
+  if (f && f.dataset.src === url) return;
+  if (!f) {
+    f = document.createElement('iframe');
+    f.setAttribute('allow', 'autoplay');
+    f.setAttribute('referrerpolicy', 'no-referrer');
+    f.title = 'The host\'s video';
+    c.querySelector('.wv').insertBefore(f, c.querySelector('.wtag'));
+  }
+  f.dataset.src = url;
+  f.src = url;
+}
+function dropFrame(c) { const f = c.querySelector('iframe'); if (f) { f.src = 'about:blank'; f.remove(); } }
+
+// ---- The grid: as many columns as gives each picture the most room ---------------------------------
+let layoutFor = null;
+function layout(names) {
+  const n = STATE && STATE.lobbies ? STATE.lobbies.length : 0;
+  if (names != null) layoutFor = names;
+  const grid = $('grid');
+  const hh = $('wh').offsetHeight || 44;
+  document.body.style.setProperty('--hh', hh + 'px');
+  if (!n) return;
+  const gap = 10, W = innerWidth - 2 * gap, H = innerHeight - hh - 2 * gap;
+  if (innerWidth <= 700) {
+    grid.style.gridTemplateColumns = 'minmax(0,1fr)'; grid.style.gridAutoRows = 'auto';
+    for (const c of CARDS.values()) { c.style.setProperty('--fs', '14px'); c.style.removeProperty('--vw'); }
+    return;
+  }
+  let best = null;
+  for (let cols = 1; cols <= n; cols++) {
+    const rows = Math.ceil(n / cols);
+    const cw = (W - gap * (cols - 1)) / cols, ch = (H - gap * (rows - 1)) / rows;
+    const fs = Math.max(12, Math.min(26, cw / 46));
+    const foot = fs * 3.6;
+    const side = Math.max(13 * fs, Math.min(cw * 0.42, 24 * fs));
+    let vw = cw - side, vh = vw * 9 / 16;
+    if (vh > ch - foot) { vh = ch - foot; vw = vh * 16 / 9; }
+    if (vw < 120) continue;
+    // Pages that don't fit (too many rows) scroll: a little worse than one that fits.
+    const score = vw * (ch < foot + 90 ? 0.5 : 1);
+    if (!best || score > best.score) best = { cols, rows, cw, ch, fs, vw, score };
+  }
+  if (!best) best = { cols: Math.min(n, 3), ch: 300, fs: 13, vw: 260 };
+  grid.style.gridTemplateColumns = `repeat(${best.cols},minmax(0,1fr))`;
+  grid.style.gridAutoRows = Math.max(220, Math.floor(best.ch)) + 'px';
+  for (const c of CARDS.values()) { c.style.setProperty('--fs', best.fs.toFixed(1) + 'px'); c.style.setProperty('--vw', Math.floor(best.vw) + 'px'); }
+}
+let resizeT = 0;
+addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(layout, 120); });
+
+// ---- Show this ---------------------------------------------------------------------------------
+const REASONS = [['kill', 'Kill coming'], ['clutch', 'Clutch'], ['meeting', 'Meeting'], ['sabotage', 'Sabotage'], ['funny', 'Funny']];
+let CH = null;      // { lobby, reason, player }
+function openChooser(lobby, card) {
+  CH = { lobby, reason: '', player: null };
+  $('ch-text').value = '';
+  setText($('ch-lobby'), lobby);
+  drawChooser();
+  const box = $('chooser');
+  box.hidden = false;
+  // Over its card, kept on the screen.
+  const r = card.getBoundingClientRect(), w = box.offsetWidth, h = box.offsetHeight;
+  box.style.left = Math.max(16, Math.min(innerWidth - w - 16, r.left + (r.width - w) / 2)) + 'px';
+  box.style.top = Math.max(16, Math.min(innerHeight - h - 16, r.top + 40)) + 'px';
+  const first = $('ch-reasons').querySelector('.chip'); if (first) first.focus();
+}
+function closeChooser() { $('chooser').hidden = true; CH = null; }
+function drawChooser() {
+  if (!CH || !STATE) return;
+  const l = (STATE.lobbies || []).find(x => x.lobby === CH.lobby);
+  if (!l) return closeChooser();
+  const onStream = l.tally === 'pgm';
+  setHtml($('ch-reasons'), onStream ? `<span class="muted" style="font-size:13px">${esc(l.lobby)} is on stream already: suggest its camera on a player.</span>`
+    : REASONS.map(([k, n]) => `<button type="button" class="chip${CH.reason === k ? ' on' : ''}" data-reason="${k}">${n}</button>`).join(''));
+  const living = (l.players || []).filter(p => !p.dead);
+  const camOk = l.cam && l.cam.on && !STATE.camsOff;
+  $('ch-cam-h').hidden = $('ch-cams').hidden = !living.length;
+  setText($('ch-cam-h'), camOk ? 'Or the player camera on' : 'Or the player camera on (its camera isn\'t on right now)');
+  setHtml($('ch-cams'), living.map(p => `<button type="button" class="chip${CH.reason === 'cam' && CH.player === p.id ? ' on' : ''}" data-player="${p.id}" title="Cam on ${esc(p.name)}${p.imp ? ' (impostor)' : ''}">${sw(p.color)}${esc(p.name)}${p.imp ? ' <b style="color:#ff5a50;font-size:11px">IMP</b>' : ''}</button>`).join(''));
+  const said = ((STATE.suggestions && STATE.suggestions.live) || []).filter(x => x.lobby === l.lobby);
+  setHtml($('ch-already'), said.length ? '<span>Already sent for this lobby:</span>' + said.map(x => `<span><b>${esc(x.who)}</b>${x.also && x.also.length ? ' (and ' + esc(x.also.join(', ')) + ')' : ''}: ${x.cam ? 'Cam on ' + esc(x.cam.name || '') : esc(x.label)}${x.text ? ' “' + esc(x.text) + '”' : ''} · ${ago(x.ago)}</span>`).join('') : '');
+  $('ch-send').disabled = !(CH.reason || ($('ch-text').value.trim() && !onStream));
+}
+$('chooser').addEventListener('click', e => {
+  const r = e.target.closest('[data-reason]');
+  if (r && CH) { CH.reason = CH.reason === r.dataset.reason ? '' : r.dataset.reason; CH.player = null; drawChooser(); return; }
+  const p = e.target.closest('[data-player]');
+  if (p && CH) { const id = +p.dataset.player; const same = CH.reason === 'cam' && CH.player === id; CH.reason = same ? '' : 'cam'; CH.player = same ? null : id; drawChooser(); }
+});
+$('ch-text').addEventListener('input', drawChooser);
+$('ch-text').addEventListener('keydown', e => { if (e.key === 'Enter' && !$('ch-send').disabled) send(); });
+$('ch-cancel').addEventListener('click', closeChooser);
+addEventListener('keydown', e => { if (e.key === 'Escape' && !$('chooser').hidden) closeChooser(); });
+document.addEventListener('mousedown', e => { if (!$('chooser').hidden && !e.target.closest('#chooser') && !e.target.closest('.wshow')) closeChooser(); });
+$('ch-send').addEventListener('click', send);
+async function send() {
+  if (!CH) return;
+  const body = { lobby: CH.lobby, reason: CH.reason, text: $('ch-text').value.trim() };
+  if (CH.reason === 'cam') body.player = CH.player;
+  $('ch-send').disabled = true;
+  try {
+    const r = await call('POST', '/watch/suggest', body);
+    if (r.status === 401) return showSignin(r.body.message);
+    toast(r.body.message || (r.status === 200 ? 'Sent.' : `That didn't work (${r.status}).`));
+    if (r.status === 200) { closeChooser(); poll(); }
+  } catch (e) { toast("Red Alert didn't answer."); }
+  finally { if (CH) drawChooser(); }
+}
+
+// ---- Off we go: signed in already in this tab (or with the cookie), else the sign-in ---------------
+(async () => {
+  const kept = store.get('ttwatch.token');
+  if (kept) { TOKEN = kept; const r = await call('GET', '/watch/me').catch(() => null); if (r && r.status === 200) return start(kept, r.body.name); TOKEN = null; }
+  const r = await call('GET', '/watch/me').catch(() => null);
+  if (r && r.status === 200 && r.body.token) return start(r.body.token, r.body.name);
+  showSignin('');
+})();
+</script>
+</body>
+</html>

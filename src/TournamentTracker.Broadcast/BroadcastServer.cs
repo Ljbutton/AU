@@ -29,6 +29,10 @@ namespace TournamentTracker.App.Broadcast
         public bool CamOff { get; set; }
         /// <summary>Hold and the desk's automation (auto grid, the countdown…), as left (null: never saved: the defaults).</summary>
         public DeskAutomation? Desk { get; set; }
+        /// <summary>Team watch: the Watch page listens on the network (off unless turned on in Settings).</summary>
+        public bool TeamWatch { get; set; }
+        /// <summary>The Watch page's code (a secret: taken out of support bundles, never logged).</summary>
+        public string? WatchCode { get; set; }
 
         public static BroadcastAppSettings Load(string file) => Files.ReadJson<BroadcastAppSettings>(file) ?? new BroadcastAppSettings();
 
@@ -55,6 +59,10 @@ namespace TournamentTracker.App.Broadcast
         public string? SupportFolder { get; set; }
         /// <summary>OBS's own folder, for its newest log and crash report in the support bundle; null: %APPDATA%\obs-studio.</summary>
         public string? ObsFolder { get; set; }
+        /// <summary>The Watch page's port while Team watch is on (8780, else the next free one); 0 picks any free one (tests).</summary>
+        public int WatchPort { get; set; } = WatchServer.DefaultPort;
+        /// <summary>The Watch page's pictures are taken by their own loop (false: tests step it themselves).</summary>
+        public bool WatchCapture { get; set; } = true;
     }
 
     /// <summary>
@@ -120,6 +128,7 @@ namespace TournamentTracker.App.Broadcast
             Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
             Task.Run(() => LocalServer.Serve(_listener, _cts.Token, Route));
             StartDesk();
+            StartWatch();
         }
 
         /// <summary>
@@ -190,6 +199,7 @@ namespace TournamentTracker.App.Broadcast
                 // A panic put right by hand is forgotten as soon as it is (before the Stream Deck hears of it).
                 desk.Changed += PanicCheck;
                 desk.Changed += DeckPoke;
+                desk.Suggestions.Changed += DeckPoke;
                 var obs = _obs = new ObsDirector(SideFile(ObsSettings.FileName), desk, () => ObsFeeds(caster, desk)) { VoiceFeeds = () => VoiceFeeds(caster, desk), MuteHotkey = MuteHotkey, CamFeeds = () => caster.CamLinks() };
                 obs.ImpostorTagsOn = () => _broadcast?.Settings.Current.Elements.GetValueOrDefault("impostorTags") == true;
                 obs.OutputChanged += DeckPoke;
@@ -922,6 +932,9 @@ namespace TournamentTracker.App.Broadcast
                         default: return Say(false, "Unknown graphics action.");
                     }
                 }
+                case ("GET", "/app/admin/teamwatch"): return Ok(TeamWatchState());
+                case ("POST", "/app/admin/teamwatch"): return Ok(TeamWatchAction(Arg("action"), Arg("id")));
+                case ("POST", "/app/admin/suggestion"): return SuggestionAction(Arg("id"), Arg("action"), Arg("t"));
                 case ("POST", "/app/admin/dismiss"):
                     _desk?.Dismiss(Arg("id"));
                     return Ok(new { ok = true });
@@ -1096,6 +1109,8 @@ namespace TournamentTracker.App.Broadcast
         public void Dispose()
         {
             _cts.Cancel();
+            _watch?.Dispose();
+            _capture?.Dispose();
             _twitchTimer?.Dispose();
             _twitch?.Dispose();
             _caster?.Dispose();

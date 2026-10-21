@@ -75,8 +75,8 @@ namespace TournamentTracker.App.Broadcast
                 b.AddLog(Path.Combine(appFolder, LogName), LogName, "Red Alert's log: what it did, and anything that went wrong (this PC's time).");
                 b.AddLog(Path.Combine(appFolder, LogName + ".1"), LogName + ".1", "The log before that one (Red Alert moves it there past 1 MB).", optional: true);
                 b.AddJson(Path.Combine(appFolder, "settings.json"), "settings.json",
-                    "Red Alert's own settings: player cameras on or off, the mute-all key (also in summary.txt), Hold and the desk's automation. The administration code and the Stream Deck key are removed.",
-                    "adminCode", "deckKey");
+                    "Red Alert's own settings: player cameras on or off, the mute-all key (also in summary.txt), Hold and the desk's automation, Team watch on or off. The administration code, the Stream Deck key and the watch code are removed.",
+                    "adminCode", "deckKey", "watchCode");
                 b.AddJson(Path.Combine(appFolder, ObsSettings.FileName), ObsSettings.FileName,
                     "OBS: where Red Alert connects (the password is removed), the TT scenes and lobby sources, replays, the swoosh and lobby voice.",
                     "password");
@@ -298,6 +298,7 @@ namespace TournamentTracker.App.Broadcast
                 var settings = BroadcastAppSettings.Load(Path.Combine(folder, "settings.json"));
                 AddSecret(settings.DeckKey);
                 AddSecret(settings.AdminCode);
+                AddSecret(settings.WatchCode);
                 if (settings.AdminCode != null && SetupCode.TryParse(settings.AdminCode, out var code, out _))
                 {
                     AddSecret(code.Encode());
