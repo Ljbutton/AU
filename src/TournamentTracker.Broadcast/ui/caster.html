@@ -116,6 +116,7 @@ img.sw{display:inline-block;height:1.15em;width:auto;margin:0 .25em 0 .05em;vert
 .team-urls{display:grid;gap:6px;margin-top:8px}
 .team-code{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px;padding:8px 10px;background:var(--sunk)}
 .team-code .code{font:700 28px/1 var(--mono);letter-spacing:.2em;color:#fff}
+.team-hv{display:flex;gap:8px;align-items:center;margin-top:8px;font-size:13px}
 .team-who{margin-top:8px;font-size:13px}
 .team-who td{padding:4px 6px}
 .team-who .on{color:var(--good)}
@@ -973,9 +974,11 @@ a.b:focus-visible{outline:2px solid var(--red);outline-offset:2px}
     <p class="muted help" style="margin:6px 0 0;font-size:12.5px">Your production team watches every game at once on their own PC or tablet, on the same network as this PC: the pictures, each game's state and events, how exciting it is, and who the impostors are. They send you suggestions with <b>Show this</b> (they show on the Live desk); they can't switch the stream. The page needs the code below. Off by default.</p>
     <p class="muted" style="margin:6px 0 0;font-size:12.5px">The first time you turn it on, Windows Firewall asks whether Red Alert may use the network: allow it on private networks only.</p>
     <p class="note bad" id="team-problem" hidden></p>
+    <label class="team-hv"><input type="checkbox" id="team-hostvideo"> Without OBS, show the host's own video</label>
+    <p class="muted" style="margin:2px 0 0 24px;font-size:12.5px">Each person watching then gets every host's own video link, which signing out doesn't take back, and costs each host upload.</p>
     <div id="team-body" hidden>
       <div class="team-urls" id="team-urls"></div>
-      <div class="team-code"><span class="muted">Code</span><span class="code" id="team-code"></span><button class="b" type="button" id="team-new" title="A new code signs everyone out: they type the new one">New code</button><span class="muted" style="font-size:12.5px">A new code signs everyone out.</span></div>
+      <div class="team-code"><span class="muted">Code</span><button class="b" type="button" id="team-show" title="Shows the code your team types (hidden, so it isn't seen on a shared screen)">Show code</button><span class="code" id="team-code" hidden></span><button class="b" type="button" id="team-copy" data-copied="Copied the watch code." hidden>Copy</button><button class="b" type="button" id="team-new" title="A new code signs everyone out: they type the new one">New code</button><span class="muted" style="font-size:12.5px">A new code each time you turn it on. A new code signs everyone out.</span></div>
       <div class="team-who" id="team-who"></div>
       <p class="muted help" id="team-pics" style="margin:6px 0 0;font-size:12.5px"></p>
     </div>
@@ -1903,7 +1906,7 @@ function renderSuggestions() {
       <div class="t1"><span class="team">Team</span><b>${esc(x.lobby)}</b>${x.previewed ? '<span class="inpv">IN PREVIEW</span>' : ''}<span>${esc(x.who)}${x.also && x.also.length ? ' + ' + esc(x.also.join(', ')) : ''}</span><span class="ago"></span></div>
       <div class="play">${suggWhat(x)}${x.text ? ` <span class="txt">“${esc(x.text)}”</span>` : ''}</div>
       <div class="acts"><button class="b primary" data-sgdo="preview" data-sgid="${esc(x.id)}" title="${x.cam ? 'Its camera, following that player, into Preview' : 'This lobby into Preview'} (Take puts it on)">Into Preview</button><button class="b" data-sgdo="cut" data-sgid="${esc(x.id)}" title="${x.cam ? 'Its camera on stream now' : 'This lobby on stream now'}">Cut</button></div>
-    </div>`, `<p class="sugg-empty">${S && S.team && S.team.on ? 'No suggestions right now. Your team sends them from the Watch page.' : 'No suggestions. Turn on Team watch (Settings) and your team suggests what to show from the Watch page.'}</p>`);
+    </div>`, `<p class="sugg-empty">${TEAM && TEAM.on ? 'No suggestions right now. Your team sends them from the Watch page.' : 'No suggestions. Turn on Team watch (Settings) and your team suggests what to show from the Watch page.'}</p>`);
   for (const x of sg.live) setText($('sugg-list').querySelector(`[data-k="${CSS.escape(x.id)}"] .ago`), ago(x.ago));
   $('sugg-earlier').hidden = !sg.earlier.length;
   setText($('sugg-n'), sg.earlier.length ? `(${sg.earlier.length})` : '');
@@ -2894,35 +2897,44 @@ async function refresh() {
   setText($('app-ver'), S.app ? 'v' + S.app : '');
   renderUpdate();
   if (PAGE === 'settings') { renderCam(); renderDeck(); }
-  loadTeam();
+  // Settings shows it (and keeps it fresh itself); elsewhere it's only for the Live desk's words, now and then.
+  if (PAGE === 'settings' || Date.now() - teamAt > 30000) loadTeam();
 }
-// Settings → Team watch: on or off, the links for the team, the code (New code signs everyone out), who's watching.
-let TEAM = null, teamBusy = false;
+// Settings → Team watch: on or off, the links for the team, the code (hidden until Show code; New code signs everyone out), who's watching.
+let TEAM = null, teamBusy = false, teamAt = 0, teamShown = false;
 async function loadTeam() {
   if (teamBusy) return;
   teamBusy = true;
+  teamAt = Date.now();
   try { TEAM = await api('GET', '/app/admin/teamwatch'); if (S) S.team = TEAM; } catch (e) { } finally { teamBusy = false; }
   renderTeam();
 }
 function renderTeam() {
   const t = TEAM; if (!t) return;
   if (document.activeElement !== $('team-on')) $('team-on').checked = !!t.on;
+  if (document.activeElement !== $('team-hostvideo')) $('team-hostvideo').checked = !!t.hostVideo;
   const watching = t.watchers.filter(w => w.watching).length;
   setText($('team-line'), !t.on ? 'off' : t.listening ? `on · port ${t.port} · ${watching} watching` : 'on, but not listening');
   $('team-problem').hidden = !t.problem; setText($('team-problem'), t.problem || '');
   $('team-body').hidden = !(t.on && t.listening);
-  if (!t.on || !t.listening) return;
+  if (!t.on || !t.listening) { teamShown = false; return; }
   setHtml($('team-urls'), t.urls.length ? t.urls.map(u => `<div class="url"><span class="muted">Watch page</span><span class="mono">${esc(u)}</span><button type="button" data-copy="${esc(u)}">Copy</button></div>`).join('')
     : `<p class="muted" style="margin:0;font-size:13px">This PC isn't on a network: the team can't reach it. (Port ${t.port}.)</p>`);
-  setText($('team-code'), t.code.slice(0, 4) + ' ' + t.code.slice(4));
+  setText($('team-code'), teamShown ? t.code.slice(0, 4) + ' ' + t.code.slice(4) : '');
+  $('team-code').hidden = $('team-copy').hidden = !teamShown;
+  $('team-copy').dataset.copy = teamShown ? t.code : '';
+  setText($('team-show'), teamShown ? 'Hide code' : 'Show code');
   setHtml($('team-who'), t.watchers.length ? `<table><tr><td class="muted">Who</td><td class="muted">From</td><td class="muted">Last seen</td><td></td></tr>${t.watchers.map(w => `<tr><td><b>${esc(w.name)}</b></td><td class="mono">${esc(w.ip)}</td><td class="${w.watching ? 'on' : 'muted'}">${w.watching ? 'watching now' : ago(w.seen)}</td><td><button class="b" type="button" data-teamout="${esc(w.id)}" style="font-size:13px;padding:3px 7px 1px">Sign out</button></td></tr>`).join('')}</table>`
     : '<span class="muted">Nobody is watching yet.</span>');
   const p = t.pictures;
-  setText($('team-pics'), !p.obs ? "OBS isn't connected, so the Watch page shows each host's own video (small, from VDO.Ninja). Connect OBS and Red Alert sends the pictures itself, so the hosts upload nothing more however many watch."
+  setText($('team-pics'), !p.obs ? (t.hostVideo ? "OBS isn't connected, so the Watch page shows each host's own video (small, from VDO.Ninja). Connect OBS and Red Alert sends the pictures itself, so the hosts upload nothing more however many watch."
+      : "OBS isn't connected, so the Watch page has no pictures, only each game's state and events. Connect OBS and Red Alert sends the pictures itself, so the hosts upload nothing more however many watch.")
     : p.running ? `Pictures from OBS: about ${p.fps} a second per lobby, while someone watches.` : 'Pictures from OBS while someone watches (none now).');
 }
 $('team-on').addEventListener('change', async e => { const r = await api('POST', '/app/admin/teamwatch', { action: e.target.checked ? 'on' : 'off' }); toast(r.message); loadTeam(); });
 $('team-new').addEventListener('click', async () => { const r = await api('POST', '/app/admin/teamwatch', { action: 'code' }); toast(r.message); loadTeam(); });
+$('team-show').addEventListener('click', () => { teamShown = !teamShown; renderTeam(); });
+$('team-hostvideo').addEventListener('change', async e => { const r = await api('POST', '/app/admin/teamwatch', { action: 'hostvideo', on: String(e.target.checked) }); toast(r.message); loadTeam(); });
 $('team-who').addEventListener('click', async e => { const b = e.target.closest('[data-teamout]'); if (!b) return; const r = await api('POST', '/app/admin/teamwatch', { action: 'signout', id: b.dataset.teamout }); toast(r.message); loadTeam(); });
 setInterval(() => { if (PAGE === 'settings' && !document.hidden) loadTeam(); }, 2000);
 // Settings → Player camera.

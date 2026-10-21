@@ -47,9 +47,10 @@ namespace TournamentTracker.App.Broadcast
 
     /// <summary>
     /// The production team's suggestions from the Watch page, for the caster's Live desk: newest first,
-    /// each cleared when its lobby goes on Program, after <see cref="ExpireSeconds"/>, or when the caster
-    /// dismisses it, then kept a while under Earlier. In memory only (gone after a restart). Bounded: how
-    /// many are live and kept, how long the text is, and how often one person can send.
+    /// each cleared when it's on Program (its lobby full screen; a camera one: its lobby's camera following
+    /// that player), after <see cref="ExpireSeconds"/>, or when the caster dismisses it, then kept a while
+    /// under Earlier. In memory only (gone after a restart; ids differ from one run to the next). Bounded:
+    /// how many are live and kept, how long the text is, and how often one person can send.
     /// </summary>
     public sealed class SuggestionBox
     {
@@ -65,6 +66,9 @@ namespace TournamentTracker.App.Broadcast
         private readonly object _lock = new object();
         private readonly Func<DateTime> _clock;
         private readonly Func<OnAir> _air;
+        private readonly Func<string, int?> _camPick;
+        /// <summary>This run's own start for the ids, so a desk page left open over a restart doesn't take new ones for old.</summary>
+        private readonly string _run = Guid.NewGuid().ToString("N").Substring(0, 6);
         private readonly List<Suggestion> _live = new List<Suggestion>();
         private readonly List<Suggestion> _earlier = new List<Suggestion>();
         private readonly Dictionary<string, List<DateTime>> _sent = new Dictionary<string, List<DateTime>>();
@@ -73,17 +77,44 @@ namespace TournamentTracker.App.Broadcast
         /// <summary>A suggestion arrived (or someone added their name to one): the desk and the Stream Deck look again.</summary>
         public event Action? Changed;
 
-        public SuggestionBox(Func<DateTime> clock, Func<OnAir> air)
+        /// <param name="camPick">Who a lobby's camera follows, as the desk picked it (null: it picks by itself).</param>
+        public SuggestionBox(Func<DateTime> clock, Func<OnAir> air, Func<string, int?>? camPick = null)
         {
             _clock = clock;
             _air = air;
+            _camPick = camPick ?? (_ => null);
+        }
+
+        /// <summary>The camera picks of the lobbies whose camera is on Program (taken before the lock).</summary>
+        private Dictionary<string, int?> Picks(OnAir air)
+        {
+            var picks = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
+            if (!air.IsCam) return picks;
+            foreach (var lobby in air.Slots)
+                if (!string.IsNullOrEmpty(lobby) && !picks.ContainsKey(lobby))
+                {
+                    try { picks[lobby] = _camPick(lobby); } catch (Exception) { picks[lobby] = null; }
+                }
+            return picks;
+        }
+
+        /// <summary>
+        /// On Program as suggested: a lobby full screen; a camera suggestion, that lobby's camera on Program
+        /// following the player (as the desk picked). A quad tile, the grid, a sponsor break or the camera on
+        /// someone else doesn't count.
+        /// </summary>
+        private static bool OnProgram(OnAir air, Dictionary<string, int?> picks, string lobby, int? playerId)
+        {
+            if (playerId is int id)
+                return air.IsCam && air.Has(lobby) && picks.TryGetValue(lobby, out var pick) && pick == id;
+            return air.Layout == "full" && air.Slots.Count > 0 && string.Equals(air.Slots[0], lobby, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
         /// A suggestion from <paramref name="who"/> (watcher <paramref name="watcherId"/>). The same lobby, reason
         /// and player as one that's live adds their name to it instead. Refused (with why, and an HTTP status):
-        /// too often (429), text too long or nothing said (400), a lobby already on stream (409, unless it's a
-        /// camera suggestion).
+        /// too often (429), text too long or nothing said (400), already on Program as it would be (409: the
+        /// lobby full screen; for a camera suggestion, that lobby's camera following that player).
         /// </summary>
         public (int Status, string Message, Suggestion? Made) Add(string watcherId, string who, string lobby, string reason, string? text,
             int? playerId = null, string? playerName = null, int? playerColor = null)
@@ -96,13 +127,15 @@ namespace TournamentTracker.App.Broadcast
             if (reason.Length == 0 && text.Length == 0) return (400, "Pick a reason or write a few words.", null);
             if (text.Length > MaxText) return (400, $"Keep it to {MaxText} characters.", null);
             var air = _air();
-            if (playerId == null && air.Layout != "replay" && air.Has(lobby)) return (409, $"{lobby} is on stream already.", null);
+            var picks = Picks(air);
+            if (OnProgram(air, picks, lobby, playerId))
+                return (409, playerId == null ? $"{lobby} is on stream already." : $"{lobby}'s camera on {playerName ?? "that player"} is on stream already.", null);
             var now = _clock();
             Suggestion made;
             bool merged = false;
             lock (_lock)
             {
-                Tidy(now, air);
+                Tidy(now, air, picks);
                 // How often this person sends: one every few seconds, a few a minute.
                 if (!_sent.TryGetValue(watcherId, out var times)) _sent[watcherId] = times = new List<DateTime>();
                 times.RemoveAll(t => (now - t).TotalSeconds >= 60);
@@ -123,7 +156,7 @@ namespace TournamentTracker.App.Broadcast
                 {
                     made = new Suggestion
                     {
-                        Id = "s" + (++_seq), Lobby = lobby, Reason = reason, Text = text, Who = who, WatcherId = watcherId, At = now,
+                        Id = "s" + _run + "-" + (++_seq), Lobby = lobby, Reason = reason, Text = text, Who = who, WatcherId = watcherId, At = now,
                         PlayerId = playerId, PlayerName = playerName, PlayerColor = playerColor,
                     };
                     _live.Insert(0, made);
@@ -140,9 +173,10 @@ namespace TournamentTracker.App.Broadcast
         {
             var now = _clock();
             var air = _air();
+            var picks = Picks(air);
             lock (_lock)
             {
-                Tidy(now, air);
+                Tidy(now, air, picks);
                 return _live.Select(s => s.Copy()).ToList();
             }
         }
@@ -152,9 +186,10 @@ namespace TournamentTracker.App.Broadcast
         {
             var now = _clock();
             var air = _air();
+            var picks = Picks(air);
             lock (_lock)
             {
-                Tidy(now, air);
+                Tidy(now, air, picks);
                 return _earlier.Select(s => s.Copy()).ToList();
             }
         }
@@ -201,10 +236,11 @@ namespace TournamentTracker.App.Broadcast
         {
             var now = _clock();
             var air = _air();
+            var picks = Picks(air);
             List<Suggestion> live, earlier;
             lock (_lock)
             {
-                Tidy(now, air);
+                Tidy(now, air, picks);
                 live = _live.Select(s => s.Copy()).ToList();
                 earlier = _earlier.Select(s => s.Copy()).ToList();
             }
@@ -222,14 +258,14 @@ namespace TournamentTracker.App.Broadcast
         }
 
         /// <summary>
-        /// Clears what no longer applies (under the lock): a lobby that went on Program after it was suggested
-        /// (a camera suggestion: its camera did), and one older than <see cref="ExpireSeconds"/>.
+        /// Clears what no longer applies (under the lock): one that went on Program as suggested after it was
+        /// sent (see <see cref="OnProgram"/>), and one older than <see cref="ExpireSeconds"/>.
         /// </summary>
-        private void Tidy(DateTime now, OnAir air)
+        private void Tidy(DateTime now, OnAir air, Dictionary<string, int?> picks)
         {
             foreach (var s in _live.ToList())
             {
-                bool onProgram = air.Layout != "replay" && air.Has(s.Lobby) && air.Since >= s.At && (!s.IsCam || air.IsCam);
+                bool onProgram = air.Since >= s.At && OnProgram(air, picks, s.Lobby, s.PlayerId);
                 if (onProgram) Retire(s, "program", now);
                 else if ((now - s.At).TotalSeconds >= ExpireSeconds) Retire(s, "expired", now);
             }

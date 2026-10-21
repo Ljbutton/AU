@@ -253,7 +253,7 @@ namespace TournamentTracker.App.Broadcast
             }
             Board = new LobbyBoard(_config, _clock) { RosterName = (key, discord, name) => Roster.Match(key, discord, name).Entry?.Name };
             Board.PlayChanged += OnPlay;
-            Suggestions = new SuggestionBox(_clock, () => OnAir);
+            Suggestions = new SuggestionBox(_clock, () => OnAir, CamPick);
             Events = new LobbyEvents(_clock, (lobby, p) => WhoIs(lobby, p) is { } w ? NameTag.Make(w.Color, w.Name) : null,
                 (lobby, id) => Board.Lobby(lobby) is { } l && l.People.TryGetValue(id, out var lp) ? NameTag.Make(lp.Color, Board.DisplayName(l, id, lp.Name)) : null);
             Fed += Events.Add;

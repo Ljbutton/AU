@@ -25,7 +25,7 @@ namespace TournamentTracker.App.Broadcast
         public const int MaxShotsPerSecond = 30;
         public const int MaxLobbies = 16;
         public const int MaxJpegBytes = 400_000;
-        /// <summary>A picture older than this isn't shown (the page falls back to the host's video).</summary>
+        /// <summary>A picture older than this isn't shown (the page says "No picture"; it never falls back to the host's video).</summary>
         public static TimeSpan FreshFor { get; set; } = TimeSpan.FromSeconds(4);
         /// <summary>How often the loop looks again while nobody is watching.</summary>
         internal static TimeSpan IdleCheck { get; set; } = TimeSpan.FromMilliseconds(300);
