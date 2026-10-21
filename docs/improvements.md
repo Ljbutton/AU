@@ -224,6 +224,7 @@ What each app already does is in [features-the-button.md](features-the-button.md
     - **Do:**
       - Default to about 6,000 kbps.
       - Build the tiles from OBS `GetSourceScreenshot` while OBS is connected (already used for Program, `ObsOutputs.cs:198`), instead of a second VDO.Ninja viewer per host. The owner is deciding on this one.
+      - The Watch page now does this for the team (0.3.19): `WatchCapture.cs` takes a small picture of each TT Lobby source from OBS in one shared loop while someone watches, and serves the newest one. The desk tiles could reuse it (see item 74 for the OBS load).
     - **Size:** S, then M.
 
 27. **Pin VDO.Ninja.**
@@ -328,6 +329,28 @@ What each app already does is in [features-the-button.md](features-the-button.md
 
 *72 is done: see [Done in 0.1.67](#done-in-0167).*
 
+### Found in 0.1.67 (not done yet)
+
+74. **OBS load of the Watch page's pictures.**
+    - **Why:** Team watch asks OBS for `GetSourceScreenshot` of every lobby, up to 5 a second each and 30 a second in all (`WatchCapture.cs`), while anyone has the page open. That rate hasn't been tried on a real OBS with real lobbies, and it isn't known whether a browser source that isn't in the live scene keeps drawing (if not, its pictures freeze).
+    - **Do:** on the dry run, watch OBS's render and encode lag (the OBS pill) with the Watch page open and closed, and check that lobbies off stream keep moving; lower `MaxShotsPerSecond` if OBS suffers.
+    - **Size:** S (the check), S (a lower rate).
+
+75. **The Watch page is plain HTTP on the network.**
+    - **Why:** the watch code, the sign-in's token and the pages (impostors included) travel unencrypted on the LAN, so anyone on the same network who can capture traffic can read them. The docs say to use it on a trusted network only.
+    - **Do (if wanted):** HTTPS with a certificate made by Red Alert (the team accepts it once), or keep to trusted networks and say so on the Team watch card.
+    - **Size:** M.
+
+76. **The team signs in again after a restart.**
+    - **Why:** sign-ins (and suggestions) are in memory only (`WatchServer.cs`, `Suggestions.cs`); the code is kept in `settings.json`, but after Red Alert restarts everyone on the Watch page goes back to the sign-in.
+    - **Do (if wanted):** keep the sign-ins' tokens in a file of their own (never in a support bundle), cleared by **New code** and Team watch off.
+    - **Size:** S.
+
+77. **Top 3 over camera 1 with three or four player cams.**
+    - **Why:** the Top 3 now steps aside wherever it would cover a picture (see [Done in 0.1.67](#done-in-0167)), but in the player cams layout with three or four cameras it still sits over camera 1: the graphics state has no camera boxes (`broadcast.html`, `top3At`).
+    - **Do:** add the camera boxes to `/broadcast/state` (an added field) and let `top3At` check them, or hide the Top 3 in that layout.
+    - **Size:** S.
+
 ### Red Alert's automatic actions (decisions pending)
 
 From a read of everything Red Alert 0.3.17 does by itself (the file:lines are from that version). 60, 61, 62 and 68 were settled in 0.3.19 (see [Done in 0.1.67](#done-in-0167)); the rest haven't been changed yet.
@@ -399,7 +422,7 @@ From a read of everything Red Alert 0.3.17 does by itself (the file:lines are fr
     - **Size:** S–M.
 
 43. **Stream Deck or Companion from another PC, opt-in.**
-    - **Why:** Red Alert only listens on this PC.
+    - **Why:** Red Alert's screen and Stream Deck links only listen on this PC (only the Watch page listens on the network, while Team watch is on).
     - **Do:** an opt-in LAN listener for `/deck/*`, with the key and a Host check.
     - **Size:** S–M.
 
@@ -496,6 +519,10 @@ Done in The Button and the mod 0.1.67 and Red Alert 0.3.19; the numbers are the 
 - **Sponsor breaks can't be interrupted** (`CasterDeskBreak.cs`): a lobby picked during a break (a cut, Take, a tile, the multiview pick, Stream Deck lobby, Take and camera keys, Undo to a lobby) goes into the break's picture and the break carries on with its sponsor, its time and its sponsor appearance. BRB, Intermission, Starting soon, another break, a replay or montage (`ReplayManager.PlayAsync`), **Replay that** and an Undo back to one of those are refused with "A sponsor break is on: N s left. End break first." (409 on the Stream Deck). It ends only when its time is up, with **End break** (`break/off`, `/app/admin/sponsor` `end`) or with Panic, and then goes full screen on the break's lobby as it is then. If the break's lobby drops, auto switch puts a healthy lobby (a hot one, else the top one) in the break; with none, the break stays with RECONNECTING. Switching scenes in OBS itself still ends a break.
 - **Red Alert's visual fixes and the win counter removed:** the win counter is gone from the stream (the corner, Intermission, Be right back), the Graphics page and the intermission card's Today / Round; `/broadcast/state` has no `wins`, `POST /app/admin/wins` is gone (404), and an old `broadcast.json` with `winCounter` still loads and drops it (`BroadcastApp.cs`). The desk still keeps `WinScope` in `settings.json`, unused. Grid tiles and their status lines stop above the stats ticker while it shows (`broadcast.html`). The Live desk's action panel is the Replays row, then the Breaks rows, then the cards, and only the cards scroll (the break that's on has its card first); a sponsor read and the Starting soon or Intermission card fit at 1600×900 and 1920×1080. The Replays row shows only whole buttons (long titles end in "…"); the Best replay button reads **▶ Best**; the Starting soon card has two rows with a **Line** label; the Program line says "by hand" and "scene TT Full"; up to four lobbies get four wide tiles; the Twitch log says "Nothing yet." when empty; the Stream Deck + replay dial's hint is clear of its border (`svg.js`).
 - **72 (decided):** the On stream light (ON STREAM and NEXT) shows only to a host in the referee slot (the referee ghost, not playing); a playing host never sees it, since it could tell them something happened in their game (`AppServer.cs`, `RefereeHost`). The mod's status has `refSlotActive` (the slot on and not in safe mode this game, `ControlApi.cs`); with an older mod, The Button goes by the referee slot on and safe mode off.
+- **Team watch** (`WatchServer.cs`, `BroadcastWatch.cs`, `WatchCapture.cs`, `Suggestions.cs`, `LobbyEvents.cs`, `ui/watch.html`): a Watch page for the production team on their own PCs on the network, on port 8780 (or the next free one up to 8789), listening only while Settings → **Team watch** is on (off by default), behind an 8-character watch code. Each lobby's card has its picture (from OBS while it's connected, else the host's own video), state, players with impostors, last 8 events and **Show this**. Wrong codes are limited (5 a minute per address, 40 overall), **New code** or Team watch off signs everyone out, every request needs the sign-in's token, the code is never logged and is taken out of support bundles. On the Live desk, **Happening now** is replaced by **Suggestions** (the desk's own items, then the team's, with **Into Preview**, **Cut** and **×**, cleared on Program, after 2 minutes or when dismissed); plays move to the **Plays** drawer, with Save replay / ▶ REPLAY, Preview and Card; the side menu's number counts new suggestions. The Stream Deck gains `suggest/next`, a Lobby key option **Newest team suggestion**, and `suggestions` in `/deck/state` (its words only with `&imp=1`).
+- **The Top 3 steps aside over pictures** (`broadcast.html`, `top3At`): it's hidden in the quad, a grid of two or more lobbies and the sponsor break, and shows as before over full screen, 2-up, a one-lobby grid and a player cam. Three or four player cams are item 77.
+- **More below on the action panel** (`caster.html`): while the cards go on past the bottom, the panel fades out there with a **▾ More below** button that scrolls down, gone at the end; the cards are a little shorter, so Intermission with a prompt and a sponsor read fits at 1600×900.
+- **Sponsor breaks ended early** (checked, no code change): a break ended with **End break**, or with its lobby changed by a cut or a camera, logs one appearance for its time on screen (`SponsorBreakTests.cs`); simulated breaks are never logged, which is why a rehearsal in Simulation counts none. The logged lobby is the one the break started with.
 
 ## Done in 0.1.66
 

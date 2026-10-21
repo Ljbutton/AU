@@ -496,16 +496,16 @@ stream.
   next to The Button on the same PC.
 * **The side menu** has a page per job: **Live desk** (everything for the show on one screen, laid
   out like vMix: a status bar, then **Preview**, **Take** and **Program** with the action panel
-  beside them, a tile per lobby, and three columns at the bottom that scroll on their own: what's
-  happening, the player cams, and the graphics queue, talking points and earlier plays), **Lobby
+  beside them, a tile per lobby, and three columns at the bottom that scroll on their own:
+  Suggestions, the player cams, and the graphics queue, talking points and the Plays drawer), **Lobby
   health**, **Montages**, **Graphics**, **Standings**, **Sponsors**, **Twitch**, **OBS**, **Lobby
-  voice**, **Players** and **Settings** (caster overlay, administration code, player camera, Stream
-  Deck, updates, help). On the Live desk the
+  voice**, **Players** and **Settings** (caster overlay, administration code, player camera, Team
+  watch, Stream Deck, updates, help). On the Live desk the
   menu is a narrow rail of short names. A dot beside an item shows what needs a look; the number on
-  Live desk is new plays since you last looked there (it clears when you open it). Keys **G**,
-  **I**, **U**, **B**, **C**, **M**, **V**, **E** and the replay keys work on every page; **1–9**,
-  **Shift**+**1–9**, **Enter**, **Esc**, **N**, **H** and **P P** only on the Live desk (**?** in its
-  status bar lists them). Each card's explanation is behind its small **?**.
+  Live desk is new suggestions from your team since you last looked there (it clears when you open
+  it). Keys **G**, **I**, **U**, **B**, **C**, **M**, **V**, **E** and the replay keys work on every
+  page; **1–9**, **Shift**+**1–9**, **Enter**, **Esc**, **N**, **H** and **P P** only on the Live
+  desk (**?** in its status bar lists them). Each card's explanation is behind its small **?**.
 * **One screen:** Red Alert opens maximised the first time, then where and as big as you left it.
   The Live desk fits one screen from about 1000 × 620 up (a smaller window becomes one long page).
 * **Restarts and crashes:** if Red Alert's page crashes or hangs it reloads by itself (up to 3
@@ -648,14 +648,17 @@ stream.
 * **Ports:** its screen and the Stream Deck links are on `127.0.0.1:8768` (this PC only, with a
   private key), or 8769, 8770 or 8771 when 8768 is taken (the Stream Deck plugin finds it there by
   itself; Settings → Stream Deck warns that copied links need copying again). The OBS pages are on
-  `localhost:8767`, as before. The mod uses 8765 and 8766 on the host's PC.
+  `localhost:8767`, as before. The mod uses 8765 and 8766 on the host's PC. The Watch page for the
+  production team is on 8780 (or the next free one up to 8789), only while Team watch is on, and is
+  the one port other PCs on the network can reach, behind the watch code (see
+  [Team watch](#team-watch)).
 * **Support bundle and dry run (Settings → Help):** **Save support bundle** puts Red Alert's log
   (and the one before it), its settings, OBS's newest log and crash report, the versions, the Live
   desk's warnings and what the desk, OBS, the lobby voice and the lobbies' health were doing into one
   zip on the Desktop (`RedAlert-support-<date>-<time>.zip`; the lock screen has the button too). The
   administration code, bot tokens, webhooks, OBS and VDO.Ninja passwords, stream keys, the Stream
-  Deck key and Twitch sign-ins are taken out, so it can be sent as it is (the kept lobbies,
-  `lobbies-cache.json`, never go in). **Dry-run checklist** opens
+  Deck key, the watch code and Twitch sign-ins are taken out, so it can be sent as it is (the kept
+  lobbies, `lobbies-cache.json`, never go in). **Dry-run checklist** opens
   [docs/dry-run.md](docs/dry-run.md): a 30-minute rehearsal with the real hosts, OBS and the Stream
   Deck, with a failure drill and what to send when something fails.
 * **Files** in `%LOCALAPPDATA%\RedAlert`: `settings.json`, `obs.json`, `caster-priority.json`,
@@ -691,7 +694,8 @@ stream.
     phase and players alive, the one on air outlined, and a red mark on a lobby with a
     meeting or an ejection happening. Silent (the video page carries the sound);
     `?sound=1` plays the lobby on air if you use the multiview on its own.
-  * The Live desk's **Happening now** ranks what's happening in every lobby, so you know where to jump.
+  * The Live desk's **Suggestions** shows what your team suggests from the Watch page, so you know
+    where to jump (see [Team watch](#team-watch)).
   * Each host needs about 10 Mbps upload (4-6 for the picture, 2-3 more for the player camera;
     **Check my connection** in The Button measures it), and you download every lobby at once, so
     use a wired connection.
@@ -710,11 +714,16 @@ the caster's PC and off stream.
   sabotages with time left, vents, task bar, kill-ready, danger, a snapshot every second) along
   the same private stream. Red Alert joins each stream for its data. A lobby that
   stops sending shows as offline; the rest keep going.
-* **Cards:** "Happening now" lists plays highest priority first (must show, very high, high,
+* **Suggestions:** the desk's own items first (lobby down or back, interrupted games, chat's
+  pick), then the team's suggestions from the Watch page, newest first (**Into Preview**, **Cut**,
+  **×**). A suggestion clears when its lobby goes on stream, after 2 minutes or when dismissed,
+  and moves to *Earlier*.
+* **Plays:** Red Alert still ranks every play highest priority first (must show, very high, high,
   medium), with the lobby, the play ("Reactor 12s, nobody fixing", "Purple killed Lime in
-  Electrical"), crew v impostors, task bar and time. Repeats update the same card. Each card and
-  lobby says if it's on stream and how (LIVE (full), LIVE (quad, slot 2)); plays that happened on
-  stream get a SHOWN badge. Calmed-down plays move to *Earlier*, with **Watch again**.
+  Electrical") and how it's on stream (LIVE (full), LIVE (quad, slot 2)). The plays are on the
+  Watch page and in the Live desk's **Plays** drawer ("N now · M earlier"): plays going on now
+  with **Save replay** / **▶ REPLAY**, **Preview** and **Card**; calmed-down ones with **Watch
+  again**.
 * **Ranking:** every weight and limit is in `caster-priority.json` in Red Alert's
   folder (written the first time, re-read when you save it).
 * **OBS:** in OBS, Tools → WebSocket Server Settings → Enable WebSocket server, set a password,
@@ -726,9 +735,9 @@ the caster's PC and off stream.
   Settings and the lobby → source mapping are in `obs.json` in Red Alert's folder.
 * **Replays** (needs the free **Source Record** plugin for OBS, by Exeldro): Red Alert puts a
   Source Record replay buffer (last 30 s) on every lobby source. Every kill saves a clip by itself
-  (8 s before to 2 s after); any card can save one with **Save replay**, while OBS still has it.
-  **▶ REPLAY** on the card (or **Watch again**) plays it in the **TT Replay** scene: a Media
-  Source, so you can pause and scrub, cropped and zoomed (up to 2.5×) to keep the killer and
+  (8 s before to 2 s after); any play in the **Plays** drawer can save one with **Save replay**,
+  while OBS still has it. **▶ REPLAY** on the play (or **Watch again**) plays it in the **TT
+  Replay** scene: a Media Source, so you can pause and scrub, cropped and zoomed (up to 2.5×) to keep the killer and
   victim in frame, following them if the host's camera moves, with a slow push-in from the wide
   shot and a REPLAY tag. Controls: play/pause, ±1 s, frame step, scrub bar, restart, zoom, pan,
   follow, back to live; every one has a key (change them under **Keys**). Clip lengths, zoom,
@@ -937,6 +946,51 @@ the caster's PC and off stream.
   real games. In simulation each lobby's health row has test buttons: Video, Audio, Data, All
   (drops), Lag, Crash (the referee's game dies mid-game and comes back in the lobby) and
   Reconnect.
+
+### Team watch
+
+The **Watch page** lets the rest of the production team (a producer, a second caster, someone
+spotting plays) watch every game at once on their own PC or tablet, on the same network as the
+caster's PC, and suggest what to show. They can't switch the stream: their **Show this** lands in
+the Live desk's **Suggestions**, and the caster decides. It's off by default.
+
+* **The page shows impostors.** Like the Live desk, it shows who the impostors are. Only give the
+  link and the code to the production team, keep their screens off stream, and away from players.
+* **Set it up (the caster):**
+  1. Red Alert → Settings → **Team watch**: switch it on. The toast says the link ("Team watch on:
+     your team opens http://192.168.1.20:8780/ and types the code.").
+  2. The first time, Windows Firewall asks whether Red Alert may use the network: allow it on
+     **private networks** only. Declined, nobody can connect.
+  3. Give the team the link shown on the card (with **Copy**) and the code, by word of mouth or in
+     a private message. Never post the code in a public channel.
+* **Signing in (the team):** open the link, type your name (so the caster knows who's suggesting)
+  and the watch code. A wrong code says "That code isn't right. It's in Red Alert: Settings → Team
+  watch."; after too many it says "Too many wrong codes. Wait a minute, then try again."
+* **What the team sees:** the tournament and round, what's ON STREAM and in PREVIEW, and a card
+  per lobby: its picture with the red or green tally, the excitement badge (MUST SHOW, VERY HIGH,
+  HIGH), the phase, map and health, crew v impostors, the task bar, a sabotage countdown, the
+  players (dead crossed out, impostors marked IMP), the last 8 events with times, why it's rated
+  as it is, and what the team has already suggested.
+* **Show this:** a reason (Kill coming, Clutch, Meeting, Sabotage, Funny), or the player camera on
+  a living player, and a few words if wanted (up to 60 characters). The same suggestion from
+  someone else adds their name to it. One every few seconds per person. A lobby already on stream
+  can only be suggested for its camera.
+* **On the Live desk:** each suggestion shows the lobby, the reason, who sent it and how long ago,
+  with **Into Preview** (Take puts it on), **Cut** and **×**. It clears when its lobby (or its
+  camera) goes on stream, after 2 minutes, or when dismissed, and moves to **Earlier**. The
+  Stream Deck's `suggest/next` puts the newest one into Preview.
+* **The pictures:** with OBS connected, Red Alert takes a small picture of each lobby from OBS a
+  few times a second, only while someone is watching, so the hosts upload nothing more however many
+  watch. Without OBS each card shows the host's own video, small and muted ("OBS isn't connected:
+  video straight from the host"), which costs each host a little more upload per person watching.
+* **The code:** the card shows it, with **New code**: a new code signs everyone out, and they type
+  the new one. Switching Team watch off signs everyone out too, and the page can't be reached at
+  all. The card lists who's watching (name, address, last seen) with **Sign out** for each. The
+  code is kept across a restart, but sign-ins aren't: after Red Alert restarts, the team signs in
+  again.
+* **Safety:** it's plain HTTP on your own network, so use it on a network you trust (the venue's
+  or your home network, not public Wi-Fi), and don't forward its port on the router. The watch code
+  is never written in the log and is taken out of support bundles.
 
 ## Discord setup (without a setup code)
 

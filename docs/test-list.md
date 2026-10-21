@@ -688,3 +688,69 @@ _Live desk at 1600×900 and at 1920×1080._
 - [ ] Four lobbies → four wide lobby tiles in one row
 - [ ] Twitch page with nothing logged yet → "Nothing yet."
 - [ ] Stream Deck + replay dial: the bottom hint "turn: scrub · push: play/pause" isn't cut off by the strip's border
+
+### Red Alert: Team watch
+_Red Alert on the caster's PC with OBS connected; a second PC or tablet on the same network for the team; a phone on mobile data (Wi-Fi off) for the last check._
+- [ ] Settings → **Team watch** is off on a fresh install; the card says to allow Windows Firewall on private networks only
+- [ ] Switch it on → the toast says "Team watch on: your team opens http://IP:8780/ and types the code."; the card shows the link (with **Copy**), the code with **New code**, and "Nobody is watching yet."
+- [ ] The first time on this PC → Windows Firewall asks; allow it on private networks only
+- [ ] Port 8780 taken by something else → Team watch uses the next free one up to 8789, and the card's link says which
+- [ ] On the second PC, open the link → the sign-in page ("Who's watching?") with Your name and Watch code; nothing about the games shows before signing in
+- [ ] A wrong code → "That code isn't right. It's in Red Alert: Settings → Team watch."; `red-alert.log` says "a wrong code from" that address and never the code
+- [ ] Six wrong codes within a minute → "Too many wrong codes. Wait a minute, then try again.", and the right code is refused too until the minute is up; then it works
+- [ ] The right code with a name → every lobby with its picture, tally, badge, phase, map, crew v impostors, tasks, players (dead crossed out, impostors marked IMP) and the last events; the header shows ON STREAM, PREVIEW and "Watching as" the name
+- [ ] Settings → Team watch lists them (name, address, "watching now"); **Sign out** there → the Watch page goes back to the sign-in with "Sign in again: …"
+- [ ] **New code** → everyone signed in goes back to the sign-in; the old code is refused; the new one works
+- [ ] Switch Team watch off → the Watch page goes back to the sign-in, and the link no longer opens at all (not reachable) from the second PC; on again → the same code works
+- [ ] Restart Red Alert with Team watch on → it's still on with the same code; the team signs in again
+- [ ] A phone on another network (mobile data, Wi-Fi off) can't reach the link, nor the PC's public address on that port
+- [ ] A support bundle with Team watch on → no file has the code (settings.json shows it as `[removed]`), state.json has no suggestions, and versions.txt says "Team watch: on, port N, X signed in."
+- [ ] OBS connected → the pictures come from OBS and keep up (a few a second); the hosts' upload doesn't change with more people watching; nobody on the page → Settings says "(none now)"
+- [ ] OBS disconnected → each card shows the host's own video, small and muted, with "OBS isn't connected: video straight from the host"
+- [ ] Simulation on → the Watch page shows SIMULATION and the four fake lobbies with their stand-in pictures
+- [ ] 12 lobbies at 1366×768 and 1920×1080 → the cards fill the window in as many columns as fit, with no sideways scrolling
+
+### Red Alert: Suggestions on the Live desk
+_Two people signed in to the Watch page; two or more lobbies sending._
+- [ ] The Live desk's first column is **Suggestions**; with no suggestions it says "No suggestions right now. Your team sends them from the Watch page." (with Team watch off, how to turn it on)
+- [ ] LOBBY DOWN, "X is back", INTERRUPTED (Count, Void, Replay, Watch the game), the game to replay and chat's pick still show at the top of the column, with their buttons
+- [ ] On the Watch page, **Show this** on a lobby not on stream, **Kill coming** → "Sent: LJ, Kill coming."; the Live desk shows it at once, newest first: TEAM, the lobby, the name, the age and "Kill coming"
+- [ ] The second person sends the same → one suggestion with both names; the chooser says "Already sent for this lobby"
+- [ ] A few words (up to 60 characters) show on the desk in quotes; a 61st character can't be typed
+- [ ] A lobby on stream → the chooser offers only its camera ("… is on stream already: suggest its camera on a player")
+- [ ] The camera on a living player → "Cam on" the player; **Into Preview** puts that lobby's camera following them in Preview; **Take** puts it on
+- [ ] **Into Preview** on a lobby suggestion → "Preview: LJ (Sam: Kill coming). Take puts it on.", IN PREVIEW on the suggestion; **Take** → it moves under Earlier as "went on stream"
+- [ ] **Cut** → that lobby on stream at once (with the transition picked beside Take); **×** → under Earlier as "dismissed"
+- [ ] A suggestion left alone for 2 minutes → under Earlier as "timed out"
+- [ ] Two suggestions within 3 s from one person → "Slow down: one suggestion every few seconds."
+- [ ] The side menu's Live desk number counts new suggestions while on another page; opening the Live desk clears it
+- [ ] **Plays** drawer (third column) → "N now · M earlier"; plays going on now with **Save replay** / **▶ REPLAY**, **Preview** and **Card**; earlier ones with **Watch again**
+- [ ] Key **C** still puts up the top play's player card
+
+### Red Alert: Stream Deck suggest/next
+- [ ] Lobby key set to **Newest team suggestion (into Preview)** → the Press and Transition settings are hidden; the key reads SUGGESTED with the count and "L3 Kill coming", lit while there are any, "none yet" without
+- [ ] A press → the newest suggestion not yet in Preview goes into Preview; again → the next one; Take puts it on
+- [ ] No suggestions → a press shows the triangle (409 "No suggestions.")
+- [ ] A suggestion with words → the key never shows them; `/deck/state` has `suggestions` without `text`, and with `&imp=1` it has it
+- [ ] Custom path key: the **Newest team suggestion into Preview** preset fills `suggest/next`; Settings → Stream Deck's links list it under Preview and Take
+
+### Red Alert: Top 3 steps aside over pictures
+_Graphics → Top 3 on; lobbies in a round with standings._
+- [ ] Full screen, a player cam, 2-up and a grid of one lobby → the TOP 3 box shows top left as before
+- [ ] Quad, a grid of two or more lobbies, and a sponsor break → no TOP 3 box (nothing over a picture or the SPONSOR BREAK label)
+- [ ] A big graphic, intermission, Be right back or a replay → no TOP 3 box, as before
+- [ ] Standings and a Twitch poll on together → the Twitch box sits under the TOP 3 box when it shows, and higher up when it doesn't
+
+### Red Alert: More below on the action panel
+_Live desk at 1600×900 and at 1920×1080._
+- [ ] Starting soon with an after-game prompt and a sponsor read at 1600×900 → the bottom of the cards fades with **▾ MORE BELOW** (tooltip "Scroll down to the rest of the cards"); clicking it scrolls down; at the end it goes
+- [ ] Intermission with a prompt and a sponsor read at 1600×900 → everything fits, no **More below**
+- [ ] Scroll back up by hand → **More below** comes back; a new card arriving at the bottom brings it back too
+
+### Red Alert: sponsor breaks ended early
+_Real lobbies (Simulation off: simulated breaks are never logged); a sponsor with the `break` placement._
+- [ ] A break ended with **End break** after about 5 s → one appearance on the Sponsors page of about 5 s
+- [ ] A break during which the lobby is swapped twice (a cut, then a player camera), then ended early → one appearance for the whole time on screen, not one per lobby
+- [ ] A lobby change during a break, then the break runs out → one appearance of its whole time
+- [ ] The sponsor's line shows the right times shown and minutes, and **Export report** has the same appearances
+- [ ] The same breaks with Simulation on → nothing logged

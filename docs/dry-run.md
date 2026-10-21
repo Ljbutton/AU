@@ -21,6 +21,8 @@ straight away (see [What to send if something fails](#what-to-send-if-something-
 * [ ] **The organiser**, with the administration code and the private results channel open.
 * [ ] **Someone watching what viewers get**: a test stream to an unlisted channel on a phone, or
   OBS recording to play back at the end.
+* [ ] **Someone from the production team** on another PC or a tablet on the same network as the
+  streaming PC, if the event uses Team watch.
 * [ ] Everyone in one Discord voice call to talk it through (not a lobby's voice channel).
 
 ---
@@ -81,6 +83,9 @@ straight away (see [What to send if something fails](#what-to-send-if-something-
   is **Put it in Preview** (the default for new keys), with a **Take** key next to them (as in the
   [recommended layouts](stream-deck.md#recommended-layouts)). A key set up with an older plugin
   keeps **Cut it to stream** and puts its lobby on stream at once: open each key and check.
+* [ ] **Team watch** (if used): Settings → **Team watch** on. The first time, Windows Firewall
+  asks whether Red Alert may use the network: allow it on **private networks** only. Give the
+  team member the link shown on the card and the code, privately.
 * [ ] **Simulation off**: no TEST MODE bar across the top.
 * [ ] The test stream (unlisted) or the recording is ready to start.
 
@@ -127,7 +132,7 @@ bundles at the end.
 * [ ] Two lobbies in Preview (Ctrl+click), **Take**: 2-up on stream. Four: the quad. **Back** undoes
   the last switch.
 
-### T+9 to T+13 · Player cams from the Stream Deck
+### T+9 to T+13 · Player cams from the Stream Deck, and Team watch
 
 * [ ] Hosts start real games in at least two lobbies.
 * [ ] **Caster**, mid-game on the lobby on stream: a Stream Deck **Player cam** slot key puts that
@@ -138,6 +143,12 @@ bundles at the end.
   the Live desk say **ARMED** (amber) and nothing cuts. When the meeting ends, the camera goes on
   stream by itself.
 * [ ] Each lobby's camera key follows the lobby it says (the numbers from T+0).
+* [ ] **Team watch** (if used): the team member opens the link on their own PC, types their name
+  and the code, and sees every lobby with its picture. They press **Show this** on a lobby that
+  isn't on stream and pick a reason: it appears in the Live desk's **Suggestions** within a few
+  seconds, with their name. **Caster**: **Into Preview** puts that lobby in Preview, and **Take**
+  puts it on stream; the suggestion moves to Earlier ("went on stream"). Settings → Team watch
+  lists them as watching now.
 
 ### T+13 to T+16 · Replays
 
@@ -223,6 +234,8 @@ Tick every line before the event. Anything not ticked needs an owner and a fix d
 * [ ] Every host's voice was heard on stream, only while their lobby was on, and the Sent meters
   moved.
 * [ ] Player cams worked from the Stream Deck, including an armed pick during a meeting.
+* [ ] Team watch (if used): the team member signed in, and their Show this went through Preview
+  and Take.
 * [ ] Replay that, Play last and slow-mo worked.
 * [ ] Panic and Undo put everything back; Hold, intermission, the sponsor break and Mute all worked.
 * [ ] Failure drill: the dropped lobby was handled and its players unmuted, its host picked the
@@ -261,8 +274,8 @@ Send the zips as they are, with a few lines:
 * [ ] A screenshot or a phone video, if you have one.
 
 The bundles are safe to send: setup and administration codes, bot tokens, webhooks, VDO.Ninja and
-OBS passwords, stream keys, the Stream Deck key and Twitch sign-ins are taken out of every file
-(they show as `[removed]`). Don't send screenshots of a Settings page with a code on it.
+OBS passwords, stream keys, the Stream Deck key, the watch code and Twitch sign-ins are taken out
+of every file (they show as `[removed]`). Don't send screenshots of a Settings page with a code on it.
 
 ---
 
