@@ -47,7 +47,6 @@ public class StartingSoonTests : IDisposable
     {
         using var desk = Desk();
         foreach (var l in new[] { "LJ", "MAL" }) Snap(desk, l, "lobby");
-        desk.AutoIntermission = true;
         desk.AutoGrid = true;
         var (ok, said) = desk.SetSoon("1", null, "  Doors   open at seven  ", TimeZoneInfo.Utc);
         Assert.True(ok);
@@ -57,7 +56,7 @@ public class StartingSoonTests : IDisposable
         Assert.Empty(desk.OnAir.Slots);
         Assert.Equal(60, desk.SoonLeft());
 
-        // Every lobby between games for minutes, auto intermission and auto grid on: nothing moves.
+        // Every lobby between games for minutes, auto grid on: nothing moves.
         for (int i = 0; i < 90; i++) { _clock.Advance(2); desk.Tick(); }
         Assert.Equal("soon", desk.OnAir.Layout);
         Assert.Empty(desk.Preview.Slots);

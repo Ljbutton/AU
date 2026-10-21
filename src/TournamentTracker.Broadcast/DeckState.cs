@@ -166,7 +166,8 @@ namespace TournamentTracker.App.Broadcast
                 },
                 hold = desk.Held,
                 panic = _panic is { } inPanic && PanicInEffect(desk, inPanic),
-                auto = new { grid = desk.AutoGrid, intermission = desk.AutoIntermission, @switch = desk.HealthConfig.AutoSwitch },
+                // intermission: auto intermission was removed; always false, for keys of older plugins.
+                auto = new { grid = desk.AutoGrid, intermission = false, @switch = desk.HealthConfig.AutoSwitch },
                 graphics = new
                 {
                     standings = _broadcast?.Settings.Current.Elements.GetValueOrDefault("standings") == true,
@@ -313,7 +314,7 @@ namespace TournamentTracker.App.Broadcast
                         "cue" => ("HEAR PVW", v?.HearPreview),
                         "hold" => ("HOLD", desk.Held),
                         "autogrid" => ("AUTO GRID", desk.AutoGrid),
-                        "autointermission" => ("AUTO INTER", desk.AutoIntermission),
+                        "autointermission" => ("AUTO INTER", false),        // removed: always off
                         "autoswitch" => ("AUTO SWITCH", desk.HealthConfig.AutoSwitch),
                         "standings" => ("STANDINGS", _broadcast?.Settings.Current.Elements.GetValueOrDefault("standings")),
                         "alerts" => ("ALERTS", !desk.Alerts.Settings.Paused),

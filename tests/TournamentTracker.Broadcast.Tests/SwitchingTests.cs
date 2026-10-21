@@ -411,20 +411,20 @@ public class DeskControlTests : IDisposable
         Snap(desk, "LJ", "lobby");
         Snap(desk, "MAL", "meeting");
         desk.Show("LJ", "full", null, null, "deck");
+        // Intermission on, then MAL's camera armed during it; MAL's meeting ends: the camera doesn't cut over
+        // intermission, and intermission stays.
+        desk.ShowIntermission();
         desk.Arm("MAL", null);
-        // Intermission came by itself; MAL's meeting ends: the camera doesn't cut over intermission.
-        desk.ShowIntermission("auto");
         Snap(desk, "MAL", "ingame");
+        desk.Tick();
         desk.Tick();
         Assert.Equal("intermission", desk.OnAir.Layout);
         Assert.True(desk.Armed("MAL").Armed);
-        // Intermission over (by itself, as auto intermission ends it): then the armed camera goes on.
-        desk.AutoIntermission = true;
-        desk.Tick();
-        Assert.Equal(("full", "MAL", "auto"), (desk.OnAir.Layout, desk.OnAir.Slots[0], desk.OnAir.By));
+        // Intermission ended by a person (back to MAL, which went live): then the armed camera goes on.
+        desk.EndIntermission();
+        Assert.Equal(("full", "MAL", "button"), (desk.OnAir.Layout, desk.OnAir.Slots[0], desk.OnAir.By));
         desk.Tick();
         Assert.Equal(("cam", "MAL", "armed"), (desk.OnAir.Layout, desk.OnAir.Slots[0], desk.OnAir.By));
-        desk.AutoIntermission = false;
 
         // Armed again in a meeting, then the caster takes another lobby by hand: the pick is cancelled
         // (and the desk is told), so it doesn't pull the stream off that lobby when the meeting ends.
