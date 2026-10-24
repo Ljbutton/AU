@@ -813,16 +813,7 @@ namespace TournamentTracker.App.Broadcast
             }
         }
 
-        // ---- Win counter (Part 20) and player cards (Part 21) ------------------------------------
-
-        /// <summary>"today" or "round".</summary>
-        public string WinScope { get; set; } = "today";
-
-        public (int Impostors, int Crew) Wins()
-        {
-            var games = WinScope == "round" ? Archive.InRound(Archive.Games.Select(g => g.Round).DefaultIfEmpty(0).Max()) : Archive.Today();
-            return (games.Count(g => g.Winner == "Impostors"), games.Count(g => g.Winner == "Crewmates"));
-        }
+        // ---- Player cards (Part 21) ---------------------------------------------------------------
 
         /// <summary>The player card on stream: who, from which lobby, and since when.</summary>
         public (string Key, string? Lobby, DateTime At, bool Auto)? PlayerCard { get; private set; }
@@ -1400,7 +1391,6 @@ namespace TournamentTracker.App.Broadcast
                 x.Interruption,
                 x.Action,
             };
-            var wins = Wins();
             var preview = Preview;
             return new
             {
@@ -1412,7 +1402,6 @@ namespace TournamentTracker.App.Broadcast
                 AutoSwitched = AutoSwitched is { } asw ? new { asw.Lobby, asw.Text, At = asw.At.ToString("o") } : null,
                 Soon = SoonState(),
                 Intermission = new { On = air.Layout == "intermission", Offer = IntermissionOffer, Live = LiveDuringIntermission, NextRoundAt = NextRoundAt?.ToString("o"), Montage = QueuedMontage?.Title },
-                WinScope, Wins = new { Impostors = wins.Impostors, Crew = wins.Crew },
                 Break = Break is { } br ? new { Sponsor = br.Sponsor.Name, Left = Math.Max(0, (int)Math.Ceiling((br.Until - now).TotalSeconds)), br.Lobby } : null,
                 OnAir = new { air.Layout, air.Slots, air.By, air.Scene, Since = air.Since == default ? null : air.Since.ToString("o") },
                 Preview = new { Layout = preview.Layout, preview.Slots, preview.Note, preview.Replay },

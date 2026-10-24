@@ -4,8 +4,8 @@ namespace TournamentTracker.App.Broadcast
 {
     /// <summary>
     /// Hold and the desk's automation as the caster left them, kept in Red Alert's settings.json ("Desk") so a
-    /// restart mid-show keeps them: auto grid, the next-round countdown, the win counter's
-    /// and the standings' scope, Starting soon's countdown and line, and Hold (until released, or until a time). The rest of the automation is
+    /// restart mid-show keeps them: auto grid, the next-round countdown, the standings'
+    /// scope, Starting soon's countdown and line, and Hold (until released, or until a time). The rest of the automation is
     /// kept in its own file already: auto switch and the be-right-back screen (health.json), the after-game
     /// table and how long each graphic stays (broadcast.json), off-screen alerts (alerts.json), lobby voice
     /// and the swoosh (obs.json), player cameras (settings.json).
@@ -17,6 +17,7 @@ namespace TournamentTracker.App.Broadcast
         public bool AutoIntermission { get; set; }
         /// <summary>When the next round starts (UTC), for the countdown; null: none.</summary>
         public DateTime? NextRoundAt { get; set; }
+        /// <summary>The win counter's scope: the win counter was removed; read from older files, ignored.</summary>
         public string WinScope { get; set; } = "today";
         public string StandingsScope { get; set; } = "lobby";
         /// <summary>Held until released.</summary>
@@ -38,7 +39,6 @@ namespace TournamentTracker.App.Broadcast
             {
                 AutoGrid = desk.AutoGrid,
                 NextRoundAt = desk.NextRoundAt,
-                WinScope = desk.WinScope,
                 StandingsScope = desk.StandingsScope,
                 Hold = forever,
                 HoldUntil = until,
@@ -56,7 +56,6 @@ namespace TournamentTracker.App.Broadcast
         {
             desk.AutoGrid = AutoGrid;
             desk.NextRoundAt = NextRoundAt is { } at && at.ToUniversalTime() > utcNow ? at.ToUniversalTime() : null;
-            if (WinScope is "today" or "round") desk.WinScope = WinScope;
             if (StandingsScope is "lobby" or "round" or "overall") desk.StandingsScope = StandingsScope;
             if (Hold || HoldUntil != null) desk.RestoreHold((Hold, HoldUntil?.ToUniversalTime(), HoldWhy));
             if (SoonAt is { } soon && soon.ToUniversalTime() > utcNow) desk.SetSoonAt(soon.ToUniversalTime());

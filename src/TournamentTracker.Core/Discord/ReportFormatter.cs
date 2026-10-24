@@ -165,7 +165,7 @@ namespace TournamentTracker.Discord
                 Description = Clip(sb.ToString(), Embed.DescriptionLimit),
                 Footer = new EmbedFooter
                 {
-                    Text = $"{store.GamesRecorded} game{(store.GamesRecorded == 1 ? "" : "s")} · Crew {store.CrewWins} – {store.ImpostorWins} Impostors"
+                    Text = $"{store.GamesRecorded} game{(store.GamesRecorded == 1 ? "" : "s")}"
                         + (hidden > 0 ? $" · {hidden} player{(hidden == 1 ? "" : "s")} under {minGames} games not shown" : ""),
                 },
             });

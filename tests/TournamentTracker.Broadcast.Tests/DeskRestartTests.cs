@@ -162,7 +162,6 @@ public class DeskRestartTests : IDisposable
         new DeskAutomation { NextRoundAt = clock.Now.AddMinutes(-1), HoldUntil = clock.Now.AddMinutes(-1), HoldWhy = "Held for 5 minutes", WinScope = "nonsense" }.ApplyTo(desk, clock.Now);
         Assert.Null(desk.NextRoundAt);
         Assert.False(desk.Held);
-        Assert.Equal("today", desk.WinScope);
 
         new DeskAutomation { NextRoundAt = clock.Now.AddMinutes(10), HoldUntil = clock.Now.AddMinutes(3), HoldWhy = "Held for 5 minutes" }.ApplyTo(desk, clock.Now);
         Assert.Equal(clock.Now.AddMinutes(10), desk.NextRoundAt);

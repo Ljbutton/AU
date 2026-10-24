@@ -115,6 +115,9 @@ public class ShowTests : IDisposable
         var it = Broadcast().GetProperty("intermission");
         Assert.Equal("Round 1", it.GetProperty("montage").GetString());
         Assert.False(Broadcast().TryGetProperty("wins", out _));   // the win counter is gone, here too
+        var deskState = JsonSerializer.SerializeToElement(_desk.State(), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        Assert.False(deskState.TryGetProperty("wins", out _));     // and from the desk's own state (no impostor v crew totals anywhere)
+        Assert.False(deskState.TryGetProperty("winScope", out _));
         Assert.Empty(Broadcast().GetProperty("slots").EnumerateArray());
 
         // A lobby starts: intermission stays, and the desk says which lobby went live.
