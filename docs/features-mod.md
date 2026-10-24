@@ -7,7 +7,7 @@ and scores each game there, keeps the tournament's rounds and standings, runs au
 everything the tournament does in Discord (reports, standings, the live lobby message, linking, the
 private results channel) through The Button open on the same PC. Players use the normal game on any
 platform. Hosts run it; organisers, referees and casters use what it posts and sends. This page
-describes the mod as of v0.1.67 (released with Red Alert 0.3.19). For setup steps, see the
+describes the mod as of v0.1.68 (released with Red Alert 0.3.20). For setup steps, see the
 [README](../README.md).
 
 ## At a glance

@@ -144,6 +144,9 @@ public class ReportFormatterTests
         var lines = embed.Description!.Split('\n');
         Assert.Equal(3 + 3, lines.Length);           // fence, header, 3 rows, fence
         Assert.Contains("1 game", embed.Footer!.Text);
+        // No impostor v crewmate win totals.
+        Assert.DoesNotContain("Crew", embed.Footer.Text);
+        Assert.DoesNotContain("Impostors", embed.Footer.Text);
     }
 
     [Fact]

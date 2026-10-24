@@ -762,3 +762,8 @@ _Real lobbies (Simulation off: simulated breaks are never logged); a sponsor wit
 - [ ] A lobby change during a break, then the break runs out → one appearance of its whole time
 - [ ] The sponsor's line shows the right times shown and minutes, and **Export report** has the same appearances
 - [ ] The same breaks with Simulation on → nothing logged
+
+## New in 0.1.68 (Red Alert 0.3.20)
+
+- [ ] Discord leaderboard (Post → Leaderboard, or after a game in settings-file mode): the footer says how many games and nothing about crew or impostor wins
+- [ ] Red Alert: nowhere on the desk, the Watch page or the stream shows impostor v crewmate win totals

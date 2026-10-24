@@ -1,6 +1,6 @@
 # What's left to do
 
-What needs doing, or could be done, to improve the tournament system, as of The Button and the mod **v0.1.67** and Red Alert **0.3.19** (20 October 2026; first written for v0.1.64). Each item says why, where the evidence is (file and line as of v0.1.64), and a rough size: **S** is under half a day, **M** is 1–2 days, **L** is 3 days or more.
+What needs doing, or could be done, to improve the tournament system, as of The Button and the mod **v0.1.68** and Red Alert **0.3.20** (24 October 2026; first written for v0.1.64). Each item says why, where the evidence is (file and line as of v0.1.64), and a rough size: **S** is under half a day, **M** is 1–2 days, **L** is 3 days or more.
 
 What each app already does is in [features-the-button.md](features-the-button.md), [features-mod.md](features-mod.md) and [features-red-alert.md](features-red-alert.md).
 
@@ -509,6 +509,12 @@ These ideas from earlier audits are in the code now, so they are not on the list
 - **The Referee tab on one screen,** with one void reason, the admin lobby list filled when the tab opens, and the "Not held for Submit" subtitle (`index.html:918`).
 
 ---
+
+## Done in 0.1.68
+
+Done in The Button and the mod 0.1.68 and Red Alert 0.3.20.
+
+- **No impostor v crewmate win totals:** the Discord leaderboard's footer no longer says "Crew N – N Impostors" (just the number of games), and Red Alert's desk no longer works them out or keeps their scope (an older settings.json with `WinScope` still reads; it's ignored). The on-stream win counter went in 0.1.67. The organiser's private preliminary count still shows each lobby's impostor and crew wins.
 
 ## Done in 0.1.67
 
